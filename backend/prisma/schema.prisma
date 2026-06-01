@@ -1,0 +1,154 @@
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Branch {
+  id           Int           @id @default(autoincrement())
+  name         String
+  address      String?
+  phone        String?
+  active       Boolean       @default(true)
+  users        User[]
+  inventories  Inventory[]
+  kardexEntries Kardex[]
+  sales        Sale[]
+  cashSessions CashSession[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model User {
+  id           Int           @id @default(autoincrement())
+  email        String        @unique
+  passwordHash String
+  pinCode      String?       // PIN de 4 dígitos para cajeros (cifrado/plano)
+  name         String
+  role         String        // 'ADMIN', 'GERENTE', 'CAJERO'
+  active       Boolean       @default(true)
+  branchId     Int
+  branch       Branch        @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  kardexEntries Kardex[]
+  sales        Sale[]
+  cashSessions CashSession[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Product {
+  id           Int           @id @default(autoincrement())
+  sku          String        @unique
+  barcode      String?       @unique
+  name         String
+  description  String?
+  costPrice    Decimal       @db.Decimal(18, 2)
+  sellPrice    Decimal       @db.Decimal(18, 2)
+  active       Boolean       @default(true)
+  inventories  Inventory[]
+  kardexEntries Kardex[]
+  saleDetails  SaleDetail[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Inventory {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  branchId  Int
+  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  quantity  Int      @default(0) // Piezas (enteros)
+  minStock  Int      @default(5)
+  maxStock  Int      @default(100)
+  
+  @@unique([productId, branchId])
+}
+
+model Kardex {
+  id             Int      @id @default(autoincrement())
+  productId      Int
+  product        Product  @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  branchId       Int
+  branch         Branch   @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  userId         Int
+  user           User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  quantityChange Int      // Cantidad de piezas añadidas (+) o restadas (-)
+  balanceAfter   Int      // Stock final después del movimiento
+  movementType   String   // 'COMPRA', 'VENTA', 'DEVOLUCION', 'TRASPASO_ENTRADA', 'TRASPASO_SALIDA', 'AJUSTE_MERMA', 'AJUSTE_INVENTARIO'
+  reason         String?
+  createdAt      DateTime @default(now())
+}
+
+model CashSession {
+  id             Int       @id @default(autoincrement())
+  branchId       Int
+  branch         Branch    @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  userId         Int
+  user           User      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  openedAt       DateTime  @default(now())
+  closedAt       DateTime?
+  initialAmount  Decimal   @db.Decimal(18, 2)
+  expectedAmount Decimal   @db.Decimal(18, 2)
+  declaredAmount Decimal?  @db.Decimal(18, 2)
+  difference     Decimal?  @db.Decimal(18, 2)
+  cashIn         Decimal   @default(0) @db.Decimal(18, 2)
+  cashOut        Decimal   @default(0) @db.Decimal(18, 2)
+  status         String    @default("ABIERTA") // 'ABIERTA', 'CERRADA'
+  sales          Sale[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Customer {
+  id          Int      @id @default(autoincrement())
+  name        String
+  email       String?
+  phone       String?
+  taxId       String?  // RFC o equivalente fiscal
+  address     String?
+  creditLimit Decimal  @default(0) @db.Decimal(18, 2)
+  balance     Decimal  @default(0) @db.Decimal(18, 2) // Saldo pendiente
+  sales       Sale[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Sale {
+  id             Int          @id @default(autoincrement())
+  invoiceNumber  String       @unique // Folio de venta único
+  branchId       Int
+  branch         Branch       @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  userId         Int
+  user           User         @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customerId     Int?
+  customer       Customer?    @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cashSessionId  Int?
+  cashSession    CashSession? @relation(fields: [cashSessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  totalAmount    Decimal      @db.Decimal(18, 2)
+  taxAmount      Decimal      @db.Decimal(18, 2)
+  discountAmount Decimal      @default(0) @db.Decimal(18, 2)
+  paymentMethod  String       // 'EFECTIVO', 'TARJETA', 'CREDITO', 'MIXTO'
+  cashReceived   Decimal?     @db.Decimal(18, 2)
+  changeGiven    Decimal?     @db.Decimal(18, 2)
+  status         String       @default("COMPLETADA") // 'COMPLETADA', 'CANCELADA'
+  saleDetails    SaleDetail[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model SaleDetail {
+  id             Int     @id @default(autoincrement())
+  saleId         Int
+  sale           Sale    @relation(fields: [saleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  productId      Int
+  product        Product @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  quantity       Int     // Piezas enteras vendidas
+  unitPrice      Decimal @db.Decimal(18, 2)
+  costPrice      Decimal @db.Decimal(18, 2) // Para reportes de margen neto
+  taxAmount      Decimal @db.Decimal(18, 2)
+  discountAmount Decimal @default(0) @db.Decimal(18, 2)
+}
