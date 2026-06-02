@@ -137,6 +137,8 @@ model Sale {
   cashReceived   Decimal?     @db.Decimal(18, 2)
   changeGiven    Decimal?     @db.Decimal(18, 2)
   status         String       @default("COMPLETADA") // 'COMPLETADA', 'CANCELADA'
+  cfdiUuid       String?      // Folio fiscal de facturación SAT (si ya se autofacturó)
+  cfdiEmail      String?      // Correo al que se envió la factura timbrada
   saleDetails    SaleDetail[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt

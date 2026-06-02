@@ -1314,8 +1314,9 @@ const Dashboard: React.FC = () => {
             <h3 style={styles.modalTitle}>Cancelación Producto / Venta:</h3>
             <form onSubmit={handleCancelSaleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "14px" }}>
               <div style={styles.inputGroup}>
-                <label style={styles.label}>Folio de Venta (Invoice):</label>
+                <label htmlFor="cancelInvoice" style={styles.label}>Folio de Venta (Invoice):</label>
                 <input
+                  id="cancelInvoice"
                   type="text"
                   required
                   className="input-corporate"
@@ -1326,8 +1327,9 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div style={styles.inputGroup}>
-                <label style={styles.label}>PIN de Autorización del Gerente:</label>
+                <label htmlFor="cancelPin" style={styles.label}>PIN de Autorización del Gerente:</label>
                 <input
+                  id="cancelPin"
                   type="password"
                   maxLength={4}
                   required
@@ -1339,8 +1341,9 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div style={styles.inputGroup}>
-                <label style={styles.label}>Motivo de Cancelación:</label>
+                <label htmlFor="cancelReason" style={styles.label}>Motivo de Cancelación:</label>
                 <input
+                  id="cancelReason"
                   type="text"
                   required
                   className="input-corporate"
@@ -1363,7 +1366,7 @@ const Dashboard: React.FC = () => {
                   disabled={cancelLoading}
                   style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
                 >
-                  {cancelLoading ? "Cancelando..." : "ELIMINAR PRODUCTO"}
+                  {cancelLoading ? "Cancelando..." : "CANCELAR VENTA"}
                 </button>
               </div>
             </form>
