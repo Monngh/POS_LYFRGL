@@ -1,0 +1,441 @@
+import { Request, Response } from "express";
+import { prisma } from "../app";
+import bcrypt from "bcryptjs";
+
+/**
+ * Registrar una nueva venta en el sistema (Corte Transaccional ACID)
+ */
+export const createSale = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  const { items, paymentMethod, cashReceived, changeGiven, discountAmount, customerId } = req.body;
+
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    res.status(400).json({ message: "El carrito de ventas no puede estar vacío." });
+    return;
+  }
+
+  try {
+    // 1. Verificar sesión de caja abierta
+    const activeSession = await prisma.cashSession.findFirst({
+      where: {
+        userId: req.user.userId,
+        branchId: req.user.branchId,
+        status: "ABIERTA",
+        closedAt: null,
+      },
+    });
+
+    if (!activeSession) {
+      res.status(400).json({ message: "Debe tener una sesión de caja abierta para registrar ventas." });
+      return;
+    }
+
+    // 2. Calcular importes y validar stock de productos
+    let calculatedSubtotal = 0;
+    const itemsWithCosts: any[] = [];
+
+    for (const item of items) {
+      const dbProduct = await prisma.product.findUnique({
+        where: { id: item.id },
+        include: {
+          inventories: {
+            where: { branchId: req.user.branchId },
+          },
+        },
+      });
+
+      if (!dbProduct || !dbProduct.active) {
+        res.status(404).json({ message: `El producto ${item.name} no existe o está inactivo.` });
+        return;
+      }
+
+      const branchInventory = dbProduct.inventories[0];
+      const currentStock = branchInventory ? branchInventory.quantity : 0;
+
+      if (currentStock < item.quantity) {
+        res.status(400).json({
+          message: `Inventario insuficiente para: ${dbProduct.name}. Disponible: ${currentStock} pz. Solicitado: ${item.quantity} pz.`,
+        });
+        return;
+      }
+
+      calculatedSubtotal += Number(dbProduct.sellPrice) * item.quantity;
+      itemsWithCosts.push({
+        productId: dbProduct.id,
+        quantity: item.quantity,
+        unitPrice: Number(dbProduct.sellPrice),
+        costPrice: Number(dbProduct.costPrice),
+        currentStock,
+        inventoryId: branchInventory.id,
+      });
+    }
+
+    // Calcular IVA y Total
+    const discount = discountAmount ? Number(discountAmount) : 0;
+    const finalSubtotal = calculatedSubtotal - discount;
+    const finalTax = finalSubtotal * 0.16; // 16% IVA
+    const finalTotal = finalSubtotal + finalTax;
+
+    // Generar Folio Único correlativo temporal
+    const timestamp = Date.now().toString().slice(-6);
+    const randomSuffix = Math.floor(100 + Math.random() * 900);
+    const invoiceNumber = `V-${timestamp}${randomSuffix}`;
+
+    // 3. Bloque de Transacción Transaccional ACID en Prisma
+    const newSale = await prisma.$transaction(async (tx) => {
+      // a. Crear registro de venta principal
+      const sale = await tx.sale.create({
+        data: {
+          invoiceNumber,
+          branchId: req.user!.branchId,
+          userId: req.user!.userId,
+          customerId: customerId ? Number(customerId) : null,
+          cashSessionId: activeSession.id,
+          totalAmount: finalTotal,
+          taxAmount: finalTax,
+          discountAmount: discount,
+          paymentMethod,
+          cashReceived: cashReceived ? Number(cashReceived) : null,
+          changeGiven: changeGiven ? Number(changeGiven) : null,
+          status: "COMPLETADA",
+        },
+      });
+
+      // b. Procesar cada detalle del carrito, ajustar inventario y registrar Kardex
+      for (const item of itemsWithCosts) {
+        // Guardar detalles de la venta
+        await tx.saleDetail.create({
+          data: {
+            saleId: sale.id,
+            productId: item.productId,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            costPrice: item.costPrice,
+            taxAmount: item.unitPrice * item.quantity * 0.16,
+            discountAmount: 0,
+          },
+        });
+
+        // Decrementar el inventario físico
+        const nextQty = item.currentStock - item.quantity;
+        await tx.inventory.update({
+          where: { id: item.inventoryId },
+          data: { quantity: nextQty },
+        });
+
+        // Registrar movimiento inmutable en el Kardex
+        await tx.kardex.create({
+          data: {
+            productId: item.productId,
+            branchId: req.user!.branchId,
+            userId: req.user!.userId,
+            quantityChange: -item.quantity,
+            balanceAfter: nextQty,
+            movementType: "VENTA",
+            reason: `Venta registrada con Folio: ${invoiceNumber}`,
+          },
+        });
+      }
+
+      // c. Actualizar montos en la sesión de caja activa
+      const cashToAdd = paymentMethod === "EFECTIVO" ? finalTotal : paymentMethod === "MIXTO" ? (cashReceived ? Number(cashReceived) - (changeGiven ? Number(changeGiven) : 0) : finalTotal) : 0;
+      
+      await tx.cashSession.update({
+        where: { id: activeSession.id },
+        data: {
+          cashIn: { increment: cashToAdd },
+          expectedAmount: { increment: finalTotal },
+        },
+      });
+
+      return sale;
+    });
+
+    res.status(201).json({
+      message: "Venta registrada exitosamente.",
+      invoiceNumber: newSale.invoiceNumber,
+      saleId: newSale.id,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al procesar la venta.", error: error.message });
+  }
+};
+
+/**
+ * Obtener listado de las últimas 10 ventas registradas en la sucursal (para el dashboard del cajero)
+ */
+export const getRecentSales = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  try {
+    const recentSales = await prisma.sale.findMany({
+      where: {
+        branchId: req.user.branchId,
+      },
+      take: 10,
+      orderBy: { createdAt: "desc" },
+      include: {
+        user: { select: { name: true } },
+      },
+    });
+
+    const mappedSales = recentSales.map((s) => ({
+      id: s.id,
+      invoiceNumber: s.invoiceNumber,
+      createdAt: s.createdAt,
+      totalAmount: Number(s.totalAmount),
+      paymentMethod: s.paymentMethod,
+      status: s.status,
+      cajero: s.user.name,
+    }));
+
+    res.status(200).json({ sales: mappedSales });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al recuperar ventas recientes.", error: error.message });
+  }
+};
+
+/**
+ * Cancelar una venta requiriendo la autorización por PIN de un Administrador o Gerente
+ */
+export const authorizeAndCancelSale = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  const { invoiceNumber, pinCode, reason } = req.body;
+
+  if (!invoiceNumber || !pinCode || !reason) {
+    res.status(400).json({ message: "El folio de la venta, el código PIN del autorizador y el motivo son requeridos." });
+    return;
+  }
+
+  try {
+    // 1. Validar que el PIN corresponda a un Administrador o Gerente de la misma sucursal o global
+
+    // Validar el PIN comparando con todos los administradores/gerentes del sistema
+    const managers = await prisma.user.findMany({
+      where: {
+        role: { in: ["ADMIN", "GERENTE"] },
+        active: true,
+      },
+    });
+
+    let approver = null;
+    for (const m of managers) {
+      if (m.pinCode) {
+        const isMatch = await bcrypt.compare(pinCode, m.pinCode);
+        if (isMatch) {
+          approver = m;
+          break;
+        }
+      }
+    }
+
+    if (!approver) {
+      res.status(401).json({ message: "PIN de autorización incorrecto o el usuario no cuenta con privilegios de Administrador/Gerente." });
+      return;
+    }
+
+    // 2. Buscar la venta y sus detalles
+    const sale = await prisma.sale.findUnique({
+      where: { invoiceNumber },
+      include: { saleDetails: true },
+    });
+
+    if (!sale) {
+      res.status(404).json({ message: "Venta no encontrada." });
+      return;
+    }
+
+    if (sale.status === "CANCELADA") {
+      res.status(400).json({ message: "Esta venta ya fue cancelada anteriormente." });
+      return;
+    }
+
+    // 3. Bloque transaccional ACID para revertir inventario, registrar Kardex y actualizar venta
+    await prisma.$transaction(async (tx) => {
+      // a. Cambiar estatus de la venta
+      await tx.sale.update({
+        where: { id: sale.id },
+        data: { status: "CANCELADA" },
+      });
+
+      // b. Reintegrar cada producto al stock de la sucursal y registrar Kardex de devolución
+      for (const d of sale.saleDetails) {
+        // Encontrar inventario del producto
+        const inventory = await tx.inventory.findFirst({
+          where: {
+            productId: d.productId,
+            branchId: sale.branchId,
+          },
+        });
+
+        if (inventory) {
+          const nextQty = inventory.quantity + d.quantity;
+          await tx.inventory.update({
+            where: { id: inventory.id },
+            data: { quantity: nextQty },
+          });
+
+          // Registrar en el Kardex como AJUSTE_INVENTARIO o DEVOLUCION
+          await tx.kardex.create({
+            data: {
+              productId: d.productId,
+              branchId: sale.branchId,
+              userId: req.user!.userId,
+              quantityChange: d.quantity,
+              balanceAfter: nextQty,
+              movementType: "DEVOLUCION",
+              reason: `Cancelación Venta Folio: ${invoiceNumber}. Autorizó: ${approver.name}. Motivo: ${reason}`,
+            },
+          });
+        }
+      }
+
+      // c. Revertir impacto de caja en la sesión correspondiente
+      if (sale.cashSessionId) {
+        const cashToSubtract = sale.paymentMethod === "EFECTIVO" ? Number(sale.totalAmount) : 0;
+        await tx.cashSession.update({
+          where: { id: sale.cashSessionId },
+          data: {
+            cashIn: { decrement: cashToSubtract },
+            expectedAmount: { decrement: Number(sale.totalAmount) },
+          },
+        });
+      }
+    });
+
+    res.status(200).json({
+      message: "Venta cancelada exitosamente. El inventario y los saldos de caja han sido actualizados.",
+      approver: approver.name,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al cancelar la venta.", error: error.message });
+  }
+};
+
+/**
+ * Simular y registrar depósitos bancarios reduciendo efectivo de la sesión activa
+ */
+export const createBankDeposit = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  const { accountNumber, targetName, amount, paymentType, comments } = req.body;
+
+  if (!accountNumber || !targetName || !amount || !paymentType) {
+    res.status(400).json({ message: "Todos los campos son requeridos para procesar el depósito." });
+    return;
+  }
+
+  try {
+    const activeSession = await prisma.cashSession.findFirst({
+      where: {
+        userId: req.user.userId,
+        branchId: req.user.branchId,
+        status: "ABIERTA",
+        closedAt: null,
+      },
+    });
+
+    if (!activeSession) {
+      res.status(400).json({ message: "Debe tener una caja abierta para procesar depósitos." });
+      return;
+    }
+
+    const decAmount = Number(amount);
+    const inBox = Number(activeSession.initialAmount) + Number(activeSession.cashIn) - Number(activeSession.cashOut);
+
+    if (paymentType === "EFECTIVO" && inBox < decAmount) {
+      res.status(400).json({ message: `Efectivo insuficiente en caja chica. Disponible: $${inBox.toFixed(2)}. Requerido: $${decAmount.toFixed(2)}.` });
+      return;
+    }
+
+    // Registrar el depósito en SQL Server como una salida de caja ("cashOut") con descripción
+    const updatedSession = await prisma.cashSession.update({
+      where: { id: activeSession.id },
+      data: {
+        cashOut: { increment: decAmount },
+      },
+    });
+
+    // Persistir el depósito en un archivo JSON local
+    const fs = require("fs");
+    const path = require("path");
+    const depositsPath = path.join(__dirname, "../deposits.json");
+
+    let depositsList = [];
+    if (fs.existsSync(depositsPath)) {
+      try {
+        depositsList = JSON.parse(fs.readFileSync(depositsPath, "utf-8"));
+      } catch (e) {
+        depositsList = [];
+      }
+    }
+
+    const newDeposit = {
+      id: Date.now(),
+      accountNumber,
+      targetName,
+      amount: decAmount,
+      paymentType,
+      comments: comments || "Sin comentarios",
+      timestamp: new Date(),
+      sessionId: updatedSession.id,
+      branchId: req.user.branchId
+    };
+
+    depositsList.unshift(newDeposit);
+    fs.writeFileSync(depositsPath, JSON.stringify(depositsList, null, 2), "utf-8");
+
+    res.status(201).json({
+      message: "Depósito bancario simulado y registrado en caja chica exitosamente.",
+      deposit: newDeposit,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al procesar el depósito bancario.", error: error.message });
+  }
+};
+
+/**
+ * Obtener historial de depósitos bancarios de la sucursal actual
+ */
+export const getRecentDeposits = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const depositsPath = path.join(__dirname, "../deposits.json");
+
+    let depositsList = [];
+    if (fs.existsSync(depositsPath)) {
+      try {
+        const fileContent = fs.readFileSync(depositsPath, "utf-8");
+        const allDeposits = JSON.parse(fileContent);
+        // Filtrar por sucursal
+        depositsList = allDeposits.filter((d: any) => d.branchId === req!.user!.branchId);
+      } catch (e) {
+        depositsList = [];
+      }
+    }
+
+    res.status(200).json({ deposits: depositsList.slice(0, 10) });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al obtener depósitos recientes.", error: error.message });
+  }
+};
