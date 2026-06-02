@@ -324,7 +324,7 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
 };
 
 /**
- * Simular y registrar depósitos bancarios reduciendo efectivo de la sesión activa
+ * Registrar depósitos bancarios reduciendo efectivo de la sesión activa en SQL Server
  */
 export const createBankDeposit = async (req: Request, res: Response): Promise<void> => {
   if (!req.user) {
@@ -362,46 +362,44 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    // Registrar el depósito en SQL Server como una salida de caja ("cashOut") con descripción
-    const updatedSession = await prisma.cashSession.update({
-      where: { id: activeSession.id },
-      data: {
-        cashOut: { increment: decAmount },
-      },
+    // Usar transacción ACID para asegurar consistencia
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Registrar el depósito en la tabla BankDeposit
+      const deposit = await tx.bankDeposit.create({
+        data: {
+          accountNumber,
+          targetName,
+          amount: decAmount,
+          paymentType,
+          comments: comments || "Sin comentarios",
+          cashSessionId: activeSession.id,
+          branchId: req.user!.branchId,
+        },
+      });
+
+      // 2. Registrar la salida de caja chica ("cashOut")
+      await tx.cashSession.update({
+        where: { id: activeSession.id },
+        data: {
+          cashOut: { increment: decAmount },
+        },
+      });
+
+      return deposit;
     });
 
-    // Persistir el depósito en un archivo JSON local
-    const fs = require("fs");
-    const path = require("path");
-    const depositsPath = path.join(__dirname, "../deposits.json");
-
-    let depositsList = [];
-    if (fs.existsSync(depositsPath)) {
-      try {
-        depositsList = JSON.parse(fs.readFileSync(depositsPath, "utf-8"));
-      } catch (e) {
-        depositsList = [];
-      }
-    }
-
-    const newDeposit = {
-      id: Date.now(),
-      accountNumber,
-      targetName,
-      amount: decAmount,
-      paymentType,
-      comments: comments || "Sin comentarios",
-      timestamp: new Date(),
-      sessionId: updatedSession.id,
-      branchId: req.user.branchId
-    };
-
-    depositsList.unshift(newDeposit);
-    fs.writeFileSync(depositsPath, JSON.stringify(depositsList, null, 2), "utf-8");
-
     res.status(201).json({
-      message: "Depósito bancario simulado y registrado en caja chica exitosamente.",
-      deposit: newDeposit,
+      message: "Depósito bancario registrado en SQL Server exitosamente.",
+      deposit: {
+        id: result.id,
+        accountNumber: result.accountNumber,
+        targetName: result.targetName,
+        amount: Number(result.amount),
+        paymentType: result.paymentType,
+        comments: result.comments,
+        createdAt: result.createdAt,
+        sessionId: result.cashSessionId,
+      },
     });
   } catch (error: any) {
     res.status(500).json({ message: "Error al procesar el depósito bancario.", error: error.message });
@@ -409,7 +407,7 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
 };
 
 /**
- * Obtener historial de depósitos bancarios de la sucursal actual
+ * Obtener historial de depósitos bancarios de la sucursal actual desde SQL Server
  */
 export const getRecentDeposits = async (req: Request, res: Response): Promise<void> => {
   if (!req.user) {
@@ -418,23 +416,26 @@ export const getRecentDeposits = async (req: Request, res: Response): Promise<vo
   }
 
   try {
-    const fs = require("fs");
-    const path = require("path");
-    const depositsPath = path.join(__dirname, "../deposits.json");
+    const deposits = await prisma.bankDeposit.findMany({
+      where: {
+        branchId: req.user.branchId,
+      },
+      take: 10,
+      orderBy: { createdAt: "desc" },
+    });
 
-    let depositsList = [];
-    if (fs.existsSync(depositsPath)) {
-      try {
-        const fileContent = fs.readFileSync(depositsPath, "utf-8");
-        const allDeposits = JSON.parse(fileContent);
-        // Filtrar por sucursal
-        depositsList = allDeposits.filter((d: any) => d.branchId === req!.user!.branchId);
-      } catch (e) {
-        depositsList = [];
-      }
-    }
+    const mappedDeposits = deposits.map((d) => ({
+      id: d.id,
+      accountNumber: d.accountNumber,
+      targetName: d.targetName,
+      amount: Number(d.amount),
+      paymentType: d.paymentType,
+      comments: d.comments,
+      createdAt: d.createdAt,
+      sessionId: d.cashSessionId,
+    }));
 
-    res.status(200).json({ deposits: depositsList.slice(0, 10) });
+    res.status(200).json({ deposits: mappedDeposits });
   } catch (error: any) {
     res.status(500).json({ message: "Error al obtener depósitos recientes.", error: error.message });
   }

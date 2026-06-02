@@ -204,3 +204,47 @@ export const getCashiersByBranch = async (req: Request, res: Response): Promise<
     res.status(500).json({ message: "Error al obtener cajeros de la sucursal.", error: error.message });
   }
 };
+
+/**
+ * Verificar si un código PIN corresponde a un Administrador o Gerente
+ */
+export const verifyManagerPin = async (req: Request, res: Response): Promise<void> => {
+  const { pinCode } = req.body;
+
+  if (!pinCode) {
+    res.status(400).json({ message: "El código PIN es requerido." });
+    return;
+  }
+
+  try {
+    const managers = await prisma.user.findMany({
+      where: {
+        role: { in: ["ADMIN", "GERENTE"] },
+        active: true,
+      },
+    });
+
+    let approver = null;
+    for (const m of managers) {
+      if (m.pinCode) {
+        const isMatch = await comparePassword(pinCode, m.pinCode);
+        if (isMatch) {
+          approver = m;
+          break;
+        }
+      }
+    }
+
+    if (!approver) {
+      res.status(401).json({ message: "PIN de autorización incorrecto o el usuario no cuenta con privilegios de Administrador/Gerente." });
+      return;
+    }
+
+    res.status(200).json({
+      valid: true,
+      name: approver.name,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al validar el PIN.", error: error.message });
+  }
+};

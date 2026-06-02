@@ -11,7 +11,10 @@ import {
   Search,
   Printer,
   XCircle,
-  PiggyBank
+  PiggyBank,
+  Delete,
+  KeyRound,
+  AlertTriangle
 } from "lucide-react";
 
 interface Product {
@@ -173,6 +176,16 @@ const Dashboard: React.FC = () => {
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState<any>(null); // Guardar venta tras cobro para ticket
 
+  // Estados para autorización de PIN en modificaciones de carrito (Fase 3.0)
+  const [pendingCartAction, setPendingCartAction] = useState<{
+    type: "update" | "remove";
+    prodId: number;
+    change?: number;
+  } | null>(null);
+  const [cartPin, setCartPin] = useState("");
+  const [cartPinError, setCartPinError] = useState("");
+  const [cartPinLoading, setCartPinLoading] = useState(false);
+
   const handleProductBarcodeSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!barcodeSearch.trim()) return;
@@ -213,6 +226,15 @@ const Dashboard: React.FC = () => {
   };
 
   const updateCartQty = (prodId: number, change: number) => {
+    if (change < 0) {
+      // Reducción requiere PIN del Administrador/Gerente (Fase 3.0)
+      setCartPin("");
+      setCartPinError("");
+      setPendingCartAction({ type: "update", prodId, change });
+      setActiveModal("cart-pin-auth");
+      return;
+    }
+
     setCart((prev) =>
       prev
         .map((item) => {
@@ -231,7 +253,56 @@ const Dashboard: React.FC = () => {
   };
 
   const removeCartItem = (prodId: number) => {
-    setCart((prev) => prev.filter((item) => item.product.id !== prodId));
+    // Eliminación requiere PIN del Administrador/Gerente (Fase 3.0)
+    setCartPin("");
+    setCartPinError("");
+    setPendingCartAction({ type: "remove", prodId });
+    setActiveModal("cart-pin-auth");
+  };
+
+  const applyAuthorizedCartAction = () => {
+    if (!pendingCartAction) return;
+    const { type, prodId, change } = pendingCartAction;
+
+    if (type === "update" && change !== undefined) {
+      setCart((prev) =>
+        prev
+          .map((item) => {
+            if (item.product.id === prodId) {
+              const nextQty = item.quantity + change;
+              return nextQty > 0 ? { ...item, quantity: nextQty } : null;
+            }
+            return item;
+          })
+          .filter((item): item is { product: Product; quantity: number } => item !== null)
+      );
+    } else if (type === "remove") {
+      setCart((prev) => prev.filter((item) => item.product.id !== prodId));
+    }
+    setPendingCartAction(null);
+    setActiveModal(null);
+  };
+
+  const handleCartPinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cartPin || cartPin.length < 4) {
+      setCartPinError("Ingrese un código PIN completo de 4 dígitos.");
+      return;
+    }
+    setCartPinLoading(true);
+    setCartPinError("");
+    try {
+      const res = await api.post("/api/auth/verify-pin", { pinCode: cartPin });
+      if (res.data.valid) {
+        applyAuthorizedCartAction();
+      } else {
+        setCartPinError("PIN de autorización incorrecto.");
+      }
+    } catch (err: any) {
+      setCartPinError(err.response?.data?.message || "PIN incorrecto o sin privilegios de Gerente/Admin.");
+    } finally {
+      setCartPinLoading(false);
+    }
   };
 
   const cartSubtotal = cart.reduce((sum, item) => sum + item.product.sellPrice * item.quantity, 0);
@@ -396,6 +467,7 @@ const Dashboard: React.FC = () => {
   const [depType, setDepType] = useState("EFECTIVO");
   const [depComments, setDepComments] = useState("");
   const [depLoading, setDepLoading] = useState(false);
+  const [lastDeposit, setLastDeposit] = useState<any>(null); // Para comprobante (Fase 3.0)
 
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -410,20 +482,22 @@ const Dashboard: React.FC = () => {
 
     setDepLoading(true);
     try {
-      await api.post("/api/sales/bank-deposit", {
+      const res = await api.post("/api/sales/bank-deposit", {
         accountNumber: depAccount,
         targetName: depName,
         amount: Number(depAmount),
         paymentType: depType,
         comments: depComments
       });
-      alert("Depósito registrado con éxito en la contabilidad de la caja.");
-      setActiveModal(null);
+      
+      setLastDeposit(res.data.deposit);
       setDepAccount("");
       setDepName("");
       setDepAmount("");
       setDepComments("");
+      
       await loadDashboardData();
+      setActiveModal("deposit-receipt");
     } catch (err: any) {
       alert(err.response?.data?.message || "Error al procesar el depósito.");
     } finally {
@@ -828,6 +902,47 @@ const Dashboard: React.FC = () => {
 
         {/* Content Area */}
         <div style={styles.contentArea}>
+          {/* Alerta de Límite de Efectivo en Caja Chica (Fase 3.0) */}
+          {sessionStats && sessionStats.expectedAmount > 5000 && (
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              backgroundColor: "#fffbeb",
+              border: "1px solid #fef3c7",
+              borderRadius: "8px",
+              padding: "12px 16px",
+              marginBottom: "16px",
+              color: "#b45309"
+            }}>
+              <AlertTriangle size={20} color="#d97706" />
+              <div style={{ flex: 1 }}>
+                <strong style={{ fontSize: "14px", fontWeight: "700" }}>⚠️ Alerta de Efectivo en Caja Chica</strong>
+                <p style={{ fontSize: "12px", margin: "2px 0 0 0", color: "#b45309" }}>
+                  El efectivo actual en caja (${sessionStats.expectedAmount.toFixed(2)} MXN) supera el límite establecido de $5,000.00 MXN. 
+                  Por favor, registre un <strong>Depósito Bancario (Cash Drop)</strong> para retirar el excedente.
+                </p>
+              </div>
+              <button 
+                onClick={() => setActiveModal("bank-deposit")}
+                style={{
+                  backgroundColor: "#d97706",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "4px",
+                  padding: "6px 12px",
+                  fontSize: "12px",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                  transition: "background-color 0.15s ease"
+                }}
+                className="active-tap"
+              >
+                DEPOSITAR AHORA
+              </button>
+            </div>
+          )}
+
           {/* Tarjetas Superiores Estatus (Mockup 7) */}
           <div style={styles.statsGrid}>
             <div style={styles.statusCard}>
@@ -1047,6 +1162,147 @@ const Dashboard: React.FC = () => {
                 ACEPTAR
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: AUTORIZACIÓN PIN GERENTE/ADMIN PARA CARRITO (Fase 3.0) */}
+      {activeModal === "cart-pin-auth" && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.cancelModal, width: "360px" }}>
+            <h3 style={styles.modalTitle}>Autorización de Gerente/Admin</h3>
+            <p style={{ fontSize: "12px", color: "#64748b", margin: "8px 0 16px 0", textAlign: "center" }}>
+              Esta operación requiere la autorización de un Administrador o Gerente. Por favor, introduzca su PIN.
+            </p>
+            
+            <form onSubmit={handleCartPinSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {/* PIN Dots Row */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+                <div style={{ display: "flex", gap: "12px", height: "16px", alignItems: "center" }}>
+                  {[0, 1, 2, 3].map((index) => (
+                    <div
+                      key={index}
+                      style={{
+                        width: "12px",
+                        height: "12px",
+                        borderRadius: "50%",
+                        backgroundColor: cartPin.length > index ? "#1e3a8a" : "#cbd5e1",
+                      }}
+                    />
+                  ))}
+                </div>
+                {cartPinError && (
+                  <p style={{ fontSize: "12px", color: "#dc2626", fontWeight: "600", marginTop: "4px", textAlign: "center" }}>
+                    {cartPinError}
+                  </p>
+                )}
+              </div>
+
+              {/* PIN Pad */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
+                {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    style={{
+                      height: "48px",
+                      borderRadius: "6px",
+                      border: "1px solid #e2e8f0",
+                      backgroundColor: "#ffffff",
+                      fontSize: "16px",
+                      fontWeight: "700",
+                      color: "#334155",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => {
+                      if (cartPin.length < 4) {
+                        setCartPin((prev) => prev + num);
+                      }
+                    }}
+                    className="active-tap"
+                  >
+                    {num}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  style={{
+                    height: "48px",
+                    borderRadius: "6px",
+                    border: "1px solid #e2e8f0",
+                    backgroundColor: "#f1f5f9",
+                    color: "#64748b",
+                    cursor: "pointer",
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                  onClick={() => setCartPin((prev) => prev.slice(0, -1))}
+                  className="active-tap"
+                >
+                  <Delete size={20} />
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    height: "48px",
+                    borderRadius: "6px",
+                    border: "1px solid #e2e8f0",
+                    backgroundColor: "#ffffff",
+                    fontSize: "16px",
+                    fontWeight: "700",
+                    color: "#334155",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => {
+                    if (cartPin.length < 4) {
+                      setCartPin((prev) => prev + "0");
+                    }
+                  }}
+                  className="active-tap"
+                >
+                  0
+                </button>
+                <button
+                  type="submit"
+                  disabled={cartPinLoading || cartPin.length < 4}
+                  style={{
+                    height: "48px",
+                    borderRadius: "6px",
+                    border: "none",
+                    backgroundColor: cartPin.length === 4 ? "#1e3a8a" : "#cbd5e1",
+                    color: "#ffffff",
+                    cursor: cartPin.length === 4 ? "pointer" : "default",
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                  className="active-tap"
+                >
+                  {cartPinLoading ? "..." : <KeyRound size={20} />}
+                </button>
+              </div>
+
+              {/* Botón Cancelar */}
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingCartAction(null);
+                  setActiveModal(null);
+                }}
+                style={{
+                  padding: "10px",
+                  borderRadius: "6px",
+                  border: "1px solid #cbd5e1",
+                  backgroundColor: "#ffffff",
+                  color: "#64748b",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                }}
+              >
+                CANCELAR
+              </button>
+            </form>
           </div>
         </div>
       )}
@@ -1343,6 +1599,115 @@ const Dashboard: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: COMPROBANTE DE RETIRO/DEPÓSITO BANCARIO (Fase 3.0) */}
+      {activeModal === "deposit-receipt" && lastDeposit && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.ticketModal}>
+            <h3 style={styles.modalTitle}>Comprobante de Retiro</h3>
+            <p style={{ fontSize: "11px", color: "#64748b", margin: "4px 0 16px 0", textAlign: "center" }}>
+              Depósito bancario registrado exitosamente en base de datos.
+            </p>
+            
+            <div style={styles.ticketContainer} id="deposit-thermal-receipt">
+              <div style={{ textAlign: "center", borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px", marginBottom: "10px" }}>
+                <strong style={{ fontSize: "14px" }}>FMB SOLUTIONS POS</strong>
+                <p style={{ fontSize: "11px", margin: "2px 0 0 0" }}>{user?.branch.name}</p>
+                <p style={{ fontSize: "9px", margin: "2px 0 0 0", color: "#64748b" }}>
+                  {new Date(lastDeposit.createdAt).toLocaleString()}
+                </p>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "11px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>TIPO MOV:</span>
+                  <strong>RETIRO DE CAJA (DEPÓSITO)</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>ID RETIRO:</span>
+                  <strong>#{lastDeposit.id}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>CUENTA DESTINO:</span>
+                  <strong>**** **** **** {lastDeposit.accountNumber.slice(-4)}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>BENEFICIARIO:</span>
+                  <strong style={{ textAlign: "right" }}>{lastDeposit.targetName}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>MÉTODO DE RETIRO:</span>
+                  <strong>{lastDeposit.paymentType}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>SESIÓN DE CAJA:</span>
+                  <strong>#{lastDeposit.sessionId}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>CAJERO:</span>
+                  <strong>{user?.name}</strong>
+                </div>
+                {lastDeposit.comments && (
+                  <div style={{ borderTop: "1px dashed #cbd5e1", paddingTop: "6px", marginTop: "4px" }}>
+                    <span>REF/COMENTARIOS:</span>
+                    <p style={{ margin: "2px 0 0 0", fontSize: "10px", fontStyle: "italic", color: "#475569" }}>
+                      {lastDeposit.comments}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ marginTop: "14px", paddingTop: "8px", borderTop: "2px solid #0f172a", display: "flex", justifyContent: "space-between", fontSize: "14px" }}>
+                <strong>TOTAL RETIRADO:</strong>
+                <strong>${Number(lastDeposit.amount).toFixed(2)} MXN</strong>
+              </div>
+
+              <div style={{ textAlign: "center", marginTop: "20px", fontSize: "9px", color: "#64748b", borderTop: "1px dashed #cbd5e1", paddingTop: "8px" }}>
+                <span>*** COMPROBANTE DE MOVIMIENTO INTERNO ***</span>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+              <button 
+                onClick={() => {
+                  const printContents = document.getElementById("deposit-thermal-receipt")?.innerHTML;
+                  if (printContents) {
+                    const printWindow = window.open("", "_blank");
+                    if (printWindow) {
+                      printWindow.document.write(`
+                        <html>
+                          <head>
+                            <title>Comprobante de Retiro #${lastDeposit.id}</title>
+                            <style>
+                              body { font-family: monospace; padding: 20px; width: 300px; margin: 0 auto; }
+                              table { width: 100%; border-collapse: collapse; }
+                              th, td { text-align: left; padding: 4px; }
+                              .dashed { border-top: 1px dashed #000; margin: 10px 0; }
+                              .total { font-weight: bold; font-size: 14px; border-top: 2px solid #000; padding-top: 5px; }
+                              .center { text-align: center; }
+                            </style>
+                          </head>
+                          <body>
+                            ${printContents}
+                            <script>window.print(); window.close();</script>
+                          </body>
+                        </html>
+                      `);
+                      printWindow.document.close();
+                    }
+                  }
+                }} 
+                style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
+              >
+                IMPRIMIR
+              </button>
+              <button onClick={() => setActiveModal(null)} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
+                CERRAR
+              </button>
+            </div>
           </div>
         </div>
       )}
