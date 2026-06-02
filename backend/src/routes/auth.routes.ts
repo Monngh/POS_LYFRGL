@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { adminLogin, cashierLogin, getProfile, getBranches, getCashiersByBranch } from "../controllers/auth.controller";
+import { adminLogin, cashierLogin, getProfile, getBranches, getCashiersByBranch, verifyManagerPin } from "../controllers/auth.controller";
 import { authenticateJWT } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -18,5 +18,8 @@ router.post("/cashier-login", cashierLogin);
 
 // Endpoint para obtener el perfil del usuario autenticado (Protegido por JWT)
 router.get("/profile", authenticateJWT, getProfile);
+
+// Endpoint para validar PIN de Administrador/Gerente
+router.post("/verify-pin", authenticateJWT, verifyManagerPin);
 
 export default router;

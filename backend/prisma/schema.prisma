@@ -18,6 +18,7 @@ model Branch {
   kardexEntries Kardex[]
   sales        Sale[]
   cashSessions CashSession[]
+  bankDeposits BankDeposit[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 }
@@ -99,6 +100,7 @@ model CashSession {
   cashOut        Decimal   @default(0) @db.Decimal(18, 2)
   status         String    @default("ABIERTA") // 'ABIERTA', 'CERRADA'
   sales          Sale[]
+  bankDeposits   BankDeposit[]
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 }
@@ -151,4 +153,18 @@ model SaleDetail {
   costPrice      Decimal @db.Decimal(18, 2) // Para reportes de margen neto
   taxAmount      Decimal @db.Decimal(18, 2)
   discountAmount Decimal @default(0) @db.Decimal(18, 2)
+}
+
+model BankDeposit {
+  id            Int         @id @default(autoincrement())
+  accountNumber String
+  targetName    String
+  amount        Decimal     @db.Decimal(18, 2)
+  paymentType   String      // 'EFECTIVO', 'TARJETA'
+  comments      String?
+  cashSessionId Int
+  cashSession   CashSession @relation(fields: [cashSessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  branchId      Int
+  branch        Branch      @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt     DateTime    @default(now())
 }
