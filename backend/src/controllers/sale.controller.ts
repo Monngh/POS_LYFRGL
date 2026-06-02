@@ -11,7 +11,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     return;
   }
 
-  const { items, paymentMethod, cashReceived, changeGiven, discountAmount, customerId } = req.body;
+  const { items, paymentMethod, cardType, cashReceived, changeGiven, discountAmount, customerId } = req.body;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     res.status(400).json({ message: "El carrito de ventas no puede estar vacío." });
@@ -99,6 +99,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
           taxAmount: finalTax,
           discountAmount: discount,
           paymentMethod,
+          cardType: cardType || null,
           cashReceived: cashReceived ? Number(cashReceived) : null,
           changeGiven: changeGiven ? Number(changeGiven) : null,
           status: "COMPLETADA",
@@ -192,6 +193,7 @@ export const getRecentSales = async (req: Request, res: Response): Promise<void>
       createdAt: s.createdAt,
       totalAmount: Number(s.totalAmount),
       paymentMethod: s.paymentMethod,
+      cardType: s.cardType,
       status: s.status,
       cajero: s.user.name,
     }));
