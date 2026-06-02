@@ -167,58 +167,207 @@ export const getSessionStats = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    // Contar cantidad de ventas de esta sesión
-    const salesCount = await prisma.sale.count({
-      where: {
-        cashSessionId: activeSession.id,
-        status: "COMPLETADA",
-      },
-    });
-
-    // Calcular totales de tarjetas crédito y débito
+    // Consultar todas las ventas de la sesión
     const sales = await prisma.sale.findMany({
       where: {
         cashSessionId: activeSession.id,
-        status: "COMPLETADA",
       },
     });
 
+    let salesCount = 0;
+    let totalSalesAmount = 0; // Completadas + Canceladas
+    let totalRefunds = 0; // Canceladas
+    let netTotal = 0; // Completadas
     let creditCardTotal = 0;
     let debitCardTotal = 0;
+    let cashTotal = 0;
 
     for (const sale of sales) {
-      if (sale.paymentMethod === "TARJETA") {
-        if (sale.cardType === "CREDITO") {
-          creditCardTotal += Number(sale.totalAmount);
-        } else if (sale.cardType === "DEBITO") {
-          debitCardTotal += Number(sale.totalAmount);
-        }
-      } else if (sale.paymentMethod === "MIXTO") {
-        const cashPortion = Number(sale.cashReceived || 0) - Number(sale.changeGiven || 0);
-        const cardPortion = Number(sale.totalAmount) - cashPortion;
-        if (sale.cardType === "CREDITO") {
-          creditCardTotal += Math.max(0, cardPortion);
-        } else if (sale.cardType === "DEBITO") {
-          debitCardTotal += Math.max(0, cardPortion);
+      const amount = Number(sale.totalAmount);
+      if (sale.status === "CANCELADA") {
+        totalRefunds += amount;
+      } else if (sale.status === "COMPLETADA") {
+        salesCount++;
+        netTotal += amount;
+        if (sale.paymentMethod === "EFECTIVO") {
+          cashTotal += amount;
+        } else if (sale.paymentMethod === "TARJETA") {
+          if (sale.cardType === "CREDITO") {
+            creditCardTotal += amount;
+          } else {
+            debitCardTotal += amount;
+          }
+        } else if (sale.paymentMethod === "MIXTO") {
+          const cashPortion = Number(sale.cashReceived || 0) - Number(sale.changeGiven || 0);
+          const cardPortion = amount - cashPortion;
+          cashTotal += Math.max(0, cashPortion);
+          if (sale.cardType === "CREDITO") {
+            creditCardTotal += Math.max(0, cardPortion);
+          } else {
+            debitCardTotal += Math.max(0, cardPortion);
+          }
         }
       }
     }
+
+    totalSalesAmount = netTotal + totalRefunds;
 
     res.status(200).json({
       hasActive: true,
       stats: {
         session: activeSession,
         salesCount,
-        totalSalesAmount: Number(activeSession.cashIn), // En nuestro sistema cashIn registra el acumulado de ventas
+        totalSalesAmount,
+        totalRefunds,
+        netTotal,
         initialAmount: Number(activeSession.initialAmount),
         cashIn: Number(activeSession.cashIn),
         cashOut: Number(activeSession.cashOut),
         expectedAmount: Number(activeSession.initialAmount) + Number(activeSession.cashIn) - Number(activeSession.cashOut),
         creditCardTotal,
         debitCardTotal,
+        cashTotal,
       }
     });
   } catch (error: any) {
     res.status(500).json({ message: "Error al cargar estadísticas de turno.", error: error.message });
   }
 };
+
+/**
+ * Generar un corte de caja parcial (Cut)
+ */
+export const createPartialCut = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  try {
+    const activeSession = await prisma.cashSession.findFirst({
+      where: {
+        userId: req.user.userId,
+        branchId: req.user.branchId,
+        status: "ABIERTA",
+        closedAt: null,
+      },
+    });
+
+    if (!activeSession) {
+      res.status(400).json({ message: "No hay ninguna sesión de caja abierta activa." });
+      return;
+    }
+
+    // Consultar todas las ventas de la sesión
+    const sales = await prisma.sale.findMany({
+      where: {
+        cashSessionId: activeSession.id,
+      },
+    });
+
+    let totalSales = 0; // Completadas + Canceladas
+    let totalRefunds = 0; // Canceladas
+    let totalCash = 0; // Efectivo en ventas completadas
+    let creditCardTotal = 0; // Tarjeta crédito en completadas
+    let debitCardTotal = 0; // Tarjeta débito en completadas
+
+    for (const sale of sales) {
+      const amount = Number(sale.totalAmount);
+      if (sale.status === "CANCELADA") {
+        totalRefunds += amount;
+      } else if (sale.status === "COMPLETADA") {
+        totalSales += amount;
+        if (sale.paymentMethod === "EFECTIVO") {
+          totalCash += amount;
+        } else if (sale.paymentMethod === "TARJETA") {
+          if (sale.cardType === "CREDITO") {
+            creditCardTotal += amount;
+          } else {
+            debitCardTotal += amount;
+          }
+        } else if (sale.paymentMethod === "MIXTO") {
+          const cashPortion = Number(sale.cashReceived || 0) - Number(sale.changeGiven || 0);
+          const cardPortion = amount - cashPortion;
+          totalCash += Math.max(0, cashPortion);
+          if (sale.cardType === "CREDITO") {
+            creditCardTotal += Math.max(0, cardPortion);
+          } else {
+            debitCardTotal += Math.max(0, cardPortion);
+          }
+        }
+      }
+    }
+
+    const totalSalesSum = totalSales + totalRefunds;
+    const netTotal = totalSales; // Equivale al neto de ventas completadas
+
+    // Obtener el número de corte actual
+    const cutsCount = await prisma.cashCut.count({
+      where: {
+        cashSessionId: activeSession.id,
+      },
+    });
+    const cutNumber = cutsCount + 1;
+
+    // Crear el registro de corte parcial
+    const newCut = await prisma.cashCut.create({
+      data: {
+        cashSessionId: activeSession.id,
+        totalSales: totalSalesSum,
+        totalCash,
+        totalCreditCard: creditCardTotal,
+        totalDebitCard: debitCardTotal,
+        totalRefunds,
+        netTotal,
+        cutNumber,
+      },
+    });
+
+    res.status(201).json({
+      message: "Corte parcial registrado exitosamente.",
+      cut: newCut,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al generar corte parcial.", error: error.message });
+  }
+};
+
+/**
+ * Obtener todos los cortes parciales de la sesión activa
+ */
+export const getPartialCuts = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  try {
+    const activeSession = await prisma.cashSession.findFirst({
+      where: {
+        userId: req.user.userId,
+        branchId: req.user.branchId,
+        status: "ABIERTA",
+        closedAt: null,
+      },
+    });
+
+    if (!activeSession) {
+      res.status(400).json({ message: "No hay ninguna sesión de caja abierta activa." });
+      return;
+    }
+
+    const cuts = await prisma.cashCut.findMany({
+      where: {
+        cashSessionId: activeSession.id,
+      },
+      orderBy: {
+        cutNumber: "asc",
+      },
+    });
+
+    res.status(200).json({ cuts });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al cargar historial de cortes.", error: error.message });
+  }
+};
+
