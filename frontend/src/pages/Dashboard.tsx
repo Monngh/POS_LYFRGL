@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
+import AdminDashboard from "./AdminDashboard";
 import { 
   LogOut, 
   Store, 
@@ -518,30 +519,10 @@ const Dashboard: React.FC = () => {
   }
 
   // ===========================================================================
-  // RENDER A: MÓDULO ADMINISTRADOR (Mantener soporte)
+  // RENDER A: PANEL ADMINISTRATIVO CENTRAL (Dashboard de métricas)
   // ===========================================================================
   if (user && user.role === "ADMIN") {
-    return (
-      <div style={styles.appContainer}>
-        <header style={styles.navbar}>
-          <div style={styles.navBrand}>
-            <Store size={22} color="#ffffff" />
-            <span style={styles.brandText}>POS FMB Solutions (Admin)</span>
-          </div>
-          <button onClick={logout} style={styles.logoutBtn} className="active-tap">
-            <LogOut size={16} /> Salir
-          </button>
-        </header>
-        <main style={{ padding: "24px" }}>
-          <h2>Panel Administrativo Central</h2>
-          <p style={{ color: "#64748b", marginTop: "4px" }}>Consulte el Dashboard y las métricas empresariales desde la base de datos SQL Server.</p>
-          <div style={{ marginTop: "24px", padding: "32px", background: "white", borderRadius: "8px", border: "1px solid #cbd5e1" }}>
-            <h3>Sucursales Conectadas en SQL Server</h3>
-            <p style={{ marginTop: "8px" }}>Las sucursales se administran desde Prisma. Para ventas, ingrese con un perfil de cajero utilizando PIN.</p>
-          </div>
-        </main>
-      </div>
-    );
+    return <AdminDashboard />;
   }
 
   // ===========================================================================

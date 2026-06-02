@@ -7,6 +7,7 @@ import cashSessionRouter from "./routes/cashSession.routes";
 import productRouter from "./routes/product.routes";
 import saleRouter from "./routes/sale.routes";
 import publicSaleRouter from "./routes/publicSale.routes";
+import dashboardRouter from "./routes/dashboard.routes";
 
 // Inicializar cliente de Prisma como Singleton
 export const prisma = new PrismaClient();
@@ -28,6 +29,7 @@ app.use("/api/cash-session", cashSessionRouter);
 app.use("/api/products", productRouter);
 app.use("/api/sales", saleRouter);
 app.use("/api/public/sales", publicSaleRouter);
+app.use("/api/dashboard", dashboardRouter);
 
 // Ruta de healthcheck
 app.get("/health", async (_req: Request, res: Response) => {

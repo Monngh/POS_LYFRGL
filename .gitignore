@@ -43,6 +43,7 @@ Thumbs.db
 
 # Agent Tooling
 .agents/
+.claude/skills/
 
 # Referencias locales
 contexto/
