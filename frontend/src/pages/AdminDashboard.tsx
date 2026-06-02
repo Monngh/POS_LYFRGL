@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 import {
@@ -13,69 +13,32 @@ import {
   LogOut,
   RefreshCw,
   Store,
-  TrendingUp,
-  CalendarDays,
-  Coins,
-  Receipt,
-  Tag,
-  UserPlus,
-  AlertTriangle,
+  type LucideIcon,
 } from "lucide-react";
 
-// ---------------------------------------------------------------------------
-// Tipos de la respuesta del backend (/api/dashboard/metrics)
-// ---------------------------------------------------------------------------
-interface DashboardMetrics {
-  ventasHoy: number;
-  ventasMes: number;
-  utilidadMes: number;
-  ticketsHoy: number;
-  ticketPromedio: number;
-  productosActivos: number;
-  clientesNuevos: number;
-  inventarioBajo: number;
-}
-interface DayPoint {
-  label: string;
-  date: string;
-  total: number;
-}
-interface BranchSales {
-  id: number;
-  name: string;
-  total: number;
-}
-interface TopProduct {
-  id: number;
-  name: string;
-  unidades: number;
-}
+import DashboardView from "./admin/DashboardView";
+import VentasView from "./admin/VentasView";
+import InventarioView from "./admin/InventarioView";
+import ClientesView from "./admin/ClientesView";
+import CajasView from "./admin/CajasView";
+import EmpleadosView from "./admin/EmpleadosView";
+import ReportesView from "./admin/ReportesView";
+import type { ViewProps } from "./admin/shared";
+
 interface BranchOption {
   id: number;
   name: string;
 }
-interface DashboardResponse {
-  metrics: DashboardMetrics;
-  ventas7dias: DayPoint[];
-  ventasPorSucursal: BranchSales[];
-  productosMasVendidos: TopProduct[];
-  branches: BranchOption[];
-}
 
-// Formateador de moneda (es-MX, sin decimales para los indicadores principales)
-const money = (n: number) =>
-  `$${Math.round(n).toLocaleString("es-MX", { maximumFractionDigits: 0 })}`;
-
-// Elementos del menú lateral
-const NAV_ITEMS = [
-  { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { key: "ventas", label: "Ventas", icon: ShoppingCart },
-  { key: "inventario", label: "Inventario", icon: Package },
-  { key: "clientes", label: "Clientes", icon: Users },
-  { key: "cajas", label: "Cajas", icon: Wallet },
-  { key: "empleados", label: "Empleados", icon: UserCog },
-  { key: "reportes", label: "Reportes", icon: BarChart3 },
-] as const;
+const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<ViewProps>; branchScoped: boolean }[] = [
+  { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, view: DashboardView, branchScoped: true },
+  { key: "ventas", label: "Ventas", icon: ShoppingCart, view: VentasView, branchScoped: true },
+  { key: "inventario", label: "Inventario", icon: Package, view: InventarioView, branchScoped: true },
+  { key: "clientes", label: "Clientes", icon: Users, view: ClientesView, branchScoped: false },
+  { key: "cajas", label: "Cajas", icon: Wallet, view: CajasView, branchScoped: true },
+  { key: "empleados", label: "Empleados", icon: UserCog, view: EmpleadosView, branchScoped: true },
+  { key: "reportes", label: "Reportes", icon: BarChart3, view: ReportesView, branchScoped: true },
+];
 
 const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -83,60 +46,19 @@ const AdminDashboard: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [activeNav, setActiveNav] = useState<string>("dashboard");
   const [branchId, setBranchId] = useState<string>("all");
+  const [branches, setBranches] = useState<BranchOption[]>([]);
+  const [refreshToken, setRefreshToken] = useState(0);
 
-  const [data, setData] = useState<DashboardResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // -------------------------------------------------------------------------
-  // Carga de métricas desde SQL Server
-  // -------------------------------------------------------------------------
-  const loadMetrics = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await api.get<DashboardResponse>("/api/dashboard/metrics", {
-        params: branchId !== "all" ? { branchId } : {},
-      });
-      setData(res.data);
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message ||
-          "No se pudieron cargar las métricas. Verifique la conexión con el servidor."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [branchId]);
-
+  // Cargar el catálogo de sucursales para el filtro global (una sola vez)
   useEffect(() => {
-    loadMetrics();
-  }, [loadMetrics]);
+    api
+      .get<{ branches: BranchOption[] }>("/api/auth/branches")
+      .then((res) => setBranches(res.data.branches))
+      .catch(() => setBranches([]));
+  }, []);
 
-  const branches = data?.branches ?? [];
-
-  // -------------------------------------------------------------------------
-  // Tarjetas de métricas (estructura declarativa)
-  // -------------------------------------------------------------------------
-  const m = data?.metrics;
-  const metricCards = [
-    { label: "Ventas de hoy", value: m ? money(m.ventasHoy) : "—", icon: TrendingUp },
-    { label: "Ventas del mes", value: m ? money(m.ventasMes) : "—", icon: CalendarDays },
-    { label: "Utilidad del mes", value: m ? money(m.utilidadMes) : "—", icon: Coins },
-    { label: "Tickets de hoy", value: m ? String(m.ticketsHoy) : "—", icon: Receipt },
-    { label: "Ticket promedio", value: m ? money(m.ticketPromedio) : "—", icon: Tag },
-    { label: "Productos activos", value: m ? String(m.productosActivos) : "—", icon: Package },
-    { label: "Clientes nuevos", value: m ? String(m.clientesNuevos) : "—", icon: UserPlus },
-    {
-      label: "Inventario bajo",
-      value: m ? `${m.inventarioBajo} ${m.inventarioBajo === 1 ? "producto" : "productos"}` : "—",
-      icon: AlertTriangle,
-      warning: !!m && m.inventarioBajo > 0,
-    },
-  ];
-
-  const maxDay = Math.max(1, ...(data?.ventas7dias.map((d) => d.total) ?? [0]));
-  const maxBranch = Math.max(1, ...(data?.ventasPorSucursal.map((b) => b.total) ?? [0]));
+  const active = NAV_ITEMS.find((n) => n.key === activeNav) ?? NAV_ITEMS[0];
+  const ActiveView = active.view;
 
   return (
     <div style={styles.shell}>
@@ -152,7 +74,7 @@ const AdminDashboard: React.FC = () => {
         <nav style={styles.nav}>
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
-            const active = activeNav === item.key;
+            const isActive = activeNav === item.key;
             return (
               <button
                 key={item.key}
@@ -162,9 +84,9 @@ const AdminDashboard: React.FC = () => {
                 style={{
                   ...styles.navItem,
                   justifyContent: collapsed ? "center" : "flex-start",
-                  backgroundColor: active ? "#3b82f6" : "transparent",
-                  color: active ? "#ffffff" : "#bfdbfe",
-                  fontWeight: active ? 700 : 500,
+                  backgroundColor: isActive ? "#3b82f6" : "transparent",
+                  color: isActive ? "#ffffff" : "#bfdbfe",
+                  fontWeight: isActive ? 700 : 500,
                 }}
               >
                 <Icon size={19} />
@@ -191,7 +113,6 @@ const AdminDashboard: React.FC = () => {
 
       {/* ===================== ÁREA PRINCIPAL ===================== */}
       <div style={styles.main}>
-        {/* Barra superior */}
         <header style={styles.topbar}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <button
@@ -202,20 +123,20 @@ const AdminDashboard: React.FC = () => {
             >
               <Menu size={18} color="#1e3a8a" />
             </button>
-            <div>
-              <h1 style={styles.pageTitle}>Panel Administrativo Central</h1>
-              <p style={styles.pageSubtitle}>Métricas empresariales en tiempo real desde SQL Server</p>
-            </div>
+            <span style={styles.appLabel}>Panel Administrativo Central</span>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={styles.selectWrap}>
+            <div
+              style={{
+                ...styles.selectWrap,
+                opacity: active.branchScoped ? 1 : 0.45,
+                pointerEvents: active.branchScoped ? "auto" : "none",
+              }}
+              title={active.branchScoped ? "Filtrar por sucursal" : "Esta sección no se filtra por sucursal"}
+            >
               <Store size={15} color="#64748b" />
-              <select
-                value={branchId}
-                onChange={(e) => setBranchId(e.target.value)}
-                style={styles.select}
-              >
+              <select value={branchId} onChange={(e) => setBranchId(e.target.value)} style={styles.select}>
                 <option value="all">Todas las sucursales</option>
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>
@@ -224,8 +145,13 @@ const AdminDashboard: React.FC = () => {
                 ))}
               </select>
             </div>
-            <button onClick={loadMetrics} title="Actualizar" className="active-tap" style={styles.iconBtn}>
-              <RefreshCw size={16} color="#1e3a8a" style={loading ? { opacity: 0.5 } : undefined} />
+            <button
+              onClick={() => setRefreshToken((t) => t + 1)}
+              title="Actualizar"
+              className="active-tap"
+              style={styles.iconBtn}
+            >
+              <RefreshCw size={16} color="#1e3a8a" />
             </button>
             <button onClick={logout} className="active-tap" style={styles.logoutBtn}>
               <LogOut size={15} /> Salir
@@ -233,156 +159,17 @@ const AdminDashboard: React.FC = () => {
           </div>
         </header>
 
-        {/* Contenido desplazable */}
         <div style={styles.content}>
-          {activeNav !== "dashboard" ? (
-            <PlaceholderModule label={NAV_ITEMS.find((n) => n.key === activeNav)?.label || ""} />
-          ) : error ? (
-            <div style={styles.errorBox}>
-              <AlertTriangle size={20} color="#b45309" />
-              <span>{error}</span>
-              <button onClick={loadMetrics} className="active-tap" style={styles.retryBtn}>
-                Reintentar
-              </button>
-            </div>
-          ) : (
-            <>
-              {/* ---- Tarjetas de métricas ---- */}
-              <div style={styles.metricsGrid}>
-                {metricCards.map((card) => {
-                  const Icon = card.icon;
-                  return (
-                    <div key={card.label} style={styles.metricCard}>
-                      <div style={styles.metricHead}>
-                        <span style={styles.metricLabel}>{card.label}</span>
-                        <div
-                          style={{
-                            ...styles.metricIcon,
-                            backgroundColor: card.warning ? "#fef3c7" : "#eff6ff",
-                          }}
-                        >
-                          <Icon size={16} color={card.warning ? "#d97706" : "#2563eb"} />
-                        </div>
-                      </div>
-                      <h2
-                        style={{
-                          ...styles.metricValue,
-                          color: card.warning ? "#b45309" : "#0f172a",
-                        }}
-                      >
-                        {loading && !data ? "…" : card.value}
-                      </h2>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* ---- Gráfica de ventas últimos 7 días ---- */}
-              <div style={{ ...styles.panel, marginTop: 20 }}>
-                <h3 style={styles.panelTitle}>Ventas de los últimos 7 días</h3>
-                <div style={styles.chart}>
-                  {(data?.ventas7dias ?? []).map((d, i) => {
-                    const h = Math.round((d.total / maxDay) * 150);
-                    return (
-                      <div key={i} style={styles.chartCol}>
-                        <span style={styles.chartValue}>{d.total > 0 ? money(d.total) : ""}</span>
-                        <div
-                          style={{
-                            ...styles.bar,
-                            height: `${Math.max(h, d.total > 0 ? 6 : 2)}px`,
-                            backgroundColor: d.total > 0 ? "#3b82f6" : "#e2e8f0",
-                          }}
-                        />
-                        <span style={styles.chartLabel}>{d.label}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* ---- Comparativos inferiores ---- */}
-              <div style={styles.bottomGrid}>
-                {/* Ventas por sucursal */}
-                <div style={styles.panel}>
-                  <h3 style={styles.panelTitle}>Ventas por sucursal</h3>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 16 }}>
-                    {(data?.ventasPorSucursal ?? []).map((b) => (
-                      <div key={b.id}>
-                        <div style={styles.branchRow}>
-                          <span style={styles.branchName}>{b.name}</span>
-                          <span style={styles.branchAmount}>{money(b.total)}</span>
-                        </div>
-                        <div style={styles.track}>
-                          <div
-                            style={{
-                              ...styles.trackFill,
-                              width: `${(b.total / maxBranch) * 100}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                    {(data?.ventasPorSucursal ?? []).length === 0 && <EmptyState />}
-                  </div>
-                </div>
-
-                {/* Productos más vendidos */}
-                <div style={styles.panel}>
-                  <h3 style={styles.panelTitle}>Productos más vendidos</h3>
-                  <div style={{ marginTop: 8 }}>
-                    {(data?.productosMasVendidos ?? []).map((p, i) => (
-                      <div key={p.id} style={styles.productRow}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <span style={styles.rankBadge}>{i + 1}</span>
-                          <span style={styles.productName}>{p.name}</span>
-                        </div>
-                        <span style={styles.productUnits}>{p.unidades} u</span>
-                      </div>
-                    ))}
-                    {(data?.productosMasVendidos ?? []).length === 0 && <EmptyState />}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
+          <ActiveView branchId={branchId} refreshToken={refreshToken} />
         </div>
       </div>
     </div>
   );
 };
 
-// Estado vacío reutilizable
-const EmptyState: React.FC = () => (
-  <p style={{ fontSize: 13, color: "#94a3b8", padding: "24px 4px", textAlign: "center" }}>
-    Aún no hay datos registrados para este periodo.
-  </p>
-);
-
-// Módulo en construcción para las demás secciones del menú
-const PlaceholderModule: React.FC<{ label: string }> = ({ label }) => (
-  <div style={styles.placeholder}>
-    <div style={styles.placeholderIcon}>
-      <LayoutDashboard size={28} color="#3b82f6" />
-    </div>
-    <h3 style={{ fontSize: 18, fontWeight: 800, color: "#1e3a8a" }}>Módulo de {label}</h3>
-    <p style={{ fontSize: 14, color: "#64748b", marginTop: 6, maxWidth: 420, textAlign: "center" }}>
-      Esta sección está planificada para una próxima fase. El Dashboard administrativo ya está
-      conectado a la base de datos SQL Server.
-    </p>
-  </div>
-);
-
-// ---------------------------------------------------------------------------
-// Estilos (paleta corporativa azul / navy — consistente con el resto del POS)
-// ---------------------------------------------------------------------------
 const styles: { [k: string]: React.CSSProperties } = {
-  shell: {
-    display: "flex",
-    minHeight: "100vh",
-    backgroundColor: "#f1f5f9",
-  },
+  shell: { display: "flex", minHeight: "100vh", backgroundColor: "#f1f5f9" },
 
-  // Sidebar
   sidebar: {
     backgroundColor: "#1e3a8a",
     display: "flex",
@@ -410,20 +197,8 @@ const styles: { [k: string]: React.CSSProperties } = {
     justifyContent: "center",
     flexShrink: 0,
   },
-  brandText: {
-    color: "#ffffff",
-    fontWeight: 800,
-    fontSize: 16,
-    letterSpacing: "-0.3px",
-    whiteSpace: "nowrap",
-  },
-  nav: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-    padding: "16px 12px",
-    flex: 1,
-  },
+  brandText: { color: "#ffffff", fontWeight: 800, fontSize: 16, letterSpacing: "-0.3px", whiteSpace: "nowrap" },
+  nav: { display: "flex", flexDirection: "column", gap: 4, padding: "16px 12px", flex: 1 },
   navItem: {
     display: "flex",
     alignItems: "center",
@@ -436,16 +211,8 @@ const styles: { [k: string]: React.CSSProperties } = {
     whiteSpace: "nowrap",
     transition: "background-color 0.15s ease, color 0.15s ease",
   },
-  sidebarFooter: {
-    padding: "14px 12px",
-    borderTop: "1px solid rgba(255,255,255,0.12)",
-  },
-  userMini: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "4px 4px",
-  },
+  sidebarFooter: { padding: "14px 12px", borderTop: "1px solid rgba(255,255,255,0.12)" },
+  userMini: { display: "flex", alignItems: "center", gap: 10, padding: "4px 4px" },
   userAvatar: {
     width: 32,
     height: 32,
@@ -464,21 +231,11 @@ const styles: { [k: string]: React.CSSProperties } = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-  userRole: {
-    color: "#93c5fd",
-    fontSize: 11,
-    fontWeight: 600,
-  },
+  userRole: { color: "#93c5fd", fontSize: 11, fontWeight: 600 },
 
-  // Main
-  main: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    minWidth: 0,
-  },
+  main: { flex: 1, display: "flex", flexDirection: "column", minWidth: 0 },
   topbar: {
-    height: 70,
+    height: 64,
     backgroundColor: "#ffffff",
     borderBottom: "1px solid #e2e8f0",
     display: "flex",
@@ -489,17 +246,7 @@ const styles: { [k: string]: React.CSSProperties } = {
     top: 0,
     zIndex: 10,
   },
-  pageTitle: {
-    fontSize: 18,
-    fontWeight: 800,
-    color: "#0f172a",
-    letterSpacing: "-0.3px",
-  },
-  pageSubtitle: {
-    fontSize: 12,
-    color: "#64748b",
-    marginTop: 2,
-  },
+  appLabel: { fontSize: 15, fontWeight: 800, color: "#0f172a", letterSpacing: "-0.3px" },
   iconBtn: {
     width: 38,
     height: 38,
@@ -545,212 +292,7 @@ const styles: { [k: string]: React.CSSProperties } = {
     cursor: "pointer",
     height: 38,
   },
-  content: {
-    padding: 24,
-    overflowY: "auto",
-  },
-
-  // Métricas
-  metricsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
-    gap: 16,
-  },
-  metricCard: {
-    backgroundColor: "#ffffff",
-    border: "1px solid #e2e8f0",
-    borderRadius: 12,
-    padding: "18px 20px",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-  },
-  metricHead: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  metricLabel: {
-    fontSize: 13,
-    fontWeight: 600,
-    color: "#64748b",
-  },
-  metricIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  metricValue: {
-    fontSize: 26,
-    fontWeight: 800,
-    marginTop: 12,
-    letterSpacing: "-0.5px",
-  },
-
-  // Paneles
-  panel: {
-    backgroundColor: "#ffffff",
-    border: "1px solid #e2e8f0",
-    borderRadius: 12,
-    padding: 20,
-    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-  },
-  panelTitle: {
-    fontSize: 15,
-    fontWeight: 800,
-    color: "#0f172a",
-  },
-
-  // Gráfica de barras
-  chart: {
-    display: "flex",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    gap: 12,
-    height: 200,
-    marginTop: 18,
-    paddingTop: 10,
-    borderBottom: "1px solid #f1f5f9",
-  },
-  chartCol: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: 8,
-    height: "100%",
-  },
-  chartValue: {
-    fontSize: 10,
-    fontWeight: 700,
-    color: "#64748b",
-    height: 12,
-  },
-  bar: {
-    width: "60%",
-    maxWidth: 46,
-    borderRadius: "6px 6px 0 0",
-    transition: "height 0.3s ease",
-  },
-  chartLabel: {
-    fontSize: 12,
-    fontWeight: 600,
-    color: "#94a3b8",
-  },
-
-  // Comparativos
-  bottomGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 20,
-    marginTop: 20,
-  },
-  branchRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 7,
-  },
-  branchName: {
-    fontSize: 13,
-    fontWeight: 600,
-    color: "#334155",
-  },
-  branchAmount: {
-    fontSize: 13,
-    fontWeight: 800,
-    color: "#1e3a8a",
-  },
-  track: {
-    height: 9,
-    backgroundColor: "#eef2f7",
-    borderRadius: 999,
-    overflow: "hidden",
-  },
-  trackFill: {
-    height: "100%",
-    backgroundColor: "#3b82f6",
-    borderRadius: 999,
-    transition: "width 0.3s ease",
-  },
-  productRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "11px 0",
-    borderBottom: "1px solid #f1f5f9",
-  },
-  rankBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    backgroundColor: "#eff6ff",
-    color: "#2563eb",
-    fontSize: 11,
-    fontWeight: 800,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  productName: {
-    fontSize: 13,
-    fontWeight: 600,
-    color: "#334155",
-  },
-  productUnits: {
-    fontSize: 13,
-    fontWeight: 800,
-    color: "#0f172a",
-  },
-
-  // Estados
-  errorBox: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "#fffbeb",
-    border: "1px solid #fef3c7",
-    borderRadius: 10,
-    padding: "16px 18px",
-    color: "#b45309",
-    fontSize: 14,
-    fontWeight: 600,
-  },
-  retryBtn: {
-    marginLeft: "auto",
-    backgroundColor: "#d97706",
-    color: "#ffffff",
-    border: "none",
-    borderRadius: 6,
-    padding: "7px 14px",
-    fontSize: 13,
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-  placeholder: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    textAlign: "center",
-    padding: "80px 24px",
-    backgroundColor: "#ffffff",
-    border: "1px solid #e2e8f0",
-    borderRadius: 12,
-  },
-  placeholderIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 14,
-    backgroundColor: "#eff6ff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
+  content: { padding: 24, overflowY: "auto" },
 };
 
 export default AdminDashboard;
