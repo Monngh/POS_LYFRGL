@@ -134,6 +134,7 @@ model Sale {
   taxAmount      Decimal      @db.Decimal(18, 2)
   discountAmount Decimal      @default(0) @db.Decimal(18, 2)
   paymentMethod  String       // 'EFECTIVO', 'TARJETA', 'CREDITO', 'MIXTO'
+  cardType       String?      // 'CREDITO', 'DEBITO'
   cashReceived   Decimal?     @db.Decimal(18, 2)
   changeGiven    Decimal?     @db.Decimal(18, 2)
   status         String       @default("COMPLETADA") // 'COMPLETADA', 'CANCELADA'

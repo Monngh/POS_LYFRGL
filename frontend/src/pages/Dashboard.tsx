@@ -147,23 +147,37 @@ const Dashboard: React.FC = () => {
   // ---------------------------------------------------------------------------
   const [lookupQuery, setLookupQuery] = useState("");
   const [lookupResults, setLookupResults] = useState<Product[]>([]);
+  const lastLookupQueryRef = React.useRef("");
 
-  const handleLookupSearch = async () => {
+  const handleLookupSearch = async (forceQuery?: string) => {
+    const query = (forceQuery !== undefined ? forceQuery : lookupQuery).trim();
+    if (query === lastLookupQueryRef.current) return;
+    lastLookupQueryRef.current = query;
     try {
-      const res = await api.get(`/api/products/search?query=${lookupQuery}`);
+      const res = await api.get(`/api/products/search?query=${query}`);
       setLookupResults(res.data.products);
     } catch (err) {
       console.error("Error al buscar productos:", err);
     }
   };
 
+  const handleLookupKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleLookupSearch();
+    }
+  };
+
   // Trigger search on typing
   useEffect(() => {
     if (activeModal === "price-lookup") {
+      const query = lookupQuery.trim();
       const delayDebounce = setTimeout(() => {
-        handleLookupSearch();
+        handleLookupSearch(query);
       }, 300);
       return () => clearTimeout(delayDebounce);
+    } else {
+      lastLookupQueryRef.current = "";
     }
   }, [lookupQuery, activeModal]);
 
@@ -175,6 +189,7 @@ const Dashboard: React.FC = () => {
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState<any>(null); // Guardar venta tras cobro para ticket
+  const lastSearchQueryRef = React.useRef("");
 
   // Estados para autorización de PIN en modificaciones de carrito (Fase 3.0)
   const [pendingCartAction, setPendingCartAction] = useState<{
@@ -188,15 +203,19 @@ const Dashboard: React.FC = () => {
 
   const handleProductBarcodeSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!barcodeSearch.trim()) return;
+    const query = barcodeSearch.trim();
+    if (!query) return;
+    if (query === lastSearchQueryRef.current) return;
+    lastSearchQueryRef.current = query;
     try {
-      const res = await api.get(`/api/products/search?query=${barcodeSearch}`);
+      const res = await api.get(`/api/products/search?query=${query}`);
       const list: Product[] = res.data.products;
       if (list.length === 1) {
         // Añadir directamente
         addProductToCart(list[0]);
         setBarcodeSearch("");
         setSearchResults([]);
+        lastSearchQueryRef.current = "";
       } else {
         setSearchResults(list);
       }
@@ -204,6 +223,38 @@ const Dashboard: React.FC = () => {
       console.error("Error al buscar producto:", err);
     }
   };
+
+  // Búsqueda automática al escribir en la terminal de ventas
+  useEffect(() => {
+    if (view !== "sales-terminal") return;
+    const query = barcodeSearch.trim();
+    if (!query) {
+      setSearchResults([]);
+      lastSearchQueryRef.current = "";
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      if (query === lastSearchQueryRef.current) return;
+      lastSearchQueryRef.current = query;
+      try {
+        const res = await api.get(`/api/products/search?query=${query}`);
+        const list: Product[] = res.data.products;
+        if (list.length === 1) {
+          addProductToCart(list[0]);
+          setBarcodeSearch("");
+          setSearchResults([]);
+          lastSearchQueryRef.current = "";
+        } else {
+          setSearchResults(list);
+        }
+      } catch (err) {
+        console.error("Error al buscar producto automáticamente:", err);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [barcodeSearch, view]);
 
   const addProductToCart = (prod: Product) => {
     if (prod.stock <= 0) {
@@ -318,6 +369,7 @@ const Dashboard: React.FC = () => {
   const [mixtoCash, setMixtoCash] = useState("");
   const [mixtoCard, setMixtoCard] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [cardType, setCardType] = useState<"CREDITO" | "DEBITO">("DEBITO");
 
   // Cambio reactivo
   const parsedReceived = Number(cashReceived) || 0;
@@ -352,6 +404,7 @@ const Dashboard: React.FC = () => {
       const res = await api.post("/api/sales", {
         items: itemsPayload,
         paymentMethod,
+        cardType: (paymentMethod === "TARJETA" || paymentMethod === "MIXTO") ? cardType : undefined,
         cashReceived: paymentMethod === "EFECTIVO" ? parsedReceived : paymentMethod === "MIXTO" ? Number(mixtoCash) : 0,
         changeGiven: calculatedChange,
         discountAmount: 0,
@@ -365,6 +418,7 @@ const Dashboard: React.FC = () => {
         tax: cartTax,
         total: cartTotal,
         paymentMethod,
+        cardType: (paymentMethod === "TARJETA" || paymentMethod === "MIXTO") ? cardType : undefined,
         cashReceived: paymentMethod === "EFECTIVO" ? parsedReceived : paymentMethod === "MIXTO" ? Number(mixtoCash) : 0,
         changeGiven: calculatedChange,
         createdAt: new Date().toISOString(),
@@ -810,14 +864,38 @@ const Dashboard: React.FC = () => {
               )}
 
               {paymentMethod === "TARJETA" && (
-                <div style={{ padding: "20px 0", textAlign: "center", color: "#64748b" }}>
-                  <p>Solicite que inserte la tarjeta en la terminal bancaria.</p>
-                  <p style={{ fontWeight: "600", color: "#1e3a8a", marginTop: "8px" }}>NIP requerido en terminal física.</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "14px" }}>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.label}>Tipo de Tarjeta:</label>
+                    <select
+                      value={cardType}
+                      onChange={(e) => setCardType(e.target.value as "CREDITO" | "DEBITO")}
+                      style={styles.select}
+                    >
+                      <option value="DEBITO">Débito</option>
+                      <option value="CREDITO">Crédito</option>
+                    </select>
+                  </div>
+                  <div style={{ padding: "10px 0", textAlign: "center", color: "#64748b" }}>
+                    <p>Solicite que inserte la tarjeta en la terminal bancaria.</p>
+                    <p style={{ fontWeight: "600", color: "#1e3a8a", marginTop: "8px" }}>NIP requerido en terminal física.</p>
+                  </div>
                 </div>
               )}
 
               {paymentMethod === "MIXTO" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "14px" }}>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.label}>Tipo de Tarjeta:</label>
+                    <select
+                      value={cardType}
+                      onChange={(e) => setCardType(e.target.value as "CREDITO" | "DEBITO")}
+                      style={styles.select}
+                    >
+                      <option value="DEBITO">Débito</option>
+                      <option value="CREDITO">Crédito</option>
+                    </select>
+                  </div>
                   <div style={styles.inputGroup}>
                     <label style={styles.label}>Monto con Tarjeta ($):</label>
                     <input
@@ -863,6 +941,242 @@ const Dashboard: React.FC = () => {
                   style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
                 >
                   {checkoutLoading ? "Procesando..." : "COBRAR"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: AUTORIZACIÓN PIN GERENTE/ADMIN PARA CARRITO (Fase 3.0) */}
+        {activeModal === "cart-pin-auth" && (
+          <div style={styles.modalOverlay}>
+            <div style={{ ...styles.cancelModal, width: "360px" }}>
+              <h3 style={styles.modalTitle}>Autorización de Gerente/Admin</h3>
+              <p style={{ fontSize: "12px", color: "#64748b", margin: "8px 0 16px 0", textAlign: "center" }}>
+                Esta operación requiere la autorización de un Administrador o Gerente. Por favor, introduzca su PIN.
+              </p>
+              
+              <form onSubmit={handleCartPinSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                {/* PIN Dots Row */}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+                  <div style={{ display: "flex", gap: "12px", height: "16px", alignItems: "center" }}>
+                    {[0, 1, 2, 3].map((index) => (
+                      <div
+                        key={index}
+                        style={{
+                          width: "12px",
+                          height: "12px",
+                          borderRadius: "50%",
+                          backgroundColor: cartPin.length > index ? "#1e3a8a" : "#cbd5e1",
+                        }}
+                      />
+                    ))}
+                  </div>
+                  {cartPinError && (
+                    <p style={{ fontSize: "12px", color: "#dc2626", fontWeight: "600", marginTop: "4px", textAlign: "center" }}>
+                      {cartPinError}
+                    </p>
+                  )}
+                </div>
+
+                {/* PIN Pad */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
+                  {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      style={{
+                        height: "48px",
+                        borderRadius: "6px",
+                        border: "1px solid #e2e8f0",
+                        backgroundColor: "#ffffff",
+                        fontSize: "16px",
+                        fontWeight: "700",
+                        color: "#334155",
+                        cursor: "pointer",
+                      }}
+                      onClick={() => {
+                        if (cartPin.length < 4) {
+                          setCartPin((prev) => prev + num);
+                        }
+                      }}
+                      className="active-tap"
+                    >
+                      {num}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    style={{
+                      height: "48px",
+                      borderRadius: "6px",
+                      border: "1px solid #e2e8f0",
+                      backgroundColor: "#f1f5f9",
+                      color: "#64748b",
+                      cursor: "pointer",
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                    onClick={() => setCartPin((prev) => prev.slice(0, -1))}
+                    className="active-tap"
+                  >
+                    <Delete size={20} />
+                  </button>
+                  <button
+                    type="button"
+                    style={{
+                      height: "48px",
+                      borderRadius: "6px",
+                      border: "1px solid #e2e8f0",
+                      backgroundColor: "#ffffff",
+                      fontSize: "16px",
+                      fontWeight: "700",
+                      color: "#334155",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => {
+                      if (cartPin.length < 4) {
+                        setCartPin((prev) => prev + "0");
+                      }
+                    }}
+                    className="active-tap"
+                  >
+                    0
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={cartPinLoading || cartPin.length < 4}
+                    style={{
+                      height: "48px",
+                      borderRadius: "6px",
+                      border: "none",
+                      backgroundColor: cartPin.length === 4 ? "#1e3a8a" : "#cbd5e1",
+                      color: "#ffffff",
+                      cursor: cartPin.length === 4 ? "pointer" : "default",
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                    className="active-tap"
+                  >
+                    {cartPinLoading ? "..." : <KeyRound size={20} />}
+                  </button>
+                </div>
+
+                {/* Botón Cancelar */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingCartAction(null);
+                    setActiveModal(null);
+                  }}
+                  style={{
+                    padding: "10px",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    backgroundColor: "#ffffff",
+                    color: "#64748b",
+                    fontWeight: "700",
+                    cursor: "pointer",
+                  }}
+                >
+                  CANCELAR
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 3: TICKET IMPRESO/PDF (Mockup 3) */}
+        {activeModal === "ticket-view" && selectedSale && (
+          <div style={styles.modalOverlay}>
+            <div style={styles.ticketModal}>
+              <div id="print-area" style={styles.ticketContainer}>
+                <div style={{ textAlign: "center", marginBottom: "14px" }}>
+                  <h4 style={{ textTransform: "uppercase", fontWeight: "800" }}>FMB SOLUTIONS</h4>
+                  <p style={{ fontSize: "11px", color: "#475569" }}>SUCURSAL: {user?.branch.name}</p>
+                  <p style={{ fontSize: "10px", color: "#64748b" }}>TEL: 772 100 2000</p>
+                </div>
+
+                <div style={{ borderBottom: "1px dashed #cbd5e1", paddingBottom: "8px", marginBottom: "8px", fontSize: "11px" }}>
+                  <p><strong>Folio:</strong> {selectedSale.invoiceNumber}</p>
+                  <p><strong>Fecha:</strong> {new Date(selectedSale.createdAt).toLocaleDateString()}</p>
+                  <p><strong>Hora:</strong> {new Date(selectedSale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                  <p><strong>Cajero:</strong> {user?.name}</p>
+                </div>
+
+                <table style={{ width: "100%", fontSize: "11px", borderCollapse: "collapse", marginBottom: "8px" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid #cbd5e1" }}>
+                      <th style={{ textAlign: "left", paddingBottom: "4px" }}>Producto</th>
+                      <th style={{ textAlign: "center", paddingBottom: "4px" }}>Cant</th>
+                      <th style={{ textAlign: "right", paddingBottom: "4px" }}>Importe</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedSale.items.map((item: any, idx: number) => (
+                      <tr key={idx}>
+                        <td style={{ padding: "4px 0" }}>{item.product.name}</td>
+                        <td style={{ textAlign: "center", padding: "4px 0" }}>{item.quantity}</td>
+                        <td style={{ textAlign: "right", padding: "4px 0" }}>
+                          ${(item.product.sellPrice * item.quantity).toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <div style={{ borderTop: "1px dashed #cbd5e1", paddingTop: "8px", display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>Subtotal:</span>
+                    <span>${selectedSale.subtotal.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>IVA (16%):</span>
+                    <span>${selectedSale.tax.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "800", fontSize: "12px" }}>
+                    <span>TOTAL:</span>
+                    <span>${selectedSale.total.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div style={{ borderTop: "1px solid #cbd5e1", marginTop: "8px", paddingTop: "8px", fontSize: "11px" }}>
+                  <p>
+                    <strong>Método de pago:</strong> {selectedSale.paymentMethod}
+                    {selectedSale.cardType && ` (${selectedSale.cardType})`}
+                  </p>
+                  {selectedSale.paymentMethod === "EFECTIVO" && (
+                    <>
+                      <p><strong>Pagó con:</strong> ${selectedSale.cashReceived.toFixed(2)}</p>
+                      <p><strong>Cambio:</strong> ${selectedSale.changeGiven.toFixed(2)}</p>
+                    </>
+                  )}
+                  {selectedSale.paymentMethod === "MIXTO" && (
+                    <>
+                      <p><strong>Efectivo:</strong> ${selectedSale.cashReceived.toFixed(2)}</p>
+                      <p><strong>Cambio:</strong> ${selectedSale.changeGiven.toFixed(2)}</p>
+                    </>
+                  )}
+                </div>
+
+                <div style={{ textAlign: "center", marginTop: "20px", fontSize: "10px", color: "#64748b" }}>
+                  <p>¡GRACIAS POR SU COMPRA!</p>
+                  <p>REGRESE PRONTO</p>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+                <button onClick={() => {
+                  setActiveModal(null);
+                  setView("dashboard");
+                  loadDashboardData();
+                }} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
+                  CERRAR TICKET
+                </button>
+                <button onClick={handlePrintTicket} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
+                  <Printer size={16} /> IMPRIMIR
                 </button>
               </div>
             </div>
@@ -1129,6 +1443,7 @@ const Dashboard: React.FC = () => {
                 className="input-corporate"
                 placeholder="Nombre o id del producto"
                 value={lookupQuery}
+                onKeyDown={handleLookupKeyDown}
                 onChange={(e) => setLookupQuery(e.target.value)}
               />
             </div>
@@ -1477,6 +1792,14 @@ const Dashboard: React.FC = () => {
               <div style={styles.summaryRow}>
                 <span>Depósitos/Retiros:</span>
                 <span style={{ fontWeight: "600", color: "#dc2626" }}>-${sessionStats?.cashOut.toFixed(2)}</span>
+              </div>
+              <div style={styles.summaryRow}>
+                <span>Ventas Tarjeta Débito:</span>
+                <span style={{ fontWeight: "600", color: "#0d9488" }}>${sessionStats?.debitCardTotal?.toFixed(2) || "0.00"}</span>
+              </div>
+              <div style={styles.summaryRow}>
+                <span>Ventas Tarjeta Crédito:</span>
+                <span style={{ fontWeight: "600", color: "#0d9488" }}>${sessionStats?.creditCardTotal?.toFixed(2) || "0.00"}</span>
               </div>
               <div style={{ ...styles.summaryRow, borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px" }}>
                 <span>Efectivo Esperado en Caja:</span>

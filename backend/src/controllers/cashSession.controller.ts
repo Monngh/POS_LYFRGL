@@ -175,7 +175,34 @@ export const getSessionStats = async (req: Request, res: Response): Promise<void
       },
     });
 
+    // Calcular totales de tarjetas crédito y débito
+    const sales = await prisma.sale.findMany({
+      where: {
+        cashSessionId: activeSession.id,
+        status: "COMPLETADA",
+      },
+    });
 
+    let creditCardTotal = 0;
+    let debitCardTotal = 0;
+
+    for (const sale of sales) {
+      if (sale.paymentMethod === "TARJETA") {
+        if (sale.cardType === "CREDITO") {
+          creditCardTotal += Number(sale.totalAmount);
+        } else if (sale.cardType === "DEBITO") {
+          debitCardTotal += Number(sale.totalAmount);
+        }
+      } else if (sale.paymentMethod === "MIXTO") {
+        const cashPortion = Number(sale.cashReceived || 0) - Number(sale.changeGiven || 0);
+        const cardPortion = Number(sale.totalAmount) - cashPortion;
+        if (sale.cardType === "CREDITO") {
+          creditCardTotal += Math.max(0, cardPortion);
+        } else if (sale.cardType === "DEBITO") {
+          debitCardTotal += Math.max(0, cardPortion);
+        }
+      }
+    }
 
     res.status(200).json({
       hasActive: true,
@@ -187,6 +214,8 @@ export const getSessionStats = async (req: Request, res: Response): Promise<void
         cashIn: Number(activeSession.cashIn),
         cashOut: Number(activeSession.cashOut),
         expectedAmount: Number(activeSession.initialAmount) + Number(activeSession.cashIn) - Number(activeSession.cashOut),
+        creditCardTotal,
+        debitCardTotal,
       }
     });
   } catch (error: any) {
