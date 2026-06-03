@@ -312,12 +312,44 @@ const Dashboard: React.FC = () => {
   // ---------------------------------------------------------------------------
   // 5. MODAL COBRO (Mockup 4)
   // ---------------------------------------------------------------------------
-  const [paymentMethod, setPaymentMethod] = useState<"EFECTIVO" | "TARJETA" | "MIXTO">("EFECTIVO");
+  const [paymentMethod, setPaymentMethod] = useState<"EFECTIVO" | "TARJETA" | "MIXTO" | "QR_MERCADOPAGO">("EFECTIVO");
   const [cashReceived, setCashReceived] = useState("");
   // Campos para pago mixto
   const [mixtoCash, setMixtoCash] = useState("");
   const [mixtoCard, setMixtoCard] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+
+  // Estados QR MercadoPago
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [qrUrl, setQrUrl] = useState("");
+  const [qrReference, setQrReference] = useState("");
+  const [qrChecking, setQrChecking] = useState(false);
+
+  const checkQrStatus = async () => {
+    setQrChecking(true);
+    try {
+      const res = await api.get(`/api/mercadopago/status/${qrReference}`);
+      if (res.data.status === "approved") {
+        await api.post("/api/sales/confirm-qr", {
+          invoiceNumber: qrReference,
+          paymentId: res.data.paymentId || `mock-${Date.now()}`
+        });
+        alert("Pago aprobado exitosamente.");
+        setQrModalOpen(false);
+        setCart([]);
+        setPaymentMethod("EFECTIVO");
+        setActiveModal("ticket-view");
+      } else if (res.data.status === "rejected") {
+        alert("Pago rechazado.");
+      } else {
+        alert("El pago aún no ha sido completado. Estado: " + res.data.status);
+      }
+    } catch(err) {
+      alert("Error al verificar pago.");
+    } finally {
+      setQrChecking(false);
+    }
+  };
 
   // Cambio reactivo
   const parsedReceived = Number(cashReceived) || 0;
@@ -339,6 +371,56 @@ const Dashboard: React.FC = () => {
         alert("La suma de efectivo y tarjeta es menor al total a pagar.");
         return;
       }
+    }
+
+    if (paymentMethod === "QR_MERCADOPAGO") {
+      setCheckoutLoading(true);
+      try {
+        const itemsPayload = cart.map((c) => ({
+          id: c.product.id,
+          name: c.product.name,
+          quantity: c.quantity,
+        }));
+
+        const res = await api.post("/api/sales", {
+          items: itemsPayload,
+          paymentMethod: "QR_MERCADOPAGO",
+          cashReceived: 0,
+          changeGiven: 0,
+          discountAmount: 0,
+        });
+
+        const saleInvoice = res.data.invoiceNumber;
+        
+        // Generar QR
+        const qrRes = await api.post("/api/mercadopago/qr-preference", {
+          title: "Venta " + saleInvoice,
+          totalAmount: cartTotal,
+          externalReference: saleInvoice
+        });
+
+        setSelectedSale({
+          invoiceNumber: saleInvoice,
+          items: [...cart],
+          subtotal: cartSubtotal,
+          tax: cartTax,
+          total: cartTotal,
+          paymentMethod: "QR_MERCADOPAGO",
+          cashReceived: 0,
+          changeGiven: 0,
+          createdAt: new Date().toISOString(),
+        });
+
+        setQrUrl(qrRes.data.initPoint);
+        setQrReference(saleInvoice);
+        setCheckoutModalOpen(false);
+        setQrModalOpen(true);
+      } catch(err: any) {
+        alert(err.response?.data?.message || "Error al procesar pago QR");
+      } finally {
+        setCheckoutLoading(false);
+      }
+      return;
     }
 
     setCheckoutLoading(true);
@@ -781,6 +863,12 @@ const Dashboard: React.FC = () => {
                 >
                   ⚖️ MIXTO
                 </button>
+                <button
+                  onClick={() => setPaymentMethod("QR_MERCADOPAGO")}
+                  style={{ ...styles.payMethodBtn, ...(paymentMethod === "QR_MERCADOPAGO" ? styles.payMethodActive : {}) }}
+                >
+                  📱 QR MP
+                </button>
               </div>
 
               {/* Inputs de Cobro según método */}
@@ -863,6 +951,39 @@ const Dashboard: React.FC = () => {
                   style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
                 >
                   {checkoutLoading ? "Procesando..." : "COBRAR"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL QR MERCADO PAGO */}
+        {qrModalOpen && (
+          <div style={styles.modalOverlay}>
+            <div style={styles.checkoutModal}>
+              <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
+              <div style={{ textAlign: "center", padding: "20px 0" }}>
+                 <p style={{marginBottom: "10px", fontSize: "14px", color: "#475569"}}>Escanea el siguiente código para pagar <strong>${cartTotal.toFixed(2)}</strong></p>
+                 {qrUrl ? (
+                   <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" width="200" height="200" />
+                 ) : (
+                   <p>Generando QR...</p>
+                 )}
+                 <p style={{ marginTop: "12px", fontSize: "12px", color: "#64748b" }}>Ref: {qrReference}</p>
+              </div>
+              <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
+                <button
+                  onClick={() => setQrModalOpen(false)}
+                  style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
+                >
+                  CERRAR (PAGO PENDIENTE)
+                </button>
+                <button
+                  disabled={qrChecking}
+                  onClick={checkQrStatus}
+                  style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
+                >
+                  {qrChecking ? "VERIFICANDO..." : "VERIFICAR ESTADO"}
                 </button>
               </div>
             </div>
@@ -1055,7 +1176,9 @@ const Dashboard: React.FC = () => {
                                   paymentMethod: sale.paymentMethod,
                                   cashReceived: sale.totalAmount,
                                   changeGiven: 0,
-                                  createdAt: sale.createdAt
+                                  createdAt: sale.createdAt,
+                                  status: sale.status,
+                                  refundStatus: sale.refundStatus
                                 });
                                 setActiveModal("ticket-view");
                               } catch (e) {
@@ -1392,6 +1515,17 @@ const Dashboard: React.FC = () => {
                 <p><strong>Cajero:</strong> {user?.name}</p>
               </div>
 
+              {selectedSale.status === "CANCELADA" && (
+                <div style={{ textAlign: "center", padding: "6px", borderTop: "2px dashed #dc2626", borderBottom: "2px dashed #dc2626", marginBottom: "10px", color: "#dc2626", fontWeight: "bold" }}>
+                  <h4 style={{ margin: 0, fontSize: "14px" }}>*** CANCELADO ***</h4>
+                  {selectedSale.refundStatus && (
+                    <p style={{ margin: "4px 0 0 0", fontSize: "10px" }}>
+                      REEMBOLSO {selectedSale.refundStatus === "APPROVED" ? "REALIZADO" : "PENDIENTE"}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <table style={{ width: "100%", fontSize: "11px", borderCollapse: "collapse", marginBottom: "8px" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid #cbd5e1" }}>
@@ -1477,6 +1611,18 @@ const Dashboard: React.FC = () => {
               <div style={styles.summaryRow}>
                 <span>Depósitos/Retiros:</span>
                 <span style={{ fontWeight: "600", color: "#dc2626" }}>-${sessionStats?.cashOut.toFixed(2)}</span>
+              </div>
+              <div style={styles.summaryRow}>
+                <span>&nbsp;&nbsp;&nbsp;↳ Pendientes (Resguardo):</span>
+                <span style={{ fontWeight: "600", color: "#d97706" }}>${sessionStats?.pendingDeposits?.toFixed(2) || "0.00"}</span>
+              </div>
+              <div style={styles.summaryRow}>
+                <span>&nbsp;&nbsp;&nbsp;↳ Confirmados:</span>
+                <span style={{ fontWeight: "600", color: "#059669" }}>${sessionStats?.confirmedDeposits?.toFixed(2) || "0.00"}</span>
+              </div>
+              <div style={styles.summaryRow}>
+                <span>Reembolsos (x{sessionStats?.refundedSalesCount || 0}):</span>
+                <span style={{ fontWeight: "600", color: "#64748b" }}>${sessionStats?.refundedAmount?.toFixed(2) || "0.00"}</span>
               </div>
               <div style={{ ...styles.summaryRow, borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px" }}>
                 <span>Efectivo Esperado en Caja:</span>
@@ -1653,6 +1799,14 @@ const Dashboard: React.FC = () => {
                   <span>CAJERO:</span>
                   <strong>{user?.name}</strong>
                 </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>REFERENCIA:</span>
+                  <strong>{lastDeposit.reference || "N/A"}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>ESTADO:</span>
+                  <strong>{lastDeposit.status || "PENDING"}</strong>
+                </div>
                 {lastDeposit.comments && (
                   <div style={{ borderTop: "1px dashed #cbd5e1", paddingTop: "6px", marginTop: "4px" }}>
                     <span>REF/COMENTARIOS:</span>
@@ -1750,7 +1904,9 @@ const Dashboard: React.FC = () => {
                               paymentMethod: sale.paymentMethod,
                               cashReceived: sale.totalAmount,
                               changeGiven: 0,
-                              createdAt: sale.createdAt
+                              createdAt: sale.createdAt,
+                              status: sale.status,
+                              refundStatus: sale.refundStatus
                             });
                             setActiveModal("ticket-view");
                           }}

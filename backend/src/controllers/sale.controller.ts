@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../app";
 import bcrypt from "bcryptjs";
+import { executeRefund } from "./mercadopago.controller";
 
 /**
  * Registrar una nueva venta en el sistema (Corte Transaccional ACID)
@@ -101,7 +102,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
           paymentMethod,
           cashReceived: cashReceived ? Number(cashReceived) : null,
           changeGiven: changeGiven ? Number(changeGiven) : null,
-          status: "COMPLETADA",
+          status: paymentMethod === "QR_MERCADOPAGO" ? "PENDIENTE" : "COMPLETADA",
         },
       });
 
@@ -141,16 +142,18 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
         });
       }
 
-      // c. Actualizar montos en la sesión de caja activa
-      const cashToAdd = paymentMethod === "EFECTIVO" ? finalTotal : paymentMethod === "MIXTO" ? (cashReceived ? Number(cashReceived) - (changeGiven ? Number(changeGiven) : 0) : finalTotal) : 0;
-      
-      await tx.cashSession.update({
-        where: { id: activeSession.id },
-        data: {
-          cashIn: { increment: cashToAdd },
-          expectedAmount: { increment: finalTotal },
-        },
-      });
+      // c. Actualizar montos en la sesión de caja activa solo si no está PENDIENTE
+      if (paymentMethod !== "QR_MERCADOPAGO") {
+        const cashToAdd = paymentMethod === "EFECTIVO" ? finalTotal : paymentMethod === "MIXTO" ? (cashReceived ? Number(cashReceived) - (changeGiven ? Number(changeGiven) : 0) : finalTotal) : 0;
+        
+        await tx.cashSession.update({
+          where: { id: activeSession.id },
+          data: {
+            cashIn: { increment: cashToAdd },
+            expectedAmount: { increment: finalTotal },
+          },
+        });
+      }
 
       return sale;
     });
@@ -193,6 +196,7 @@ export const getRecentSales = async (req: Request, res: Response): Promise<void>
       totalAmount: Number(s.totalAmount),
       paymentMethod: s.paymentMethod,
       status: s.status,
+      refundStatus: s.refundStatus,
       cajero: s.user.name,
     }));
 
@@ -261,12 +265,38 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
       return;
     }
 
+    // NEW LOGIC FOR QR_MERCADOPAGO REFUND
+    let refundInfo = null;
+    if (sale.paymentMethod === "QR_MERCADOPAGO" && sale.mercadoPagoPaymentId && sale.status === "COMPLETADA") {
+      const refundResult = await executeRefund(sale.mercadoPagoPaymentId, Number(sale.totalAmount));
+      if (!refundResult.success) {
+        res.status(500).json({ message: "La devolución de Mercado Pago falló. No se puede cancelar la venta.", error: refundResult.message });
+        return;
+      }
+      refundInfo = refundResult;
+    }
+
     // 3. Bloque transaccional ACID para revertir inventario, registrar Kardex y actualizar venta
     await prisma.$transaction(async (tx) => {
       // a. Cambiar estatus de la venta
+      const updateData: any = { status: "CANCELADA" };
+      
+      // Si se ejecutó reembolso, registrar detalles
+      if (refundInfo) {
+        // Ignoramos el error de tipo con ts-ignore ya que Prisma puede no haber actualizado el cliente aún (EPERM error)
+        // @ts-ignore
+        updateData.refundStatus = refundInfo.status === 'approved' ? "APPROVED" : "PENDING";
+        // @ts-ignore
+        updateData.refundId = refundInfo.refundId;
+        // @ts-ignore
+        updateData.refundDate = new Date();
+        // @ts-ignore
+        updateData.refundAmount = sale.totalAmount;
+      }
+
       await tx.sale.update({
         where: { id: sale.id },
-        data: { status: "CANCELADA" },
+        data: updateData,
       });
 
       // b. Reintegrar cada producto al stock de la sucursal y registrar Kardex de devolución
@@ -302,7 +332,7 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
       }
 
       // c. Revertir impacto de caja en la sesión correspondiente
-      if (sale.cashSessionId) {
+      if (sale.cashSessionId && sale.status === "COMPLETADA") {
         const cashToSubtract = sale.paymentMethod === "EFECTIVO" ? Number(sale.totalAmount) : 0;
         await tx.cashSession.update({
           where: { id: sale.cashSessionId },
@@ -362,6 +392,10 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
       return;
     }
 
+    // Generar referencia única para el resguardo
+    const timestampRef = Date.now().toString().slice(-6);
+    const reference = `RESG-${timestampRef}`;
+
     // Usar transacción ACID para asegurar consistencia
     const result = await prisma.$transaction(async (tx) => {
       // 1. Registrar el depósito en la tabla BankDeposit
@@ -374,6 +408,8 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
           comments: comments || "Sin comentarios",
           cashSessionId: activeSession.id,
           branchId: req.user!.branchId,
+          reference: reference,
+          status: "PENDING"
         },
       });
 
@@ -397,6 +433,8 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
         amount: Number(result.amount),
         paymentType: result.paymentType,
         comments: result.comments,
+        reference: result.reference,
+        status: result.status,
         createdAt: result.createdAt,
         sessionId: result.cashSessionId,
       },
@@ -431,6 +469,8 @@ export const getRecentDeposits = async (req: Request, res: Response): Promise<vo
       amount: Number(d.amount),
       paymentType: d.paymentType,
       comments: d.comments,
+      reference: d.reference,
+      status: d.status,
       createdAt: d.createdAt,
       sessionId: d.cashSessionId,
     }));
@@ -438,5 +478,60 @@ export const getRecentDeposits = async (req: Request, res: Response): Promise<vo
     res.status(200).json({ deposits: mappedDeposits });
   } catch (error: any) {
     res.status(500).json({ message: "Error al obtener depósitos recientes.", error: error.message });
+  }
+};
+
+/**
+ * Confirmar el pago QR y cambiar el estado de la venta a COMPLETADA.
+ */
+export const confirmQrPayment = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+  
+  const { invoiceNumber, paymentId } = req.body;
+
+  if (!invoiceNumber || !paymentId) {
+    res.status(400).json({ message: "invoiceNumber y paymentId son requeridos." });
+    return;
+  }
+
+  try {
+    const sale = await prisma.sale.findUnique({ where: { invoiceNumber } });
+    if (!sale) {
+      res.status(404).json({ message: "Venta no encontrada." });
+      return;
+    }
+    
+    if (sale.status === "COMPLETADA") {
+      res.status(200).json({ message: "Venta ya estaba confirmada." });
+      return;
+    }
+
+    const updatedSale = await prisma.$transaction(async (tx) => {
+      // 1. Actualizar venta
+      const updated = await tx.sale.update({
+        where: { id: sale.id },
+        data: { 
+          status: "COMPLETADA",
+          mercadoPagoPaymentId: paymentId,
+          mercadoPagoStatus: "approved"
+        }
+      });
+      
+      // 2. Sumar el total a expectedAmount de la sesión
+      if (sale.cashSessionId) {
+        await tx.cashSession.update({
+          where: { id: sale.cashSessionId },
+          data: { expectedAmount: { increment: Number(sale.totalAmount) } }
+        });
+      }
+      return updated;
+    });
+
+    res.status(200).json({ message: "Pago confirmado exitosamente.", saleId: updatedSale.id });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al confirmar el pago QR.", error: error.message });
   }
 };

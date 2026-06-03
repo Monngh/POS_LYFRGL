@@ -175,7 +175,29 @@ export const getSessionStats = async (req: Request, res: Response): Promise<void
       },
     });
 
+    // Obtener ventas canceladas con QR_MERCADOPAGO de este turno
+    const qrRefundedSales = await prisma.sale.findMany({
+      where: {
+        cashSessionId: activeSession.id,
+        status: "CANCELADA",
+        paymentMethod: "QR_MERCADOPAGO",
+        refundStatus: { not: null }
+      }
+    });
 
+    const refundedSalesCount = qrRefundedSales.length;
+    const refundedAmount = qrRefundedSales.reduce((acc, curr) => acc + (curr.refundAmount ? Number(curr.refundAmount) : 0), 0);
+    const pendingRefundsCount = qrRefundedSales.filter(s => s.refundStatus === "PENDING").length;
+
+    // Recuperar depósitos
+    const deposits = await prisma.bankDeposit.findMany({
+      where: {
+        cashSessionId: activeSession.id
+      }
+    });
+
+    const pendingDeposits = deposits.filter(d => d.status === 'PENDING').reduce((acc, curr) => acc + Number(curr.amount), 0);
+    const confirmedDeposits = deposits.filter(d => d.status === 'COMPLETED').reduce((acc, curr) => acc + Number(curr.amount), 0);
 
     res.status(200).json({
       hasActive: true,
@@ -187,6 +209,12 @@ export const getSessionStats = async (req: Request, res: Response): Promise<void
         cashIn: Number(activeSession.cashIn),
         cashOut: Number(activeSession.cashOut),
         expectedAmount: Number(activeSession.initialAmount) + Number(activeSession.cashIn) - Number(activeSession.cashOut),
+        pendingDeposits,
+        confirmedDeposits,
+        refundedSalesCount,
+        refundedAmount,
+        pendingRefundsCount,
+        depositsDetails: deposits
       }
     });
   } catch (error: any) {

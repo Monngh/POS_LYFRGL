@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createSale, getRecentSales, authorizeAndCancelSale, createBankDeposit, getRecentDeposits } from "../controllers/sale.controller";
+import { createSale, getRecentSales, authorizeAndCancelSale, createBankDeposit, getRecentDeposits, confirmQrPayment } from "../controllers/sale.controller";
 import { authenticateJWT } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -12,5 +12,6 @@ router.get("/recent", getRecentSales);
 router.post("/authorize-cancel", authorizeAndCancelSale);
 router.post("/bank-deposit", createBankDeposit);
 router.get("/deposits", getRecentDeposits);
+router.post("/confirm-qr", confirmQrPayment);
 
 export default router;
