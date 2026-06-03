@@ -183,7 +183,7 @@ const Login: React.FC = () => {
       {/* PANEL IZQUIERDO: Estilo Maqueta 9 (Bienvenida Azul) */}
       <div style={styles.leftPanel}>
         <div style={styles.leftContent}>
-          <div style={styles.badgeLabel}>FMB SOLUTIONS POS</div>
+          <div style={styles.badgeLabel}>LYFRGL SOLUTIONS POS</div>
           <h1 style={styles.leftTitle}>LOGIN</h1>
           <p style={styles.leftSubtitle}>
             Bienvenido, acceda a su cuenta para continuar

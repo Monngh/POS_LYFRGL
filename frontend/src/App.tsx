@@ -13,7 +13,7 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     return (
       <div style={styles.loadingScreen}>
         <div style={styles.spinner} />
-        <p style={styles.loadingText}>FMB Solutions • Cargando sesión...</p>
+        <p style={styles.loadingText}>LYFRGL Solutions • Cargando sesión...</p>
       </div>
     );
   }
