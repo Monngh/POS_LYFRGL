@@ -36,6 +36,7 @@ model User {
   kardexEntries Kardex[]
   sales        Sale[]
   cashSessions CashSession[]
+  bankDeposits BankDeposit[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 }
@@ -182,7 +183,12 @@ model BankDeposit {
   ticketUrl     String?     @db.VarChar(Max)
   cashSessionId Int
   cashSession   CashSession @relation(fields: [cashSessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  userId        Int
+  user          User        @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   branchId      Int
   branch        Branch      @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  confirmedAt   DateTime?
+  cancelledAt   DateTime?
+  cancelReason  String?
   createdAt     DateTime    @default(now())
 }

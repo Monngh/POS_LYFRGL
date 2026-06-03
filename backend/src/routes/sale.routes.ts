@@ -1,5 +1,16 @@
 import { Router } from "express";
-import { createSale, getRecentSales, authorizeAndCancelSale, createBankDeposit, getRecentDeposits, confirmQrPayment } from "../controllers/sale.controller";
+import { 
+  createSale, 
+  getRecentSales, 
+  authorizeAndCancelSale, 
+  createBankDeposit, 
+  getRecentDeposits, 
+  confirmQrPayment,
+  searchDeposits,
+  getDepositById,
+  confirmDeposit,
+  cancelDeposit
+} from "../controllers/sale.controller";
 import { authenticateJWT } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -12,6 +23,10 @@ router.get("/recent", getRecentSales);
 router.post("/authorize-cancel", authorizeAndCancelSale);
 router.post("/bank-deposit", createBankDeposit);
 router.get("/deposits", getRecentDeposits);
+router.get("/deposits/search", searchDeposits);
+router.get("/deposits/:id", getDepositById);
+router.post("/deposits/:id/confirm", confirmDeposit);
+router.post("/deposits/:id/cancel", cancelDeposit);
 router.post("/confirm-qr", confirmQrPayment);
 
 export default router;
