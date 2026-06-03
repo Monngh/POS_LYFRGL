@@ -198,6 +198,7 @@ export const getSessionStats = async (req: Request, res: Response): Promise<void
 
     const pendingDeposits = deposits.filter(d => d.status === 'PENDING').reduce((acc, curr) => acc + Number(curr.amount), 0);
     const confirmedDeposits = deposits.filter(d => d.status === 'COMPLETED').reduce((acc, curr) => acc + Number(curr.amount), 0);
+    const cancelledDeposits = deposits.filter(d => d.status === 'CANCELLED').reduce((acc, curr) => acc + Number(curr.amount), 0);
 
     res.status(200).json({
       hasActive: true,
@@ -211,6 +212,7 @@ export const getSessionStats = async (req: Request, res: Response): Promise<void
         expectedAmount: Number(activeSession.initialAmount) + Number(activeSession.cashIn) - Number(activeSession.cashOut),
         pendingDeposits,
         confirmedDeposits,
+        cancelledDeposits,
         refundedSalesCount,
         refundedAmount,
         pendingRefundsCount,

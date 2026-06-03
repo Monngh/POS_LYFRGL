@@ -354,7 +354,7 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
 };
 
 /**
- * Registrar depósitos bancarios reduciendo efectivo de la sesión activa en SQL Server
+ * Registrar depósitos bancarios (resguardos de efectivo) en SQL Server
  */
 export const createBankDeposit = async (req: Request, res: Response): Promise<void> => {
   if (!req.user) {
@@ -366,6 +366,11 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
 
   if (!accountNumber || !targetName || !amount || !paymentType) {
     res.status(400).json({ message: "Todos los campos son requeridos para procesar el depósito." });
+    return;
+  }
+
+  if (paymentType !== "EFECTIVO") {
+    res.status(400).json({ message: "Solo se permite el retiro en EFECTIVO para resguardo." });
     return;
   }
 
@@ -387,18 +392,36 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
     const decAmount = Number(amount);
     const inBox = Number(activeSession.initialAmount) + Number(activeSession.cashIn) - Number(activeSession.cashOut);
 
-    if (paymentType === "EFECTIVO" && inBox < decAmount) {
+    if (inBox < decAmount) {
       res.status(400).json({ message: `Efectivo insuficiente en caja chica. Disponible: $${inBox.toFixed(2)}. Requerido: $${decAmount.toFixed(2)}.` });
       return;
     }
 
-    // Generar referencia única para el resguardo
-    const timestampRef = Date.now().toString().slice(-6);
-    const reference = `RESG-${timestampRef}`;
+    // Generar referencia con formato DEP-YYYYMMDD-XXXX
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    const dateString = `${year}${month}${day}`;
+
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
+    const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+
+    const todayCount = await prisma.bankDeposit.count({
+      where: {
+        createdAt: {
+          gte: startOfToday,
+          lte: endOfToday,
+        },
+      },
+    });
+
+    const nextSequence = String(todayCount + 1).padStart(4, "0");
+    const reference = `DEP-${dateString}-${nextSequence}`;
 
     // Usar transacción ACID para asegurar consistencia
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Registrar el depósito en la tabla BankDeposit
+      // 1. Registrar el depósito en la tabla BankDeposit (directamente COMPLETED por defecto)
       const deposit = await tx.bankDeposit.create({
         data: {
           accountNumber,
@@ -407,9 +430,17 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
           paymentType,
           comments: comments || "Sin comentarios",
           cashSessionId: activeSession.id,
+          userId: req.user!.userId,
           branchId: req.user!.branchId,
           reference: reference,
-          status: "PENDING"
+          status: "COMPLETED", // Sandbox/Primera versión queda directamente COMPLETED
+        },
+        include: {
+          user: {
+            select: {
+              name: true,
+            },
+          },
         },
       });
 
@@ -425,7 +456,7 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
     });
 
     res.status(201).json({
-      message: "Depósito bancario registrado en SQL Server exitosamente.",
+      message: "Depósito de resguardo registrado en SQL Server exitosamente.",
       deposit: {
         id: result.id,
         accountNumber: result.accountNumber,
@@ -437,6 +468,7 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
         status: result.status,
         createdAt: result.createdAt,
         sessionId: result.cashSessionId,
+        userName: result.user.name,
       },
     });
   } catch (error: any) {
@@ -458,6 +490,13 @@ export const getRecentDeposits = async (req: Request, res: Response): Promise<vo
       where: {
         branchId: req.user.branchId,
       },
+      include: {
+        user: {
+          select: {
+            name: true,
+          },
+        },
+      },
       take: 10,
       orderBy: { createdAt: "desc" },
     });
@@ -472,12 +511,303 @@ export const getRecentDeposits = async (req: Request, res: Response): Promise<vo
       reference: d.reference,
       status: d.status,
       createdAt: d.createdAt,
+      confirmedAt: d.confirmedAt,
+      cancelledAt: d.cancelledAt,
+      cancelReason: d.cancelReason,
       sessionId: d.cashSessionId,
+      userName: d.user?.name || "Desconocido",
     }));
 
     res.status(200).json({ deposits: mappedDeposits });
   } catch (error: any) {
     res.status(500).json({ message: "Error al obtener depósitos recientes.", error: error.message });
+  }
+};
+
+/**
+ * Buscar depósitos con filtros
+ */
+export const searchDeposits = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  const { reference, userId, status, dateFrom, dateTo } = req.query;
+
+  try {
+    const whereClause: any = {
+      branchId: req.user.branchId,
+    };
+
+    if (reference) {
+      whereClause.reference = {
+        contains: String(reference),
+      };
+    }
+
+    if (userId) {
+      const uId = parseInt(String(userId), 10);
+      if (!isNaN(uId)) {
+        whereClause.userId = uId;
+      }
+    }
+
+    if (status && status !== "ALL") {
+      whereClause.status = String(status);
+    }
+
+    if (dateFrom || dateTo) {
+      whereClause.createdAt = {};
+      if (dateFrom) {
+        whereClause.createdAt.gte = new Date(String(dateFrom));
+      }
+      if (dateTo) {
+        const dateToParsed = new Date(String(dateTo));
+        if (String(dateTo).length <= 10) {
+          dateToParsed.setHours(23, 59, 59, 999);
+        }
+        whereClause.createdAt.lte = dateToParsed;
+      }
+    }
+
+    const deposits = await prisma.bankDeposit.findMany({
+      where: whereClause,
+      include: {
+        user: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    const mappedDeposits = deposits.map((d) => ({
+      id: d.id,
+      accountNumber: d.accountNumber,
+      targetName: d.targetName,
+      amount: Number(d.amount),
+      paymentType: d.paymentType,
+      comments: d.comments,
+      reference: d.reference,
+      status: d.status,
+      createdAt: d.createdAt,
+      confirmedAt: d.confirmedAt,
+      cancelledAt: d.cancelledAt,
+      cancelReason: d.cancelReason,
+      sessionId: d.cashSessionId,
+      userName: d.user?.name || "Desconocido",
+    }));
+
+    res.status(200).json({ deposits: mappedDeposits });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al buscar depósitos.", error: error.message });
+  }
+};
+
+/**
+ * Obtener detalle de un depósito individual
+ */
+export const getDepositById = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  const { id } = req.params;
+
+  try {
+    const depositId = parseInt(id, 10);
+    if (isNaN(depositId)) {
+      res.status(400).json({ message: "ID de depósito inválido." });
+      return;
+    }
+
+    const deposit = await prisma.bankDeposit.findUnique({
+      where: { id: depositId },
+      include: {
+        user: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!deposit) {
+      res.status(404).json({ message: "Depósito no encontrado." });
+      return;
+    }
+
+    res.status(200).json({
+      deposit: {
+        id: deposit.id,
+        accountNumber: deposit.accountNumber,
+        targetName: deposit.targetName,
+        amount: Number(deposit.amount),
+        paymentType: deposit.paymentType,
+        comments: deposit.comments,
+        reference: deposit.reference,
+        status: deposit.status,
+        createdAt: deposit.createdAt,
+        confirmedAt: deposit.confirmedAt,
+        cancelledAt: deposit.cancelledAt,
+        cancelReason: deposit.cancelReason,
+        sessionId: deposit.cashSessionId,
+        userName: deposit.user?.name || "Desconocido",
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al obtener el depósito.", error: error.message });
+  }
+};
+
+/**
+ * Confirmar depósito (pasar de PENDING a COMPLETED)
+ */
+export const confirmDeposit = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  const { id } = req.params;
+
+  try {
+    const depositId = parseInt(id, 10);
+    if (isNaN(depositId)) {
+      res.status(400).json({ message: "ID de depósito inválido." });
+      return;
+    }
+
+    const deposit = await prisma.bankDeposit.findUnique({
+      where: { id: depositId },
+    });
+
+    if (!deposit) {
+      res.status(404).json({ message: "Depósito no encontrado." });
+      return;
+    }
+
+    if (deposit.status !== "PENDING") {
+      res.status(400).json({ message: `El depósito no se puede confirmar porque está en estado: ${deposit.status}` });
+      return;
+    }
+
+    const updated = await prisma.bankDeposit.update({
+      where: { id: depositId },
+      data: {
+        status: "COMPLETED",
+        confirmedAt: new Date(),
+      },
+    });
+
+    res.status(200).json({
+      message: "Depósito confirmado exitosamente.",
+      deposit: updated,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al confirmar el depósito.", error: error.message });
+  }
+};
+
+/**
+ * Cancelar un depósito (Resguardo de Efectivo) con PIN de Administrador/Gerente
+ */
+export const cancelDeposit = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  const { id } = req.params;
+  const { pinCode, reason } = req.body;
+
+  if (!id || !pinCode || !reason) {
+    res.status(400).json({ message: "El ID del depósito, el código PIN de autorización y el motivo de cancelación son requeridos." });
+    return;
+  }
+
+  try {
+    // 1. Validar que el PIN corresponda a un Administrador o Gerente
+    const managers = await prisma.user.findMany({
+      where: {
+        role: { in: ["ADMIN", "GERENTE"] },
+        active: true,
+      },
+    });
+
+    let approver = null;
+    for (const m of managers) {
+      if (m.pinCode) {
+        const isMatch = await bcrypt.compare(pinCode, m.pinCode);
+        if (isMatch) {
+          approver = m;
+          break;
+        }
+      }
+    }
+
+    if (!approver) {
+      res.status(401).json({ message: "PIN de autorización incorrecto o el usuario no cuenta con privilegios de Administrador/Gerente." });
+      return;
+    }
+
+    // 2. Buscar el depósito
+    const depositId = parseInt(id, 10);
+    if (isNaN(depositId)) {
+      res.status(400).json({ message: "ID de depósito inválido." });
+      return;
+    }
+
+    const deposit = await prisma.bankDeposit.findUnique({
+      where: { id: depositId },
+    });
+
+    if (!deposit) {
+      res.status(404).json({ message: "Depósito no encontrado." });
+      return;
+    }
+
+    if (deposit.status === "CANCELLED") {
+      res.status(400).json({ message: "Este depósito ya fue cancelado anteriormente." });
+      return;
+    }
+
+    // 3. Bloque transaccional para revertir el depósito y restar de cashOut
+    const updatedDeposit = await prisma.$transaction(async (tx) => {
+      // a. Actualizar estado del depósito
+      const updated = await tx.bankDeposit.update({
+        where: { id: depositId },
+        data: {
+          status: "CANCELLED",
+          cancelledAt: new Date(),
+          cancelReason: `Autorizó: ${approver.name}. Motivo: ${reason}`,
+        },
+      });
+
+      // b. Revertir cashOut de la caja (el dinero vuelve a estar físicamente/operativamente disponible en caja chica)
+      if (deposit.status === "COMPLETED") {
+        await tx.cashSession.update({
+          where: { id: deposit.cashSessionId },
+          data: {
+            cashOut: { decrement: Number(deposit.amount) },
+          },
+        });
+      }
+
+      return updated;
+    });
+
+    res.status(200).json({
+      message: "Depósito cancelado exitosamente. Los saldos de caja han sido actualizados.",
+      deposit: updatedDeposit,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al cancelar el depósito.", error: error.message });
   }
 };
 
