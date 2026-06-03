@@ -49,6 +49,7 @@ interface Sale {
   cardType?: string;
   status: string;
   cajero: string;
+  refundStatus?: string | null;
 }
 
 interface CashSession {
@@ -80,6 +81,23 @@ const Dashboard: React.FC = () => {
 
   // Modales de Acción Rápida: null | "price-lookup" | "ticket-history" | "cancel-sale" | "close-cash" | "bank-deposit" | "close-options" | "partial-cut-summary" | "partial-cut-receipt"
   const [activeModal, setActiveModal] = useState<string | null>(null);
+
+  // Pestañas del modal de depósito (Resguardo de Efectivo)
+  const [depTab, setDepTab] = useState<"registrar" | "buscar">("registrar");
+  // Filtros de búsqueda
+  const [searchDepRef, setSearchDepRef] = useState("");
+  const [searchDepStatus, setSearchDepStatus] = useState("ALL");
+  const [searchDepUser, setSearchDepUser] = useState("");
+  const [searchDepDateFrom, setSearchDepDateFrom] = useState("");
+  const [searchDepDateTo, setSearchDepDateTo] = useState("");
+  const [depSearchResults, setDepSearchResults] = useState<any[]>([]);
+  const [depSearchLoading, setDepSearchLoading] = useState(false);
+  const [cashiers, setCashiers] = useState<any[]>([]);
+  // Cancelación de depósitos
+  const [cancellingDep, setCancellingDep] = useState<any | null>(null);
+  const [depCancelReason, setDepCancelReason] = useState("");
+  const [depCancelPin, setDepCancelPin] = useState("");
+  const [depCancelLoading, setDepCancelLoading] = useState(false);
 
   // Estados para alertas personalizadas y cobro (Fase 3.5)
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" | "info" } | null>(null);
@@ -626,13 +644,45 @@ const Dashboard: React.FC = () => {
   // ---------------------------------------------------------------------------
   // 5. MODAL COBRO (Mockup 4)
   // ---------------------------------------------------------------------------
-  const [paymentMethod, setPaymentMethod] = useState<"EFECTIVO" | "TARJETA" | "MIXTO">("EFECTIVO");
+  const [paymentMethod, setPaymentMethod] = useState<"EFECTIVO" | "TARJETA" | "MIXTO" | "QR_MERCADOPAGO">("EFECTIVO");
   const [cashReceived, setCashReceived] = useState("");
   // Campos para pago mixto
   const [mixtoCash, setMixtoCash] = useState("");
   const [mixtoCard, setMixtoCard] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [cardType, setCardType] = useState<"CREDITO" | "DEBITO">("DEBITO");
+
+  // Estados QR MercadoPago
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [qrUrl, setQrUrl] = useState("");
+  const [qrReference, setQrReference] = useState("");
+  const [qrChecking, setQrChecking] = useState(false);
+
+  const checkQrStatus = async () => {
+    setQrChecking(true);
+    try {
+      const res = await api.get(`/api/mercadopago/status/${qrReference}`);
+      if (res.data.status === "approved") {
+        await api.post("/api/sales/confirm-qr", {
+          invoiceNumber: qrReference,
+          paymentId: res.data.paymentId || `mock-${Date.now()}`
+        });
+        alert("Pago aprobado exitosamente.");
+        setQrModalOpen(false);
+        setCart([]);
+        setPaymentMethod("EFECTIVO");
+        setActiveModal("ticket-view");
+      } else if (res.data.status === "rejected") {
+        alert("Pago rechazado.");
+      } else {
+        alert("El pago aún no ha sido completado. Estado: " + res.data.status);
+      }
+    } catch(err) {
+      alert("Error al verificar pago.");
+    } finally {
+      setQrChecking(false);
+    }
+  };
 
   // Cambio reactivo
   const pointsDiscount = (usePoints && selectedCustomer) ? Math.min(selectedCustomer.points, pointsToRedeem) : 0;
@@ -665,6 +715,56 @@ const Dashboard: React.FC = () => {
         setCheckoutError("La suma de efectivo y tarjeta es menor al total a pagar.");
         return;
       }
+    }
+
+    if (paymentMethod === "QR_MERCADOPAGO") {
+      setCheckoutLoading(true);
+      try {
+        const itemsPayload = cart.map((c) => ({
+          id: c.product.id,
+          name: c.product.name,
+          quantity: c.quantity,
+        }));
+
+        const res = await api.post("/api/sales", {
+          items: itemsPayload,
+          paymentMethod: "QR_MERCADOPAGO",
+          cashReceived: 0,
+          changeGiven: 0,
+          discountAmount: 0,
+        });
+
+        const saleInvoice = res.data.invoiceNumber;
+        
+        // Generar QR
+        const qrRes = await api.post("/api/mercadopago/qr-preference", {
+          title: "Venta " + saleInvoice,
+          totalAmount: cartTotal,
+          externalReference: saleInvoice
+        });
+
+        setSelectedSale({
+          invoiceNumber: saleInvoice,
+          items: [...cart],
+          subtotal: cartSubtotal,
+          tax: cartTax,
+          total: cartTotal,
+          paymentMethod: "QR_MERCADOPAGO",
+          cashReceived: 0,
+          changeGiven: 0,
+          createdAt: new Date().toISOString(),
+        });
+
+        setQrUrl(qrRes.data.initPoint);
+        setQrReference(saleInvoice);
+        setCheckoutModalOpen(false);
+        setQrModalOpen(true);
+      } catch(err: any) {
+        alert(err.response?.data?.message || "Error al procesar pago QR");
+      } finally {
+        setCheckoutLoading(false);
+      }
+      return;
     }
 
     setCheckoutLoading(true);
@@ -844,7 +944,6 @@ const Dashboard: React.FC = () => {
     setDepName("");
     setDepAmount("");
     setDepComments("");
-    setDepType("EFECTIVO");
   };
 
   const handleCloseModal_ticketHistory = () => {
@@ -915,15 +1014,14 @@ const Dashboard: React.FC = () => {
   };
 
   // ---------------------------------------------------------------------------
-  // 9. DEPOSITOS BANCARIOS (Simulación)
+  // 9. DEPOSITOS BANCARIOS (Resguardo de Efectivo)
   // ---------------------------------------------------------------------------
   const [depAccount, setDepAccount] = useState("");
   const [depName, setDepName] = useState("");
   const [depAmount, setDepAmount] = useState("");
-  const [depType, setDepType] = useState("EFECTIVO");
   const [depComments, setDepComments] = useState("");
   const [depLoading, setDepLoading] = useState(false);
-  const [lastDeposit, setLastDeposit] = useState<any>(null); // Para comprobante (Fase 3.0)
+  const [lastDeposit, setLastDeposit] = useState<any>(null);
 
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -942,7 +1040,7 @@ const Dashboard: React.FC = () => {
         accountNumber: depAccount,
         targetName: depName,
         amount: Number(depAmount),
-        paymentType: depType,
+        paymentType: "EFECTIVO", // Forzamos EFECTIVO
         comments: depComments
       });
       
@@ -960,6 +1058,82 @@ const Dashboard: React.FC = () => {
       setDepLoading(false);
     }
   };
+
+  const fetchCashiers = async () => {
+    if (!user) return;
+    try {
+      const branchId = user.branch?.id;
+      const res = await api.get(`/api/auth/cashiers/${branchId}`);
+      setCashiers(res.data.cashiers || []);
+    } catch (err) {
+      console.error("Error al cargar cajeros:", err);
+    }
+  };
+
+  const handleSearchDeposits = async () => {
+    setDepSearchLoading(true);
+    try {
+      const params: any = {};
+      if (searchDepRef) params.reference = searchDepRef;
+      if (searchDepStatus && searchDepStatus !== "ALL") params.status = searchDepStatus;
+      if (searchDepUser) params.userId = searchDepUser;
+      if (searchDepDateFrom) params.dateFrom = searchDepDateFrom;
+      if (searchDepDateTo) params.dateTo = searchDepDateTo;
+
+      const res = await api.get("/api/sales/deposits/search", { params });
+      setDepSearchResults(res.data.deposits || []);
+    } catch (err: any) {
+      console.error("Error al buscar depósitos:", err);
+    } finally {
+      setDepSearchLoading(false);
+    }
+  };
+
+  const handleCancelDepositSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cancellingDep) return;
+    if (!depCancelPin || !depCancelReason) {
+      alert("El PIN y el motivo de cancelación son obligatorios.");
+      return;
+    }
+    setDepCancelLoading(true);
+    try {
+      const res = await api.post(`/api/sales/deposits/${cancellingDep.id}/cancel`, {
+        pinCode: depCancelPin,
+        reason: depCancelReason
+      });
+      alert(res.data.message || "Depósito cancelado exitosamente.");
+      setCancellingDep(null);
+      setDepCancelPin("");
+      setDepCancelReason("");
+      await handleSearchDeposits();
+      await loadDashboardData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Error al cancelar el depósito.");
+    } finally {
+      setDepCancelLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeModal === "bank-deposit") {
+      setDepTab("registrar");
+      setCancellingDep(null);
+      setDepCancelPin("");
+      setDepCancelReason("");
+      fetchCashiers();
+      handleSearchDeposits();
+    }
+  }, [activeModal]);
+
+  useEffect(() => {
+    if (activeModal === "bank-deposit") {
+      const delayDebounce = setTimeout(() => {
+        handleSearchDeposits();
+      }, 300);
+      return () => clearTimeout(delayDebounce);
+    }
+  }, [searchDepRef, searchDepStatus, searchDepUser, searchDepDateFrom, searchDepDateTo]);
 
   // ---------------------------------------------------------------------------
   // RENDER PANTALLA DE CARGA
@@ -1464,6 +1638,12 @@ const Dashboard: React.FC = () => {
                 >
                   ⚖️ MIXTO
                 </button>
+                <button
+                  onClick={() => setPaymentMethod("QR_MERCADOPAGO")}
+                  style={{ ...styles.payMethodBtn, ...(paymentMethod === "QR_MERCADOPAGO" ? styles.payMethodActive : {}) }}
+                >
+                  📱 QR MP
+                </button>
               </div>
 
               {/* Inputs de Cobro según método */}
@@ -1662,6 +1842,39 @@ const Dashboard: React.FC = () => {
           </div>
         )}
 
+        {/* MODAL QR MERCADO PAGO */}
+        {qrModalOpen && (
+          <div style={styles.modalOverlay}>
+            <div style={styles.checkoutModal}>
+              <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
+              <div style={{ textAlign: "center", padding: "20px 0" }}>
+                 <p style={{marginBottom: "10px", fontSize: "14px", color: "#475569"}}>Escanea el siguiente código para pagar <strong>${cartTotal.toFixed(2)}</strong></p>
+                 {qrUrl ? (
+                   <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" width="200" height="200" />
+                 ) : (
+                   <p>Generando QR...</p>
+                 )}
+                 <p style={{ marginTop: "12px", fontSize: "12px", color: "#64748b" }}>Ref: {qrReference}</p>
+              </div>
+              <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
+                <button
+                  onClick={() => setQrModalOpen(false)}
+                  style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
+                >
+                  CERRAR (PAGO PENDIENTE)
+                </button>
+                <button
+                  disabled={qrChecking}
+                  onClick={checkQrStatus}
+                  style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
+                >
+                  {qrChecking ? "VERIFICANDO..." : "VERIFICAR ESTADO"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* MODAL: REGISTRO RÁPIDO DE CLIENTE (Fase 3.6) */}
         {isNewCustomerModalOpen && (
           <div style={styles.modalOverlay}>
@@ -1686,7 +1899,6 @@ const Dashboard: React.FC = () => {
                   <input
                     type="text"
                     required
-                    maxLength={10}
                     className="input-corporate"
                     placeholder="Ej. 5551234567"
                     value={newCustomerForm.phone}
@@ -2033,7 +2245,6 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         )}
-        {renderToast()}
       </div>
     );
   }
@@ -2251,6 +2462,7 @@ const Dashboard: React.FC = () => {
                                 const res = await api.get(`/api/sales/detail?id=${sale.id}`);
                                 setSelectedSale({
                                   ...res.data.sale,
+                                  refundStatus: sale.refundStatus,
                                   isNewSale: false
                                 });
                                 setActiveModal("ticket-view");
@@ -2627,6 +2839,17 @@ const Dashboard: React.FC = () => {
                 <p><strong>Artículos:</strong> {selectedSale.items.reduce((sum: number, item: any) => sum + item.quantity, 0)}</p>
               </div>
 
+              {selectedSale.status === "CANCELADA" && (
+                <div style={{ textAlign: "center", padding: "6px", borderTop: "2px dashed #dc2626", borderBottom: "2px dashed #dc2626", marginBottom: "10px", color: "#dc2626", fontWeight: "bold" }}>
+                  <h4 style={{ margin: 0, fontSize: "14px" }}>*** CANCELADO ***</h4>
+                  {selectedSale.refundStatus && (
+                    <p style={{ margin: "4px 0 0 0", fontSize: "10px" }}>
+                      REEMBOLSO {selectedSale.refundStatus === "APPROVED" ? "REALIZADO" : "PENDIENTE"}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <table style={{ width: "100%", fontSize: "11px", borderCollapse: "collapse", marginBottom: "8px" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid #cbd5e1" }}>
@@ -2972,6 +3195,22 @@ const Dashboard: React.FC = () => {
                 <span>Ventas Tarjeta Crédito:</span>
                 <span style={{ fontWeight: "600", color: "#0d9488" }}>${sessionStats?.creditCardTotal?.toFixed(2) || "0.00"}</span>
               </div>
+              <div style={styles.summaryRow}>
+                <span>&nbsp;&nbsp;&nbsp;↳ Pendientes (Resguardo):</span>
+                <span style={{ fontWeight: "600", color: "#d97706" }}>${sessionStats?.pendingDeposits?.toFixed(2) || "0.00"}</span>
+              </div>
+              <div style={styles.summaryRow}>
+                <span>&nbsp;&nbsp;&nbsp;↳ Confirmados:</span>
+                <span style={{ fontWeight: "600", color: "#059669" }}>${sessionStats?.confirmedDeposits?.toFixed(2) || "0.00"}</span>
+              </div>
+              <div style={styles.summaryRow}>
+                <span>&nbsp;&nbsp;&nbsp;↳ Cancelados (Revertidos):</span>
+                <span style={{ fontWeight: "600", color: "#b91c1c" }}>${sessionStats?.cancelledDeposits?.toFixed(2) || "0.00"}</span>
+              </div>
+              <div style={styles.summaryRow}>
+                <span>Reembolsos (x{sessionStats?.refundedSalesCount || 0}):</span>
+                <span style={{ fontWeight: "600", color: "#64748b" }}>${sessionStats?.refundedAmount?.toFixed(2) || "0.00"}</span>
+              </div>
               <div style={{ ...styles.summaryRow, borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px" }}>
                 <span>Efectivo Esperado en Caja:</span>
                 <span style={{ fontWeight: "800", color: "#1e3a8a" }}>${sessionStats?.expectedAmount.toFixed(2)}</span>
@@ -3013,90 +3252,388 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 5: DEPOSITO BANCARIO */}
+      {/* MODAL 5: DEPOSITO BANCARIO (Resguardo de Efectivo) */}
       {activeModal === "bank-deposit" && (
         <div style={styles.modalOverlay}>
           <div style={styles.depositModal}>
-            <h3 style={styles.modalTitle}>Registrar Depósito Bancario</h3>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #cbd5e1", paddingBottom: "8px", marginBottom: "14px" }}>
+              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "#0f172a" }}>
+                Resguardo de Efectivo (Cash Deposit)
+              </h3>
+              <button 
+                onClick={() => setActiveModal(null)} 
+                style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "20px", cursor: "pointer", fontWeight: "bold" }}
+              >
+                &times;
+              </button>
+            </div>
             
-            <div style={{ backgroundColor: "#e0f2fe", border: "1px solid #bae6fd", borderRadius: "8px", padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "13px", color: "#0369a1", fontWeight: "600", marginTop: "12px" }}>
+            <div style={{ backgroundColor: "#e0f2fe", border: "1px solid #bae6fd", borderRadius: "8px", padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "13px", color: "#0369a1", fontWeight: "600", marginTop: "12px", marginBottom: "14px" }}>
               <span>Efectivo disponible en caja:</span>
               <span style={{ fontSize: "15px", fontWeight: "800" }}>${sessionStats?.expectedAmount?.toFixed(2) || "0.00"}</span>
             </div>
 
-            <form onSubmit={handleDepositSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "14px" }}>
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Número de Cuenta Target (16 dígitos):</label>
-                <input
-                  type="text"
-                  maxLength={16}
-                  required
-                  className="input-corporate"
-                  placeholder="Ej. 1234567890123456"
-                  value={depAccount}
-                  onChange={(e) => setDepAccount(e.target.value)}
-                />
-              </div>
-
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Nombre del Beneficiario:</label>
-                <input
-                  type="text"
-                  required
-                  className="input-corporate"
-                  placeholder="Nombre de la persona o banco"
-                  value={depName}
-                  onChange={(e) => setDepName(e.target.value)}
-                />
-              </div>
-
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Monto a Retirar y Depositar ($):</label>
-                <input
-                  type="text"
-                  required
-                  className="input-corporate"
-                  placeholder="Monto"
-                  value={depAmount}
-                  onChange={(e) => setDepAmount(e.target.value)}
-                />
-              </div>
-
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Método de Retiro de Caja:</label>
-                <div style={{ padding: "10px 14px", borderRadius: "6px", border: "1px solid #cbd5e1", backgroundColor: "#f8fafc", color: "#475569", fontSize: "14px", fontWeight: "600" }}>
-                  Efectivo de Caja (Físico)
+            {cancellingDep ? (
+              <div style={{ padding: "16px", border: "1px solid #fca5a5", borderRadius: "8px", backgroundColor: "#fff5f5", display: "flex", flexDirection: "column", gap: "14px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#991b1b" }}>
+                  <AlertTriangle size={20} />
+                  <strong style={{ fontSize: "14px" }}>Confirmar Cancelación de Resguardo</strong>
                 </div>
+                <p style={{ fontSize: "12px", color: "#7f1d1d", margin: 0 }}>
+                  Se requiere la validación mediante el PIN de un Gerente o Administrador. El monto de <strong>${Number(cancellingDep.amount).toFixed(2)} MXN</strong> se restará de las salidas de efectivo del turno actual (reversión de cashOut).
+                </p>
+                <form onSubmit={handleCancelDepositSubmit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.label}>PIN de Autorización del Gerente:</label>
+                    <input
+                      type="password"
+                      maxLength={4}
+                      required
+                      className="input-corporate"
+                      placeholder="Ej. ****"
+                      value={depCancelPin}
+                      onChange={(e) => setDepCancelPin(e.target.value)}
+                    />
+                  </div>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.label}>Motivo de Cancelación:</label>
+                    <input
+                      type="text"
+                      required
+                      className="input-corporate"
+                      placeholder="Motivo detallado de la cancelación"
+                      value={depCancelReason}
+                      onChange={(e) => setDepCancelReason(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ display: "flex", gap: "10px", marginTop: "6px" }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCancellingDep(null);
+                        setDepCancelPin("");
+                        setDepCancelReason("");
+                      }}
+                      style={{ ...styles.modalBtn, backgroundColor: "#64748b", color: "white" }}
+                    >
+                      VOLVER AL HISTORIAL
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={depCancelLoading}
+                      style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
+                    >
+                      {depCancelLoading ? "Cancelando..." : "CANCELAR RESGUARDO"}
+                    </button>
+                  </div>
+                </form>
               </div>
+            ) : (
+              <>
+                {/* Selector de pestañas */}
+                <div style={{ display: "flex", borderBottom: "2px solid #e2e8f0", marginBottom: "16px" }}>
+                  <button
+                    type="button"
+                    onClick={() => setDepTab("registrar")}
+                    style={{
+                      flex: 1,
+                      padding: "10px",
+                      border: "none",
+                      borderBottom: depTab === "registrar" ? "3px solid #2563eb" : "none",
+                      backgroundColor: "transparent",
+                      fontWeight: "700",
+                      color: depTab === "registrar" ? "#2563eb" : "#64748b",
+                      cursor: "pointer"
+                    }}
+                  >
+                    REGISTRAR RESGUARDO
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDepTab("buscar")}
+                    style={{
+                      flex: 1,
+                      padding: "10px",
+                      border: "none",
+                      borderBottom: depTab === "buscar" ? "3px solid #2563eb" : "none",
+                      backgroundColor: "transparent",
+                      fontWeight: "700",
+                      color: depTab === "buscar" ? "#2563eb" : "#64748b",
+                      cursor: "pointer"
+                    }}
+                  >
+                    BUSCAR / HISTORIAL
+                  </button>
+                </div>
 
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Comentarios / Referencia:</label>
-                <input
-                  type="text"
-                  className="input-corporate"
-                  placeholder="Comentarios adicionales"
-                  value={depComments}
-                  onChange={(e) => setDepComments(e.target.value)}
-                />
-              </div>
+                {depTab === "registrar" ? (
+                  <form onSubmit={handleDepositSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                    
+                    {/* Tarjeta de Datos Calculados */}
+                    <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px", backgroundColor: "#f8fafc", marginBottom: "4px" }}>
+                      <h4 style={{ fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "8px", borderBottom: "1px solid #e2e8f0", paddingBottom: "4px" }}>
+                        Información Operativa
+                      </h4>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", fontSize: "11px" }}>
+                        <div>
+                          <span style={{ color: "#64748b" }}>Referencia Estimada:</span>
+                          <strong style={{ display: "block", color: "#0f172a", marginTop: "2px" }}>DEP-{new Date().toISOString().slice(0, 10).replace(/-/g, "")}-[SIG]</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: "#64748b" }}>Estado del Registro:</span>
+                          <strong style={{ display: "block", color: "#059669", marginTop: "2px" }}>COMPLETED (Salida Física)</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: "#64748b" }}>Fecha de Registro:</span>
+                          <strong style={{ display: "block", color: "#0f172a", marginTop: "2px" }}>{new Date().toLocaleDateString()}</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: "#64748b" }}>Método de Retiro:</span>
+                          <strong style={{ display: "block", color: "#0f172a", marginTop: "2px" }}>Efectivo en Caja Chica</strong>
+                        </div>
+                      </div>
+                    </div>
 
-              <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-                <button
-                  type="button"
-                  onClick={handleCloseModal_bankDeposit}
-                  style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
-                >
-                  CANCELAR
-                </button>
-                <button
-                  type="submit"
-                  disabled={depLoading}
-                  style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
-                >
-                  {depLoading ? "Procesando..." : "REGISTRAR DEPÓSITO"}
-                </button>
-              </div>
-            </form>
+                    <div style={styles.inputGroup}>
+                      <label style={styles.label}>Número de Cuenta Target (16 dígitos):</label>
+                      <input
+                        type="text"
+                        maxLength={16}
+                        required
+                        className="input-corporate"
+                        placeholder="Ej. 1234567890123456"
+                        value={depAccount}
+                        onChange={(e) => setDepAccount(e.target.value)}
+                      />
+                    </div>
+
+                    <div style={styles.inputGroup}>
+                      <label style={styles.label}>Nombre del Beneficiario:</label>
+                      <input
+                        type="text"
+                        required
+                        className="input-corporate"
+                        placeholder="Nombre de la persona o banco"
+                        value={depName}
+                        onChange={(e) => setDepName(e.target.value)}
+                      />
+                    </div>
+
+                    <div style={styles.inputGroup}>
+                      <label style={styles.label}>Monto a Retirar y Depositar ($):</label>
+                      <input
+                        type="text"
+                        required
+                        className="input-corporate"
+                        placeholder="Monto a retirar en efectivo"
+                        value={depAmount}
+                        onChange={(e) => setDepAmount(e.target.value)}
+                      />
+                    </div>
+
+                    <div style={styles.inputGroup}>
+                      <label style={styles.label}>Comentarios / Referencia:</label>
+                      <input
+                        type="text"
+                        className="input-corporate"
+                        placeholder="Ej. Número de sucursal, folio de camión blindado, etc."
+                        value={depComments}
+                        onChange={(e) => setDepComments(e.target.value)}
+                      />
+                    </div>
+
+                    <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                      <button
+                        type="button"
+                        onClick={() => setActiveModal(null)}
+                        style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
+                      >
+                        CERRAR
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={depLoading}
+                        style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
+                      >
+                        {depLoading ? "Procesando..." : "REGISTRAR RESGUARDO"}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    {/* Filtros de Búsqueda */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "10px" }}>
+                      <div style={styles.inputGroup}>
+                        <label style={styles.label}>Referencia:</label>
+                        <input
+                           type="text"
+                           className="input-corporate"
+                           placeholder="DEP-..."
+                           value={searchDepRef}
+                           onChange={(e) => setSearchDepRef(e.target.value)}
+                        />
+                      </div>
+                      <div style={styles.inputGroup}>
+                        <label style={styles.label}>Estado:</label>
+                        <select
+                          value={searchDepStatus}
+                          onChange={(e) => setSearchDepStatus(e.target.value)}
+                          style={styles.select}
+                        >
+                          <option value="ALL">Todos</option>
+                          <option value="COMPLETED">Completados</option>
+                          <option value="PENDING">Pendientes</option>
+                          <option value="CANCELLED">Cancelados</option>
+                        </select>
+                      </div>
+                      <div style={styles.inputGroup}>
+                        <label style={styles.label}>Cajero:</label>
+                        <select
+                          value={searchDepUser}
+                          onChange={(e) => setSearchDepUser(e.target.value)}
+                          style={styles.select}
+                        >
+                          <option value="">Todos</option>
+                          {cashiers.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "14px" }}>
+                      <div style={styles.inputGroup}>
+                        <label style={styles.label}>Desde:</label>
+                        <input
+                          type="date"
+                          className="input-corporate"
+                          value={searchDepDateFrom}
+                          onChange={(e) => setSearchDepDateFrom(e.target.value)}
+                        />
+                      </div>
+                      <div style={styles.inputGroup}>
+                        <label style={styles.label}>Hasta:</label>
+                        <input
+                          type="date"
+                          className="input-corporate"
+                          value={searchDepDateTo}
+                          onChange={(e) => setSearchDepDateTo(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Tabla de Resultados */}
+                    <div style={{ maxHeight: "220px", overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: "6px", marginBottom: "14px" }}>
+                      <table style={styles.table}>
+                        <thead>
+                          <tr style={styles.tableHeaderRow}>
+                            <th style={{ ...styles.th, padding: "8px" }}>Referencia / Fecha</th>
+                            <th style={{ ...styles.th, padding: "8px" }}>Destino</th>
+                            <th style={{ ...styles.th, padding: "8px" }}>Monto</th>
+                            <th style={{ ...styles.th, padding: "8px" }}>Cajero</th>
+                            <th style={{ ...styles.th, padding: "8px" }}>Estado</th>
+                            <th style={{ ...styles.th, padding: "8px" }}>Acción</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {depSearchLoading ? (
+                            <tr>
+                              <td colSpan={6} style={{ textAlign: "center", padding: "16px", color: "#64748b", fontSize: "12px" }}>
+                                Buscando resguardos...
+                              </td>
+                            </tr>
+                          ) : depSearchResults.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} style={{ textAlign: "center", padding: "16px", color: "#64748b", fontSize: "12px" }}>
+                                No se encontraron resguardos.
+                              </td>
+                            </tr>
+                          ) : (
+                            depSearchResults.map((dep) => (
+                              <tr key={dep.id} style={styles.tableRow}>
+                                <td style={{ ...styles.td, padding: "8px", fontSize: "12px" }}>
+                                  <div style={{ fontWeight: "700" }}>{dep.reference || `#${dep.id}`}</div>
+                                  <div style={{ fontSize: "10px", color: "#64748b" }}>{new Date(dep.createdAt).toLocaleDateString()}</div>
+                                </td>
+                                <td style={{ ...styles.td, padding: "8px", fontSize: "12px" }}>
+                                  <div>****{dep.accountNumber.slice(-4)}</div>
+                                  <div style={{ fontSize: "10px", color: "#64748b" }}>{dep.targetName}</div>
+                                </td>
+                                <td style={{ ...styles.td, padding: "8px", fontSize: "12px", fontWeight: "700", color: dep.status === "CANCELLED" ? "#b91c1c" : "#0f172a" }}>
+                                  {dep.status === "CANCELLED" ? "" : "-"}${Number(dep.amount).toFixed(2)}
+                                </td>
+                                <td style={{ ...styles.td, padding: "8px", fontSize: "12px" }}>{dep.userName}</td>
+                                <td style={{ ...styles.td, padding: "8px", fontSize: "12px" }}>
+                                  <span style={
+                                    dep.status === "COMPLETED" ? styles.badgeSuccess : 
+                                    dep.status === "CANCELLED" ? styles.badgeDanger : 
+                                    styles.badgeWarning
+                                  }>
+                                    {dep.status === "COMPLETED" ? "Exitoso" : 
+                                     dep.status === "CANCELLED" ? "Cancelado" : "Pendiente"}
+                                  </span>
+                                </td>
+                                <td style={{ ...styles.td, padding: "8px", fontSize: "12px" }}>
+                                  <div style={{ display: "flex", gap: "4px" }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setLastDeposit(dep);
+                                        setActiveModal("deposit-receipt");
+                                      }}
+                                      style={{
+                                        padding: "4px 6px",
+                                        borderRadius: "4px",
+                                        backgroundColor: "#eff6ff",
+                                        color: "#1d4ed8",
+                                        border: "1px solid #bfdbfe",
+                                        fontSize: "10px",
+                                        fontWeight: "700",
+                                        cursor: "pointer"
+                                      }}
+                                    >
+                                      Ver
+                                    </button>
+                                    {dep.status !== "CANCELLED" && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setCancellingDep(dep);
+                                        }}
+                                        style={{
+                                          padding: "4px 6px",
+                                          borderRadius: "4px",
+                                          backgroundColor: "#fef2f2",
+                                          color: "#b91c1c",
+                                          border: "1px solid #fecaca",
+                                          fontSize: "10px",
+                                          fontWeight: "700",
+                                          cursor: "pointer"
+                                        }}
+                                      >
+                                        Cancelar
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveModal(null)}
+                      style={{ ...styles.modalBtn, backgroundColor: "#64748b", color: "white", width: "100%" }}
+                    >
+                      CERRAR HISTORIAL
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
@@ -3146,8 +3683,34 @@ const Dashboard: React.FC = () => {
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span>CAJERO:</span>
-                  <strong>{user?.name}</strong>
+                  <strong>{lastDeposit.userName || user?.name}</strong>
                 </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>REFERENCIA:</span>
+                  <strong>{lastDeposit.reference || "N/A"}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>ESTADO:</span>
+                  <strong style={{ color: lastDeposit.status === "CANCELLED" ? "#b91c1c" : "inherit" }}>
+                    {lastDeposit.status === "CANCELLED" ? "CANCELADO" : (lastDeposit.status || "PENDING")}
+                  </strong>
+                </div>
+                {lastDeposit.status === "CANCELLED" && lastDeposit.cancelledAt && (
+                  <>
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "#b91c1c" }}>
+                      <span>CANCELADO EL:</span>
+                      <strong>{new Date(lastDeposit.cancelledAt).toLocaleString()}</strong>
+                    </div>
+                    {lastDeposit.cancelReason && (
+                      <div style={{ borderTop: "1px dashed #fca5a5", paddingTop: "4px", marginTop: "2px", color: "#b91c1c" }}>
+                        <span>MOTIVO CANCELACIÓN:</span>
+                        <p style={{ margin: "2px 0 0 0", fontSize: "10px", fontStyle: "italic" }}>
+                          {lastDeposit.cancelReason}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
                 {lastDeposit.comments && (
                   <div style={{ borderTop: "1px dashed #cbd5e1", paddingTop: "6px", marginTop: "4px" }}>
                     <span>REF/COMENTARIOS:</span>
@@ -3392,6 +3955,7 @@ const Dashboard: React.FC = () => {
                               const res = await api.get(`/api/sales/detail?id=${sale.id}`);
                               setSelectedSale({
                                 ...res.data.sale,
+                                refundStatus: sale.refundStatus,
                                 isNewSale: false
                               });
                               setActiveModal("ticket-view");
@@ -3682,6 +4246,22 @@ const styles = {
     padding: "2px 6px",
     borderRadius: "4px",
   },
+  badgeDanger: {
+    backgroundColor: "#fee2e2",
+    color: "#b91c1c",
+    fontSize: "10px",
+    fontWeight: "700",
+    padding: "2px 6px",
+    borderRadius: "4px",
+  },
+  badgeWarning: {
+    backgroundColor: "#fef3c7",
+    color: "#b45309",
+    fontSize: "10px",
+    fontWeight: "700",
+    padding: "2px 6px",
+    borderRadius: "4px",
+  },
   aperturaCard: {
     maxWidth: "400px",
     margin: "80px auto",
@@ -3909,7 +4489,8 @@ const styles = {
     boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
   },
   depositModal: {
-    width: "420px",
+    width: "700px",
+    maxWidth: "95vw",
     backgroundColor: "#ffffff",
     borderRadius: "12px",
     padding: "28px",

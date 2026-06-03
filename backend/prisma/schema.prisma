@@ -38,6 +38,7 @@ model User {
   kardexEntries Kardex[]
   sales         Sale[]
   branch        Branch        @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+  bankDeposits  BankDeposit[]
 }
 
 model Product {
@@ -132,18 +133,29 @@ model Sale {
   totalAmount    Decimal      @db.Decimal(18, 2)
   taxAmount      Decimal      @db.Decimal(18, 2)
   discountAmount Decimal      @default(0) @db.Decimal(18, 2)
-  paymentMethod  String
+  paymentMethod  String       // 'EFECTIVO', 'TARJETA', 'CREDITO', 'MIXTO', 'QR_MERCADOPAGO'
   cashReceived   Decimal?     @db.Decimal(18, 2)
   changeGiven    Decimal?     @db.Decimal(18, 2)
-  status         String       @default("COMPLETADA")
+  status         String       @default("COMPLETADA") // 'COMPLETADA', 'CANCELADA', 'PENDIENTE'
   pointsEarned   Int          @default(0)
   pointsRedeemed Int          @default(0)
   pointsDiscount Decimal      @default(0) @db.Decimal(18, 2)
+  cfdiEmail      String?      // Correo al que se envió la factura timbrada
+  cfdiUuid       String?      // Folio fiscal de facturación SAT (si ya se autofacturó)
+  cardType       String?
+  mercadoPagoPaymentId String?
+  mercadoPagoReference String?
+  mercadoPagoStatus    String?
+  mercadoPagoQrData    String?      @db.VarChar(Max)
+
+  // Campos de reembolsos (Refunds)
+  refundStatus         String?      // 'PENDING', 'APPROVED', 'REJECTED', 'ERROR'
+  refundId             String?
+  refundDate           DateTime?
+  refundAmount         Decimal?     @db.Decimal(18, 2)
+
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
-  cfdiEmail      String?
-  cfdiUuid       String?
-  cardType       String?
   branch         Branch       @relation(fields: [branchId], references: [id], onUpdate: NoAction)
   cashSession    CashSession? @relation(fields: [cashSessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   customer       Customer?    @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -173,11 +185,23 @@ model BankDeposit {
   amount        Decimal     @db.Decimal(18, 2)
   paymentType   String
   comments      String?
+  reference     String?     
+  status        String      @default("PENDING") // 'PENDING', 'COMPLETED', 'EXPIRED', 'CANCELLED'
+  mercadoPagoPaymentId String?
+  mercadoPagoStatus    String?
+  ticketUrl     String?     @db.VarChar(Max)
   cashSessionId Int
+  userId        Int
   branchId      Int
+  confirmedAt   DateTime?
+  cancelledAt   DateTime?
+  cancelReason  String?
   createdAt     DateTime    @default(now())
-  branch        Branch      @relation(fields: [branchId], references: [id], onUpdate: NoAction)
-  cashSession   CashSession @relation(fields: [cashSessionId], references: [id], onUpdate: NoAction)
+  
+  // Relations
+  branch        Branch      @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cashSession   CashSession @relation(fields: [cashSessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user          User        @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model PromotionType {
