@@ -8,6 +8,14 @@ import {
   listCashSessions,
   listEmployees,
   getReports,
+  listBranches,
+  createBranch,
+  updateBranch,
+  createEmployee,
+  getEmployeeOperations,
+  listKardex,
+  listBankDeposits,
+  registerPurchase,
 } from "../controllers/admin.controller";
 import { authenticateJWT, authorizeRoles } from "../middlewares/auth.middleware";
 
@@ -33,6 +41,22 @@ router.get("/cash-sessions", listCashSessions);
 
 // Empleados
 router.get("/employees", listEmployees);
+router.post("/employees", createEmployee);
+router.get("/employees/:id/operations", getEmployeeOperations);
+
+// Kardex (movimientos de inventario)
+router.get("/kardex", listKardex);
+
+// Compras (entrada de mercancía)
+router.post("/purchases", registerPurchase);
+
+// Depósitos bancarios
+router.get("/bank-deposits", listBankDeposits);
+
+// Sucursales
+router.get("/branches", listBranches);
+router.post("/branches", createBranch);
+router.put("/branches/:id", updateBranch);
 
 // Reportes
 router.get("/reports", getReports);

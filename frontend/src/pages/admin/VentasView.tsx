@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { X, Eye } from "lucide-react";
+import { X, Eye, Printer } from "lucide-react";
 import api from "../../services/api";
 import {
   ui,
@@ -16,6 +16,7 @@ import {
   fmtTime,
   statusTone,
   payTone,
+  printHtml,
 } from "./shared";
 
 interface SaleRow {
@@ -45,6 +46,40 @@ interface SaleDetail {
   totalAmount: number;
   items: { sku: string; name: string; quantity: number; unitPrice: number; importe: number }[];
 }
+
+// Reimpresión: genera el ticket de la venta y abre el diálogo de impresión
+const reprintTicket = (d: SaleDetail) => {
+  const body = `
+    <div style="max-width:340px;margin:0 auto;font-family:'Courier New',monospace;color:#0f172a;">
+      <div style="text-align:center;border-bottom:1px dashed #94a3b8;padding-bottom:8px;margin-bottom:8px;">
+        <div style="font-size:16px;font-weight:800;">LYFRGL SOLUTIONS</div>
+        <div style="font-size:11px;">${d.branch}</div>
+        <div style="font-size:10px;color:#64748b;">REIMPRESIÓN DE TICKET</div>
+      </div>
+      <div style="font-size:11px;line-height:1.6;">
+        <div><b>Folio:</b> ${d.invoiceNumber}</div>
+        <div><b>Fecha:</b> ${fmtDate(d.createdAt)} ${fmtTime(d.createdAt)}</div>
+        <div><b>Cajero:</b> ${d.cajero}</div>
+        <div><b>Cliente:</b> ${d.customer}</div>
+      </div>
+      <table style="width:100%;font-size:11px;border-collapse:collapse;margin:8px 0;border-top:1px dashed #94a3b8;border-bottom:1px dashed #94a3b8;">
+        <thead><tr><th style="text-align:left;padding:4px 0;">Producto</th><th style="text-align:center;">Cant</th><th style="text-align:right;">Importe</th></tr></thead>
+        <tbody>
+          ${d.items.map((it) => `<tr><td style="padding:3px 0;">${it.name}</td><td style="text-align:center;">${it.quantity}</td><td style="text-align:right;">${moneyExact(it.importe)}</td></tr>`).join("")}
+        </tbody>
+      </table>
+      <div style="font-size:11px;line-height:1.7;">
+        <div style="display:flex;justify-content:space-between;"><span>Subtotal:</span><span>${moneyExact(d.subtotal)}</span></div>
+        ${d.discountAmount > 0 ? `<div style="display:flex;justify-content:space-between;"><span>Descuento:</span><span>- ${moneyExact(d.discountAmount)}</span></div>` : ""}
+        <div style="display:flex;justify-content:space-between;"><span>IVA (16%):</span><span>${moneyExact(d.taxAmount)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:800;font-size:13px;border-top:1px solid #0f172a;margin-top:4px;padding-top:4px;"><span>TOTAL:</span><span>${moneyExact(d.totalAmount)}</span></div>
+        <div style="margin-top:6px;"><b>Pago:</b> ${d.paymentMethod} &nbsp; <b>Estado:</b> ${d.status}</div>
+      </div>
+      <div style="text-align:center;font-size:10px;color:#64748b;margin-top:14px;">¡GRACIAS POR SU COMPRA!</div>
+    </div>
+  `;
+  printHtml(`Ticket ${d.invoiceNumber}`, body);
+};
 
 const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [rows, setRows] = useState<SaleRow[]>([]);
@@ -212,6 +247,12 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 4, paddingTop: 8 }}>
                     <Row label="Total" value={moneyExact(detail.totalAmount)} strong />
                   </div>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
+                  <button style={ui.primaryBtn} className="active-tap" onClick={() => reprintTicket(detail)}>
+                    <Printer size={15} /> Reimprimir ticket
+                  </button>
                 </div>
               </div>
             )}
