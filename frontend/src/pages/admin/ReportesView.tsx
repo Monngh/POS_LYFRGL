@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { Printer } from "lucide-react";
 import api from "../../services/api";
 import {
   ui,
@@ -8,8 +9,16 @@ import {
   SectionHeader,
   Badge,
   money,
+  moneyExact,
   payTone,
+  fmtDate,
+  printHtml,
 } from "./shared";
+
+interface BranchOption {
+  id: number;
+  name: string;
+}
 
 interface ReportData {
   range: { from: string; to: string };
@@ -40,6 +49,11 @@ const ReportesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [branches, setBranches] = useState<BranchOption[]>([]);
+
+  useEffect(() => {
+    api.get<{ branches: BranchOption[] }>("/api/auth/branches").then((r) => setBranches(r.data.branches)).catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -78,6 +92,48 @@ const ReportesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const maxPay = Math.max(1, ...(data?.byPaymentMethod.map((p) => p.total) ?? [0]));
   const maxBranch = Math.max(1, ...(data?.byBranch.map((b) => b.total) ?? [0]));
 
+  const branchLabel = branchId === "all" ? "Todas las sucursales" : branches.find((b) => String(b.id) === branchId)?.name || `Sucursal #${branchId}`;
+
+  const handlePrint = () => {
+    if (!data) return;
+    const tt = data.totals;
+    const body = `
+      <div class="doc-header">
+        <div>
+          <div class="doc-brand">LYFRGL Solutions POS</div>
+          <div class="doc-sub">Reporte ejecutivo de operaciones</div>
+        </div>
+        <div>
+          <div class="doc-title">REPORTE DE VENTAS</div>
+          <div class="doc-meta">Periodo: ${fmtDate(data.range.from)} — ${fmtDate(data.range.to)}</div>
+          <div class="doc-meta">${branchLabel}</div>
+        </div>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><div class="l">Ventas netas</div><div class="v">${moneyExact(tt.ventasNetas)}</div></div>
+        <div class="kpi"><div class="l">Utilidad</div><div class="v">${moneyExact(tt.utilidad)}</div></div>
+        <div class="kpi"><div class="l">Tickets</div><div class="v">${tt.ticketCount}</div></div>
+        <div class="kpi"><div class="l">Ticket promedio</div><div class="v">${moneyExact(tt.ticketPromedio)}</div></div>
+        <div class="kpi"><div class="l">Impuestos (IVA)</div><div class="v">${moneyExact(tt.impuestos)}</div></div>
+        <div class="kpi"><div class="l">Descuentos</div><div class="v">${moneyExact(tt.descuentos)}</div></div>
+        <div class="kpi"><div class="l">Canceladas</div><div class="v">${tt.canceladas}</div></div>
+      </div>
+      <h3>Ventas por método de pago</h3>
+      <table><thead><tr><th>Método</th><th class="c">Operaciones</th><th class="r">Importe</th></tr></thead><tbody>
+        ${data.byPaymentMethod.map((p) => `<tr><td>${p.method}</td><td class="c">${p.count}</td><td class="r">${moneyExact(p.total)}</td></tr>`).join("") || `<tr><td colspan="3" class="c">Sin datos</td></tr>`}
+      </tbody></table>
+      <h3>Ventas por sucursal</h3>
+      <table><thead><tr><th>Sucursal</th><th class="c">Tickets</th><th class="r">Importe</th></tr></thead><tbody>
+        ${data.byBranch.map((b) => `<tr><td>${b.name}</td><td class="c">${b.count}</td><td class="r">${moneyExact(b.total)}</td></tr>`).join("") || `<tr><td colspan="3" class="c">Sin datos</td></tr>`}
+      </tbody></table>
+      <h3>Productos más vendidos</h3>
+      <table><thead><tr><th>#</th><th>Producto</th><th class="c">Unidades</th><th class="r">Importe</th></tr></thead><tbody>
+        ${data.topProducts.map((p, i) => `<tr><td>${i + 1}</td><td>${p.name}</td><td class="c">${p.unidades}</td><td class="r">${moneyExact(p.importe)}</td></tr>`).join("") || `<tr><td colspan="4" class="c">Sin datos</td></tr>`}
+      </tbody></table>
+    `;
+    printHtml("Reporte de ventas - LYFRGL Solutions", body);
+  };
+
   return (
     <div>
       <SectionHeader title="Reportes" subtitle="Resumen ejecutivo de operaciones por periodo" />
@@ -88,6 +144,15 @@ const ReportesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         <DateField label="Hasta" value={to} onChange={setTo} />
         <button style={{ ...ui.primaryBtn, marginTop: 18 }} className="active-tap" onClick={load} disabled={loading}>
           {loading ? "Generando..." : "Generar reporte"}
+        </button>
+        <button
+          style={{ ...ui.ghostBtn, marginTop: 18, height: 38, opacity: data ? 1 : 0.5 }}
+          className="active-tap"
+          onClick={handlePrint}
+          disabled={!data || loading}
+          title="Imprimir / exportar a PDF"
+        >
+          <Printer size={15} /> Imprimir reporte completo
         </button>
       </div>
 

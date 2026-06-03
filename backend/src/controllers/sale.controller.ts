@@ -12,7 +12,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     return;
   }
 
-  const { items, paymentMethod, cardType, cashReceived, changeGiven, customerId } = req.body;
+  const { items, paymentMethod, cardType, cashReceived, changeGiven, customerId, pointsRedeemed } = req.body;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     res.status(400).json({ message: "El carrito de ventas no puede estar vacío." });
@@ -37,26 +37,13 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
 
     // 2. Calcular importes y validar stock de productos utilizando el motor de promociones
 
-    // Mapear los items al formato esperado por el calculador de promociones
-    const cartItems = items.map((item: any) => ({
-      id: item.id,
-      productId: item.id,
-      name: item.name,
-      sellPrice: Number(item.sellPrice),
-      quantity: item.quantity,
-    }));
-
-    const promoCalc = await PromotionService.calculatePromotions(cartItems);
-
-    let calculatedSubtotal = 0;
-    const itemsWithCosts: any[] = [];
-
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      const calcLine = promoCalc.lines[i];
-
+    // Obtener productos de la base de datos y validar stock
+    const dbProducts = [];
+    const cartItems = [];
+    
+    for (const item of items) {
       const dbProduct = await prisma.product.findUnique({
-        where: { id: item.id },
+        where: { id: Number(item.id) },
         include: {
           inventories: {
             where: { branchId: req.user.branchId },
@@ -65,7 +52,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       });
 
       if (!dbProduct || !dbProduct.active) {
-        res.status(404).json({ message: `El producto ${item.name} no existe o está inactivo.` });
+        res.status(404).json({ message: `El producto ${item.name || `con ID ${item.id}`} no existe o está inactivo.` });
         return;
       }
 
@@ -79,17 +66,42 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
         return;
       }
 
-      calculatedSubtotal += Number(dbProduct.sellPrice) * item.quantity;
-      itemsWithCosts.push({
-        productId: dbProduct.id,
+      dbProducts.push({
+        product: dbProduct,
+        inventoryId: branchInventory ? branchInventory.id : 0,
+        currentStock,
         quantity: item.quantity,
-        unitPrice: Number(dbProduct.sellPrice),
-        costPrice: Number(dbProduct.costPrice),
+      });
+
+      cartItems.push({
+        id: dbProduct.id,
+        productId: dbProduct.id,
+        name: dbProduct.name,
+        sellPrice: Number(dbProduct.sellPrice),
+        quantity: item.quantity,
+      });
+    }
+
+    const promoCalc = await PromotionService.calculatePromotions(cartItems);
+
+    let calculatedSubtotal = 0;
+    const itemsWithCosts: any[] = [];
+
+    for (let i = 0; i < dbProducts.length; i++) {
+      const { product, inventoryId, currentStock, quantity } = dbProducts[i];
+      const calcLine = promoCalc.lines[i];
+
+      calculatedSubtotal += Number(product.sellPrice) * quantity;
+      itemsWithCosts.push({
+        productId: product.id,
+        quantity: quantity,
+        unitPrice: Number(product.sellPrice),
+        costPrice: Number(product.costPrice),
         discountAmount: calcLine.discountAmount,
         promotionId: calcLine.appliedPromotion?.promotionId || null,
         promotionLabel: calcLine.appliedPromotion ? calcLine.appliedPromotion.name : null,
         currentStock,
-        inventoryId: branchInventory.id,
+        inventoryId,
       });
     }
 
@@ -99,6 +111,34 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     const finalTax = finalSubtotal * 0.16; // 16% IVA
     const finalTotal = finalSubtotal + finalTax;
 
+    // Lógica de Lealtad (Puntos FMB)
+    let pointsDiscount = 0;
+    let pointsEarned = 0;
+    const ptsRedeemed = pointsRedeemed ? Number(pointsRedeemed) : 0;
+
+    if (customerId) {
+      const customer = await prisma.customer.findUnique({
+        where: { id: Number(customerId) }
+      });
+      if (!customer) {
+        res.status(404).json({ message: "El cliente seleccionado no existe." });
+        return;
+      }
+      if (ptsRedeemed > 0) {
+        if (customer.points < ptsRedeemed) {
+          res.status(400).json({ message: `El cliente no tiene puntos suficientes. Disponible: ${customer.points}, Solicitado: ${ptsRedeemed}` });
+          return;
+        }
+        pointsDiscount = ptsRedeemed * 1.0;
+        if (pointsDiscount > finalTotal) {
+          res.status(400).json({ message: `El descuento por puntos ($${pointsDiscount}) no puede superar el total de la compra ($${finalTotal.toFixed(2)}).` });
+          return;
+        }
+      }
+      // Puntos acumulados: 1 punto por cada $10.00 MXN gastados netos (redondeado hacia abajo)
+      pointsEarned = Math.floor(Math.max(0, finalTotal - pointsDiscount) / 10);
+    }
+
     // Generar Folio Único correlativo temporal
     const timestamp = Date.now().toString().slice(-6);
     const randomSuffix = Math.floor(100 + Math.random() * 900);
@@ -106,6 +146,8 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
 
     // 3. Bloque de Transacción Transaccional ACID en Prisma
     const newSale = await prisma.$transaction(async (tx) => {
+      const finalPaidAmount = finalTotal - pointsDiscount;
+
       // a. Crear registro de venta principal
       const sale = await tx.sale.create({
         data: {
@@ -114,7 +156,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
           userId: req.user!.userId,
           customerId: customerId ? Number(customerId) : null,
           cashSessionId: activeSession.id,
-          totalAmount: finalTotal,
+          totalAmount: finalPaidAmount,
           taxAmount: finalTax,
           discountAmount: discount,
           paymentMethod,
@@ -122,10 +164,27 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
           cashReceived: cashReceived ? Number(cashReceived) : null,
           changeGiven: changeGiven ? Number(changeGiven) : null,
           status: "COMPLETADA",
+          pointsEarned,
+          pointsRedeemed: ptsRedeemed,
+          pointsDiscount,
         },
       });
 
-      // b. Procesar cada detalle del carrito, ajustar inventario y registrar Kardex
+      // b. Actualizar puntos del cliente si está seleccionado
+      if (customerId) {
+        const customer = await tx.customer.findUnique({
+          where: { id: Number(customerId) }
+        });
+        if (customer) {
+          const newPoints = customer.points - ptsRedeemed + pointsEarned;
+          await tx.customer.update({
+            where: { id: Number(customerId) },
+            data: { points: newPoints }
+          });
+        }
+      }
+
+      // c. Procesar cada detalle del carrito, ajustar inventario y registrar Kardex
       for (const item of itemsWithCosts) {
         // Guardar detalles de la venta
         await tx.saleDetail.create({
@@ -163,24 +222,42 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
         });
       }
 
-      // c. Actualizar montos en la sesión de caja activa
-      const cashToAdd = paymentMethod === "EFECTIVO" ? finalTotal : paymentMethod === "MIXTO" ? (cashReceived ? Number(cashReceived) - (changeGiven ? Number(changeGiven) : 0) : finalTotal) : 0;
+      // d. Actualizar montos en la sesión de caja activa
+      const cashToAdd = paymentMethod === "EFECTIVO" ? finalPaidAmount : paymentMethod === "MIXTO" ? (cashReceived ? Number(cashReceived) - (changeGiven ? Number(changeGiven) : 0) : finalPaidAmount) : 0;
       
       await tx.cashSession.update({
         where: { id: activeSession.id },
         data: {
           cashIn: { increment: cashToAdd },
-          expectedAmount: { increment: finalTotal },
+          expectedAmount: { increment: finalPaidAmount },
         },
       });
 
       return sale;
     });
 
+    // Obtener los datos actualizados del cliente
+    let customerPoints = 0;
+    let customerName = null;
+    if (customerId) {
+      const updatedCustomer = await prisma.customer.findUnique({
+        where: { id: Number(customerId) }
+      });
+      if (updatedCustomer) {
+        customerPoints = updatedCustomer.points;
+        customerName = updatedCustomer.name;
+      }
+    }
+
     res.status(201).json({
       message: "Venta registrada exitosamente.",
       invoiceNumber: newSale.invoiceNumber,
       saleId: newSale.id,
+      pointsEarned,
+      pointsRedeemed: ptsRedeemed,
+      pointsDiscount,
+      customerPoints,
+      customerName,
     });
   } catch (error: any) {
     res.status(500).json({ message: "Error al procesar la venta.", error: error.message });
@@ -196,12 +273,25 @@ export const getRecentSales = async (req: Request, res: Response): Promise<void>
     return;
   }
 
+  const { search } = req.query;
+
   try {
+    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+
+    const where: any = {
+      branchId: req.user.branchId,
+      createdAt: { gte: fortyEightHoursAgo },
+    };
+
+    if (search && typeof search === "string" && search.trim()) {
+      // When searching by folio, remove the date filter to find any sale
+      delete where.createdAt;
+      where.invoiceNumber = { contains: search.trim() };
+    }
+
     const recentSales = await prisma.sale.findMany({
-      where: {
-        branchId: req.user.branchId,
-      },
-      take: 10,
+      where,
+      take: 50,
       orderBy: { createdAt: "desc" },
       include: {
         user: { select: { name: true } },
@@ -324,16 +414,48 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
         }
       }
 
-      // c. Revertir impacto de caja en la sesión correspondiente
-      if (sale.cashSessionId) {
-        const cashToSubtract = sale.paymentMethod === "EFECTIVO" ? Number(sale.totalAmount) : 0;
+      // c. Revertir impacto de caja en la sesión activa del cajero actual (si existe y está abierta),
+      // o en su defecto en la sesión original de la venta.
+      const activeSession = await tx.cashSession.findFirst({
+        where: {
+          userId: req.user!.userId,
+          branchId: req.user!.branchId,
+          status: "ABIERTA",
+          closedAt: null,
+        },
+      });
+
+      const sessionToAffectId = activeSession ? activeSession.id : sale.cashSessionId;
+
+      if (sessionToAffectId) {
+        const cashToSubtract =
+          sale.paymentMethod === "EFECTIVO"
+            ? Number(sale.totalAmount)
+            : sale.paymentMethod === "MIXTO"
+            ? Number(sale.cashReceived || 0) - Number(sale.changeGiven || 0)
+            : 0;
+
         await tx.cashSession.update({
-          where: { id: sale.cashSessionId },
+          where: { id: sessionToAffectId },
           data: {
             cashIn: { decrement: cashToSubtract },
             expectedAmount: { decrement: Number(sale.totalAmount) },
           },
         });
+      }
+
+      // d. Revertir puntos del cliente si la venta tenía cliente asociado
+      if (sale.customerId) {
+        const customer = await tx.customer.findUnique({
+          where: { id: sale.customerId }
+        });
+        if (customer) {
+          const newPoints = Math.max(0, customer.points + sale.pointsRedeemed - sale.pointsEarned);
+          await tx.customer.update({
+            where: { id: sale.customerId },
+            data: { points: newPoints }
+          });
+        }
       }
     });
 
@@ -359,6 +481,11 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
 
   if (!accountNumber || !targetName || !amount || !paymentType) {
     res.status(400).json({ message: "Todos los campos son requeridos para procesar el depósito." });
+    return;
+  }
+
+  if (paymentType !== "EFECTIVO") {
+    res.status(400).json({ message: "El tipo de depósito debe ser EFECTIVO, ya que representa un retiro de la caja física." });
     return;
   }
 
@@ -463,3 +590,181 @@ export const getRecentDeposits = async (req: Request, res: Response): Promise<vo
     res.status(500).json({ message: "Error al obtener depósitos recientes.", error: error.message });
   }
 };
+
+/**
+ * Buscar clientes por nombre o teléfono (acceso para cajero)
+ */
+export const searchCustomers = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  try {
+    const query = typeof req.query.query === "string" ? req.query.query.trim() : "";
+    if (!query) {
+      res.status(200).json({ customers: [] });
+      return;
+    }
+
+    const customers = await prisma.customer.findMany({
+      where: {
+        OR: [
+          { name: { contains: query } },
+          { phone: { contains: query } }
+        ]
+      },
+      orderBy: { name: "asc" },
+      take: 10,
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        email: true,
+        points: true,
+      }
+    });
+
+    res.status(200).json({ customers });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al buscar clientes.", error: error.message });
+  }
+};
+
+/**
+ * Registro rápido de cliente desde la caja
+ */
+export const registerCustomer = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  try {
+    const { name, phone, email } = req.body;
+
+    if (!name || typeof name !== "string" || !name.trim()) {
+      res.status(400).json({ message: "El nombre del cliente es obligatorio." });
+      return;
+    }
+    if (!phone || typeof phone !== "string" || !phone.trim()) {
+      res.status(400).json({ message: "El teléfono del cliente es obligatorio." });
+      return;
+    }
+
+    // Verificar si ya existe un cliente con ese teléfono
+    const existing = await prisma.customer.findFirst({
+      where: { phone: phone.trim() }
+    });
+
+    if (existing) {
+      res.status(400).json({ message: "Ya existe un cliente registrado con ese número de teléfono." });
+      return;
+    }
+
+    const customer = await prisma.customer.create({
+      data: {
+        name: name.trim(),
+        phone: phone.trim(),
+        email: email && typeof email === "string" && email.trim() ? email.trim() : null,
+        points: 0,
+        creditLimit: 0,
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        email: true,
+        points: true,
+      }
+    });
+
+    res.status(201).json({
+      message: "Cliente registrado exitosamente.",
+      customer,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al registrar el cliente.", error: error.message });
+  }
+};
+
+/**
+ * Obtener detalles completos de una venta por folio (invoiceNumber) o ID (para cajero)
+ */
+export const getSaleDetailForCashier = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  const { invoiceNumber, id } = req.query;
+
+  try {
+    const where: any = { branchId: req.user.branchId };
+    if (id) {
+      where.id = Number(id);
+    } else if (invoiceNumber) {
+      where.invoiceNumber = String(invoiceNumber).trim();
+    } else {
+      res.status(400).json({ message: "Debe proporcionar el ID o el folio de la venta." });
+      return;
+    }
+
+    const sale = await prisma.sale.findFirst({
+      where,
+      include: {
+        user: { select: { name: true } },
+        customer: { select: { name: true, phone: true, points: true } },
+        saleDetails: {
+          include: {
+            product: { select: { name: true, sku: true, sellPrice: true } }
+          }
+        }
+      }
+    });
+
+    if (!sale) {
+      res.status(404).json({ message: "Venta no encontrada en esta sucursal." });
+      return;
+    }
+
+    // Mapear al formato esperado por el frontend
+    const mapped = {
+      id: sale.id,
+      invoiceNumber: sale.invoiceNumber,
+      createdAt: sale.createdAt,
+      subtotal: Number(sale.totalAmount) / 1.16,
+      tax: Number(sale.taxAmount),
+      discountAmount: Number(sale.discountAmount),
+      total: Number(sale.totalAmount),
+      paymentMethod: sale.paymentMethod,
+      cardType: sale.cardType,
+      status: sale.status,
+      cajero: sale.user.name,
+      cashReceived: sale.cashReceived ? Number(sale.cashReceived) : Number(sale.totalAmount),
+      changeGiven: sale.changeGiven ? Number(sale.changeGiven) : 0,
+      pointsEarned: sale.pointsEarned,
+      pointsRedeemed: sale.pointsRedeemed,
+      pointsDiscount: Number(sale.pointsDiscount),
+      customerName: sale.customer?.name || null,
+      customerPhone: sale.customer?.phone || null,
+      customerPoints: sale.customer?.points || 0,
+      items: sale.saleDetails.map((d) => ({
+        product: {
+          id: d.productId,
+          sku: d.product.sku,
+          name: d.product.name,
+          sellPrice: Number(d.unitPrice),
+        },
+        quantity: d.quantity,
+        discountAmount: Number(d.discountAmount),
+      }))
+    };
+
+    res.status(200).json({ sale: mapped });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al obtener los detalles de la venta.", error: error.message });
+  }
+};
+
+

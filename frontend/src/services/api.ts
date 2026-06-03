@@ -32,9 +32,12 @@ api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response) {
-      const { status } = error.response;
+      const { status, config } = error.response;
       
-      if (status === 401) {
+      // Evitar desloguear si es una verificación de PIN fallida (el supervisor ingresó PIN incorrecto)
+      const isPinVerification = config.url?.endsWith("/verify-pin") || config.url?.endsWith("/authorize-cancel");
+
+      if (status === 401 && !isPinVerification) {
         console.warn("Sesión expirada o no autorizada. Redirigiendo a inicio de sesión...");
         localStorage.removeItem("fmb_pos_token");
         localStorage.removeItem("fmb_pos_user");

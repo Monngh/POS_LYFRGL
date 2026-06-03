@@ -1,110 +1,110 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "sqlserver"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 model Branch {
-  id           Int           @id @default(autoincrement())
-  name         String
-  address      String?
-  phone        String?
-  active       Boolean       @default(true)
-  users        User[]
-  inventories  Inventory[]
+  id            Int           @id @default(autoincrement())
+  name          String        @unique
+  address       String?
+  phone         String?
+  active        Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  bankDeposits  BankDeposit[]
+  cashSessions  CashSession[]
+  inventories   Inventory[]
   kardexEntries Kardex[]
-  sales        Sale[]
-  cashSessions CashSession[]
-  bankDeposits BankDeposit[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  sales         Sale[]
+  users         User[]
 }
 
 model User {
-  id           Int           @id @default(autoincrement())
-  email        String        @unique
-  passwordHash String
-  pinCode      String?       // PIN de 4 dígitos para cajeros (cifrado/plano)
-  name         String
-  role         String        // 'ADMIN', 'GERENTE', 'CAJERO'
-  active       Boolean       @default(true)
-  branchId     Int
-  branch       Branch        @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id            Int           @id @default(autoincrement())
+  email         String        @unique
+  passwordHash  String
+  pinCode       String?
+  name          String
+  role          String
+  active        Boolean       @default(true)
+  branchId      Int
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  cashSessions  CashSession[]
   kardexEntries Kardex[]
-  sales        Sale[]
-  cashSessions CashSession[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  sales         Sale[]
+  branch        Branch        @relation(fields: [branchId], references: [id], onUpdate: NoAction)
 }
 
 model Product {
-  id           Int           @id @default(autoincrement())
-  sku          String        @unique
-  barcode      String?       @unique
-  name         String
-  description  String?
-  costPrice    Decimal       @db.Decimal(18, 2)
-  sellPrice    Decimal       @db.Decimal(18, 2)
-  active       Boolean       @default(true)
-  inventories        Inventory[]
-  kardexEntries      Kardex[]
-  saleDetails        SaleDetail[]
-  promotionProducts  PromotionProduct[]
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  id                Int                @id @default(autoincrement())
+  sku               String             @unique
+  barcode           String?            @unique
+  name              String
+  description       String?
+  costPrice         Decimal            @db.Decimal(18, 2)
+  sellPrice         Decimal            @db.Decimal(18, 2)
+  active            Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  inventories       Inventory[]
+  kardexEntries     Kardex[]
+  promotionProducts PromotionProduct[]
+  saleDetails       SaleDetail[]
 }
 
 model Inventory {
-  id        Int      @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   productId Int
-  product   Product  @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   branchId  Int
-  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  quantity  Int      @default(0) // Piezas (enteros)
-  minStock  Int      @default(5)
-  maxStock  Int      @default(100)
-  
+  quantity  Int     @default(0)
+  minStock  Int     @default(5)
+  maxStock  Int     @default(100)
+  branch    Branch  @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+  product   Product @relation(fields: [productId], references: [id], onUpdate: NoAction)
+
   @@unique([productId, branchId])
 }
 
 model Kardex {
   id             Int      @id @default(autoincrement())
   productId      Int
-  product        Product  @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   branchId       Int
-  branch         Branch   @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   userId         Int
-  user           User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  quantityChange Int      // Cantidad de piezas añadidas (+) o restadas (-)
-  balanceAfter   Int      // Stock final después del movimiento
-  movementType   String   // 'COMPRA', 'VENTA', 'DEVOLUCION', 'TRASPASO_ENTRADA', 'TRASPASO_SALIDA', 'AJUSTE_MERMA', 'AJUSTE_INVENTARIO'
+  quantityChange Int
+  balanceAfter   Int
+  movementType   String
   reason         String?
   createdAt      DateTime @default(now())
+  branch         Branch   @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+  product        Product  @relation(fields: [productId], references: [id], onUpdate: NoAction)
+  user           User     @relation(fields: [userId], references: [id], onUpdate: NoAction)
 }
 
 model CashSession {
-  id             Int       @id @default(autoincrement())
+  id             Int           @id @default(autoincrement())
   branchId       Int
-  branch         Branch    @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   userId         Int
-  user           User      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  openedAt       DateTime  @default(now())
+  openedAt       DateTime      @default(now())
   closedAt       DateTime?
-  initialAmount  Decimal   @db.Decimal(18, 2)
-  expectedAmount Decimal   @db.Decimal(18, 2)
-  declaredAmount Decimal?  @db.Decimal(18, 2)
-  difference     Decimal?  @db.Decimal(18, 2)
-  cashIn         Decimal   @default(0) @db.Decimal(18, 2)
-  cashOut        Decimal   @default(0) @db.Decimal(18, 2)
-  status         String    @default("ABIERTA") // 'ABIERTA', 'CERRADA'
-  sales          Sale[]
+  initialAmount  Decimal       @db.Decimal(18, 2)
+  expectedAmount Decimal       @db.Decimal(18, 2)
+  declaredAmount Decimal?      @db.Decimal(18, 2)
+  difference     Decimal?      @db.Decimal(18, 2)
+  cashIn         Decimal       @default(0) @db.Decimal(18, 2)
+  cashOut        Decimal       @default(0) @db.Decimal(18, 2)
+  status         String        @default("ABIERTA")
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
   bankDeposits   BankDeposit[]
   cuts           CashCut[]
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  branch         Branch        @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+  user           User          @relation(fields: [userId], references: [id], onUpdate: NoAction)
+  sales          Sale[]
 }
 
 model Customer {
@@ -112,54 +112,58 @@ model Customer {
   name        String
   email       String?
   phone       String?
-  taxId       String?  // RFC o equivalente fiscal
+  taxId       String?
   address     String?
   creditLimit Decimal  @default(0) @db.Decimal(18, 2)
-  balance     Decimal  @default(0) @db.Decimal(18, 2) // Saldo pendiente
-  sales       Sale[]
+  balance     Decimal  @default(0) @db.Decimal(18, 2)
+  points      Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  sales       Sale[]
 }
 
 model Sale {
   id             Int          @id @default(autoincrement())
-  invoiceNumber  String       @unique // Folio de venta único
+  invoiceNumber  String       @unique
   branchId       Int
-  branch         Branch       @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   userId         Int
-  user           User         @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   customerId     Int?
-  customer       Customer?    @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   cashSessionId  Int?
-  cashSession    CashSession? @relation(fields: [cashSessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   totalAmount    Decimal      @db.Decimal(18, 2)
   taxAmount      Decimal      @db.Decimal(18, 2)
   discountAmount Decimal      @default(0) @db.Decimal(18, 2)
-  paymentMethod  String       // 'EFECTIVO', 'TARJETA', 'CREDITO', 'MIXTO'
-  cardType       String?      // 'CREDITO', 'DEBITO'
+  paymentMethod  String
   cashReceived   Decimal?     @db.Decimal(18, 2)
   changeGiven    Decimal?     @db.Decimal(18, 2)
-  status         String       @default("COMPLETADA") // 'COMPLETADA', 'CANCELADA'
-  cfdiUuid       String?      // Folio fiscal de facturación SAT (si ya se autofacturó)
-  cfdiEmail      String?      // Correo al que se envió la factura timbrada
-  saleDetails    SaleDetail[]
+  status         String       @default("COMPLETADA")
+  pointsEarned   Int          @default(0)
+  pointsRedeemed Int          @default(0)
+  pointsDiscount Decimal      @default(0) @db.Decimal(18, 2)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+  cfdiEmail      String?
+  cfdiUuid       String?
+  cardType       String?
+  branch         Branch       @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+  cashSession    CashSession? @relation(fields: [cashSessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customer       Customer?    @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user           User         @relation(fields: [userId], references: [id], onUpdate: NoAction)
+  saleDetails    SaleDetail[]
 }
 
 model SaleDetail {
   id             Int     @id @default(autoincrement())
   saleId         Int
-  sale           Sale    @relation(fields: [saleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   productId      Int
-  product        Product @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  quantity       Int     // Piezas enteras vendidas
+  quantity       Int
   unitPrice      Decimal @db.Decimal(18, 2)
-  costPrice      Decimal @db.Decimal(18, 2) // Para reportes de margen neto
+  costPrice      Decimal @db.Decimal(18, 2)
   taxAmount      Decimal @db.Decimal(18, 2)
   discountAmount Decimal @default(0) @db.Decimal(18, 2)
-  promotionId    Int?    // FK a la promoción aplicada (auditoría)
-  promotionLabel String? // Etiqueta legible: "2x1", "20% OFF", etc.
+  promotionId    Int?
+  promotionLabel String?
+  product        Product @relation(fields: [productId], references: [id], onUpdate: NoAction)
+  sale           Sale    @relation(fields: [saleId], references: [id], onUpdate: NoAction)
 }
 
 model BankDeposit {
@@ -167,18 +171,14 @@ model BankDeposit {
   accountNumber String
   targetName    String
   amount        Decimal     @db.Decimal(18, 2)
-  paymentType   String      // 'EFECTIVO', 'TARJETA'
+  paymentType   String
   comments      String?
   cashSessionId Int
-  cashSession   CashSession @relation(fields: [cashSessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   branchId      Int
-  branch        Branch      @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   createdAt     DateTime    @default(now())
+  branch        Branch      @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+  cashSession   CashSession @relation(fields: [cashSessionId], references: [id], onUpdate: NoAction)
 }
-
-// =========================================================================
-// SISTEMA DE PROMOCIONES
-// =========================================================================
 
 model PromotionType {
   id          Int         @id @default(autoincrement())
@@ -192,7 +192,6 @@ model Promotion {
   name            String
   description     String?
   promotionTypeId Int
-  promotionType   PromotionType      @relation(fields: [promotionTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   startDate       DateTime
   endDate         DateTime
   isActive        Boolean            @default(true)
@@ -200,17 +199,18 @@ model Promotion {
   minQuantity     Int?
   payQuantity     Int?
   specialPrice    Decimal?           @db.Decimal(18, 2)
-  products        PromotionProduct[]
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
+  promotionType   PromotionType      @relation(fields: [promotionTypeId], references: [id], onUpdate: NoAction)
+  products        PromotionProduct[]
 }
 
 model PromotionProduct {
   id          Int       @id @default(autoincrement())
   promotionId Int
-  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   productId   Int
-  product     Product   @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  product     Product   @relation(fields: [productId], references: [id], onUpdate: NoAction)
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onUpdate: NoAction)
 
   @@unique([promotionId, productId])
 }
@@ -218,8 +218,7 @@ model PromotionProduct {
 model CashCut {
   id              Int         @id @default(autoincrement())
   cashSessionId   Int
-  cashSession     CashSession @relation(fields: [cashSessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  createdAt       DateTime    @default(now())
+  createdAt       DateTime    @default(now(), map: "DF__CashCut__created__4B7734FF")
   totalSales      Decimal     @db.Decimal(18, 2)
   totalCash       Decimal     @db.Decimal(18, 2)
   totalCreditCard Decimal     @db.Decimal(18, 2)
@@ -227,5 +226,5 @@ model CashCut {
   totalRefunds    Decimal     @db.Decimal(18, 2)
   netTotal        Decimal     @db.Decimal(18, 2)
   cutNumber       Int
+  cashSession     CashSession @relation(fields: [cashSessionId], references: [id], onUpdate: NoAction)
 }
-
