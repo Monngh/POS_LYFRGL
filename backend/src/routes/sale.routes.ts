@@ -5,6 +5,11 @@ import {
   authorizeAndCancelSale,
   createBankDeposit,
   getRecentDeposits,
+  confirmQrPayment,
+  searchDeposits,
+  getDepositById,
+  confirmDeposit,
+  cancelDeposit,
   searchCustomers,
   registerCustomer,
   getSaleDetailForCashier
@@ -21,6 +26,11 @@ router.get("/recent", getRecentSales);
 router.post("/authorize-cancel", authorizeAndCancelSale);
 router.post("/bank-deposit", createBankDeposit);
 router.get("/deposits", getRecentDeposits);
+router.get("/deposits/search", searchDeposits);
+router.get("/deposits/:id", getDepositById);
+router.post("/deposits/:id/confirm", confirmDeposit);
+router.post("/deposits/:id/cancel", cancelDeposit);
+router.post("/confirm-qr", confirmQrPayment);
 router.get("/detail", getSaleDetailForCashier);
 
 // Clientes y Lealtad para Cajero

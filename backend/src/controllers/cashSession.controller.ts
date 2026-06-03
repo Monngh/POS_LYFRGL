@@ -247,6 +247,31 @@ export const getSessionStats = async (req: Request, res: Response): Promise<void
       },
     });
 
+    // Obtener ventas canceladas con QR_MERCADOPAGO de este turno
+    const qrRefundedSales = await prisma.sale.findMany({
+      where: {
+        cashSessionId: activeSession.id,
+        status: "CANCELADA",
+        paymentMethod: "QR_MERCADOPAGO",
+        refundStatus: { not: null }
+      }
+    });
+
+    const refundedSalesCount = qrRefundedSales.length;
+    const refundedAmount = qrRefundedSales.reduce((acc, curr) => acc + (curr.refundAmount ? Number(curr.refundAmount) : 0), 0);
+    const pendingRefundsCount = qrRefundedSales.filter(s => s.refundStatus === "PENDING").length;
+
+    // Recuperar depósitos
+    const deposits = await prisma.bankDeposit.findMany({
+      where: {
+        cashSessionId: activeSession.id
+      }
+    });
+
+    const pendingDeposits = deposits.filter(d => d.status === 'PENDING').reduce((acc, curr) => acc + Number(curr.amount), 0);
+    const confirmedDeposits = deposits.filter(d => d.status === 'COMPLETED').reduce((acc, curr) => acc + Number(curr.amount), 0);
+    const cancelledDeposits = deposits.filter(d => d.status === 'CANCELLED').reduce((acc, curr) => acc + Number(curr.amount), 0);
+
     let salesCount = 0;
     let totalSalesAmount = 0; // Completadas + Canceladas
     let totalRefunds = 0; // Canceladas
@@ -254,6 +279,7 @@ export const getSessionStats = async (req: Request, res: Response): Promise<void
     let creditCardTotal = 0;
     let debitCardTotal = 0;
     let cashTotal = 0;
+    let mercadoPagoTotal = 0;
 
     for (const sale of sales) {
       const amount = Number(sale.totalAmount);
@@ -270,6 +296,8 @@ export const getSessionStats = async (req: Request, res: Response): Promise<void
           } else {
             debitCardTotal += amount;
           }
+        } else if (sale.paymentMethod === "QR_MERCADOPAGO") {
+          mercadoPagoTotal += amount;
         } else if (sale.paymentMethod === "MIXTO") {
           const cashPortion = Number(sale.cashReceived || 0) - Number(sale.changeGiven || 0);
           const cardPortion = amount - cashPortion;
@@ -297,9 +325,17 @@ export const getSessionStats = async (req: Request, res: Response): Promise<void
         cashIn: Number(activeSession.cashIn),
         cashOut: Number(activeSession.cashOut),
         expectedAmount: Number(activeSession.initialAmount) + Number(activeSession.cashIn) - Number(activeSession.cashOut),
+        pendingDeposits,
+        confirmedDeposits,
+        cancelledDeposits,
+        refundedSalesCount,
+        refundedAmount,
+        pendingRefundsCount,
+        depositsDetails: deposits,
         creditCardTotal,
         debitCardTotal,
         cashTotal,
+        mercadoPagoTotal,
       }
     });
   } catch (error: any) {
