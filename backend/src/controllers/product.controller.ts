@@ -34,12 +34,41 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
         inventories: {
           where: { branchId: req.user.branchId },
         },
+        promotionProducts: {
+          include: {
+            promotion: {
+              include: {
+                promotionType: true
+              }
+            }
+          }
+        }
       },
     });
 
-    // Mapear el resultado para retornar un formato plano con stock fácil de leer por el frontend
+    const today = new Date();
+
+    // Mapear el resultado para retornar un formato plano con stock fácil de leer por el frontend y promociones activas
     const mappedProducts = products.map((p) => {
       const branchInventory = p.inventories[0];
+      
+      // Encontrar promoción activa
+      const activePP = p.promotionProducts.find(pp => 
+        pp.promotion.isActive &&
+        pp.promotion.startDate <= today &&
+        pp.promotion.endDate >= today
+      );
+
+      const activePromo = activePP ? {
+        id: activePP.promotion.id,
+        name: activePP.promotion.name,
+        type: activePP.promotion.promotionType.name,
+        value: activePP.promotion.value ? Number(activePP.promotion.value) : null,
+        minQuantity: activePP.promotion.minQuantity,
+        payQuantity: activePP.promotion.payQuantity,
+        specialPrice: activePP.promotion.specialPrice ? Number(activePP.promotion.specialPrice) : null,
+      } : null;
+
       return {
         id: p.id,
         sku: p.sku,
@@ -50,6 +79,7 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
         sellPrice: Number(p.sellPrice),
         stock: branchInventory ? branchInventory.quantity : 0,
         minStock: branchInventory ? branchInventory.minStock : 5,
+        activePromotion: activePromo,
       };
     });
 
