@@ -1,15 +1,18 @@
 import { Router } from "express";
-import { 
-  createSale, 
-  getRecentSales, 
-  authorizeAndCancelSale, 
-  createBankDeposit, 
-  getRecentDeposits, 
+import {
+  createSale,
+  getRecentSales,
+  authorizeAndCancelSale,
+  createBankDeposit,
+  getRecentDeposits,
   confirmQrPayment,
   searchDeposits,
   getDepositById,
   confirmDeposit,
-  cancelDeposit
+  cancelDeposit,
+  searchCustomers,
+  registerCustomer,
+  getSaleDetailForCashier
 } from "../controllers/sale.controller";
 import { authenticateJWT } from "../middlewares/auth.middleware";
 
@@ -28,5 +31,10 @@ router.get("/deposits/:id", getDepositById);
 router.post("/deposits/:id/confirm", confirmDeposit);
 router.post("/deposits/:id/cancel", cancelDeposit);
 router.post("/confirm-qr", confirmQrPayment);
+router.get("/detail", getSaleDetailForCashier);
+
+// Clientes y Lealtad para Cajero
+router.get("/customers/search", searchCustomers);
+router.post("/customers", registerCustomer);
 
 export default router;

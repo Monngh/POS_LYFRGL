@@ -1,6 +1,10 @@
 import dotenv from "dotenv";
-// Cargar variables de entorno al inicio
-dotenv.config();
+import path from "path";
+// Cargar variables de entorno al inicio.
+// Se resuelve la ruta del .env de forma absoluta (relativa a este archivo) para que
+// funcione sin importar el directorio desde el que se lance el proceso (raíz del repo,
+// botón "Run" de VS Code, etc.) y no solo cuando cwd === carpeta backend/.
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 import app from "./app";
 
