@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../app";
 import bcrypt from "bcryptjs";
+import { PromotionService } from "../services/promotion.service";
 
 /**
  * Registrar una nueva venta en el sistema (Corte Transaccional ACID)
@@ -11,7 +12,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     return;
   }
 
-  const { items, paymentMethod, cashReceived, changeGiven, discountAmount, customerId } = req.body;
+  const { items, paymentMethod, cardType, cashReceived, changeGiven, customerId } = req.body;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     res.status(400).json({ message: "El carrito de ventas no puede estar vacío." });
@@ -34,11 +35,26 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // 2. Calcular importes y validar stock de productos
+    // 2. Calcular importes y validar stock de productos utilizando el motor de promociones
+
+    // Mapear los items al formato esperado por el calculador de promociones
+    const cartItems = items.map((item: any) => ({
+      id: item.id,
+      productId: item.id,
+      name: item.name,
+      sellPrice: Number(item.sellPrice),
+      quantity: item.quantity,
+    }));
+
+    const promoCalc = await PromotionService.calculatePromotions(cartItems);
+
     let calculatedSubtotal = 0;
     const itemsWithCosts: any[] = [];
 
-    for (const item of items) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const calcLine = promoCalc.lines[i];
+
       const dbProduct = await prisma.product.findUnique({
         where: { id: item.id },
         include: {
@@ -69,14 +85,17 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
         quantity: item.quantity,
         unitPrice: Number(dbProduct.sellPrice),
         costPrice: Number(dbProduct.costPrice),
+        discountAmount: calcLine.discountAmount,
+        promotionId: calcLine.appliedPromotion?.promotionId || null,
+        promotionLabel: calcLine.appliedPromotion ? calcLine.appliedPromotion.name : null,
         currentStock,
         inventoryId: branchInventory.id,
       });
     }
 
-    // Calcular IVA y Total
-    const discount = discountAmount ? Number(discountAmount) : 0;
-    const finalSubtotal = calculatedSubtotal - discount;
+    // Calcular IVA y Total usando los montos calculados por el motor de promociones
+    const discount = promoCalc.totalDiscount; // Se sobreescribe con el descuento real de promociones
+    const finalSubtotal = promoCalc.totalFinal;
     const finalTax = finalSubtotal * 0.16; // 16% IVA
     const finalTotal = finalSubtotal + finalTax;
 
@@ -99,6 +118,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
           taxAmount: finalTax,
           discountAmount: discount,
           paymentMethod,
+          cardType: cardType || null,
           cashReceived: cashReceived ? Number(cashReceived) : null,
           changeGiven: changeGiven ? Number(changeGiven) : null,
           status: "COMPLETADA",
@@ -115,8 +135,10 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             costPrice: item.costPrice,
-            taxAmount: item.unitPrice * item.quantity * 0.16,
-            discountAmount: 0,
+            taxAmount: (item.unitPrice * item.quantity - item.discountAmount) * 0.16,
+            discountAmount: item.discountAmount,
+            promotionId: item.promotionId,
+            promotionLabel: item.promotionLabel,
           },
         });
 
@@ -192,6 +214,7 @@ export const getRecentSales = async (req: Request, res: Response): Promise<void>
       createdAt: s.createdAt,
       totalAmount: Number(s.totalAmount),
       paymentMethod: s.paymentMethod,
+      cardType: s.cardType,
       status: s.status,
       cajero: s.user.name,
     }));

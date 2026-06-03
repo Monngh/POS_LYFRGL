@@ -64,8 +64,32 @@ async function main() {
 
   // Mantener compatibilidad con el correo genérico "cajero@fmb.com" para que siga sirviendo el login por defecto
   const existingCajero = await prisma.user.findUnique({ where: { email: "cajero@fmb.com" } });
-  if (existingCajero) {
-    await prisma.user.delete({ where: { email: "cajero@fmb.com" } });
+  if (!existingCajero) {
+    await prisma.user.create({
+      data: {
+        email: "cajero@fmb.com",
+        passwordHash: defaultPasswordHash,
+        pinCode: await bcrypt.hash("1234", 10),
+        name: "Juan Cajero (Acceso Rápido)",
+        role: "CAJERO",
+        active: true,
+        branchId: branchesMap["Sucursal Centro FMB"],
+      }
+    });
+    console.log(`✅ Cajero de retrocompatibilidad creado: cajero@fmb.com (PIN: 1234)`);
+  } else {
+    await prisma.user.update({
+      where: { email: "cajero@fmb.com" },
+      data: {
+        passwordHash: defaultPasswordHash,
+        pinCode: await bcrypt.hash("1234", 10),
+        name: "Juan Cajero (Acceso Rápido)",
+        role: "CAJERO",
+        active: true,
+        branchId: branchesMap["Sucursal Centro FMB"],
+      }
+    });
+    console.log(`ℹ️ Cajero de retrocompatibilidad actualizado.`);
   }
 
   for (const u of usersData) {
@@ -90,7 +114,6 @@ async function main() {
       });
       console.log(`✅ Usuario creado: ${user.email} (${user.role}) - ${u.branchName} ${u.pin ? `[PIN: ${u.pin}]` : ""}`);
     } else {
-      // Si ya existe, actualizamos su sucursal y PIN por consistencia
       user = await prisma.user.update({
         where: { email: u.email },
         data: {
@@ -101,20 +124,6 @@ async function main() {
       console.log(`ℹ️ Usuario "${user.email}" actualizado.`);
     }
   }
-
-  // Re-crear cajero@fmb.com apuntando a Juan Centro para retrocompatibilidad total del login original
-  await prisma.user.create({
-    data: {
-      email: "cajero@fmb.com",
-      passwordHash: defaultPasswordHash,
-      pinCode: await bcrypt.hash("1234", 10),
-      name: "Juan Cajero (Acceso Rápido)",
-      role: "CAJERO",
-      active: true,
-      branchId: branchesMap["Sucursal Centro FMB"],
-    }
-  });
-  console.log(`✅ Cajero de retrocompatibilidad creado: cajero@fmb.com (PIN: 1234)`);
 
   // =========================================================================
   // 3. CLIENTE GENÉRICO
@@ -199,6 +208,137 @@ async function main() {
         });
         console.log(`   📦 Stock de ${randomStock} piezas asignado en ${bName}`);
       }
+    }
+  }
+
+  // =========================================================================
+  // 5. SISTEMA DE PROMOCIONES
+  // =========================================================================
+  console.log("🌱 Sembrando tipos de promociones y promociones ejemplo...");
+
+  const promotionTypes = [
+    { name: "Percentage", description: "Descuento porcentual sobre el precio del producto" },
+    { name: "FixedAmount", description: "Descuento de monto fijo sobre el precio del producto" },
+    { name: "BuyXPayY", description: "Paga Y cantidad al llevar X cantidad (ej. 2x1, 3x2)" },
+    { name: "SpecialPrice", description: "Precio especial por volumen (ej. a partir de 3 piezas a $15 c/u)" }
+  ];
+
+  const promoTypesMap: { [key: string]: number } = {};
+
+  for (const pt of promotionTypes) {
+    let type = await prisma.promotionType.findUnique({
+      where: { name: pt.name }
+    });
+
+    if (!type) {
+      type = await prisma.promotionType.create({
+        data: {
+          name: pt.name,
+          description: pt.description
+        }
+      });
+      console.log(`✅ Tipo de promoción creado: ${type.name}`);
+    } else {
+      console.log(`ℹ️ Tipo de promoción "${type.name}" ya existe.`);
+    }
+    promoTypesMap[pt.name] = type.id;
+  }
+
+  // Buscar algunos productos para asignarles promociones
+  const coke = await prisma.product.findUnique({ where: { sku: "PROD-001" } });
+  const sabritas = await prisma.product.findUnique({ where: { sku: "PROD-002" } });
+  const bimbo = await prisma.product.findUnique({ where: { sku: "PROD-003" } });
+
+  const now = new Date();
+  const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1); // ayer
+  const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 30);   // dentro de un mes
+
+  // Promoción 1: Coca Cola 20% Descuento (Percentage)
+  if (coke) {
+    const promoName = "Coca Cola 20% OFF";
+    let promo = await prisma.promotion.findFirst({
+      where: { name: promoName }
+    });
+
+    if (!promo) {
+      promo = await prisma.promotion.create({
+        data: {
+          name: promoName,
+          description: "20% de descuento en refresco Coca Cola 600ml",
+          promotionTypeId: promoTypesMap["Percentage"],
+          startDate,
+          endDate,
+          value: 20.00,
+          isActive: true
+        }
+      });
+      await prisma.promotionProduct.create({
+        data: {
+          promotionId: promo.id,
+          productId: coke.id
+        }
+      });
+      console.log(`✅ Promoción creada: ${promo.name}`);
+    }
+  }
+
+  // Promoción 2: Papas Sabritas 3x2 (BuyXPayY)
+  if (sabritas) {
+    const promoName = "Sabritas 3x2";
+    let promo = await prisma.promotion.findFirst({
+      where: { name: promoName }
+    });
+
+    if (!promo) {
+      promo = await prisma.promotion.create({
+        data: {
+          name: promoName,
+          description: "Lleva 3 bolsas de papas Sabritas y paga solo 2",
+          promotionTypeId: promoTypesMap["BuyXPayY"],
+          startDate,
+          endDate,
+          minQuantity: 3,
+          payQuantity: 2,
+          isActive: true
+        }
+      });
+      await prisma.promotionProduct.create({
+        data: {
+          promotionId: promo.id,
+          productId: sabritas.id
+        }
+      });
+      console.log(`✅ Promoción creada: ${promo.name}`);
+    }
+  }
+
+  // Promoción 3: Pan Bimbo a precio especial de $38 a partir de 2 piezas (SpecialPrice)
+  if (bimbo) {
+    const promoName = "Bimbo Precio Especial";
+    let promo = await prisma.promotion.findFirst({
+      where: { name: promoName }
+    });
+
+    if (!promo) {
+      promo = await prisma.promotion.create({
+        data: {
+          name: promoName,
+          description: "Pan Blanco Bimbo a $38 c/u comprando 2 o más",
+          promotionTypeId: promoTypesMap["SpecialPrice"],
+          startDate,
+          endDate,
+          minQuantity: 2,
+          specialPrice: 38.00,
+          isActive: true
+        }
+      });
+      await prisma.promotionProduct.create({
+        data: {
+          promotionId: promo.id,
+          productId: bimbo.id
+        }
+      });
+      console.log(`✅ Promoción creada: ${promo.name}`);
     }
   }
 

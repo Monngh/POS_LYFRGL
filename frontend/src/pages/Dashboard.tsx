@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
+import AdminDashboard from "./AdminDashboard";
 import { 
   LogOut, 
   Store, 
@@ -27,6 +28,15 @@ interface Product {
   sellPrice: number;
   stock: number;
   minStock: number;
+  activePromotion?: {
+    id: number;
+    name: string;
+    type: string;
+    value: number | null;
+    minQuantity: number | null;
+    payQuantity: number | null;
+    specialPrice: number | null;
+  } | null;
 }
 
 interface Sale {
@@ -35,6 +45,7 @@ interface Sale {
   createdAt: string;
   totalAmount: number;
   paymentMethod: string;
+  cardType?: string;
   status: string;
   cajero: string;
 }
@@ -65,8 +76,12 @@ const Dashboard: React.FC = () => {
   const [recentDeposits, setRecentDeposits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Modales de Acción Rápida: null | "price-lookup" | "ticket-history" | "cancel-sale" | "close-cash" | "bank-deposit"
+  // Modales de Acción Rápida: null | "price-lookup" | "ticket-history" | "cancel-sale" | "close-cash" | "bank-deposit" | "close-options" | "partial-cut-summary" | "partial-cut-receipt"
   const [activeModal, setActiveModal] = useState<string | null>(null);
+
+  // Estados para Corte Parcial
+  const [partialCutLoading, setPartialCutLoading] = useState(false);
+  const [partialCutData, setPartialCutData] = useState<any>(null);
 
   // ---------------------------------------------------------------------------
   // 1. CARGA DE DATOS DE SESIÓN Y VISTA INICIAL
@@ -147,34 +162,62 @@ const Dashboard: React.FC = () => {
   // ---------------------------------------------------------------------------
   const [lookupQuery, setLookupQuery] = useState("");
   const [lookupResults, setLookupResults] = useState<Product[]>([]);
+  const lastLookupQueryRef = React.useRef("");
 
-  const handleLookupSearch = async () => {
+  const handleLookupSearch = async (forceQuery?: string) => {
+    const query = (forceQuery !== undefined ? forceQuery : lookupQuery).trim();
+    if (query === lastLookupQueryRef.current) return;
+    lastLookupQueryRef.current = query;
     try {
-      const res = await api.get(`/api/products/search?query=${lookupQuery}`);
+      const res = await api.get(`/api/products/search?query=${query}`);
       setLookupResults(res.data.products);
     } catch (err) {
       console.error("Error al buscar productos:", err);
     }
   };
 
-  // Trigger search on typing
+  const handleLookupKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleLookupSearch();
+    }
+  };
+
   useEffect(() => {
     if (activeModal === "price-lookup") {
+      const query = lookupQuery.trim();
       const delayDebounce = setTimeout(() => {
-        handleLookupSearch();
-      }, 300);
+        handleLookupSearch(query);
+      }, 50);
       return () => clearTimeout(delayDebounce);
+    } else {
+      lastLookupQueryRef.current = "";
     }
   }, [lookupQuery, activeModal]);
 
   // ---------------------------------------------------------------------------
   // 4. TERMINAL DE VENTAS (Mockup 5)
   // ---------------------------------------------------------------------------
-  const [cart, setCart] = useState<{ product: Product; quantity: number }[]>([]);
+  // Restaurar borrador de venta desde localStorage al montar
+  const DRAFT_KEY = "pos_sale_draft";
+  const loadDraft = (): { product: Product; quantity: number }[] => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch { /* ignore */ }
+    return [];
+  };
+
+  const [cart, setCart] = useState<{ product: Product; quantity: number }[]>(loadDraft);
   const [barcodeSearch, setBarcodeSearch] = useState("");
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState<any>(null); // Guardar venta tras cobro para ticket
+  const lastSearchQueryRef = React.useRef("");
+  const [showDraftConfirm, setShowDraftConfirm] = useState(false);
 
   // Estados para autorización de PIN en modificaciones de carrito (Fase 3.0)
   const [pendingCartAction, setPendingCartAction] = useState<{
@@ -188,15 +231,19 @@ const Dashboard: React.FC = () => {
 
   const handleProductBarcodeSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!barcodeSearch.trim()) return;
+    const query = barcodeSearch.trim();
+    if (!query) return;
+    if (query === lastSearchQueryRef.current) return;
+    lastSearchQueryRef.current = query;
     try {
-      const res = await api.get(`/api/products/search?query=${barcodeSearch}`);
+      const res = await api.get(`/api/products/search?query=${query}`);
       const list: Product[] = res.data.products;
       if (list.length === 1) {
         // Añadir directamente
         addProductToCart(list[0]);
         setBarcodeSearch("");
         setSearchResults([]);
+        lastSearchQueryRef.current = "";
       } else {
         setSearchResults(list);
       }
@@ -204,6 +251,47 @@ const Dashboard: React.FC = () => {
       console.error("Error al buscar producto:", err);
     }
   };
+
+  // Búsqueda automática al escribir en la terminal de ventas
+  useEffect(() => {
+    if (view !== "sales-terminal") return;
+    const query = barcodeSearch.trim();
+    if (!query) {
+      setSearchResults([]);
+      lastSearchQueryRef.current = "";
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      if (query === lastSearchQueryRef.current) return;
+      lastSearchQueryRef.current = query;
+      try {
+        const res = await api.get(`/api/products/search?query=${query}`);
+        const list: Product[] = res.data.products;
+        if (list.length === 1) {
+          addProductToCart(list[0]);
+          setBarcodeSearch("");
+          setSearchResults([]);
+          lastSearchQueryRef.current = "";
+        } else {
+          setSearchResults(list);
+        }
+      } catch (err) {
+        console.error("Error al buscar producto automáticamente:", err);
+      }
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, [barcodeSearch, view]);
+
+  // Persistir borrador de venta en localStorage cada vez que cambie el carrito
+  useEffect(() => {
+    if (cart.length > 0) {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(cart));
+    } else {
+      localStorage.removeItem(DRAFT_KEY);
+    }
+  }, [cart]);
 
   const addProductToCart = (prod: Product) => {
     if (prod.stock <= 0) {
@@ -305,7 +393,70 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const cartSubtotal = cart.reduce((sum, item) => sum + item.product.sellPrice * item.quantity, 0);
+  // Función auxiliar para calcular las promociones de una línea del carrito
+  const calculateItemPromotion = (item: { product: Product; quantity: number }) => {
+    const promo = item.product.activePromotion;
+    const originalPrice = item.product.sellPrice;
+    const quantity = item.quantity;
+    const subtotalOriginal = originalPrice * quantity;
+
+    if (!promo) {
+      return { finalPrice: originalPrice, discountAmount: 0, label: "" };
+    }
+
+    let discountAmount = 0;
+    let finalPrice = originalPrice;
+
+    if (promo.type === "Percentage") {
+      const val = promo.value || 0;
+      const discountPerUnit = originalPrice * (val / 100);
+      discountAmount = discountPerUnit * quantity;
+      finalPrice = originalPrice - discountPerUnit;
+    } else if (promo.type === "FixedAmount") {
+      const val = promo.value || 0;
+      discountAmount = val * quantity;
+      finalPrice = Math.max(0, originalPrice - val);
+    } else if (promo.type === "BuyXPayY") {
+      const x = promo.minQuantity || 1;
+      const y = promo.payQuantity || 1;
+      if (quantity >= x) {
+        const groups = Math.floor(quantity / x);
+        const remainder = quantity % x;
+        const paidUnits = (groups * y) + remainder;
+        const lineCost = paidUnits * originalPrice;
+        discountAmount = subtotalOriginal - lineCost;
+        finalPrice = lineCost / quantity;
+      }
+    } else if (promo.type === "SpecialPrice") {
+      const minQty = promo.minQuantity || 1;
+      const special = promo.specialPrice || originalPrice;
+      if (quantity >= minQty) {
+        finalPrice = special;
+        discountAmount = (originalPrice - special) * quantity;
+      }
+    }
+
+    return {
+      finalPrice,
+      discountAmount,
+      label: promo.name,
+    };
+  };
+
+  const cartCalculations = cart.reduce((summary, item) => {
+    const { finalPrice, discountAmount } = calculateItemPromotion(item);
+    const subtotalOriginal = item.product.sellPrice * item.quantity;
+    const subtotalFinal = finalPrice * item.quantity;
+
+    summary.subtotalOriginal += subtotalOriginal;
+    summary.discountTotal += discountAmount;
+    summary.subtotalFinal += subtotalFinal;
+    return summary;
+  }, { subtotalOriginal: 0, discountTotal: 0, subtotalFinal: 0 });
+
+  const cartSubtotal = cartCalculations.subtotalFinal; // El subtotal final con descuentos para aplicar IVA
+  const cartDiscount = cartCalculations.discountTotal;
+  const cartSubtotalOriginal = cartCalculations.subtotalOriginal;
   const cartTax = cartSubtotal * 0.16; // 16% IVA
   const cartTotal = cartSubtotal + cartTax;
 
@@ -318,6 +469,7 @@ const Dashboard: React.FC = () => {
   const [mixtoCash, setMixtoCash] = useState("");
   const [mixtoCard, setMixtoCard] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [cardType, setCardType] = useState<"CREDITO" | "DEBITO">("DEBITO");
 
   // Cambio reactivo
   const parsedReceived = Number(cashReceived) || 0;
@@ -352,9 +504,10 @@ const Dashboard: React.FC = () => {
       const res = await api.post("/api/sales", {
         items: itemsPayload,
         paymentMethod,
+        cardType: (paymentMethod === "TARJETA" || paymentMethod === "MIXTO") ? cardType : undefined,
         cashReceived: paymentMethod === "EFECTIVO" ? parsedReceived : paymentMethod === "MIXTO" ? Number(mixtoCash) : 0,
         changeGiven: calculatedChange,
-        discountAmount: 0,
+        discountAmount: cartDiscount,
       });
 
       // Guardar info para imprimir ticket
@@ -362,16 +515,22 @@ const Dashboard: React.FC = () => {
         invoiceNumber: res.data.invoiceNumber,
         items: [...cart],
         subtotal: cartSubtotal,
+        discountAmount: cartDiscount,
+        subtotalOriginal: cartSubtotalOriginal,
         tax: cartTax,
         total: cartTotal,
         paymentMethod,
+        cardType: (paymentMethod === "TARJETA" || paymentMethod === "MIXTO") ? cardType : undefined,
         cashReceived: paymentMethod === "EFECTIVO" ? parsedReceived : paymentMethod === "MIXTO" ? Number(mixtoCash) : 0,
         changeGiven: calculatedChange,
         createdAt: new Date().toISOString(),
+        isNewSale: true,
+        status: "COMPLETADA",
       });
 
-      // Limpiar carrito y cerrar cobro
+      // Limpiar carrito, borrador y cerrar cobro
       setCart([]);
+      localStorage.removeItem(DRAFT_KEY);
       setCheckoutModalOpen(false);
       setPaymentMethod("EFECTIVO");
       setCashReceived("");
@@ -390,6 +549,30 @@ const Dashboard: React.FC = () => {
   // ---------------------------------------------------------------------------
   const handlePrintTicket = () => {
     window.print();
+  };
+
+  const handleCloseTicket = () => {
+    const wasNewSale = selectedSale?.isNewSale;
+    setSelectedSale(null);
+    setActiveModal(null);
+    if (wasNewSale) {
+      setView("sales-terminal");
+      setCart([]);
+      localStorage.removeItem(DRAFT_KEY);
+      setPaymentMethod("EFECTIVO");
+      setCashReceived("");
+      setMixtoCash("");
+      setMixtoCard("");
+    } else {
+      loadDashboardData();
+    }
+  };
+
+  const handleCloseLookup = () => {
+    setActiveModal(null);
+    setLookupQuery("");
+    setLookupResults([]);
+    lastLookupQueryRef.current = "";
   };
 
   // ---------------------------------------------------------------------------
@@ -414,10 +597,7 @@ const Dashboard: React.FC = () => {
         reason: cancelReason,
       });
       alert(res.data.message);
-      setActiveModal(null);
-      setCancelInvoice("");
-      setCancelPin("");
-      setCancelReason("");
+      handleCloseModal_cancelSale();
       await loadDashboardData();
     } catch (err: any) {
       alert(err.response?.data?.message || "Error de autorización o folio inválido.");
@@ -427,7 +607,55 @@ const Dashboard: React.FC = () => {
   };
 
   // ---------------------------------------------------------------------------
-  // 8. CIERRE DE CAJA (Mockup 2)
+  // LIMPIEZA DE ESTADO AL CERRAR MODALES (NO VENTAS)
+  // ---------------------------------------------------------------------------
+  const handleCloseModal_cancelSale = () => {
+    setActiveModal(null);
+    setCancelInvoice("");
+    setCancelPin("");
+    setCancelReason("");
+  };
+
+  const handleCloseModal_closeCash = () => {
+    setActiveModal(null);
+    setDeclaredCash("");
+  };
+
+  const handleCloseModal_partialCut = () => {
+    setActiveModal(null);
+    setPartialCutData(null);
+  };
+
+  const handleCloseModal_bankDeposit = () => {
+    setActiveModal(null);
+    setDepAccount("");
+    setDepName("");
+    setDepAmount("");
+    setDepComments("");
+    setDepType("EFECTIVO");
+  };
+
+  const handleCloseModal_ticketHistory = () => {
+    setActiveModal(null);
+  };
+
+  // Handler para el botón "Nueva Venta" con confirmación de borrador
+  const handleNuevaVenta = () => {
+    const draft = loadDraft();
+    if (draft.length > 0 && cart.length === 0) {
+      // Hay borrador guardado pero el carrito actual está vacío, restaurar
+      setCart(draft);
+      setView("sales-terminal");
+    } else if (draft.length > 0 || cart.length > 0) {
+      // Hay borrador/carrito activo, preguntar
+      setShowDraftConfirm(true);
+    } else {
+      setView("sales-terminal");
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // 8. CIERRE DE CAJA Y CORTE PARCIAL (Mockup 2)
   // ---------------------------------------------------------------------------
   const [declaredCash, setDeclaredCash] = useState("");
   const [closingLoading, setClosingLoading] = useState(false);
@@ -455,6 +683,20 @@ const Dashboard: React.FC = () => {
       alert(err.response?.data?.message || "Error al cerrar turno.");
     } finally {
       setClosingLoading(false);
+    }
+  };
+
+  const handleSavePartialCut = async () => {
+    setPartialCutLoading(true);
+    try {
+      const res = await api.post("/api/cash-session/cut");
+      setPartialCutData(res.data.cut);
+      setActiveModal("partial-cut-receipt");
+      await loadDashboardData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Error al registrar el corte de caja.");
+    } finally {
+      setPartialCutLoading(false);
     }
   };
 
@@ -518,30 +760,10 @@ const Dashboard: React.FC = () => {
   }
 
   // ===========================================================================
-  // RENDER A: MÓDULO ADMINISTRADOR (Mantener soporte)
+  // RENDER A: PANEL ADMINISTRATIVO CENTRAL (Dashboard de métricas)
   // ===========================================================================
   if (user && user.role === "ADMIN") {
-    return (
-      <div style={styles.appContainer}>
-        <header style={styles.navbar}>
-          <div style={styles.navBrand}>
-            <Store size={22} color="#ffffff" />
-            <span style={styles.brandText}>POS FMB Solutions (Admin)</span>
-          </div>
-          <button onClick={logout} style={styles.logoutBtn} className="active-tap">
-            <LogOut size={16} /> Salir
-          </button>
-        </header>
-        <main style={{ padding: "24px" }}>
-          <h2>Panel Administrativo Central</h2>
-          <p style={{ color: "#64748b", marginTop: "4px" }}>Consulte el Dashboard y las métricas empresariales desde la base de datos SQL Server.</p>
-          <div style={{ marginTop: "24px", padding: "32px", background: "white", borderRadius: "8px", border: "1px solid #cbd5e1" }}>
-            <h3>Sucursales Conectadas en SQL Server</h3>
-            <p style={{ marginTop: "8px" }}>Las sucursales se administran desde Prisma. Para ventas, ingrese con un perfil de cajero utilizando PIN.</p>
-          </div>
-        </main>
-      </div>
-    );
+    return <AdminDashboard />;
   }
 
   // ===========================================================================
@@ -681,41 +903,98 @@ const Dashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {cart.map((item) => (
-                    <tr key={item.product.id} style={styles.tableRow}>
-                      <td style={styles.td}>{item.product.sku}</td>
-                      <td style={{ ...styles.td, fontWeight: "600" }}>{item.product.name}</td>
-                      <td style={styles.td}>
-                        <div style={styles.qtyContainer}>
-                          <button onClick={() => updateCartQty(item.product.id, -1)} style={styles.qtyBtn}>
-                            <Minus size={12} />
+                  {cart.map((item) => {
+                    const promoDetails = calculateItemPromotion(item);
+                    const hasDiscount = promoDetails.discountAmount > 0;
+                    return (
+                      <tr key={item.product.id} style={styles.tableRow}>
+                        <td style={styles.td}>{item.product.sku}</td>
+                        <td style={{ ...styles.td, fontWeight: "600" }}>
+                          <div>{item.product.name}</div>
+                          {item.product.activePromotion && (
+                            <span style={{
+                              fontSize: "10px",
+                              backgroundColor: "#dbeafe",
+                              color: "#1e40af",
+                              padding: "2px 6px",
+                              borderRadius: "4px",
+                              fontWeight: "700",
+                              marginTop: "4px",
+                              display: "inline-block"
+                            }}>
+                              🏷️ {item.product.activePromotion.name}
+                            </span>
+                          )}
+                        </td>
+                        <td style={styles.td}>
+                          <div style={styles.qtyContainer}>
+                            <button onClick={() => updateCartQty(item.product.id, -1)} style={styles.qtyBtn}>
+                              <Minus size={12} />
+                            </button>
+                            <span style={styles.qtyText}>{item.quantity}</span>
+                            <button onClick={() => updateCartQty(item.product.id, 1)} style={styles.qtyBtn}>
+                              <Plus size={12} />
+                            </button>
+                          </div>
+                        </td>
+                        <td style={styles.td}>
+                          {hasDiscount ? (
+                            <>
+                              <span style={{ textDecoration: "line-through", color: "#94a3b8", marginRight: "6px", fontSize: "12px" }}>
+                                ${item.product.sellPrice.toFixed(2)}
+                              </span>
+                              <span style={{ color: "#059669", fontWeight: "700" }}>
+                                ${(promoDetails.finalPrice).toFixed(2)}
+                              </span>
+                            </>
+                          ) : (
+                            `$${item.product.sellPrice.toFixed(2)}`
+                          )}
+                        </td>
+                        <td style={{ ...styles.td, fontWeight: "700" }}>
+                          {hasDiscount ? (
+                            <>
+                              <div style={{ textDecoration: "line-through", color: "#94a3b8", fontSize: "11px", fontWeight: "400" }}>
+                                ${(item.product.sellPrice * item.quantity).toFixed(2)}
+                              </div>
+                              <div style={{ color: "#059669" }}>
+                                ${(promoDetails.finalPrice * item.quantity).toFixed(2)}
+                              </div>
+                              <div style={{ fontSize: "10px", color: "#059669", fontWeight: "600" }}>
+                                Ahorro: -${promoDetails.discountAmount.toFixed(2)}
+                              </div>
+                            </>
+                          ) : (
+                            `$${(item.product.sellPrice * item.quantity).toFixed(2)}`
+                          )}
+                        </td>
+                        <td style={styles.td}>
+                          <button onClick={() => removeCartItem(item.product.id)} style={{ border: "none", background: "none", cursor: "pointer" }}>
+                            <XCircle size={18} color="#dc2626" />
                           </button>
-                          <span style={styles.qtyText}>{item.quantity}</span>
-                          <button onClick={() => updateCartQty(item.product.id, 1)} style={styles.qtyBtn}>
-                            <Plus size={12} />
-                          </button>
-                        </div>
-                      </td>
-                      <td style={styles.td}>${item.product.sellPrice.toFixed(2)}</td>
-                      <td style={{ ...styles.td, fontWeight: "700" }}>
-                        ${(item.product.sellPrice * item.quantity).toFixed(2)}
-                      </td>
-                      <td style={styles.td}>
-                        <button onClick={() => removeCartItem(item.product.id)} style={{ border: "none", background: "none", cursor: "pointer" }}>
-                          <XCircle size={18} color="#dc2626" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
-
+ 
             {/* Totales y Controles Cobro */}
             <div style={styles.terminalSummary}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "240px", marginLeft: "auto" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "260px", marginLeft: "auto" }}>
                 <div style={styles.summaryRow}>
-                  <span>Subtotal:</span>
+                  <span>Subtotal Original:</span>
+                  <span style={{ fontWeight: "600" }}>${cartSubtotalOriginal.toFixed(2)}</span>
+                </div>
+                {cartDiscount > 0 && (
+                  <div style={{ ...styles.summaryRow, color: "#059669", fontWeight: "700" }}>
+                    <span>Ahorro Promociones:</span>
+                    <span>-${cartDiscount.toFixed(2)}</span>
+                  </div>
+                )}
+                <div style={styles.summaryRow}>
+                  <span>Subtotal Neto:</span>
                   <span style={{ fontWeight: "600" }}>${cartSubtotal.toFixed(2)}</span>
                 </div>
                 <div style={styles.summaryRow}>
@@ -727,11 +1006,12 @@ const Dashboard: React.FC = () => {
                   <span style={{ color: "#dc2626", fontWeight: "800" }}>${cartTotal.toFixed(2)}</span>
                 </div>
               </div>
-
+ 
               <div style={{ display: "flex", justifyContent: "space-between", marginTop: "20px" }}>
                 <button
                   onClick={() => {
                     setCart([]);
+                    localStorage.removeItem(DRAFT_KEY);
                     setView("dashboard");
                   }}
                   className="active-tap"
@@ -810,14 +1090,38 @@ const Dashboard: React.FC = () => {
               )}
 
               {paymentMethod === "TARJETA" && (
-                <div style={{ padding: "20px 0", textAlign: "center", color: "#64748b" }}>
-                  <p>Solicite que inserte la tarjeta en la terminal bancaria.</p>
-                  <p style={{ fontWeight: "600", color: "#1e3a8a", marginTop: "8px" }}>NIP requerido en terminal física.</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "14px" }}>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.label}>Tipo de Tarjeta:</label>
+                    <select
+                      value={cardType}
+                      onChange={(e) => setCardType(e.target.value as "CREDITO" | "DEBITO")}
+                      style={styles.select}
+                    >
+                      <option value="DEBITO">Débito</option>
+                      <option value="CREDITO">Crédito</option>
+                    </select>
+                  </div>
+                  <div style={{ padding: "10px 0", textAlign: "center", color: "#64748b" }}>
+                    <p>Solicite que inserte la tarjeta en la terminal bancaria.</p>
+                    <p style={{ fontWeight: "600", color: "#1e3a8a", marginTop: "8px" }}>NIP requerido en terminal física.</p>
+                  </div>
                 </div>
               )}
 
               {paymentMethod === "MIXTO" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "14px" }}>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.label}>Tipo de Tarjeta:</label>
+                    <select
+                      value={cardType}
+                      onChange={(e) => setCardType(e.target.value as "CREDITO" | "DEBITO")}
+                      style={styles.select}
+                    >
+                      <option value="DEBITO">Débito</option>
+                      <option value="CREDITO">Crédito</option>
+                    </select>
+                  </div>
                   <div style={styles.inputGroup}>
                     <label style={styles.label}>Monto con Tarjeta ($):</label>
                     <input
@@ -863,6 +1167,281 @@ const Dashboard: React.FC = () => {
                   style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
                 >
                   {checkoutLoading ? "Procesando..." : "COBRAR"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: AUTORIZACIÓN PIN GERENTE/ADMIN PARA CARRITO (Fase 3.0) */}
+        {activeModal === "cart-pin-auth" && (
+          <div style={styles.modalOverlay}>
+            <div style={{ ...styles.cancelModal, width: "360px" }}>
+              <h3 style={styles.modalTitle}>Autorización de Gerente/Admin</h3>
+              <p style={{ fontSize: "12px", color: "#64748b", margin: "8px 0 16px 0", textAlign: "center" }}>
+                Esta operación requiere la autorización de un Administrador o Gerente. Por favor, introduzca su PIN.
+              </p>
+              
+              <form onSubmit={handleCartPinSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                {/* PIN Dots Row */}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
+                  <div style={{ display: "flex", gap: "12px", height: "16px", alignItems: "center" }}>
+                    {[0, 1, 2, 3].map((index) => (
+                      <div
+                        key={index}
+                        style={{
+                          width: "12px",
+                          height: "12px",
+                          borderRadius: "50%",
+                          backgroundColor: cartPin.length > index ? "#1e3a8a" : "#cbd5e1",
+                        }}
+                      />
+                    ))}
+                  </div>
+                  {cartPinError && (
+                    <p style={{ fontSize: "12px", color: "#dc2626", fontWeight: "600", marginTop: "4px", textAlign: "center" }}>
+                      {cartPinError}
+                    </p>
+                  )}
+                </div>
+
+                {/* PIN Pad */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
+                  {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      style={{
+                        height: "48px",
+                        borderRadius: "6px",
+                        border: "1px solid #e2e8f0",
+                        backgroundColor: "#ffffff",
+                        fontSize: "16px",
+                        fontWeight: "700",
+                        color: "#334155",
+                        cursor: "pointer",
+                      }}
+                      onClick={() => {
+                        if (cartPin.length < 4) {
+                          setCartPin((prev) => prev + num);
+                        }
+                      }}
+                      className="active-tap"
+                    >
+                      {num}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    style={{
+                      height: "48px",
+                      borderRadius: "6px",
+                      border: "1px solid #e2e8f0",
+                      backgroundColor: "#f1f5f9",
+                      color: "#64748b",
+                      cursor: "pointer",
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                    onClick={() => setCartPin((prev) => prev.slice(0, -1))}
+                    className="active-tap"
+                  >
+                    <Delete size={20} />
+                  </button>
+                  <button
+                    type="button"
+                    style={{
+                      height: "48px",
+                      borderRadius: "6px",
+                      border: "1px solid #e2e8f0",
+                      backgroundColor: "#ffffff",
+                      fontSize: "16px",
+                      fontWeight: "700",
+                      color: "#334155",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => {
+                      if (cartPin.length < 4) {
+                        setCartPin((prev) => prev + "0");
+                      }
+                    }}
+                    className="active-tap"
+                  >
+                    0
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={cartPinLoading || cartPin.length < 4}
+                    style={{
+                      height: "48px",
+                      borderRadius: "6px",
+                      border: "none",
+                      backgroundColor: cartPin.length === 4 ? "#1e3a8a" : "#cbd5e1",
+                      color: "#ffffff",
+                      cursor: cartPin.length === 4 ? "pointer" : "default",
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                    className="active-tap"
+                  >
+                    {cartPinLoading ? "..." : <KeyRound size={20} />}
+                  </button>
+                </div>
+
+                {/* Botón Cancelar */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingCartAction(null);
+                    setActiveModal(null);
+                  }}
+                  style={{
+                    padding: "10px",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    backgroundColor: "#ffffff",
+                    color: "#64748b",
+                    fontWeight: "700",
+                    cursor: "pointer",
+                  }}
+                >
+                  CANCELAR
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 3: TICKET IMPRESO/PDF (Mockup 3) */}
+        {activeModal === "ticket-view" && selectedSale && (
+          <div style={styles.modalOverlay}>
+            <div style={styles.ticketModal}>
+              <div id="print-area" style={styles.ticketContainer}>
+                {selectedSale.status === "CANCELADA" && (
+                  <div style={{
+                    textAlign: "center",
+                    color: "#dc2626",
+                    fontWeight: "900",
+                    fontSize: "16px",
+                    border: "2px solid #dc2626",
+                    padding: "4px",
+                    marginBottom: "12px",
+                    borderRadius: "4px",
+                    textTransform: "uppercase"
+                  }}>
+                    *** CANCELADO ***
+                  </div>
+                )}
+                <div style={{ textAlign: "center", marginBottom: "14px" }}>
+                  <h4 style={{ textTransform: "uppercase", fontWeight: "800" }}>FMB SOLUTIONS</h4>
+                  <p style={{ fontSize: "11px", color: "#475569" }}>SUCURSAL: {user?.branch.name}</p>
+                  <p style={{ fontSize: "10px", color: "#64748b" }}>TEL: 772 100 2000</p>
+                </div>
+
+                <div style={{ borderBottom: "1px dashed #cbd5e1", paddingBottom: "8px", marginBottom: "8px", fontSize: "11px" }}>
+                  <p><strong>Folio:</strong> {selectedSale.invoiceNumber}</p>
+                  <p><strong>Fecha:</strong> {new Date(selectedSale.createdAt).toLocaleDateString()}</p>
+                  <p><strong>Hora:</strong> {new Date(selectedSale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                  <p><strong>Cajero:</strong> {user?.name}</p>
+                </div>
+
+                <table style={{ width: "100%", fontSize: "11px", borderCollapse: "collapse", marginBottom: "8px" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid #cbd5e1" }}>
+                      <th style={{ textAlign: "left", paddingBottom: "4px" }}>Producto</th>
+                      <th style={{ textAlign: "center", paddingBottom: "4px" }}>Cant</th>
+                      <th style={{ textAlign: "right", paddingBottom: "4px" }}>Importe</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedSale.items.map((item: any, idx: number) => {
+                      const promoDetails = calculateItemPromotion(item);
+                      const hasDiscount = promoDetails.discountAmount > 0;
+                      return (
+                        <tr key={idx}>
+                          <td style={{ padding: "4px 0" }}>
+                            <div>{item.product.name}</div>
+                            {item.product.activePromotion && (
+                              <span style={{ fontSize: "9px", color: "#1e40af", fontWeight: "600" }}>
+                                ({item.product.activePromotion.name})
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ textAlign: "center", padding: "4px 0" }}>{item.quantity}</td>
+                          <td style={{ textAlign: "right", padding: "4px 0" }}>
+                            {hasDiscount ? (
+                              <>
+                                <span style={{ textDecoration: "line-through", color: "#94a3b8", marginRight: "4px", fontSize: "10px" }}>
+                                  ${(item.product.sellPrice * item.quantity).toFixed(2)}
+                                </span>
+                                <span>
+                                  ${(promoDetails.finalPrice * item.quantity).toFixed(2)}
+                                </span>
+                              </>
+                            ) : (
+                              `$${(item.product.sellPrice * item.quantity).toFixed(2)}`
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                <div style={{ borderTop: "1px dashed #cbd5e1", paddingTop: "8px", display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px" }}>
+                  {selectedSale.discountAmount > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "#059669", fontWeight: "700" }}>
+                      <span>AHORRO:</span>
+                      <span>-${Number(selectedSale.discountAmount).toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>Subtotal:</span>
+                    <span>${selectedSale.subtotal.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>IVA (16%):</span>
+                    <span>${selectedSale.tax.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "800", fontSize: "12px" }}>
+                    <span>TOTAL:</span>
+                    <span>${selectedSale.total.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div style={{ borderTop: "1px solid #cbd5e1", marginTop: "8px", paddingTop: "8px", fontSize: "11px" }}>
+                  <p>
+                    <strong>Método de pago:</strong> {selectedSale.paymentMethod}
+                    {selectedSale.cardType && ` (${selectedSale.cardType})`}
+                  </p>
+                  {selectedSale.paymentMethod === "EFECTIVO" && (
+                    <>
+                      <p><strong>Pagó con:</strong> ${selectedSale.cashReceived.toFixed(2)}</p>
+                      <p><strong>Cambio:</strong> ${selectedSale.changeGiven.toFixed(2)}</p>
+                    </>
+                  )}
+                  {selectedSale.paymentMethod === "MIXTO" && (
+                    <>
+                      <p><strong>Efectivo:</strong> ${selectedSale.cashReceived.toFixed(2)}</p>
+                      <p><strong>Cambio:</strong> ${selectedSale.changeGiven.toFixed(2)}</p>
+                    </>
+                  )}
+                </div>
+
+                <div style={{ textAlign: "center", marginTop: "20px", fontSize: "10px", color: "#64748b" }}>
+                  <p>¡GRACIAS POR SU COMPRA!</p>
+                  <p>REGRESE PRONTO</p>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+                <button onClick={handleCloseTicket} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
+                  CERRAR TICKET
+                </button>
+                <button onClick={handlePrintTicket} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
+                  <Printer size={16} /> IMPRIMIR
                 </button>
               </div>
             </div>
@@ -985,7 +1564,7 @@ const Dashboard: React.FC = () => {
           <div style={{ marginTop: "24px" }}>
             <h4 style={styles.sectionSubtitle}>ACCIONES RÁPIDAS</h4>
             <div style={styles.actionsGrid}>
-              <button onClick={() => setView("sales-terminal")} style={styles.actionBtn} className="active-tap">
+              <button onClick={handleNuevaVenta} style={styles.actionBtn} className="active-tap">
                 <BadgePercent size={28} color="#1e3a8a" />
                 <span>Nueva Venta</span>
               </button>
@@ -1001,7 +1580,7 @@ const Dashboard: React.FC = () => {
                 <XCircle size={28} color="#1e3a8a" />
                 <span>Solicitar Cancelación</span>
               </button>
-              <button onClick={() => setActiveModal("close-cash")} style={styles.actionBtn} className="active-tap">
+              <button onClick={() => setActiveModal("close-options")} style={styles.actionBtn} className="active-tap">
                 <Store size={28} color="#dc2626" />
                 <span>Cerrar Caja</span>
               </button>
@@ -1025,6 +1604,7 @@ const Dashboard: React.FC = () => {
                       <th style={styles.th}>HORA</th>
                       <th style={styles.th}>TOTAL</th>
                       <th style={styles.th}>PAGO</th>
+                      <th style={styles.th}>ESTADO</th>
                       <th style={styles.th}>ACCIÓN</th>
                     </tr>
                   </thead>
@@ -1037,6 +1617,15 @@ const Dashboard: React.FC = () => {
                         </td>
                         <td style={{ ...styles.td, fontWeight: "700" }}>${sale.totalAmount.toFixed(2)}</td>
                         <td style={styles.td}>{sale.paymentMethod}</td>
+                        <td style={styles.td}>
+                          <span style={{
+                            color: sale.status === "CANCELADA" ? "#dc2626" : "#059669",
+                            fontWeight: "700",
+                            fontSize: "12px"
+                          }}>
+                            {sale.status === "CANCELADA" ? "Cancelado" : "Activo"}
+                          </span>
+                        </td>
                         <td style={styles.td}>
                           <button
                             onClick={async () => {
@@ -1053,6 +1642,8 @@ const Dashboard: React.FC = () => {
                                   tax: sale.totalAmount - (sale.totalAmount / 1.16),
                                   total: sale.totalAmount,
                                   paymentMethod: sale.paymentMethod,
+                                  cardType: sale.cardType,
+                                  status: sale.status,
                                   cashReceived: sale.totalAmount,
                                   changeGiven: 0,
                                   createdAt: sale.createdAt
@@ -1129,6 +1720,7 @@ const Dashboard: React.FC = () => {
                 className="input-corporate"
                 placeholder="Nombre o id del producto"
                 value={lookupQuery}
+                onKeyDown={handleLookupKeyDown}
                 onChange={(e) => setLookupQuery(e.target.value)}
               />
             </div>
@@ -1155,10 +1747,10 @@ const Dashboard: React.FC = () => {
             </div>
 
             <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
-              <button onClick={() => setActiveModal(null)} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
+              <button onClick={handleCloseLookup} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
                 CANCELAR
               </button>
-              <button onClick={() => setActiveModal(null)} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
+              <button onClick={handleCloseLookup} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
                 ACEPTAR
               </button>
             </div>
@@ -1314,8 +1906,9 @@ const Dashboard: React.FC = () => {
             <h3 style={styles.modalTitle}>Cancelación Producto / Venta:</h3>
             <form onSubmit={handleCancelSaleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "14px" }}>
               <div style={styles.inputGroup}>
-                <label style={styles.label}>Folio de Venta (Invoice):</label>
+                <label htmlFor="cancelInvoice" style={styles.label}>Folio de Venta (Invoice):</label>
                 <input
+                  id="cancelInvoice"
                   type="text"
                   required
                   className="input-corporate"
@@ -1326,8 +1919,9 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div style={styles.inputGroup}>
-                <label style={styles.label}>PIN de Autorización del Gerente:</label>
+                <label htmlFor="cancelPin" style={styles.label}>PIN de Autorización del Gerente:</label>
                 <input
+                  id="cancelPin"
                   type="password"
                   maxLength={4}
                   required
@@ -1339,8 +1933,9 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div style={styles.inputGroup}>
-                <label style={styles.label}>Motivo de Cancelación:</label>
+                <label htmlFor="cancelReason" style={styles.label}>Motivo de Cancelación:</label>
                 <input
+                  id="cancelReason"
                   type="text"
                   required
                   className="input-corporate"
@@ -1353,7 +1948,7 @@ const Dashboard: React.FC = () => {
               <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
                 <button
                   type="button"
-                  onClick={() => setActiveModal(null)}
+                  onClick={handleCloseModal_cancelSale}
                   style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
                 >
                   VOLVER
@@ -1363,7 +1958,7 @@ const Dashboard: React.FC = () => {
                   disabled={cancelLoading}
                   style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
                 >
-                  {cancelLoading ? "Cancelando..." : "ELIMINAR PRODUCTO"}
+                  {cancelLoading ? "Cancelando..." : "CANCELAR VENTA"}
                 </button>
               </div>
             </form>
@@ -1376,6 +1971,21 @@ const Dashboard: React.FC = () => {
         <div style={styles.modalOverlay}>
           <div style={styles.ticketModal}>
             <div id="print-area" style={styles.ticketContainer}>
+              {selectedSale.status === "CANCELADA" && (
+                <div style={{
+                  textAlign: "center",
+                  color: "#dc2626",
+                  fontWeight: "900",
+                  fontSize: "16px",
+                  border: "2px solid #dc2626",
+                  padding: "4px",
+                  marginBottom: "12px",
+                  borderRadius: "4px",
+                  textTransform: "uppercase"
+                }}>
+                  *** CANCELADO ***
+                </div>
+              )}
               <div style={{ textAlign: "center", marginBottom: "14px" }}>
                 <h4 style={{ textTransform: "uppercase", fontWeight: "800" }}>FMB SOLUTIONS</h4>
                 <p style={{ fontSize: "11px", color: "#475569" }}>SUCURSAL: {user?.branch.name}</p>
@@ -1442,11 +2052,238 @@ const Dashboard: React.FC = () => {
             </div>
 
             <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
-              <button onClick={() => setActiveModal(null)} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
+              <button onClick={handleCloseTicket} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
                 CERRAR TICKET
               </button>
               <button onClick={handlePrintTicket} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
                 <Printer size={16} /> IMPRIMIR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: OPCIONES DE CIERRE DE CAJA */}
+      {activeModal === "close-options" && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.closeModal, width: "400px" }}>
+            <h3 style={styles.modalTitle}>Cierre de Caja</h3>
+            <p style={{ fontSize: "13px", color: "#64748b", margin: "8px 0 20px 0", textAlign: "center", lineHeight: "1.5" }}>
+              Seleccione la operación de caja que desea realizar:
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
+              <button
+                onClick={() => setActiveModal("partial-cut-summary")}
+                style={{
+                  padding: "14px",
+                  borderRadius: "8px",
+                  border: "1px solid #3b82f6",
+                  backgroundColor: "#eff6ff",
+                  color: "#1e3a8a",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  transition: "all 0.15s ease",
+                  textAlign: "center"
+                }}
+                className="active-tap"
+              >
+                Corte Parcial (Cut de Caja)
+              </button>
+              <button
+                onClick={() => setActiveModal("close-cash")}
+                style={{
+                  padding: "14px",
+                  borderRadius: "8px",
+                  border: "none",
+                  backgroundColor: "#dc2626",
+                  color: "white",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  transition: "all 0.15s ease",
+                  textAlign: "center"
+                }}
+                className="active-tap"
+              >
+                Cierre de Turno (Final)
+              </button>
+              <button
+                onClick={() => setActiveModal(null)}
+                style={{
+                  padding: "10px",
+                  borderRadius: "6px",
+                  border: "1px solid #cbd5e1",
+                  backgroundColor: "#ffffff",
+                  color: "#64748b",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  textAlign: "center",
+                  marginTop: "8px"
+                }}
+              >
+                CANCELAR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CORTE PARCIAL (Resumen) */}
+      {activeModal === "partial-cut-summary" && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.closeModal}>
+            <h3 style={styles.modalTitle}>Resumen de Corte Parcial:</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "14px" }}>
+              <div style={styles.summaryRow}>
+                <span>Vendedor:</span>
+                <span style={{ fontWeight: "700" }}>{user?.name}</span>
+              </div>
+              <div style={styles.summaryRow}>
+                <span>Total Ventas Brutas:</span>
+                <span style={{ fontWeight: "600" }}>${sessionStats?.totalSalesAmount?.toFixed(2) || "0.00"}</span>
+              </div>
+              <div style={styles.summaryRow}>
+                <span>Total Efectivo:</span>
+                <span style={{ fontWeight: "600", color: "#059669" }}>${sessionStats?.cashTotal?.toFixed(2) || "0.00"}</span>
+              </div>
+              <div style={styles.summaryRow}>
+                <span>Total Tarjeta Crédito:</span>
+                <span style={{ fontWeight: "600", color: "#0d9488" }}>${sessionStats?.creditCardTotal?.toFixed(2) || "0.00"}</span>
+              </div>
+              <div style={styles.summaryRow}>
+                <span>Total Tarjeta Débito:</span>
+                <span style={{ fontWeight: "600", color: "#0d9488" }}>${sessionStats?.debitCardTotal?.toFixed(2) || "0.00"}</span>
+              </div>
+              <div style={styles.summaryRow}>
+                <span>Cancelaciones:</span>
+                <span style={{ fontWeight: "600", color: "#dc2626" }}>${sessionStats?.totalRefunds?.toFixed(2) || "0.00"}</span>
+              </div>
+              <div style={{ ...styles.summaryRow, borderTop: "1px dashed #cbd5e1", paddingTop: "10px", paddingBottom: "10px" }}>
+                <span>Total Neto:</span>
+                <span style={{ fontWeight: "800", color: "#1e3a8a", fontSize: "16px" }}>
+                  ${sessionStats?.netTotal?.toFixed(2) || "0.00"}
+                </span>
+              </div>
+
+              <div style={{ display: "flex", gap: "10px", marginTop: "14px" }}>
+                <button 
+                  onClick={() => setActiveModal("close-options")} 
+                  style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
+                >
+                  VOLVER
+                </button>
+                <button
+                  disabled={partialCutLoading}
+                  onClick={handleSavePartialCut}
+                  style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
+                  className="active-tap"
+                >
+                  {partialCutLoading ? "Guardando..." : "GUARDAR CORTE"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: COMPROBANTE DE CORTE PARCIAL */}
+      {activeModal === "partial-cut-receipt" && partialCutData && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.ticketModal}>
+            <h3 style={styles.modalTitle}>Comprobante de Corte Parcial</h3>
+            <p style={{ fontSize: "11px", color: "#64748b", margin: "4px 0 16px 0", textAlign: "center" }}>
+              Corte parcial registrado exitosamente en base de datos.
+            </p>
+            
+            <div style={styles.ticketContainer} id="partial-cut-thermal-receipt">
+              <div style={{ textAlign: "center", borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px", marginBottom: "10px" }}>
+                <strong style={{ fontSize: "14px" }}>FMB SOLUTIONS POS</strong>
+                <p style={{ fontSize: "11px", margin: "2px 0 0 0" }}>SUCURSAL: {user?.branch.name}</p>
+                <p style={{ fontSize: "10px", margin: "2px 0 0 0" }}>CORTE PARCIAL #{partialCutData.cutNumber}</p>
+                <p style={{ fontSize: "9px", margin: "2px 0 0 0", color: "#64748b" }}>
+                  {new Date(partialCutData.createdAt).toLocaleString()}
+                </p>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "11px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>CAJERO:</span>
+                  <strong>{user?.name}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>SESIÓN DE CAJA:</span>
+                  <strong>#{partialCutData.cashSessionId}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed #cbd5e1", paddingTop: "6px", marginTop: "4px" }}>
+                  <span>VENTAS BRUTAS:</span>
+                  <strong>${Number(partialCutData.totalSales).toFixed(2)}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>EFECTIVO:</span>
+                  <strong>${Number(partialCutData.totalCash).toFixed(2)}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>TARJETA CRÉDITO:</span>
+                  <strong>${Number(partialCutData.totalCreditCard).toFixed(2)}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>TARJETA DÉBITO:</span>
+                  <strong>${Number(partialCutData.totalDebitCard).toFixed(2)}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>CANCELACIONES:</span>
+                  <strong style={{ color: "#dc2626" }}>-${Number(partialCutData.totalRefunds).toFixed(2)}</strong>
+                </div>
+              </div>
+
+              <div style={{ marginTop: "14px", paddingTop: "8px", borderTop: "2px solid #0f172a", display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
+                <strong>TOTAL NETO:</strong>
+                <strong>${Number(partialCutData.netTotal).toFixed(2)} MXN</strong>
+              </div>
+
+              <div style={{ textAlign: "center", marginTop: "20px", fontSize: "9px", color: "#64748b", borderTop: "1px dashed #cbd5e1", paddingTop: "8px" }}>
+                <span>*** COMPROBANTE DE CORTE PARCIAL ***</span>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+              <button 
+                onClick={() => {
+                  const printContents = document.getElementById("partial-cut-thermal-receipt")?.innerHTML;
+                  if (printContents) {
+                    const printWindow = window.open("", "_blank");
+                    if (printWindow) {
+                      printWindow.document.write(`
+                        <html>
+                          <head>
+                            <title>Corte Parcial #${partialCutData.cutNumber}</title>
+                            <style>
+                              body { font-family: monospace; padding: 20px; width: 300px; margin: 0 auto; }
+                              table { width: 100%; border-collapse: collapse; }
+                              th, td { text-align: left; padding: 4px; }
+                              .dashed { border-top: 1px dashed #000; margin: 10px 0; }
+                              .total { font-weight: bold; font-size: 14px; border-top: 2px solid #000; padding-top: 5px; }
+                              .center { text-align: center; }
+                            </style>
+                          </head>
+                          <body>
+                            ${printContents}
+                            <script>window.print(); window.close();</script>
+                          </body>
+                        </html>
+                      `);
+                      printWindow.document.close();
+                    }
+                  }
+                }} 
+                style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
+              >
+                IMPRIMIR
+              </button>
+              <button onClick={handleCloseModal_partialCut} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
+                CERRAR
               </button>
             </div>
           </div>
@@ -1475,6 +2312,14 @@ const Dashboard: React.FC = () => {
                 <span>Depósitos/Retiros:</span>
                 <span style={{ fontWeight: "600", color: "#dc2626" }}>-${sessionStats?.cashOut.toFixed(2)}</span>
               </div>
+              <div style={styles.summaryRow}>
+                <span>Ventas Tarjeta Débito:</span>
+                <span style={{ fontWeight: "600", color: "#0d9488" }}>${sessionStats?.debitCardTotal?.toFixed(2) || "0.00"}</span>
+              </div>
+              <div style={styles.summaryRow}>
+                <span>Ventas Tarjeta Crédito:</span>
+                <span style={{ fontWeight: "600", color: "#0d9488" }}>${sessionStats?.creditCardTotal?.toFixed(2) || "0.00"}</span>
+              </div>
               <div style={{ ...styles.summaryRow, borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px" }}>
                 <span>Efectivo Esperado en Caja:</span>
                 <span style={{ fontWeight: "800", color: "#1e3a8a" }}>${sessionStats?.expectedAmount.toFixed(2)}</span>
@@ -1500,7 +2345,7 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div style={{ display: "flex", gap: "10px", marginTop: "14px" }}>
-                <button onClick={() => setActiveModal(null)} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
+                <button onClick={handleCloseModal_closeCash} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
                   CANCELAR
                 </button>
                 <button
@@ -1585,7 +2430,7 @@ const Dashboard: React.FC = () => {
               <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
                 <button
                   type="button"
-                  onClick={() => setActiveModal(null)}
+                  onClick={handleCloseModal_bankDeposit}
                   style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
                 >
                   CANCELAR
@@ -1704,7 +2549,7 @@ const Dashboard: React.FC = () => {
               >
                 IMPRIMIR
               </button>
-              <button onClick={() => setActiveModal(null)} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
+              <button onClick={handleCloseModal_bankDeposit} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
                 CERRAR
               </button>
             </div>
@@ -1745,6 +2590,8 @@ const Dashboard: React.FC = () => {
                               tax: sale.totalAmount - (sale.totalAmount / 1.16),
                               total: sale.totalAmount,
                               paymentMethod: sale.paymentMethod,
+                              cardType: sale.cardType,
+                              status: sale.status,
                               cashReceived: sale.totalAmount,
                               changeGiven: 0,
                               createdAt: sale.createdAt
@@ -1762,9 +2609,50 @@ const Dashboard: React.FC = () => {
                 </tbody>
               </table>
             </div>
-            <button onClick={() => setActiveModal(null)} style={{ ...styles.submitBtn, backgroundColor: "#64748b", marginTop: "14px", width: "100%" }}>
+            <button onClick={handleCloseModal_ticketHistory} style={{ ...styles.submitBtn, backgroundColor: "#64748b", marginTop: "14px", width: "100%" }}>
               Cerrar
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CONFIRMACIÓN DE BORRADOR DE VENTA */}
+      {showDraftConfirm && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.cancelModal, width: "400px" }}>
+            <h3 style={styles.modalTitle}>Venta en borrador encontrada</h3>
+            <p style={{ fontSize: "13px", color: "#475569", margin: "12px 0 20px 0", textAlign: "center", lineHeight: "1.5" }}>
+              Existe una venta en borrador con <strong>{cart.length > 0 ? cart.length : loadDraft().length} producto(s)</strong> en el carrito.
+              ¿Desea continuar con la venta guardada o iniciar una nueva?
+            </p>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                onClick={() => {
+                  // Descartar borrador e iniciar nueva venta
+                  setCart([]);
+                  localStorage.removeItem(DRAFT_KEY);
+                  setShowDraftConfirm(false);
+                  setView("sales-terminal");
+                }}
+                style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
+              >
+                NUEVA VENTA
+              </button>
+              <button
+                onClick={() => {
+                  // Restaurar borrador y continuar
+                  const draft = loadDraft();
+                  if (draft.length > 0 && cart.length === 0) {
+                    setCart(draft);
+                  }
+                  setShowDraftConfirm(false);
+                  setView("sales-terminal");
+                }}
+                style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
+              >
+                CONTINUAR BORRADOR
+              </button>
+            </div>
           </div>
         </div>
       )}

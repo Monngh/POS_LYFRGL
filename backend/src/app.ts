@@ -6,6 +6,10 @@ import authRouter from "./routes/auth.routes";
 import cashSessionRouter from "./routes/cashSession.routes";
 import productRouter from "./routes/product.routes";
 import saleRouter from "./routes/sale.routes";
+import publicSaleRouter from "./routes/publicSale.routes";
+import promotionRouter from "./routes/promotion.routes";
+import dashboardRouter from "./routes/dashboard.routes";
+import adminRouter from "./routes/admin.routes";
 
 // Inicializar cliente de Prisma como Singleton
 export const prisma = new PrismaClient();
@@ -26,6 +30,10 @@ app.use("/api/auth", authRouter);
 app.use("/api/cash-session", cashSessionRouter);
 app.use("/api/products", productRouter);
 app.use("/api/sales", saleRouter);
+app.use("/api/public/sales", publicSaleRouter);
+app.use("/api/promotions", promotionRouter);
+app.use("/api/dashboard", dashboardRouter);
+app.use("/api/admin", adminRouter);
 
 // Ruta de healthcheck
 app.get("/health", async (_req: Request, res: Response) => {

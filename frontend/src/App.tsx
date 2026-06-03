@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import Autofacturacion from "./pages/Autofacturacion";
 
 // Componente para proteger Rutas Privadas
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -41,6 +42,7 @@ const AppContent: React.FC = () => {
           </PublicRoute>
         }
       />
+      <Route path="/facturar" element={<Autofacturacion />} />
 
       {/* Rutas Privadas Protegidas por JWT */}
       <Route
