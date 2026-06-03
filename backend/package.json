@@ -1,11 +1,12 @@
 {
   "name": "pos-backend",
   "version": "1.0.0",
-  "description": "Backend para el Punto de Venta FMB Solutions",
+  "description": "Backend para el Punto de Venta LYFRGL Solutions",
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
+    "predev": "node scripts/free-port.js",
     "dev": "nodemon --watch src -e ts --exec ts-node src/server.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -18,7 +19,7 @@
     "sqlserver",
     "typescript"
   ],
-  "author": "FMB Solutions",
+  "author": "LYFRGL Solutions",
   "license": "ISC",
   "dependencies": {
     "@prisma/client": "^5.14.0",
