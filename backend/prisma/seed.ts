@@ -79,15 +79,15 @@ async function main() {
 
   const usersData: UserSeed[] = [
     // Centro
-    { email: "admin@fmb.com",            name: "Administrador LYFRGL",    role: "ADMIN",   password: adminPasswordHash,   pin: null,   branchName: "Sucursal Centro LYFRGL" },
+    { email: "admin@fmb.com",            name: "Administrador LYFRGL",    role: "ADMIN",   password: adminPasswordHash,   pin: "4321",   branchName: "Sucursal Centro LYFRGL" },
     { email: "juan.centro@fmb.com",      name: "Juan Cajero",             role: "CAJERO",  password: defaultPasswordHash, pin: "1234", branchName: "Sucursal Centro LYFRGL" },
     { email: "maria.centro@fmb.com",     name: "María Cajera",            role: "CAJERO",  password: defaultPasswordHash, pin: "5678", branchName: "Sucursal Centro LYFRGL" },
     // Norte
-    { email: "gerente.norte@fmb.com",    name: "Gerente Sucursal Norte",  role: "GERENTE", password: defaultPasswordHash, pin: null,   branchName: "Sucursal Norte LYFRGL" },
+    { email: "gerente.norte@fmb.com",    name: "Gerente Sucursal Norte",  role: "GERENTE", password: defaultPasswordHash, pin: "4321",   branchName: "Sucursal Norte LYFRGL" },
     { email: "carlos.norte@fmb.com",     name: "Carlos Cajero",           role: "CAJERO",  password: defaultPasswordHash, pin: "9012", branchName: "Sucursal Norte LYFRGL" },
     { email: "sofia.norte@fmb.com",      name: "Sofía Cajera",            role: "CAJERO",  password: defaultPasswordHash, pin: "3456", branchName: "Sucursal Norte LYFRGL" },
     // Poniente
-    { email: "gerente.poniente@fmb.com", name: "Gerente Sucursal Poniente", role: "GERENTE", password: defaultPasswordHash, pin: null,   branchName: "Sucursal Poniente LYFRGL" },
+    { email: "gerente.poniente@fmb.com", name: "Gerente Sucursal Poniente", role: "GERENTE", password: defaultPasswordHash, pin: "4321",   branchName: "Sucursal Poniente LYFRGL" },
     { email: "ana.poniente@fmb.com",     name: "Ana Cajera",              role: "CAJERO",  password: defaultPasswordHash, pin: "7890", branchName: "Sucursal Poniente LYFRGL" },
     { email: "pedro.poniente@fmb.com",   name: "Pedro Cajero",            role: "CAJERO",  password: defaultPasswordHash, pin: "2345", branchName: "Sucursal Poniente LYFRGL" },
   ];
