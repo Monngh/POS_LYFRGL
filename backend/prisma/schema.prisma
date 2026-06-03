@@ -49,11 +49,12 @@ model Product {
   costPrice    Decimal       @db.Decimal(18, 2)
   sellPrice    Decimal       @db.Decimal(18, 2)
   active       Boolean       @default(true)
-  inventories  Inventory[]
-  kardexEntries Kardex[]
-  saleDetails  SaleDetail[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  inventories        Inventory[]
+  kardexEntries      Kardex[]
+  saleDetails        SaleDetail[]
+  promotionProducts  PromotionProduct[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 }
 
 model Inventory {
@@ -101,6 +102,7 @@ model CashSession {
   status         String    @default("ABIERTA") // 'ABIERTA', 'CERRADA'
   sales          Sale[]
   bankDeposits   BankDeposit[]
+  cuts           CashCut[]
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 }
@@ -134,9 +136,12 @@ model Sale {
   taxAmount      Decimal      @db.Decimal(18, 2)
   discountAmount Decimal      @default(0) @db.Decimal(18, 2)
   paymentMethod  String       // 'EFECTIVO', 'TARJETA', 'CREDITO', 'MIXTO'
+  cardType       String?      // 'CREDITO', 'DEBITO'
   cashReceived   Decimal?     @db.Decimal(18, 2)
   changeGiven    Decimal?     @db.Decimal(18, 2)
   status         String       @default("COMPLETADA") // 'COMPLETADA', 'CANCELADA'
+  cfdiUuid       String?      // Folio fiscal de facturación SAT (si ya se autofacturó)
+  cfdiEmail      String?      // Correo al que se envió la factura timbrada
   saleDetails    SaleDetail[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -153,6 +158,8 @@ model SaleDetail {
   costPrice      Decimal @db.Decimal(18, 2) // Para reportes de margen neto
   taxAmount      Decimal @db.Decimal(18, 2)
   discountAmount Decimal @default(0) @db.Decimal(18, 2)
+  promotionId    Int?    // FK a la promoción aplicada (auditoría)
+  promotionLabel String? // Etiqueta legible: "2x1", "20% OFF", etc.
 }
 
 model BankDeposit {
@@ -168,3 +175,57 @@ model BankDeposit {
   branch        Branch      @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   createdAt     DateTime    @default(now())
 }
+
+// =========================================================================
+// SISTEMA DE PROMOCIONES
+// =========================================================================
+
+model PromotionType {
+  id          Int         @id @default(autoincrement())
+  name        String      @unique
+  description String?
+  promotions  Promotion[]
+}
+
+model Promotion {
+  id              Int                @id @default(autoincrement())
+  name            String
+  description     String?
+  promotionTypeId Int
+  promotionType   PromotionType      @relation(fields: [promotionTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  startDate       DateTime
+  endDate         DateTime
+  isActive        Boolean            @default(true)
+  value           Decimal?           @db.Decimal(18, 2)
+  minQuantity     Int?
+  payQuantity     Int?
+  specialPrice    Decimal?           @db.Decimal(18, 2)
+  products        PromotionProduct[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+}
+
+model PromotionProduct {
+  id          Int       @id @default(autoincrement())
+  promotionId Int
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  productId   Int
+  product     Product   @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([promotionId, productId])
+}
+
+model CashCut {
+  id              Int         @id @default(autoincrement())
+  cashSessionId   Int
+  cashSession     CashSession @relation(fields: [cashSessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt       DateTime    @default(now())
+  totalSales      Decimal     @db.Decimal(18, 2)
+  totalCash       Decimal     @db.Decimal(18, 2)
+  totalCreditCard Decimal     @db.Decimal(18, 2)
+  totalDebitCard  Decimal     @db.Decimal(18, 2)
+  totalRefunds    Decimal     @db.Decimal(18, 2)
+  netTotal        Decimal     @db.Decimal(18, 2)
+  cutNumber       Int
+}
+

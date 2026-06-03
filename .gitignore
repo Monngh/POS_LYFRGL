@@ -40,3 +40,11 @@ Thumbs.db
 # Prisma
 /backend/prisma/migrations/
 /backend/prisma/dev.db
+
+# Agent Tooling
+.agents/
+.claude/skills/
+
+# Referencias locales
+contexto/
+
