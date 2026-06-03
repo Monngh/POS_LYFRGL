@@ -123,6 +123,51 @@ export const closeSession = async (req: Request, res: Response): Promise<void> =
     const decDeclared = Number(declaredAmount);
     const decDifference = decDeclared - decExpected;
 
+    // Consultar todas las ventas de la sesión
+    const sales = await prisma.sale.findMany({
+      where: {
+        cashSessionId: activeSession.id,
+      },
+    });
+
+    let salesCount = 0;
+    let totalSalesAmount = 0; // Completadas + Canceladas
+    let totalRefunds = 0; // Canceladas
+    let netTotal = 0; // Completadas
+    let creditCardTotal = 0;
+    let debitCardTotal = 0;
+    let cashTotal = 0;
+
+    for (const sale of sales) {
+      const amount = Number(sale.totalAmount);
+      if (sale.status === "CANCELADA") {
+        totalRefunds += amount;
+      } else if (sale.status === "COMPLETADA") {
+        salesCount++;
+        netTotal += amount;
+        if (sale.paymentMethod === "EFECTIVO") {
+          cashTotal += amount;
+        } else if (sale.paymentMethod === "TARJETA") {
+          if (sale.cardType === "CREDITO") {
+            creditCardTotal += amount;
+          } else {
+            debitCardTotal += amount;
+          }
+        } else if (sale.paymentMethod === "MIXTO") {
+          const cashPortion = Number(sale.cashReceived || 0) - Number(sale.changeGiven || 0);
+          const cardPortion = amount - cashPortion;
+          cashTotal += Math.max(0, cashPortion);
+          if (sale.cardType === "CREDITO") {
+            creditCardTotal += Math.max(0, cardPortion);
+          } else {
+            debitCardTotal += Math.max(0, cardPortion);
+          }
+        }
+      }
+    }
+
+    totalSalesAmount = netTotal + totalRefunds;
+
     const closedSession = await prisma.cashSession.update({
       where: { id: activeSession.id },
       data: {
@@ -132,11 +177,39 @@ export const closeSession = async (req: Request, res: Response): Promise<void> =
         difference: decDifference,
         status: "CERRADA",
       },
+      include: {
+        user: {
+          select: {
+            name: true,
+          }
+        },
+        branch: {
+          select: {
+            name: true,
+          }
+        }
+      }
     });
 
     res.status(200).json({
       message: "Caja cerrada y arqueada exitosamente.",
       session: closedSession,
+      stats: {
+        session: closedSession,
+        salesCount,
+        totalSalesAmount,
+        totalRefunds,
+        netTotal,
+        initialAmount: decInitial,
+        cashIn: decCashIn,
+        cashOut: decCashOut,
+        expectedAmount: decExpected,
+        creditCardTotal,
+        debitCardTotal,
+        cashTotal,
+        declaredAmount: decDeclared,
+        difference: decDifference,
+      }
     });
   } catch (error: any) {
     res.status(500).json({ message: "Error al cerrar la caja.", error: error.message });

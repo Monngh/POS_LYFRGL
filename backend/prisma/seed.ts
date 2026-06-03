@@ -47,17 +47,17 @@ async function main() {
   // Definición de usuarios con roles y sucursales
   const usersData = [
     // Centro
-    { email: "admin@fmb.com", name: "Administrador FMB", role: "ADMIN", password: adminPasswordHash, pin: null, branchName: "Sucursal Centro FMB" },
+    { email: "admin@fmb.com", name: "Administrador FMB", role: "ADMIN", password: adminPasswordHash, pin: "9999", branchName: "Sucursal Centro FMB" },
     { email: "juan.centro@fmb.com", name: "Juan Cajero", role: "CAJERO", password: defaultPasswordHash, pin: "1234", branchName: "Sucursal Centro FMB" },
     { email: "maria.centro@fmb.com", name: "María Cajera", role: "CAJERO", password: defaultPasswordHash, pin: "5678", branchName: "Sucursal Centro FMB" },
     
     // Norte
-    { email: "gerente.norte@fmb.com", name: "Gerente Sucursal Norte", role: "GERENTE", password: defaultPasswordHash, pin: null, branchName: "Sucursal Norte FMB" },
+    { email: "gerente.norte@fmb.com", name: "Gerente Sucursal Norte", role: "GERENTE", password: defaultPasswordHash, pin: "8888", branchName: "Sucursal Norte FMB" },
     { email: "carlos.norte@fmb.com", name: "Carlos Cajero", role: "CAJERO", password: defaultPasswordHash, pin: "9012", branchName: "Sucursal Norte FMB" },
     { email: "sofia.norte@fmb.com", name: "Sofía Cajera", role: "CAJERO", password: defaultPasswordHash, pin: "3456", branchName: "Sucursal Norte FMB" },
-
+ 
     // Poniente
-    { email: "gerente.poniente@fmb.com", name: "Gerente Sucursal Poniente", role: "GERENTE", password: defaultPasswordHash, pin: null, branchName: "Sucursal Poniente FMB" },
+    { email: "gerente.poniente@fmb.com", name: "Gerente Sucursal Poniente", role: "GERENTE", password: defaultPasswordHash, pin: "7777", branchName: "Sucursal Poniente FMB" },
     { email: "ana.poniente@fmb.com", name: "Ana Cajera", role: "CAJERO", password: defaultPasswordHash, pin: "7890", branchName: "Sucursal Poniente FMB" },
     { email: "pedro.poniente@fmb.com", name: "Pedro Cajero", role: "CAJERO", password: defaultPasswordHash, pin: "2345", branchName: "Sucursal Poniente FMB" }
   ];
@@ -126,7 +126,7 @@ async function main() {
   }
 
   // =========================================================================
-  // 3. CLIENTE GENÉRICO
+  // 3. CLIENTE GENÉRICO Y CLIENTES DE PRUEBA
   // =========================================================================
   let generalCustomer = await prisma.customer.findFirst({
     where: { name: "Público General" },
@@ -138,13 +138,49 @@ async function main() {
         name: "Público General",
         taxId: "XAXX010101000",
         email: "general@fmb.com",
-        phone: "000-0000",
+        phone: "0000000000",
         address: "Público en General",
         creditLimit: 0,
         balance: 0,
+        points: 0,
       },
     });
     console.log(`✅ Cliente Público General creado.`);
+  }
+
+  // Clientes de prueba para lealtad y puntos
+  const testCustomers = [
+    { name: "Juan Pérez", phone: "5551234567", email: "juan.perez@email.com", points: 150 },
+    { name: "María Gómez", phone: "7721003000", email: "maria.gomez@email.com", points: 50 },
+    { name: "Ana Martínez", phone: "5559876543", email: "ana.martinez@email.com", points: 0 }
+  ];
+
+  for (const c of testCustomers) {
+    let customer = await prisma.customer.findFirst({
+      where: { phone: c.phone }
+    });
+
+    if (!customer) {
+      customer = await prisma.customer.create({
+        data: {
+          name: c.name,
+          phone: c.phone,
+          email: c.email,
+          taxId: "XAXX010101000",
+          address: "Dirección de Prueba",
+          creditLimit: 0,
+          balance: 0,
+          points: c.points,
+        }
+      });
+      console.log(`✅ Cliente de prueba creado: ${c.name} (Puntos: ${c.points})`);
+    } else {
+      await prisma.customer.update({
+        where: { id: customer.id },
+        data: { points: c.points }
+      });
+      console.log(`ℹ️ Cliente de prueba "${c.name}" ya existe. Puntos actualizados a ${c.points}.`);
+    }
   }
 
   // =========================================================================
