@@ -42,6 +42,7 @@ const AppContent: React.FC = () => {
           </PublicRoute>
         }
       />
+      <Route path="/autofacturacion" element={<Autofacturacion />} />
       <Route path="/facturar" element={<Autofacturacion />} />
 
       {/* Rutas Privadas Protegidas por JWT */}
