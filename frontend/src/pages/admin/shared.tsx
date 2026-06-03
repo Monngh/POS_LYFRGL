@@ -19,6 +19,44 @@ export const fmtTime = (d: string | Date) =>
 export const fmtDateTime = (d: string | Date) => `${fmtDate(d)} ${fmtTime(d)}`;
 
 // ---------------------------------------------------------------------------
+// Impresión profesional: abre una ventana con estilos corporativos e imprime
+// ---------------------------------------------------------------------------
+export const printHtml = (title: string, bodyHtml: string) => {
+  const w = window.open("", "_blank", "width=920,height=720");
+  if (!w) {
+    alert("Habilite las ventanas emergentes para imprimir el documento.");
+    return;
+  }
+  w.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8" />
+    <title>${title}</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: 'Segoe UI', Inter, system-ui, sans-serif; color: #0f172a; padding: 32px; }
+      .doc-header { display: flex; justify-content: space-between; align-items: flex-start;
+        border-bottom: 3px solid #1e3a8a; padding-bottom: 14px; margin-bottom: 20px; }
+      .doc-brand { font-size: 20px; font-weight: 800; color: #1e3a8a; }
+      .doc-sub { font-size: 12px; color: #64748b; margin-top: 2px; }
+      .doc-title { font-size: 13px; font-weight: 700; color: #334155; text-align: right; }
+      .doc-meta { font-size: 11px; color: #64748b; text-align: right; margin-top: 4px; }
+      h3 { font-size: 14px; color: #1e3a8a; margin: 22px 0 10px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+      th { background: #f1f5f9; text-align: left; font-size: 11px; text-transform: uppercase;
+        letter-spacing: .4px; color: #475569; padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
+      td { font-size: 12px; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+      .r { text-align: right; } .c { text-align: center; }
+      .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+      .kpi { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; }
+      .kpi .l { font-size: 11px; color: #64748b; } .kpi .v { font-size: 18px; font-weight: 800; margin-top: 4px; }
+      .foot { margin-top: 28px; border-top: 1px solid #e2e8f0; padding-top: 10px; font-size: 10px; color: #94a3b8; text-align: center; }
+      @media print { body { padding: 0; } .kpi, th, td { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    </style></head><body>${bodyHtml}
+    <div class="foot">LYFRGL Solutions POS • Documento generado el ${new Date().toLocaleString("es-MX")}</div>
+    <script>window.onload=function(){setTimeout(function(){window.print();},120);};</script>
+    </body></html>`);
+  w.document.close();
+};
+
+// ---------------------------------------------------------------------------
 // Props comunes que el shell pasa a cada vista
 // ---------------------------------------------------------------------------
 export interface ViewProps {

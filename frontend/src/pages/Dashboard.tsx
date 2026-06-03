@@ -776,7 +776,7 @@ const Dashboard: React.FC = () => {
         <header style={styles.navbar}>
           <div style={styles.navBrand}>
             <Store size={22} color="#ffffff" />
-            <span style={styles.brandText}>POS FMB Solutions</span>
+            <span style={styles.brandText}>POS LYFRGL Solutions</span>
           </div>
           <button onClick={logout} style={styles.logoutBtn} className="active-tap">
             <LogOut size={16} /> Salir
@@ -1335,7 +1335,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 )}
                 <div style={{ textAlign: "center", marginBottom: "14px" }}>
-                  <h4 style={{ textTransform: "uppercase", fontWeight: "800" }}>FMB SOLUTIONS</h4>
+                  <h4 style={{ textTransform: "uppercase", fontWeight: "800" }}>LYFRGL SOLUTIONS</h4>
                   <p style={{ fontSize: "11px", color: "#475569" }}>SUCURSAL: {user?.branch.name}</p>
                   <p style={{ fontSize: "10px", color: "#64748b" }}>TEL: 772 100 2000</p>
                 </div>
@@ -1987,7 +1987,7 @@ const Dashboard: React.FC = () => {
                 </div>
               )}
               <div style={{ textAlign: "center", marginBottom: "14px" }}>
-                <h4 style={{ textTransform: "uppercase", fontWeight: "800" }}>FMB SOLUTIONS</h4>
+                <h4 style={{ textTransform: "uppercase", fontWeight: "800" }}>LYFRGL SOLUTIONS</h4>
                 <p style={{ fontSize: "11px", color: "#475569" }}>SUCURSAL: {user?.branch.name}</p>
                 <p style={{ fontSize: "10px", color: "#64748b" }}>TEL: 772 100 2000</p>
               </div>
@@ -2199,7 +2199,7 @@ const Dashboard: React.FC = () => {
             
             <div style={styles.ticketContainer} id="partial-cut-thermal-receipt">
               <div style={{ textAlign: "center", borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px", marginBottom: "10px" }}>
-                <strong style={{ fontSize: "14px" }}>FMB SOLUTIONS POS</strong>
+                <strong style={{ fontSize: "14px" }}>LYFRGL SOLUTIONS POS</strong>
                 <p style={{ fontSize: "11px", margin: "2px 0 0 0" }}>SUCURSAL: {user?.branch.name}</p>
                 <p style={{ fontSize: "10px", margin: "2px 0 0 0" }}>CORTE PARCIAL #{partialCutData.cutNumber}</p>
                 <p style={{ fontSize: "9px", margin: "2px 0 0 0", color: "#64748b" }}>
@@ -2459,7 +2459,7 @@ const Dashboard: React.FC = () => {
             
             <div style={styles.ticketContainer} id="deposit-thermal-receipt">
               <div style={{ textAlign: "center", borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px", marginBottom: "10px" }}>
-                <strong style={{ fontSize: "14px" }}>FMB SOLUTIONS POS</strong>
+                <strong style={{ fontSize: "14px" }}>LYFRGL SOLUTIONS POS</strong>
                 <p style={{ fontSize: "11px", margin: "2px 0 0 0" }}>{user?.branch.name}</p>
                 <p style={{ fontSize: "9px", margin: "2px 0 0 0", color: "#64748b" }}>
                   {new Date(lastDeposit.createdAt).toLocaleString()}

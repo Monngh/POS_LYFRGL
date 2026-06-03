@@ -10,9 +10,9 @@ async function main() {
   // 1. SUCURSALES (Multi-branch)
   // =========================================================================
   const branchesData = [
-    { name: "Sucursal Centro FMB", address: "Av. Principal #100, Col. Centro, FMB City", phone: "555-0199" },
-    { name: "Sucursal Norte FMB", address: "Blvd. Colosio #405, Plaza Norte, FMB City", phone: "555-0211" },
-    { name: "Sucursal Poniente FMB", address: "Av. Ruiz Cortines #89, Plaza Poniente, FMB City", phone: "555-0233" }
+    { name: "Sucursal Centro LYFRGL", address: "Av. Principal #100, Col. Centro, LYFRGL City", phone: "555-0199" },
+    { name: "Sucursal Norte LYFRGL", address: "Blvd. Colosio #405, Plaza Norte, LYFRGL City", phone: "555-0211" },
+    { name: "Sucursal Poniente LYFRGL", address: "Av. Ruiz Cortines #89, Plaza Poniente, LYFRGL City", phone: "555-0233" }
   ];
 
   const branchesMap: { [key: string]: number } = {};
@@ -47,19 +47,19 @@ async function main() {
   // Definición de usuarios con roles y sucursales
   const usersData = [
     // Centro
-    { email: "admin@fmb.com", name: "Administrador FMB", role: "ADMIN", password: adminPasswordHash, pin: null, branchName: "Sucursal Centro FMB" },
-    { email: "juan.centro@fmb.com", name: "Juan Cajero", role: "CAJERO", password: defaultPasswordHash, pin: "1234", branchName: "Sucursal Centro FMB" },
-    { email: "maria.centro@fmb.com", name: "María Cajera", role: "CAJERO", password: defaultPasswordHash, pin: "5678", branchName: "Sucursal Centro FMB" },
+    { email: "admin@fmb.com", name: "Administrador LYFRGL", role: "ADMIN", password: adminPasswordHash, pin: null, branchName: "Sucursal Centro LYFRGL" },
+    { email: "juan.centro@fmb.com", name: "Juan Cajero", role: "CAJERO", password: defaultPasswordHash, pin: "1234", branchName: "Sucursal Centro LYFRGL" },
+    { email: "maria.centro@fmb.com", name: "María Cajera", role: "CAJERO", password: defaultPasswordHash, pin: "5678", branchName: "Sucursal Centro LYFRGL" },
     
     // Norte
-    { email: "gerente.norte@fmb.com", name: "Gerente Sucursal Norte", role: "GERENTE", password: defaultPasswordHash, pin: null, branchName: "Sucursal Norte FMB" },
-    { email: "carlos.norte@fmb.com", name: "Carlos Cajero", role: "CAJERO", password: defaultPasswordHash, pin: "9012", branchName: "Sucursal Norte FMB" },
-    { email: "sofia.norte@fmb.com", name: "Sofía Cajera", role: "CAJERO", password: defaultPasswordHash, pin: "3456", branchName: "Sucursal Norte FMB" },
+    { email: "gerente.norte@fmb.com", name: "Gerente Sucursal Norte", role: "GERENTE", password: defaultPasswordHash, pin: null, branchName: "Sucursal Norte LYFRGL" },
+    { email: "carlos.norte@fmb.com", name: "Carlos Cajero", role: "CAJERO", password: defaultPasswordHash, pin: "9012", branchName: "Sucursal Norte LYFRGL" },
+    { email: "sofia.norte@fmb.com", name: "Sofía Cajera", role: "CAJERO", password: defaultPasswordHash, pin: "3456", branchName: "Sucursal Norte LYFRGL" },
 
     // Poniente
-    { email: "gerente.poniente@fmb.com", name: "Gerente Sucursal Poniente", role: "GERENTE", password: defaultPasswordHash, pin: null, branchName: "Sucursal Poniente FMB" },
-    { email: "ana.poniente@fmb.com", name: "Ana Cajera", role: "CAJERO", password: defaultPasswordHash, pin: "7890", branchName: "Sucursal Poniente FMB" },
-    { email: "pedro.poniente@fmb.com", name: "Pedro Cajero", role: "CAJERO", password: defaultPasswordHash, pin: "2345", branchName: "Sucursal Poniente FMB" }
+    { email: "gerente.poniente@fmb.com", name: "Gerente Sucursal Poniente", role: "GERENTE", password: defaultPasswordHash, pin: null, branchName: "Sucursal Poniente LYFRGL" },
+    { email: "ana.poniente@fmb.com", name: "Ana Cajera", role: "CAJERO", password: defaultPasswordHash, pin: "7890", branchName: "Sucursal Poniente LYFRGL" },
+    { email: "pedro.poniente@fmb.com", name: "Pedro Cajero", role: "CAJERO", password: defaultPasswordHash, pin: "2345", branchName: "Sucursal Poniente LYFRGL" }
   ];
 
   // Mantener compatibilidad con el correo genérico "cajero@fmb.com" para que siga sirviendo el login por defecto
@@ -73,7 +73,7 @@ async function main() {
         name: "Juan Cajero (Acceso Rápido)",
         role: "CAJERO",
         active: true,
-        branchId: branchesMap["Sucursal Centro FMB"],
+        branchId: branchesMap["Sucursal Centro LYFRGL"],
       }
     });
     console.log(`✅ Cajero de retrocompatibilidad creado: cajero@fmb.com (PIN: 1234)`);
@@ -86,7 +86,7 @@ async function main() {
         name: "Juan Cajero (Acceso Rápido)",
         role: "CAJERO",
         active: true,
-        branchId: branchesMap["Sucursal Centro FMB"],
+        branchId: branchesMap["Sucursal Centro LYFRGL"],
       }
     });
     console.log(`ℹ️ Cajero de retrocompatibilidad actualizado.`);

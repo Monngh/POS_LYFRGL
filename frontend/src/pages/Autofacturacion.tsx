@@ -138,7 +138,7 @@ const Autofacturacion: React.FC = () => {
         <div style={styles.navContainer}>
           <div style={styles.navBrand}>
             <Building2 size={24} color="#0d9488" />
-            <span style={styles.navBrandText}>FMB Solutions</span>
+            <span style={styles.navBrandText}>LYFRGL Solutions</span>
           </div>
           <span style={styles.navBadge}>Portal de Autofacturación</span>
         </div>

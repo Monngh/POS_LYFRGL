@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { prisma } from "../app";
+import bcrypt from "bcryptjs";
 
 /**
  * Controlador del Panel Administrativo Central (módulos de gestión).
@@ -343,6 +344,98 @@ export const listEmployees = async (req: Request, res: Response): Promise<void> 
 };
 
 // ===========================================================================
+// SUCURSALES
+// ===========================================================================
+export const listBranches = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const search = trimQuery(req.query.search);
+
+    const where: any = {};
+    if (search) where.OR = [{ name: { contains: search } }, { address: { contains: search } }];
+
+    const branches = await prisma.branch.findMany({
+      where,
+      orderBy: { id: "asc" },
+      include: { _count: { select: { users: true, sales: true } } },
+    });
+
+    const mapped = branches.map((b) => ({
+      id: b.id,
+      name: b.name,
+      address: b.address,
+      phone: b.phone,
+      active: b.active,
+      employees: b._count.users,
+      sales: b._count.sales,
+      createdAt: b.createdAt,
+    }));
+
+    res.status(200).json({ branches: mapped });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al listar sucursales.", error: error.message });
+  }
+};
+
+export const createBranch = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { name, address, phone, active } = req.body;
+
+    if (!name || typeof name !== "string" || !name.trim()) {
+      res.status(400).json({ message: "El nombre de la sucursal es obligatorio." });
+      return;
+    }
+
+    const branch = await prisma.branch.create({
+      data: {
+        name: name.trim(),
+        address: trimQuery(address) ?? null,
+        phone: trimQuery(phone) ?? null,
+        active: typeof active === "boolean" ? active : true,
+      },
+    });
+
+    res.status(201).json({ message: "Sucursal registrada exitosamente.", branch });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al registrar la sucursal.", error: error.message });
+  }
+};
+
+export const updateBranch = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      res.status(400).json({ message: "Identificador de sucursal inválido." });
+      return;
+    }
+
+    const { name, address, phone, active } = req.body;
+    if (!name || typeof name !== "string" || !name.trim()) {
+      res.status(400).json({ message: "El nombre de la sucursal es obligatorio." });
+      return;
+    }
+
+    const branch = await prisma.branch.update({
+      where: { id },
+      data: {
+        name: name.trim(),
+        address: trimQuery(address) ?? null,
+        phone: trimQuery(phone) ?? null,
+        active: typeof active === "boolean" ? active : true,
+      },
+    });
+
+    res.status(200).json({ message: "Sucursal actualizada exitosamente.", branch });
+  } catch (error: any) {
+    // P2025: registro no encontrado para actualizar
+    if (error.code === "P2025") {
+      res.status(404).json({ message: "Sucursal no encontrada." });
+      return;
+    }
+    res.status(500).json({ message: "Error al actualizar la sucursal.", error: error.message });
+  }
+};
+
+// ===========================================================================
 // REPORTES (resumen por rango de fechas)
 // ===========================================================================
 export const getReports = async (req: Request, res: Response): Promise<void> => {
@@ -467,5 +560,333 @@ export const getReports = async (req: Request, res: Response): Promise<void> => 
     });
   } catch (error: any) {
     res.status(500).json({ message: "Error al generar los reportes.", error: error.message });
+  }
+};
+
+// ===========================================================================
+// ALTA DE EMPLEADO (reutiliza la tabla User; cifra password y PIN)
+// ===========================================================================
+export const createEmployee = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { name, email, password, role, branchId, pinCode } = req.body;
+
+    if (!name?.trim() || !email?.trim() || !password || !role || !branchId) {
+      res.status(400).json({ message: "Nombre, correo, contraseña, rol y sucursal son obligatorios." });
+      return;
+    }
+    if (String(password).length < 6) {
+      res.status(400).json({ message: "La contraseña debe tener al menos 6 caracteres." });
+      return;
+    }
+    const validRoles = ["ADMIN", "GERENTE", "CAJERO"];
+    if (!validRoles.includes(role)) {
+      res.status(400).json({ message: "Rol inválido. Use ADMIN, GERENTE o CAJERO." });
+      return;
+    }
+    // Los cajeros se autentican con PIN de 4 dígitos
+    if (role === "CAJERO" && (!pinCode || !/^\d{4}$/.test(String(pinCode)))) {
+      res.status(400).json({ message: "Los cajeros requieren un PIN numérico de 4 dígitos." });
+      return;
+    }
+    if (pinCode && !/^\d{4}$/.test(String(pinCode))) {
+      res.status(400).json({ message: "El PIN debe ser numérico de 4 dígitos." });
+      return;
+    }
+
+    const branch = await prisma.branch.findUnique({ where: { id: Number(branchId) } });
+    if (!branch) {
+      res.status(404).json({ message: "La sucursal seleccionada no existe." });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(String(password), 10);
+    const pinHash = pinCode ? await bcrypt.hash(String(pinCode), 10) : null;
+
+    const user = await prisma.user.create({
+      data: {
+        name: name.trim(),
+        email: email.trim(),
+        passwordHash,
+        pinCode: pinHash,
+        role,
+        active: true,
+        branchId: Number(branchId),
+      },
+    });
+
+    res.status(201).json({
+      message: "Empleado registrado exitosamente.",
+      employee: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        active: user.active,
+        branch: branch.name,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error: any) {
+    if (error.code === "P2002") {
+      res.status(409).json({ message: "Ya existe un usuario registrado con ese correo electrónico." });
+      return;
+    }
+    res.status(500).json({ message: "Error al registrar el empleado.", error: error.message });
+  }
+};
+
+// ===========================================================================
+// OPERACIONES DEL VENDEDOR (actividad consolidada de un empleado)
+// ===========================================================================
+export const getEmployeeOperations = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      res.status(400).json({ message: "Identificador de empleado inválido." });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, name: true, email: true, role: true, active: true, branch: { select: { name: true } } },
+    });
+    if (!user) {
+      res.status(404).json({ message: "Empleado no encontrado." });
+      return;
+    }
+
+    const [salesAgg, cancelledCount, recentSales, sessions] = await Promise.all([
+      prisma.sale.aggregate({ where: { userId: id, status: "COMPLETADA" }, _sum: { totalAmount: true }, _count: { _all: true } }),
+      prisma.sale.count({ where: { userId: id, status: "CANCELADA" } }),
+      prisma.sale.findMany({
+        where: { userId: id },
+        take: 10,
+        orderBy: { createdAt: "desc" },
+        select: { id: true, invoiceNumber: true, createdAt: true, totalAmount: true, paymentMethod: true, status: true },
+      }),
+      prisma.cashSession.findMany({
+        where: { userId: id },
+        take: 10,
+        orderBy: { openedAt: "desc" },
+        select: { id: true, openedAt: true, closedAt: true, initialAmount: true, difference: true, status: true },
+      }),
+    ]);
+
+    // Depósitos realizados durante las sesiones de caja de este empleado
+    const sessionIds = (await prisma.cashSession.findMany({ where: { userId: id }, select: { id: true } })).map((s) => s.id);
+    const depositsAgg =
+      sessionIds.length > 0
+        ? await prisma.bankDeposit.aggregate({ where: { cashSessionId: { in: sessionIds } }, _sum: { amount: true }, _count: { _all: true } })
+        : { _sum: { amount: null }, _count: { _all: 0 } };
+
+    const openSessions = sessions.filter((s) => s.status === "ABIERTA").length;
+
+    res.status(200).json({
+      employee: { id: user.id, name: user.name, email: user.email, role: user.role, active: user.active, branch: user.branch.name },
+      summary: {
+        salesCount: salesAgg._count._all,
+        salesTotal: Number(salesAgg._sum.totalAmount ?? 0),
+        cancelledCount,
+        sessionsCount: sessions.length,
+        openSessions,
+        depositsCount: depositsAgg._count._all,
+        depositsTotal: Number(depositsAgg._sum.amount ?? 0),
+      },
+      recentSales: recentSales.map((s) => ({
+        id: s.id,
+        invoiceNumber: s.invoiceNumber,
+        createdAt: s.createdAt,
+        totalAmount: Number(s.totalAmount),
+        paymentMethod: s.paymentMethod,
+        status: s.status,
+      })),
+      recentSessions: sessions.map((s) => ({
+        id: s.id,
+        openedAt: s.openedAt,
+        closedAt: s.closedAt,
+        initialAmount: Number(s.initialAmount),
+        difference: s.difference !== null ? Number(s.difference) : null,
+        status: s.status,
+      })),
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al obtener las operaciones del empleado.", error: error.message });
+  }
+};
+
+// ===========================================================================
+// KARDEX (movimientos de inventario) — solo lectura
+// ===========================================================================
+export const listKardex = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const branchId = parseBranch(req);
+    const movementType = req.query.movementType as string | undefined;
+    const search = trimQuery(req.query.search);
+
+    const where: any = {};
+    if (branchId) where.branchId = branchId;
+    if (movementType && movementType !== "all") where.movementType = movementType;
+    if (search) where.product = { OR: [{ name: { contains: search } }, { sku: { contains: search } }] };
+
+    const entries = await prisma.kardex.findMany({
+      where,
+      take: 150,
+      orderBy: { createdAt: "desc" },
+      include: {
+        product: { select: { name: true, sku: true } },
+        branch: { select: { name: true } },
+        user: { select: { name: true } },
+      },
+    });
+
+    res.status(200).json({
+      entries: entries.map((k) => ({
+        id: k.id,
+        createdAt: k.createdAt,
+        product: k.product.name,
+        sku: k.product.sku,
+        branch: k.branch.name,
+        user: k.user.name,
+        movementType: k.movementType,
+        quantityChange: k.quantityChange,
+        balanceAfter: k.balanceAfter,
+        reason: k.reason,
+      })),
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al listar el kardex.", error: error.message });
+  }
+};
+
+// ===========================================================================
+// DEPÓSITOS BANCARIOS — solo lectura (número de cuenta enmascarado)
+// ===========================================================================
+export const listBankDeposits = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const branchId = parseBranch(req);
+    const where: any = {};
+    if (branchId) where.branchId = branchId;
+
+    const deposits = await prisma.bankDeposit.findMany({
+      where,
+      take: 100,
+      orderBy: { createdAt: "desc" },
+      include: { branch: { select: { name: true } } },
+    });
+
+    res.status(200).json({
+      deposits: deposits.map((d) => ({
+        id: d.id,
+        accountMasked: `**** **** **** ${d.accountNumber.slice(-4)}`,
+        targetName: d.targetName,
+        amount: Number(d.amount),
+        paymentType: d.paymentType,
+        comments: d.comments,
+        branch: d.branch.name,
+        sessionId: d.cashSessionId,
+        createdAt: d.createdAt,
+      })),
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al listar los depósitos bancarios.", error: error.message });
+  }
+};
+
+// ===========================================================================
+// COMPRAS — entrada de mercancía (transacción ACID: +Inventory y Kardex COMPRA)
+// ===========================================================================
+export const registerPurchase = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  try {
+    const { branchId, items, supplier, reference } = req.body;
+    const bId = Number(branchId);
+
+    if (!bId || isNaN(bId)) {
+      res.status(400).json({ message: "Debe seleccionar una sucursal de destino." });
+      return;
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ message: "Agregue al menos un producto a la compra." });
+      return;
+    }
+
+    // Validar líneas
+    const normalized = items.map((it: any) => ({
+      productId: Number(it.productId),
+      quantity: Number(it.quantity),
+      unitCost: it.unitCost !== undefined && it.unitCost !== "" ? Number(it.unitCost) : null,
+    }));
+    for (const it of normalized) {
+      if (!it.productId || isNaN(it.productId) || !it.quantity || isNaN(it.quantity) || it.quantity <= 0) {
+        res.status(400).json({ message: "Cada renglón requiere un producto válido y una cantidad mayor a 0." });
+        return;
+      }
+    }
+
+    const branch = await prisma.branch.findUnique({ where: { id: bId } });
+    if (!branch) {
+      res.status(404).json({ message: "La sucursal seleccionada no existe." });
+      return;
+    }
+
+    // Verificar que todos los productos existan
+    const productIds = [...new Set(normalized.map((n) => n.productId))];
+    const products = await prisma.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true } });
+    if (products.length !== productIds.length) {
+      res.status(404).json({ message: "Uno o más productos no existen en el catálogo." });
+      return;
+    }
+
+    const userId = req.user.userId;
+
+    const result = await prisma.$transaction(async (tx) => {
+      let totalUnidades = 0;
+      for (const it of normalized) {
+        const existing = await tx.inventory.findUnique({
+          where: { productId_branchId: { productId: it.productId, branchId: bId } },
+        });
+
+        let nextQty: number;
+        if (existing) {
+          nextQty = existing.quantity + it.quantity;
+          await tx.inventory.update({ where: { id: existing.id }, data: { quantity: nextQty } });
+        } else {
+          nextQty = it.quantity;
+          await tx.inventory.create({ data: { productId: it.productId, branchId: bId, quantity: it.quantity } });
+        }
+
+        const reasonParts: string[] = [];
+        if (supplier && String(supplier).trim()) reasonParts.push(`Proveedor: ${String(supplier).trim()}`);
+        if (reference && String(reference).trim()) reasonParts.push(`Ref: ${String(reference).trim()}`);
+        if (it.unitCost !== null && !isNaN(it.unitCost)) reasonParts.push(`Costo unit: $${it.unitCost.toFixed(2)}`);
+
+        await tx.kardex.create({
+          data: {
+            productId: it.productId,
+            branchId: bId,
+            userId,
+            quantityChange: it.quantity,
+            balanceAfter: nextQty,
+            movementType: "COMPRA",
+            reason: reasonParts.length > 0 ? reasonParts.join(" | ") : "Compra / Entrada de mercancía",
+          },
+        });
+
+        totalUnidades += it.quantity;
+      }
+      return { lineas: normalized.length, totalUnidades };
+    });
+
+    res.status(201).json({
+      message: "Compra registrada. El inventario y el kardex fueron actualizados.",
+      branch: branch.name,
+      ...result,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al registrar la compra.", error: error.message });
   }
 };
