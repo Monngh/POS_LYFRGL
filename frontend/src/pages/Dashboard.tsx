@@ -2851,7 +2851,7 @@ const Dashboard: React.FC = () => {
             
             <div style={styles.ticketContainer} id="partial-cut-thermal-receipt">
               <div style={{ textAlign: "center", borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px", marginBottom: "10px" }}>
-                <strong style={{ fontSize: "14px" }}>FMB SOLUTIONS POS</strong>
+                <strong style={{ fontSize: "14px" }}>LYFRGL POS</strong>
                 <p style={{ fontSize: "11px", margin: "2px 0 0 0" }}>SUCURSAL: {user?.branch.name}</p>
                 <p style={{ fontSize: "10px", margin: "2px 0 0 0" }}>CORTE PARCIAL #{partialCutData.cutNumber}</p>
                 <p style={{ fontSize: "9px", margin: "2px 0 0 0", color: "#64748b" }}>

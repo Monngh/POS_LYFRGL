@@ -5,9 +5,13 @@ import {
   LayoutDashboard,
   ShoppingCart,
   Package,
+  Truck,
+  ClipboardList,
   Users,
   Wallet,
+  Landmark,
   UserCog,
+  Building2,
   BarChart3,
   Menu,
   LogOut,
@@ -22,7 +26,11 @@ import InventarioView from "./admin/InventarioView";
 import ClientesView from "./admin/ClientesView";
 import CajasView from "./admin/CajasView";
 import EmpleadosView from "./admin/EmpleadosView";
+import SucursalesView from "./admin/SucursalesView";
 import ReportesView from "./admin/ReportesView";
+import KardexView from "./admin/KardexView";
+import ComprasView from "./admin/ComprasView";
+import DepositosView from "./admin/DepositosView";
 import type { ViewProps } from "./admin/shared";
 
 interface BranchOption {
@@ -34,9 +42,13 @@ const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, view: DashboardView, branchScoped: true },
   { key: "ventas", label: "Ventas", icon: ShoppingCart, view: VentasView, branchScoped: true },
   { key: "inventario", label: "Inventario", icon: Package, view: InventarioView, branchScoped: true },
+  { key: "compras", label: "Compras", icon: Truck, view: ComprasView, branchScoped: false },
+  { key: "kardex", label: "Kardex", icon: ClipboardList, view: KardexView, branchScoped: true },
   { key: "clientes", label: "Clientes", icon: Users, view: ClientesView, branchScoped: false },
   { key: "cajas", label: "Cajas", icon: Wallet, view: CajasView, branchScoped: true },
+  { key: "depositos", label: "Depósitos", icon: Landmark, view: DepositosView, branchScoped: true },
   { key: "empleados", label: "Empleados", icon: UserCog, view: EmpleadosView, branchScoped: true },
+  { key: "sucursales", label: "Sucursales", icon: Building2, view: SucursalesView, branchScoped: false },
   { key: "reportes", label: "Reportes", icon: BarChart3, view: ReportesView, branchScoped: true },
 ];
 
@@ -68,7 +80,7 @@ const AdminDashboard: React.FC = () => {
           <div style={styles.brandLogo}>
             <Store size={20} color="#ffffff" />
           </div>
-          {!collapsed && <span style={styles.brandText}>FMB POS</span>}
+          {!collapsed && <span style={styles.brandText}>LYFRGL POS</span>}
         </div>
 
         <nav style={styles.nav}>
