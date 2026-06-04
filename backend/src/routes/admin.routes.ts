@@ -16,6 +16,9 @@ import {
   listKardex,
   listBankDeposits,
   registerPurchase,
+  createProduct,
+  updateProduct,
+  deleteProduct,
 } from "../controllers/admin.controller";
 import { authenticateJWT, authorizeRoles } from "../middlewares/auth.middleware";
 
@@ -31,6 +34,9 @@ router.get("/sales/:id", getSaleDetail);
 
 // Inventario
 router.get("/inventory", listInventory);
+router.post("/products", createProduct);
+router.put("/products/:id", updateProduct);
+router.delete("/products/:id", deleteProduct);
 
 // Clientes
 router.get("/customers", listCustomers);
