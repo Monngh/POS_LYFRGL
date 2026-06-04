@@ -267,10 +267,20 @@ export const listCashSessions = async (req: Request, res: Response): Promise<voi
   try {
     const branchId = parseBranch(req);
     const status = req.query.status as string | undefined;
+    const from = req.query.from as string | undefined;
+    const to = req.query.to as string | undefined;
+    const userId = req.query.userId as string | undefined;
 
     const where: any = {};
     if (branchId) where.branchId = branchId;
     if (status && status !== "all") where.status = status;
+    if (userId && !isNaN(Number(userId))) where.userId = Number(userId);
+    if (from && to) {
+      where.openedAt = {
+        gte: new Date(from),
+        lte: new Date(to + "T23:59:59"),
+      };
+    }
 
     const sessions = await prisma.cashSession.findMany({
       where,
@@ -774,8 +784,17 @@ export const listKardex = async (req: Request, res: Response): Promise<void> => 
 export const listBankDeposits = async (req: Request, res: Response): Promise<void> => {
   try {
     const branchId = parseBranch(req);
+    const { from, to, account } = req.query;
+    
     const where: any = {};
     if (branchId) where.branchId = branchId;
+    if (account) where.accountNumber = String(account);
+    if (from && to) {
+      where.createdAt = {
+        gte: new Date(String(from)),
+        lte: new Date(String(to)),
+      };
+    }
 
     const deposits = await prisma.bankDeposit.findMany({
       where,
@@ -788,6 +807,7 @@ export const listBankDeposits = async (req: Request, res: Response): Promise<voi
       deposits: deposits.map((d) => ({
         id: d.id,
         accountMasked: `**** **** **** ${d.accountNumber.slice(-4)}`,
+        accountNumber: d.accountNumber,
         targetName: d.targetName,
         amount: Number(d.amount),
         paymentType: d.paymentType,
@@ -795,6 +815,7 @@ export const listBankDeposits = async (req: Request, res: Response): Promise<voi
         branch: d.branch.name,
         sessionId: d.cashSessionId,
         createdAt: d.createdAt,
+        status: d.status,
       })),
     });
   } catch (error: any) {
@@ -1167,5 +1188,199 @@ export const receivePurchase = async (req: Request, res: Response): Promise<void
     res.json(updated);
   } catch (error: any) {
     res.status(500).json({ message: "Error al recibir la orden de compra.", error: error.message });
+  }
+};
+
+// ===========================================================================
+// CAJAS — detalle individual + cierre forzado (admin)
+// ===========================================================================
+
+export const getCashSessionDetail = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      res.status(400).json({ message: "Identificador de sesión inválido." });
+      return;
+    }
+
+    const session = await prisma.cashSession.findUnique({
+      where: { id },
+      include: {
+        branch: { select: { name: true } },
+        user: { select: { name: true } },
+        sales: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            invoiceNumber: true,
+            createdAt: true,
+            totalAmount: true,
+            paymentMethod: true,
+            cardType: true,
+            cashReceived: true,
+            changeGiven: true,
+            status: true,
+          },
+        },
+        bankDeposits: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            createdAt: true,
+            amount: true,
+            targetName: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!session) {
+      res.status(404).json({ message: "Sesión de caja no encontrada." });
+      return;
+    }
+
+    // Desglose por método de pago (solo ventas COMPLETADAS)
+    let efectivo = 0;
+    let tarjetaCredito = 0;
+    let tarjetaDebito = 0;
+    let mercadoPago = 0;
+    let totalVentas = 0;
+
+    for (const sale of session.sales) {
+      if (sale.status !== "COMPLETADA") continue;
+      const amount = Number(sale.totalAmount);
+      totalVentas += amount;
+      if (sale.paymentMethod === "EFECTIVO") {
+        efectivo += amount;
+      } else if (sale.paymentMethod === "TARJETA") {
+        if (sale.cardType === "CREDITO") tarjetaCredito += amount;
+        else tarjetaDebito += amount;
+      } else if (sale.paymentMethod === "QR_MERCADOPAGO") {
+        mercadoPago += amount;
+      } else if (sale.paymentMethod === "MIXTO") {
+        const cashPortion = Number(sale.cashReceived || 0) - Number(sale.changeGiven || 0);
+        const cardPortion = amount - cashPortion;
+        efectivo += Math.max(0, cashPortion);
+        if (sale.cardType === "CREDITO") tarjetaCredito += Math.max(0, cardPortion);
+        else tarjetaDebito += Math.max(0, cardPortion);
+      }
+    }
+
+    // Construir lista de movimientos con saldo corrido (últimos 20)
+    type RawMov = { date: Date; type: string; description: string; amount: number };
+    const rawMovements: RawMov[] = [];
+
+    for (const sale of session.sales) {
+      const amount = Number(sale.totalAmount);
+      rawMovements.push({
+        date: sale.createdAt,
+        type: sale.status === "CANCELADA" ? "CANCELACIÓN" : "VENTA",
+        description: sale.invoiceNumber,
+        amount: sale.status === "CANCELADA" ? -amount : amount,
+      });
+    }
+
+    for (const dep of session.bankDeposits) {
+      rawMovements.push({
+        date: dep.createdAt,
+        type: "DEPÓSITO",
+        description: dep.targetName,
+        amount: -Number(dep.amount),
+      });
+    }
+
+    rawMovements.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    let runningBalance = Number(session.initialAmount);
+    const allWithBalance = rawMovements.map((m) => {
+      runningBalance += m.amount;
+      return { ...m, balance: runningBalance };
+    });
+
+    const movements = allWithBalance.slice(-20).map((m, i) => ({
+      id: i,
+      date: m.date.toISOString(),
+      type: m.type,
+      description: m.description,
+      amount: m.amount,
+      balance: m.balance,
+    }));
+
+    const expected =
+      Number(session.initialAmount) + Number(session.cashIn) - Number(session.cashOut);
+
+    const s = session as any;
+    res.status(200).json({
+      session: {
+        id: session.id,
+        branch: session.branch.name,
+        cajero: session.user.name,
+        openedAt: session.openedAt,
+        closedAt: session.closedAt,
+        initialAmount: Number(session.initialAmount),
+        cashIn: Number(session.cashIn),
+        cashOut: Number(session.cashOut),
+        expectedAmount: session.status === "CERRADA" ? Number(session.expectedAmount) : expected,
+        declaredAmount: session.declaredAmount !== null ? Number(session.declaredAmount) : null,
+        difference: session.difference !== null ? Number(session.difference) : null,
+        salesCount: session.sales.filter((sale) => sale.status === "COMPLETADA").length,
+        status: session.status,
+        forceCloseReason: s.forceCloseReason ?? null,
+      },
+      payBreakdown: { efectivo, tarjetaCredito, tarjetaDebito, mercadoPago, totalVentas },
+      movements,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al cargar el detalle de la sesión.", error: error.message });
+  }
+};
+
+export const forceCloseCashSession = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      res.status(400).json({ message: "Identificador de sesión inválido." });
+      return;
+    }
+
+    const { reason, forcedBy } = req.body;
+    if (!reason || typeof reason !== "string" || !reason.trim()) {
+      res.status(400).json({ message: "El motivo de cierre es requerido." });
+      return;
+    }
+
+    const session = await prisma.cashSession.findUnique({ where: { id } });
+    if (!session) {
+      res.status(404).json({ message: "Sesión de caja no encontrada." });
+      return;
+    }
+    if (session.status !== "ABIERTA") {
+      res.status(400).json({ message: "La sesión ya se encuentra cerrada." });
+      return;
+    }
+
+    const expected =
+      Number(session.initialAmount) + Number(session.cashIn) - Number(session.cashOut);
+
+    const updateData: any = {
+      status: "CERRADA",
+      closedAt: new Date(),
+      expectedAmount: expected,
+      forceCloseReason: reason.trim(),
+      forcedByUserId: forcedBy ? Number(forcedBy) : null,
+    };
+
+    const updated = await prisma.cashSession.update({
+      where: { id },
+      data: updateData,
+    });
+
+    res.status(200).json({
+      message: "Caja cerrada forzadamente.",
+      session: updated,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al cerrar la caja forzadamente.", error: error.message });
   }
 };

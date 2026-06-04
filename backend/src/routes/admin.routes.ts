@@ -6,6 +6,8 @@ import {
   listCustomers,
   createCustomer,
   listCashSessions,
+  getCashSessionDetail,
+  forceCloseCashSession,
   listEmployees,
   getReports,
   listBranches,
@@ -44,6 +46,8 @@ router.post("/customers", createCustomer);
 
 // Cajas
 router.get("/cash-sessions", listCashSessions);
+router.get("/cash-sessions/:id", getCashSessionDetail);
+router.put("/cash-sessions/:id/force-close", forceCloseCashSession);
 
 // Empleados
 router.get("/employees", listEmployees);

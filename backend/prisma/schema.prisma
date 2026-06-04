@@ -111,9 +111,11 @@ model CashSession {
   difference     Decimal?      @db.Decimal(18, 2)
   cashIn         Decimal       @default(0) @db.Decimal(18, 2)
   cashOut        Decimal       @default(0) @db.Decimal(18, 2)
-  status         String        @default("ABIERTA")
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  status            String        @default("ABIERTA")
+  forceCloseReason  String?
+  forcedByUserId    Int?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
   bankDeposits   BankDeposit[]
   cuts           CashCut[]
   branch         Branch        @relation(fields: [branchId], references: [id], onUpdate: NoAction)
