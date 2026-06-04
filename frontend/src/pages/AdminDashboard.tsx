@@ -52,6 +52,15 @@ const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<
   { key: "reportes", label: "Reportes", icon: BarChart3, view: ReportesView, branchScoped: true },
 ];
 
+const NAV_SECTIONS: { label: string; items: string[] }[] = [
+  { label: "Inicio", items: ["dashboard"] },
+  { label: "Operación", items: ["ventas", "compras"] },
+  { label: "Caja y finanzas", items: ["cajas", "depositos"] },
+  { label: "Inventario", items: ["inventario"] },
+  { label: "Catálogos", items: ["clientes", "empleados", "sucursales"] },
+  { label: "Reportes", items: ["reportes"] },
+];
+
 const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
 
@@ -84,28 +93,36 @@ const AdminDashboard: React.FC = () => {
         </div>
 
         <nav style={styles.nav}>
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeNav === item.key;
-            return (
-              <button
-                key={item.key}
-                onClick={() => setActiveNav(item.key)}
-                title={item.label}
-                className="active-tap"
-                style={{
-                  ...styles.navItem,
-                  justifyContent: collapsed ? "center" : "flex-start",
-                  backgroundColor: isActive ? "#3b82f6" : "transparent",
-                  color: isActive ? "#ffffff" : "#bfdbfe",
-                  fontWeight: isActive ? 700 : 500,
-                }}
-              >
-                <Icon size={19} />
-                {!collapsed && <span>{item.label}</span>}
-              </button>
-            );
-          })}
+          {NAV_SECTIONS.map((section) => (
+            <React.Fragment key={section.label}>
+              {!collapsed && (
+                <span style={styles.navSectionLabel}>{section.label}</span>
+              )}
+              {section.items.map((key) => {
+                const item = NAV_ITEMS.find((n) => n.key === key)!;
+                const Icon = item.icon;
+                const isActive = activeNav === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => setActiveNav(item.key)}
+                    title={item.label}
+                    className="active-tap"
+                    style={{
+                      ...styles.navItem,
+                      justifyContent: collapsed ? "center" : "flex-start",
+                      backgroundColor: isActive ? "#3b82f6" : "transparent",
+                      color: isActive ? "#ffffff" : "#bfdbfe",
+                      fontWeight: isActive ? 700 : 500,
+                    }}
+                  >
+                    <Icon size={19} />
+                    {!collapsed && <span>{item.label}</span>}
+                  </button>
+                );
+              })}
+            </React.Fragment>
+          ))}
         </nav>
 
         <div style={styles.sidebarFooter}>
@@ -210,7 +227,16 @@ const styles: { [k: string]: React.CSSProperties } = {
     flexShrink: 0,
   },
   brandText: { color: "#ffffff", fontWeight: 800, fontSize: 16, letterSpacing: "-0.3px", whiteSpace: "nowrap" },
-  nav: { display: "flex", flexDirection: "column", gap: 4, padding: "16px 12px", flex: 1 },
+  nav: { display: "flex", flexDirection: "column", gap: 4, padding: "16px 12px", flex: 1, overflowY: "auto" },
+  navSectionLabel: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: "#93c5fd",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.8px",
+    padding: "10px 12px 4px",
+    display: "block",
+  },
   navItem: {
     display: "flex",
     alignItems: "center",
