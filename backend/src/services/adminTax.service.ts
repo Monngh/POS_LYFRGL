@@ -91,7 +91,7 @@ export const getTaxesByProduct = async (productId: number) => {
     return prisma.productTax.findMany({
         where: { productId },
         include: {
-            TaxType: true,
+            taxType: true,
         },
         orderBy: {
             taxTypeId: "asc",
@@ -139,7 +139,7 @@ export const syncTaxesForProduct = async (productId: number, taxIds: number[]) =
         return tx.productTax.findMany({
             where: { productId },
             include: {
-                TaxType: true,
+                taxType: true,
             },
             orderBy: {
                 taxTypeId: "asc",
