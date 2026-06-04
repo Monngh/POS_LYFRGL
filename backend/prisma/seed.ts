@@ -113,6 +113,30 @@ async function main() {
   }
 
   // =========================================================================
+  // 2.1. IMPUESTOS (TaxType)
+  // =========================================================================
+  const taxTypesData = [
+    { name: "IVA 16%", description: "Impuesto al Valor Agregado tasa general", rate: 0.1600 },
+    { name: "IVA 0%", description: "Impuesto al Valor Agregado tasa cero", rate: 0.0000 },
+    { name: "Exento", description: "Operaciones exentas de IVA", rate: 0.0000 },
+    { name: "IEPS 8%", description: "Impuesto Especial sobre Producción y Servicios alimentos no básicos", rate: 0.0800 },
+    { name: "IEPS 26.5%", description: "Impuesto Especial sobre Producción y Servicios bebidas alcohólicas de baja graduación", rate: 0.2650 },
+    { name: "IEPS 53%", description: "Impuesto Especial sobre Producción y Servicios bebidas alcohólicas de alta graduación", rate: 0.5300 },
+  ];
+
+  const taxTypesMap: { [name: string]: number } = {};
+
+  for (const t of taxTypesData) {
+    const taxType = await prisma.taxType.upsert({
+      where: { name: t.name },
+      update: { rate: t.rate, description: t.description, active: true },
+      create: { name: t.name, rate: t.rate, description: t.description, active: true },
+    });
+    taxTypesMap[t.name] = taxType.id;
+    console.log(`  ✅ Tipo de Impuesto: ${taxType.name} (ID: ${taxType.id})`);
+  }
+
+  // =========================================================================
   // 3. CLIENTES — upsert por teléfono (no tiene @unique, usamos findFirst)
   // =========================================================================
   await prisma.customer.upsert({
@@ -168,6 +192,10 @@ async function main() {
     { sku: "PROD-004", barcode: "7501055303496", name: "Galletas Chokis 90g",         description: "Galletas con chispas sabor chocolate",            cost: 14.00, sell: 21.00 },
     { sku: "PROD-005", barcode: "7501008023648", name: "Leche Entera Lala 1L",        description: "Leche pasteurizada adicionada con vitaminas",    cost: 18.50, sell: 26.00 },
     { sku: "PROD-006", barcode: "7501055310869", name: "Agua Purificada Ciel 1L",     description: "Agua de mesa purificada sin gas",                cost:  7.00, sell: 12.00 },
+    { sku: "PROD-007", barcode: "7501008023655", name: "Té Helado Peach 500ml",        description: "Té helado sabor durazno",                        cost: 10.00, sell: 15.00 },
+    { sku: "PROD-008", barcode: "7501008023662", name: "Agua Mineral Natural 500ml",   description: "Agua mineralizada de manantial",                 cost:  8.00, sell: 12.00 },
+    { sku: "PROD-009", barcode: "7501008023679", name: "Néctar de Mango 1L",          description: "Jugo de néctar de mango natural",                cost: 15.00, sell: 22.00 },
+    { sku: "PROD-010", barcode: "7501008023686", name: "Chocolate con Leche 100g",     description: "Barra de chocolate cremoso con leche",          cost: 20.00, sell: 30.00 },
   ];
 
   for (const p of productsData) {
@@ -177,6 +205,31 @@ async function main() {
       create: { sku: p.sku, barcode: p.barcode, name: p.name, description: p.description, costPrice: p.cost, sellPrice: p.sell, active: true },
     });
     console.log(`  ✅ Producto: ${product.name}`);
+
+    // Asociar impuestos a los productos de prueba del seed
+    let productTaxesToLink: string[] = [];
+    if (product.sku === "PROD-001" || product.sku === "PROD-002" || product.sku === "PROD-004" || product.sku === "PROD-010") {
+      productTaxesToLink = ["IVA 16%", "IEPS 8%"];
+    } else if (product.sku === "PROD-003" || product.sku === "PROD-005" || product.sku === "PROD-006") {
+      productTaxesToLink = ["IVA 0%"];
+    } else if (product.sku === "PROD-007") {
+      productTaxesToLink = ["IVA 16%"];
+    } else if (product.sku === "PROD-008") {
+      productTaxesToLink = ["Exento"];
+    } else if (product.sku === "PROD-009") {
+      productTaxesToLink = ["IEPS 8%"];
+    }
+
+    for (const taxName of productTaxesToLink) {
+      const taxTypeId = taxTypesMap[taxName];
+      if (taxTypeId) {
+        await prisma.productTax.upsert({
+          where: { productId_taxTypeId: { productId: product.id, taxTypeId } },
+          update: {},
+          create: { productId: product.id, taxTypeId },
+        });
+      }
+    }
 
     // Inventario: solo crea si no existe — no sobreescribe stock real
     for (const bName of Object.keys(branchesMap)) {
@@ -263,6 +316,22 @@ async function main() {
       console.log(`  ✅ Promoción creada: ${promo.name}`);
     } else {
       console.log(`  ℹ️  Promoción ya existe: ${ps.name}`);
+    }
+  }
+
+  // Mapear IVA 16% a todos los productos existentes que no tengan impuestos asignados
+  const allProducts = await prisma.product.findMany({
+    include: { productTaxes: true }
+  });
+  const defaultTaxId = taxTypesMap["IVA 16%"];
+  if (defaultTaxId) {
+    for (const p of allProducts) {
+      if (p.productTaxes.length === 0) {
+        await prisma.productTax.create({
+          data: { productId: p.id, taxTypeId: defaultTaxId }
+        });
+        console.log(`  ✅ IVA 16% asignado por defecto al producto existente: ${p.name}`);
+      }
     }
   }
 

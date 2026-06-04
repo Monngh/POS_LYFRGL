@@ -34,6 +34,11 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
         inventories: {
           where: { branchId: req.user.branchId },
         },
+        productTaxes: {
+          include: {
+            taxType: true,
+          },
+        },
         promotionProducts: {
           include: {
             promotion: {
@@ -69,6 +74,17 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
         specialPrice: activePP.promotion.specialPrice ? Number(activePP.promotion.specialPrice) : null,
       } : null;
 
+      const taxes = p.productTaxes
+        ? p.productTaxes
+            .map((pt) => pt.taxType)
+            .filter((t) => t.active)
+            .map((t) => ({
+              id: t.id,
+              name: t.name,
+              rate: Number(t.rate),
+            }))
+        : [];
+
       return {
         id: p.id,
         sku: p.sku,
@@ -80,6 +96,7 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
         stock: branchInventory ? branchInventory.quantity : 0,
         minStock: branchInventory ? branchInventory.minStock : 5,
         activePromotion: activePromo,
+        taxes,
       };
     });
 

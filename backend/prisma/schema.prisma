@@ -62,6 +62,7 @@ model Product {
   promotionProducts PromotionProduct[]
   saleDetails       SaleDetail[]
   returnDetails     ReturnDetail[]
+  productTaxes      ProductTax[]
 }
 
 model Inventory {
@@ -188,6 +189,7 @@ model SaleDetail {
   product        Product        @relation(fields: [productId], references: [id], onUpdate: NoAction)
   sale           Sale           @relation(fields: [saleId], references: [id], onUpdate: NoAction)
   returnDetails  ReturnDetail[]
+  saleDetailTaxes SaleDetailTax[]
 }
 
 model BankDeposit {
@@ -317,4 +319,37 @@ model StoreCredit {
   updatedAt  DateTime @updatedAt
 
   customer Customer? @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model TaxType {
+  id              Int             @id @default(autoincrement())
+  name            String          @unique
+  description     String?
+  rate            Decimal         @db.Decimal(18, 4)
+  active          Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  productTaxes    ProductTax[]
+  saleDetailTaxes SaleDetailTax[]
+}
+
+model ProductTax {
+  id         Int      @id @default(autoincrement())
+  productId  Int
+  taxTypeId  Int
+  product    Product  @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  taxType    TaxType  @relation(fields: [taxTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([productId, taxTypeId])
+}
+
+model SaleDetailTax {
+  id           Int        @id @default(autoincrement())
+  saleDetailId Int
+  taxTypeId    Int
+  taxName      String
+  taxRate      Decimal    @db.Decimal(18, 4)
+  taxAmount    Decimal    @db.Decimal(18, 2)
+  saleDetail   SaleDetail @relation(fields: [saleDetailId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  taxType      TaxType    @relation(fields: [taxTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }

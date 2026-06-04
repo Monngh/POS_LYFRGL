@@ -49,6 +49,11 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
           inventories: {
             where: { branchId: req.user.branchId },
           },
+          productTaxes: {
+            include: {
+              taxType: true,
+            },
+          },
         },
       });
 
@@ -86,6 +91,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     const promoCalc = await PromotionService.calculatePromotions(cartItems);
 
     let calculatedSubtotal = 0;
+    let totalTaxAmount = 0;
     const itemsWithCosts: any[] = [];
 
     for (let i = 0; i < dbProducts.length; i++) {
@@ -93,6 +99,30 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       const calcLine = promoCalc.lines[i];
 
       calculatedSubtotal += Number(product.sellPrice) * quantity;
+
+      // Net price after discount/promotion
+      const lineNetPrice = (Number(product.sellPrice) * quantity) - calcLine.discountAmount;
+
+      // Calculate taxes for this line
+      let lineTaxAmount = 0;
+      const applicableTaxes = product.productTaxes
+        ? product.productTaxes.map((pt) => pt.taxType).filter((t) => t.active)
+        : [];
+
+      const lineTaxes = applicableTaxes.map((tax) => {
+        const rate = Number(tax.rate);
+        const amount = Number((lineNetPrice * rate).toFixed(2));
+        lineTaxAmount += amount;
+        return {
+          taxTypeId: tax.id,
+          taxName: tax.name,
+          taxRate: tax.rate,
+          taxAmount: amount,
+        };
+      });
+
+      totalTaxAmount += lineTaxAmount;
+
       itemsWithCosts.push({
         productId: product.id,
         quantity: quantity,
@@ -103,13 +133,15 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
         promotionLabel: calcLine.appliedPromotion ? calcLine.appliedPromotion.name : null,
         currentStock,
         inventoryId,
+        taxAmount: lineTaxAmount,
+        taxes: lineTaxes,
       });
     }
 
-    // Calcular IVA y Total usando los montos calculados por el motor de promociones
+    // Calcular Impuestos y Total usando los montos calculados por el motor de promociones
     const discount = promoCalc.totalDiscount; // Se sobreescribe con el descuento real de promociones
     const finalSubtotal = promoCalc.totalFinal;
-    const finalTax = finalSubtotal * 0.16; // 16% IVA
+    const finalTax = Number(totalTaxAmount.toFixed(2));
     const finalTotal = finalSubtotal + finalTax;
 
     // Lógica de Lealtad (Puntos FMB)
@@ -188,19 +220,34 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       // c. Procesar cada detalle del carrito, ajustar inventario y registrar Kardex
       for (const item of itemsWithCosts) {
         // Guardar detalles de la venta
-        await tx.saleDetail.create({
+        const detail = await tx.saleDetail.create({
           data: {
             saleId: sale.id,
             productId: item.productId,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             costPrice: item.costPrice,
-            taxAmount: (item.unitPrice * item.quantity - item.discountAmount) * 0.16,
+            taxAmount: item.taxAmount,
             discountAmount: item.discountAmount,
             promotionId: item.promotionId,
             promotionLabel: item.promotionLabel,
           },
         });
+
+        // Guardar desglose histórico de impuestos para esta partida
+        if (item.taxes && item.taxes.length > 0) {
+          for (const sdt of item.taxes) {
+            await tx.saleDetailTax.create({
+              data: {
+                saleDetailId: detail.id,
+                taxTypeId: sdt.taxTypeId,
+                taxName: sdt.taxName,
+                taxRate: sdt.taxRate,
+                taxAmount: sdt.taxAmount,
+              },
+            });
+          }
+        }
 
         // Decrementar el inventario físico
         const nextQty = item.currentStock - item.quantity;
@@ -1169,7 +1216,8 @@ export const getSaleDetailForCashier = async (req: Request, res: Response): Prom
         customer: { select: { name: true, phone: true, points: true } },
         saleDetails: {
           include: {
-            product: { select: { name: true, sku: true, sellPrice: true } }
+            product: { select: { name: true, sku: true, sellPrice: true } },
+            saleDetailTaxes: true
           }
         },
         returns: {
@@ -1187,13 +1235,48 @@ export const getSaleDetailForCashier = async (req: Request, res: Response): Prom
 
     const totalRefunded = sale.returns.reduce((acc, curr) => acc + Number(curr.totalRefunded), 0);
 
+    // Group taxes at sale level for desglose in ticket footer
+    const taxBreakdownMap: { [name: string]: { rate: number; amount: number } } = {};
+    let hasTaxDetails = false;
+
+    for (const d of sale.saleDetails) {
+      if (d.saleDetailTaxes && d.saleDetailTaxes.length > 0) {
+        hasTaxDetails = true;
+        for (const sdt of d.saleDetailTaxes) {
+          const name = sdt.taxName;
+          if (!taxBreakdownMap[name]) {
+            taxBreakdownMap[name] = {
+              rate: Number(sdt.taxRate),
+              amount: 0
+            };
+          }
+          taxBreakdownMap[name].amount += Number(sdt.taxAmount);
+        }
+      }
+    }
+
+    // Retro-compatibility fallback
+    if (!hasTaxDetails && Number(sale.taxAmount) > 0) {
+      taxBreakdownMap["IVA 16%"] = {
+        rate: 0.16,
+        amount: Number(sale.taxAmount)
+      };
+    }
+
+    const taxBreakdown = Object.keys(taxBreakdownMap).map((name) => ({
+      name,
+      rate: taxBreakdownMap[name].rate,
+      amount: Number(taxBreakdownMap[name].amount.toFixed(2))
+    }));
+
     // Mapear al formato esperado por el frontend
     const mapped = {
       id: sale.id,
       invoiceNumber: sale.invoiceNumber,
       createdAt: sale.createdAt,
-      subtotal: Number(sale.totalAmount) / 1.16,
+      subtotal: Number(sale.totalAmount) + Number(sale.pointsDiscount) - Number(sale.taxAmount),
       tax: Number(sale.taxAmount),
+      taxBreakdown,
       discountAmount: Number(sale.discountAmount),
       total: Number(sale.totalAmount),
       paymentMethod: sale.paymentMethod,
@@ -1226,6 +1309,13 @@ export const getSaleDetailForCashier = async (req: Request, res: Response): Prom
             }
           });
         });
+
+        const itemTaxes = d.saleDetailTaxes.map((sdt) => ({
+          name: sdt.taxName,
+          rate: Number(sdt.taxRate),
+          amount: Number(sdt.taxAmount),
+        }));
+
         return {
           product: {
             id: d.productId,
@@ -1244,6 +1334,8 @@ export const getSaleDetailForCashier = async (req: Request, res: Response): Prom
           },
           quantity: d.quantity,
           discountAmount: Number(d.discountAmount),
+          taxAmount: Number(d.taxAmount),
+          taxes: itemTaxes,
           returnedQuantity,
         };
       })
