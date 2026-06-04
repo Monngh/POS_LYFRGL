@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../app";
 import bcrypt from "bcryptjs";
-import { executeRefund } from "./mercadopago.controller";
+import { executeRefund, createMercadoPagoCashPayment, syncDepositStatus as mpSyncDepositStatus } from "./mercadopago.controller";
 import { PromotionService } from "../services/promotion.service";
 
 /**
@@ -593,13 +593,15 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
 
   const { accountNumber, targetName, amount, paymentType, comments } = req.body;
 
-  if (!accountNumber || !targetName || !amount || !paymentType) {
-    res.status(400).json({ message: "Todos los campos son requeridos para procesar el depósito." });
+  if (!amount || !paymentType) {
+    res.status(400).json({ message: "El monto y el tipo de depósito son requeridos para procesar el resguardo." });
     return;
   }
 
-  if (paymentType !== "EFECTIVO") {
-    res.status(400).json({ message: "El tipo de depósito debe ser EFECTIVO, ya que representa un retiro de la caja física." });
+  const isMercadoPago = paymentType.startsWith("MERCADOPAGO_");
+
+  if (!isMercadoPago && (!accountNumber || !targetName)) {
+    res.status(400).json({ message: "La cuenta de destino y el beneficiario son obligatorios para depósitos manuales." });
     return;
   }
 
@@ -626,7 +628,32 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    // Generar referencia con formato DEP-YYYYMMDD-XXXX
+    // Resolver método de pago y nombre de proveedor para Mercado Pago
+    let mpPaymentMethodId = "";
+    let mpProviderName = "";
+    if (isMercadoPago) {
+      if (paymentType === "MERCADOPAGO_OXXO") {
+        mpPaymentMethodId = "oxxo";
+        mpProviderName = "OXXO";
+      } else if (paymentType === "MERCADOPAGO_BBVA") {
+        mpPaymentMethodId = "bancomer";
+        mpProviderName = "BBVA Bancomer";
+      } else if (paymentType === "MERCADOPAGO_SANTANDER") {
+        mpPaymentMethodId = "serfin";
+        mpProviderName = "Santander";
+      } else if (paymentType === "MERCADOPAGO_CITIBANAMEX") {
+        mpPaymentMethodId = "banamex";
+        mpProviderName = "Citibanamex";
+      } else if (paymentType === "MERCADOPAGO_7ELEVEN") {
+        mpPaymentMethodId = "paycash";
+        mpProviderName = "7-Eleven";
+      } else {
+        res.status(400).json({ message: `Método de pago de Mercado Pago no soportado: ${paymentType}` });
+        return;
+      }
+    }
+
+    // Generar referencia local con formato DEP-YYYYMMDD-XXXX
     const today = new Date();
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, "0");
@@ -648,21 +675,55 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
     const nextSequence = String(todayCount + 1).padStart(4, "0");
     const reference = `DEP-${dateString}-${nextSequence}`;
 
+    // Crear pago en Mercado Pago si aplica
+    let mpResult = null;
+    let finalAccountNumber = accountNumber || "";
+    let finalTargetName = targetName || "";
+    let finalStatus = "COMPLETED"; // Por defecto manual es COMPLETED
+    let finalComments = comments || "Sin comentarios";
+
+    if (isMercadoPago) {
+      const description = `Depósito de resguardo POS a ${mpProviderName}`;
+      const mpResponse = await createMercadoPagoCashPayment(decAmount, mpPaymentMethodId, description);
+      
+      if (!mpResponse.success) {
+        res.status(400).json({ message: mpResponse.message || "Error al generar la referencia en Mercado Pago." });
+        return;
+      }
+      
+      mpResult = mpResponse;
+      finalAccountNumber = mpResponse.reference || "PENDIENTE";
+      finalTargetName = mpProviderName;
+      finalStatus = "PENDING"; // Mercado Pago cash payments start PENDING
+
+      const meta = {
+        convenio: mpResponse.convenio,
+        barcode: mpResponse.barcode,
+        expirationDate: mpResponse.expirationDate,
+        ticketUrl: mpResponse.ticketUrl,
+        userComments: comments || ""
+      };
+      finalComments = JSON.stringify(meta);
+    }
+
     // Usar transacción ACID para asegurar consistencia
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Registrar el depósito en la tabla BankDeposit (directamente COMPLETED por defecto)
+      // 1. Registrar el depósito en la tabla BankDeposit
       const deposit = await tx.bankDeposit.create({
         data: {
-          accountNumber,
-          targetName,
+          accountNumber: finalAccountNumber,
+          targetName: finalTargetName,
           amount: decAmount,
           paymentType,
-          comments: comments || "Sin comentarios",
+          comments: finalComments,
           cashSessionId: activeSession.id,
           userId: req.user!.userId,
           branchId: req.user!.branchId,
           reference: reference,
-          status: "COMPLETED", // Sandbox/Primera versión queda directamente COMPLETED
+          status: finalStatus,
+          mercadoPagoPaymentId: mpResult?.paymentId || null,
+          mercadoPagoStatus: mpResult?.status || null,
+          ticketUrl: mpResult?.ticketUrl || null,
         },
         include: {
           user: {
@@ -673,7 +734,7 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
         },
       });
 
-      // 2. Registrar la salida de caja chica ("cashOut")
+      // 2. Registrar la salida de caja chica ("cashOut") inmediatamente
       await tx.cashSession.update({
         where: { id: activeSession.id },
         data: {
@@ -685,7 +746,9 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
     });
 
     res.status(201).json({
-      message: "Depósito de resguardo registrado en SQL Server exitosamente.",
+      message: isMercadoPago 
+        ? "Referencia de depósito de Mercado Pago generada exitosamente. Dinero retirado de caja." 
+        : "Depósito de resguardo registrado en SQL Server exitosamente.",
       deposit: {
         id: result.id,
         accountNumber: result.accountNumber,
@@ -698,6 +761,9 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
         createdAt: result.createdAt,
         sessionId: result.cashSessionId,
         userName: result.user.name,
+        ticketUrl: result.ticketUrl,
+        mercadoPagoPaymentId: result.mercadoPagoPaymentId,
+        mercadoPagoStatus: result.mercadoPagoStatus,
       },
     });
   } catch (error: any) {
@@ -1019,7 +1085,7 @@ export const cancelDeposit = async (req: Request, res: Response): Promise<void> 
       });
 
       // b. Revertir cashOut de la caja (el dinero vuelve a estar físicamente/operativamente disponible en caja chica)
-      if (deposit.status === "COMPLETED") {
+      if (deposit.status === "COMPLETED" || deposit.status === "PENDING") {
         await tx.cashSession.update({
           where: { id: deposit.cashSessionId },
           data: {
@@ -1074,7 +1140,7 @@ export const confirmQrPayment = async (req: Request, res: Response): Promise<voi
         where: { id: sale.id },
         data: { 
           status: "COMPLETADA",
-          mercadoPagoPaymentId: paymentId,
+          mercadoPagoPaymentId: String(paymentId),
           mercadoPagoStatus: "approved"
         }
       });
@@ -1091,6 +1157,7 @@ export const confirmQrPayment = async (req: Request, res: Response): Promise<voi
 
     res.status(200).json({ message: "Pago confirmado exitosamente.", saleId: updatedSale.id });
   } catch (error: any) {
+    console.error("Error al confirmar pago QR:", error);
     res.status(500).json({ message: "Error al confirmar el pago QR.", error: error.message });
   }
 };
@@ -1345,4 +1412,11 @@ export const getSaleDetailForCashier = async (req: Request, res: Response): Prom
   } catch (error: any) {
     res.status(500).json({ message: "Error al obtener los detalles de la venta.", error: error.message });
   }
+};
+
+/**
+ * Wrapper para sincronizar el estado del depósito bancario con Mercado Pago
+ */
+export const syncDepositStatus = async (req: Request, res: Response): Promise<void> => {
+  return mpSyncDepositStatus(req, res);
 };

@@ -765,6 +765,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       pdfUrl: billingInfo?.pdfUrl || null,
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al procesar la devolución.", error: error.message });
+    console.error("Error al procesar devolución:", error);
+    res.status(500).json({ message: error.message || "Error al procesar la devolución.", error: error.message });
   }
 };

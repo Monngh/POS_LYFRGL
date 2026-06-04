@@ -10,6 +10,7 @@ import {
   getDepositById,
   confirmDeposit,
   cancelDeposit,
+  syncDepositStatus,
   searchCustomers,
   registerCustomer,
   getSaleDetailForCashier
@@ -30,6 +31,7 @@ router.get("/deposits/search", searchDeposits);
 router.get("/deposits/:id", getDepositById);
 router.post("/deposits/:id/confirm", confirmDeposit);
 router.post("/deposits/:id/cancel", cancelDeposit);
+router.post("/deposits/:id/sync", syncDepositStatus);
 router.post("/confirm-qr", confirmQrPayment);
 router.get("/detail", getSaleDetailForCashier);
 

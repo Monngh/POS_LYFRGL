@@ -137,6 +137,7 @@ export const closeSession = async (req: Request, res: Response): Promise<void> =
     let creditCardTotal = 0;
     let debitCardTotal = 0;
     let cashTotal = 0;
+    let mercadoPagoTotal = 0;
 
     for (const sale of sales) {
       const amount = Number(sale.totalAmount);
@@ -153,6 +154,8 @@ export const closeSession = async (req: Request, res: Response): Promise<void> =
           } else {
             debitCardTotal += amount;
           }
+        } else if (sale.paymentMethod === "QR_MERCADOPAGO") {
+          mercadoPagoTotal += amount;
         } else if (sale.paymentMethod === "MIXTO") {
           const cashPortion = Number(sale.cashReceived || 0) - Number(sale.changeGiven || 0);
           const cardPortion = amount - cashPortion;
@@ -218,6 +221,7 @@ export const closeSession = async (req: Request, res: Response): Promise<void> =
         creditCardTotal,
         debitCardTotal,
         cashTotal,
+        mercadoPagoTotal,
         declaredAmount: decDeclared,
         difference: decDifference,
       }
@@ -401,6 +405,7 @@ export const createPartialCut = async (req: Request, res: Response): Promise<voi
     let totalCash = 0; // Efectivo en ventas completadas
     let creditCardTotal = 0; // Tarjeta crédito en completadas
     let debitCardTotal = 0; // Tarjeta débito en completadas
+    let mercadoPagoTotal = 0;
 
     for (const sale of sales) {
       const amount = Number(sale.totalAmount);
@@ -416,6 +421,8 @@ export const createPartialCut = async (req: Request, res: Response): Promise<voi
           } else {
             debitCardTotal += amount;
           }
+        } else if (sale.paymentMethod === "QR_MERCADOPAGO") {
+          mercadoPagoTotal += amount;
         } else if (sale.paymentMethod === "MIXTO") {
           const cashPortion = Number(sale.cashReceived || 0) - Number(sale.changeGiven || 0);
           const cardPortion = amount - cashPortion;
@@ -468,6 +475,7 @@ export const createPartialCut = async (req: Request, res: Response): Promise<voi
         ...newCut,
         totalReturns: totalReturnsAmount,
         netTotal: Number(newCut.netTotal) - totalReturnsAmount,
+        totalMercadoPago: mercadoPagoTotal,
       },
     });
   } catch (error: any) {
@@ -519,10 +527,24 @@ export const getPartialCuts = async (req: Request, res: Response): Promise<void>
         },
       });
       const totalReturns = returnsBeforeCut.reduce((acc, curr) => acc + Number(curr.totalRefunded), 0);
+
+      const salesBeforeCut = await prisma.sale.findMany({
+        where: {
+          cashSessionId: activeSession.id,
+          createdAt: {
+            lte: cut.createdAt,
+          },
+          status: "COMPLETADA",
+          paymentMethod: "QR_MERCADOPAGO",
+        },
+      });
+      const totalMercadoPago = salesBeforeCut.reduce((acc, curr) => acc + Number(curr.totalAmount), 0);
+
       cutsWithReturns.push({
         ...cut,
         totalReturns,
         netTotal: Number(cut.netTotal) - totalReturns,
+        totalMercadoPago,
       });
     }
 
