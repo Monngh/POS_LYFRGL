@@ -460,6 +460,16 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
       return;
     }
 
+    // Validar si existen devoluciones parciales asociadas a la venta
+    const hasReturns = await prisma.return.findFirst({
+      where: { saleId: sale.id }
+    });
+
+    if (hasReturns) {
+      res.status(400).json({ message: "No se puede cancelar directamente una venta que ya tiene devoluciones parciales registradas. Utilice el módulo de devoluciones para procesar los artículos restantes." });
+      return;
+    }
+
     // NEW LOGIC FOR QR_MERCADOPAGO REFUND
     let refundInfo = null;
     if (sale.paymentMethod === "QR_MERCADOPAGO" && sale.mercadoPagoPaymentId && sale.status === "COMPLETADA") {
@@ -1069,6 +1079,16 @@ export const cancelDeposit = async (req: Request, res: Response): Promise<void> 
 
     if (deposit.status === "CANCELLED") {
       res.status(400).json({ message: "Este depósito ya fue cancelado anteriormente." });
+      return;
+    }
+
+    // Validar si la sesión de caja asociada ya está cerrada
+    const depositSession = await prisma.cashSession.findUnique({
+      where: { id: deposit.cashSessionId }
+    });
+
+    if (depositSession?.status === "CERRADA") {
+      res.status(400).json({ message: "No se puede cancelar un depósito de una sesión de caja ya cerrada." });
       return;
     }
 

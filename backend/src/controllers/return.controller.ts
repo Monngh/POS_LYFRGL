@@ -334,10 +334,25 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       for (const item of exchangeItems) {
         const dbProduct = await prisma.product.findUnique({
           where: { id: Number(item.id) },
+          include: {
+            inventories: {
+              where: { branchId: req.user.branchId }
+            }
+          }
         });
 
         if (!dbProduct || !dbProduct.active) {
           res.status(404).json({ message: `El producto de cambio ${item.name || `con ID ${item.id}`} no existe o está inactivo.` });
+          return;
+        }
+
+        // VALIDACIÓN DE STOCK
+        const branchInventory = dbProduct.inventories[0];
+        const currentStock = branchInventory ? branchInventory.quantity : 0;
+        if (currentStock < item.quantity) {
+          res.status(400).json({
+            message: `Inventario insuficiente para el artículo de cambio: ${dbProduct.name}. Disponible: ${currentStock} pz. Solicitado: ${item.quantity} pz.`
+          });
           return;
         }
 
@@ -666,7 +681,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
           }
 
           // Ajustar sesión de caja chica: devolvemos la diferencia al cliente
-          const refundDiffCash = (paymentMethod === "EFECTIVO" || paymentMethod === "VALE_DEVOLUCION") ? absDiff : 0;
+          const refundDiffCash = paymentMethod === "EFECTIVO" ? absDiff : 0;
           await tx.cashSession.update({
             where: { id: activeSession.id },
             data: {
