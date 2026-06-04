@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { X, Eye, Printer } from "lucide-react";
+import { X, Eye, Printer, Ban } from "lucide-react";
 import api from "../../services/api";
 import {
   ui,
@@ -25,6 +25,7 @@ interface SaleRow {
   createdAt: string;
   branch: string;
   cajero: string;
+  customer: string;
   items: number;
   totalAmount: number;
   paymentMethod: string;
@@ -87,9 +88,17 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const [detail, setDetail] = useState<SaleDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -100,6 +109,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           ...(branchId !== "all" ? { branchId } : {}),
           ...(status !== "all" ? { status } : {}),
           ...(search.trim() ? { search: search.trim() } : {}),
+          ...(dateFrom && dateTo ? { from: dateFrom, to: dateTo } : {}),
         },
       });
       setRows(res.data.sales);
@@ -108,13 +118,54 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     } finally {
       setLoading(false);
     }
-  }, [branchId, status, search, refreshToken]);
+  }, [branchId, status, search, dateFrom, dateTo, refreshToken]);
 
   // Debounce de la búsqueda
   useEffect(() => {
     const t = setTimeout(load, 300);
     return () => clearTimeout(t);
   }, [load]);
+
+  const openPinModal = () => {
+    setPinInput("");
+    setCancelReason("");
+    setCancelError(null);
+    setShowPinModal(true);
+  };
+
+  const closePinModal = () => {
+    setShowPinModal(false);
+    setPinInput("");
+    setCancelReason("");
+    setCancelError(null);
+  };
+
+  const handleCancelSale = async () => {
+    if (!detail) return;
+    setCancelLoading(true);
+    setCancelError(null);
+    try {
+      await api.post("/api/sales/authorize-cancel", {
+        invoiceNumber: detail.invoiceNumber,
+        pinCode: pinInput,
+        reason: cancelReason.trim() || undefined,
+      });
+      closePinModal();
+      setDetail(null);
+      load();
+    } catch (err: any) {
+      const status = err.response?.status;
+      if (status === 401) {
+        setCancelError("PIN incorrecto. Solo ADMIN o GERENTE pueden cancelar ventas.");
+      } else if (status === 400) {
+        setCancelError(err.response?.data?.message || "La venta no se puede cancelar.");
+      } else {
+        setCancelError("Error al cancelar la venta. Intente de nuevo.");
+      }
+    } finally {
+      setCancelLoading(false);
+    }
+  };
 
   const openDetail = async (id: number) => {
     setDetailLoading(true);
@@ -144,6 +195,28 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             { value: "CANCELADA", label: "Canceladas" },
           ]}
         />
+        <input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          style={dateInputStyle}
+          title="Desde"
+        />
+        <input
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          style={dateInputStyle}
+          title="Hasta"
+        />
+        {(dateFrom || dateTo) && (
+          <button
+            style={{ ...ui.ghostBtn, fontSize: 12, padding: "5px 10px", height: 32 }}
+            onClick={() => { setDateFrom(""); setDateTo(""); }}
+          >
+            Limpiar fechas
+          </button>
+        )}
         <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b", fontWeight: 600 }}>
           {rows.length} registro{rows.length === 1 ? "" : "s"}
         </span>
@@ -157,6 +230,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               <th style={ui.th}>Fecha</th>
               <th style={ui.th}>Sucursal</th>
               <th style={ui.th}>Cajero</th>
+              <th style={ui.th}>Cliente</th>
               <th style={{ ...ui.th, textAlign: "center" }}>Artículos</th>
               <th style={ui.th}>Método</th>
               <th style={{ ...ui.th, textAlign: "right" }}>Total</th>
@@ -165,7 +239,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </tr>
           </thead>
           <tbody>
-            <TableState colSpan={9} loading={loading} error={error} empty={!loading && rows.length === 0} />
+            <TableState colSpan={10} loading={loading} error={error} empty={!loading && rows.length === 0} />
             {!loading &&
               !error &&
               rows.map((s) => (
@@ -176,6 +250,9 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   </td>
                   <td style={ui.td}>{s.branch}</td>
                   <td style={ui.td}>{s.cajero}</td>
+                  <td style={{ ...ui.td, color: s.customer === "Público General" ? "#94a3b8" : "#334155" }}>
+                    {s.customer}
+                  </td>
                   <td style={{ ...ui.td, textAlign: "center" }}>{s.items}</td>
                   <td style={ui.td}>
                     <Badge tone={payTone(s.paymentMethod)}>{s.paymentMethod}</Badge>
@@ -196,6 +273,68 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           </tbody>
         </table>
       </div>
+
+      {/* Sub-modal: autorización por PIN para cancelar */}
+      {showPinModal && detail && (
+        <div style={{ ...ui.overlay, zIndex: 300 }} onClick={closePinModal}>
+          <div style={{ ...ui.modal, maxWidth: 380 }} onClick={(e) => e.stopPropagation()}>
+            <div style={ui.modalHeader}>
+              <span style={ui.modalTitle}>Autorizar cancelación</span>
+              <button style={ui.linkBtn} onClick={closePinModal}>
+                <X size={18} color="#64748b" />
+              </button>
+            </div>
+            <div style={ui.modalBody}>
+              <p style={{ fontSize: 13, color: "#334155", marginBottom: 16, lineHeight: 1.5 }}>
+                Venta <strong>{detail.invoiceNumber}</strong> — Esta acción es irreversible. Ingrese el PIN de
+                supervisor o gerente para confirmar.
+              </p>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={ui.fieldLabel}>PIN de autorización</label>
+                <input
+                  style={ui.input}
+                  type="password"
+                  placeholder="PIN"
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value)}
+                  autoFocus
+                  onKeyDown={(e) => e.key === "Enter" && !cancelLoading && handleCancelSale()}
+                />
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={ui.fieldLabel}>Motivo (opcional)</label>
+                <input
+                  style={ui.input}
+                  type="text"
+                  placeholder="Ej. Error de captura"
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                />
+              </div>
+
+              {cancelError && (
+                <p style={{ fontSize: 12, color: "#dc2626", fontWeight: 600, marginBottom: 12 }}>{cancelError}</p>
+              )}
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <button style={ui.ghostBtn} className="active-tap" onClick={closePinModal} disabled={cancelLoading}>
+                  Cancelar
+                </button>
+                <button
+                  style={{ ...ui.primaryBtn, backgroundColor: "#dc2626", opacity: cancelLoading ? 0.7 : 1 }}
+                  className="active-tap"
+                  onClick={handleCancelSale}
+                  disabled={cancelLoading || !pinInput.trim()}
+                >
+                  {cancelLoading ? "Procesando..." : "Confirmar cancelación"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de detalle */}
       {(detail || detailLoading) && (
@@ -223,6 +362,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <tr style={ui.theadRow}>
                       <th style={ui.th}>Producto</th>
                       <th style={{ ...ui.th, textAlign: "center" }}>Cant</th>
+                      <th style={{ ...ui.th, textAlign: "right" }}>P. unit.</th>
                       <th style={{ ...ui.th, textAlign: "right" }}>Importe</th>
                     </tr>
                   </thead>
@@ -234,6 +374,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           <div style={{ fontSize: 11, color: "#94a3b8" }}>{it.sku}</div>
                         </td>
                         <td style={{ ...ui.td, textAlign: "center" }}>{it.quantity}</td>
+                        <td style={{ ...ui.td, textAlign: "right", color: "#64748b" }}>{moneyExact(it.unitPrice)}</td>
                         <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{moneyExact(it.importe)}</td>
                       </tr>
                     ))}
@@ -249,7 +390,18 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   </div>
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20 }}>
+                  {detail.status !== "CANCELADA" ? (
+                    <button
+                      style={{ ...ui.primaryBtn, backgroundColor: "#dc2626" }}
+                      className="active-tap"
+                      onClick={openPinModal}
+                    >
+                      <Ban size={15} /> Cancelar venta
+                    </button>
+                  ) : (
+                    <span />
+                  )}
                   <button style={ui.primaryBtn} className="active-tap" onClick={() => reprintTicket(detail)}>
                     <Printer size={15} /> Reimprimir ticket
                   </button>
@@ -261,6 +413,19 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       )}
     </div>
   );
+};
+
+const dateInputStyle: React.CSSProperties = {
+  border: "1px solid #e2e8f0",
+  borderRadius: 8,
+  padding: "0 10px",
+  height: 36,
+  fontSize: 13,
+  color: "#334155",
+  fontFamily: "inherit",
+  backgroundColor: "#ffffff",
+  outline: "none",
+  cursor: "pointer",
 };
 
 const Info: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (

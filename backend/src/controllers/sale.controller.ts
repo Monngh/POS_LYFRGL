@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../app";
 import bcrypt from "bcryptjs";
-import { executeRefund } from "./mercadopago.controller";
+import { executeRefund, createMercadoPagoCashPayment, syncDepositStatus as mpSyncDepositStatus } from "./mercadopago.controller";
 import { PromotionService } from "../services/promotion.service";
 
 /**
@@ -49,6 +49,11 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
           inventories: {
             where: { branchId: req.user.branchId },
           },
+          productTaxes: {
+            include: {
+              taxType: true,
+            },
+          },
         },
       });
 
@@ -86,6 +91,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     const promoCalc = await PromotionService.calculatePromotions(cartItems);
 
     let calculatedSubtotal = 0;
+    let totalTaxAmount = 0;
     const itemsWithCosts: any[] = [];
 
     for (let i = 0; i < dbProducts.length; i++) {
@@ -93,6 +99,30 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       const calcLine = promoCalc.lines[i];
 
       calculatedSubtotal += Number(product.sellPrice) * quantity;
+
+      // Net price after discount/promotion
+      const lineNetPrice = (Number(product.sellPrice) * quantity) - calcLine.discountAmount;
+
+      // Calculate taxes for this line
+      let lineTaxAmount = 0;
+      const applicableTaxes = product.productTaxes
+        ? product.productTaxes.map((pt) => pt.taxType).filter((t) => t.active)
+        : [];
+
+      const lineTaxes = applicableTaxes.map((tax) => {
+        const rate = Number(tax.rate);
+        const amount = Number((lineNetPrice * rate).toFixed(2));
+        lineTaxAmount += amount;
+        return {
+          taxTypeId: tax.id,
+          taxName: tax.name,
+          taxRate: tax.rate,
+          taxAmount: amount,
+        };
+      });
+
+      totalTaxAmount += lineTaxAmount;
+
       itemsWithCosts.push({
         productId: product.id,
         quantity: quantity,
@@ -103,13 +133,15 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
         promotionLabel: calcLine.appliedPromotion ? calcLine.appliedPromotion.name : null,
         currentStock,
         inventoryId,
+        taxAmount: lineTaxAmount,
+        taxes: lineTaxes,
       });
     }
 
-    // Calcular IVA y Total usando los montos calculados por el motor de promociones
+    // Calcular Impuestos y Total usando los montos calculados por el motor de promociones
     const discount = promoCalc.totalDiscount; // Se sobreescribe con el descuento real de promociones
     const finalSubtotal = promoCalc.totalFinal;
-    const finalTax = finalSubtotal * 0.16; // 16% IVA
+    const finalTax = Number(totalTaxAmount.toFixed(2));
     const finalTotal = finalSubtotal + finalTax;
 
     // Lógica de Lealtad (Puntos FMB)
@@ -188,19 +220,34 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       // c. Procesar cada detalle del carrito, ajustar inventario y registrar Kardex
       for (const item of itemsWithCosts) {
         // Guardar detalles de la venta
-        await tx.saleDetail.create({
+        const detail = await tx.saleDetail.create({
           data: {
             saleId: sale.id,
             productId: item.productId,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             costPrice: item.costPrice,
-            taxAmount: (item.unitPrice * item.quantity - item.discountAmount) * 0.16,
+            taxAmount: item.taxAmount,
             discountAmount: item.discountAmount,
             promotionId: item.promotionId,
             promotionLabel: item.promotionLabel,
           },
         });
+
+        // Guardar desglose histórico de impuestos para esta partida
+        if (item.taxes && item.taxes.length > 0) {
+          for (const sdt of item.taxes) {
+            await tx.saleDetailTax.create({
+              data: {
+                saleDetailId: detail.id,
+                taxTypeId: sdt.taxTypeId,
+                taxName: sdt.taxName,
+                taxRate: sdt.taxRate,
+                taxAmount: sdt.taxAmount,
+              },
+            });
+          }
+        }
 
         // Decrementar el inventario físico
         const nextQty = item.currentStock - item.quantity;
@@ -276,20 +323,52 @@ export const getRecentSales = async (req: Request, res: Response): Promise<void>
     return;
   }
 
-  const { search } = req.query;
+  const { search, customer, phone, dateFrom, dateTo } = req.query;
 
   try {
-    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
-
     const where: any = {
       branchId: req.user.branchId,
-      createdAt: { gte: fortyEightHoursAgo },
     };
 
-    if (search && typeof search === "string" && search.trim()) {
-      // When searching by folio, remove the date filter to find any sale
-      delete where.createdAt;
-      where.invoiceNumber = { contains: search.trim() };
+    const hasSearchFilters = 
+      (search && typeof search === "string" && search.trim()) ||
+      (customer && typeof customer === "string" && customer.trim()) ||
+      (phone && typeof phone === "string" && phone.trim()) ||
+      dateFrom || 
+      dateTo;
+
+    if (!hasSearchFilters) {
+      const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+      where.createdAt = { gte: fortyEightHoursAgo };
+    } else {
+      if (search && typeof search === "string" && search.trim()) {
+        where.invoiceNumber = { contains: search.trim() };
+      }
+
+      if ((customer && typeof customer === "string" && customer.trim()) || 
+          (phone && typeof phone === "string" && phone.trim())) {
+        where.customer = {};
+        if (customer && typeof customer === "string" && customer.trim()) {
+          where.customer.name = { contains: customer.trim() };
+        }
+        if (phone && typeof phone === "string" && phone.trim()) {
+          where.customer.phone = { contains: phone.trim() };
+        }
+      }
+
+      if (dateFrom || dateTo) {
+        where.createdAt = {};
+        if (dateFrom) {
+          where.createdAt.gte = new Date(String(dateFrom));
+        }
+        if (dateTo) {
+          const dateToParsed = new Date(String(dateTo));
+          if (String(dateTo).length <= 10) {
+            dateToParsed.setHours(23, 59, 59, 999);
+          }
+          where.createdAt.lte = dateToParsed;
+        }
+      }
     }
 
     const recentSales = await prisma.sale.findMany({
@@ -298,6 +377,7 @@ export const getRecentSales = async (req: Request, res: Response): Promise<void>
       orderBy: { createdAt: "desc" },
       include: {
         user: { select: { name: true } },
+        customer: { select: { name: true, phone: true } },
       },
     });
 
@@ -311,6 +391,8 @@ export const getRecentSales = async (req: Request, res: Response): Promise<void>
       status: s.status,
       refundStatus: s.refundStatus,
       cajero: s.user.name,
+      customerName: s.customer?.name || null,
+      customerPhone: s.customer?.phone || null,
     }));
 
     res.status(200).json({ sales: mappedSales });
@@ -375,6 +457,16 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
 
     if (sale.status === "CANCELADA") {
       res.status(400).json({ message: "Esta venta ya fue cancelada anteriormente." });
+      return;
+    }
+
+    // Validar si existen devoluciones parciales asociadas a la venta
+    const hasReturns = await prisma.return.findFirst({
+      where: { saleId: sale.id }
+    });
+
+    if (hasReturns) {
+      res.status(400).json({ message: "No se puede cancelar directamente una venta que ya tiene devoluciones parciales registradas. Utilice el módulo de devoluciones para procesar los artículos restantes." });
       return;
     }
 
@@ -511,13 +603,15 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
 
   const { accountNumber, targetName, amount, paymentType, comments } = req.body;
 
-  if (!accountNumber || !targetName || !amount || !paymentType) {
-    res.status(400).json({ message: "Todos los campos son requeridos para procesar el depósito." });
+  if (!amount || !paymentType) {
+    res.status(400).json({ message: "El monto y el tipo de depósito son requeridos para procesar el resguardo." });
     return;
   }
 
-  if (paymentType !== "EFECTIVO") {
-    res.status(400).json({ message: "El tipo de depósito debe ser EFECTIVO, ya que representa un retiro de la caja física." });
+  const isMercadoPago = paymentType.startsWith("MERCADOPAGO_");
+
+  if (!isMercadoPago && (!accountNumber || !targetName)) {
+    res.status(400).json({ message: "La cuenta de destino y el beneficiario son obligatorios para depósitos manuales." });
     return;
   }
 
@@ -544,7 +638,32 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    // Generar referencia con formato DEP-YYYYMMDD-XXXX
+    // Resolver método de pago y nombre de proveedor para Mercado Pago
+    let mpPaymentMethodId = "";
+    let mpProviderName = "";
+    if (isMercadoPago) {
+      if (paymentType === "MERCADOPAGO_OXXO") {
+        mpPaymentMethodId = "oxxo";
+        mpProviderName = "OXXO";
+      } else if (paymentType === "MERCADOPAGO_BBVA") {
+        mpPaymentMethodId = "bancomer";
+        mpProviderName = "BBVA Bancomer";
+      } else if (paymentType === "MERCADOPAGO_SANTANDER") {
+        mpPaymentMethodId = "serfin";
+        mpProviderName = "Santander";
+      } else if (paymentType === "MERCADOPAGO_CITIBANAMEX") {
+        mpPaymentMethodId = "banamex";
+        mpProviderName = "Citibanamex";
+      } else if (paymentType === "MERCADOPAGO_7ELEVEN") {
+        mpPaymentMethodId = "paycash";
+        mpProviderName = "7-Eleven";
+      } else {
+        res.status(400).json({ message: `Método de pago de Mercado Pago no soportado: ${paymentType}` });
+        return;
+      }
+    }
+
+    // Generar referencia local con formato DEP-YYYYMMDD-XXXX
     const today = new Date();
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, "0");
@@ -566,21 +685,55 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
     const nextSequence = String(todayCount + 1).padStart(4, "0");
     const reference = `DEP-${dateString}-${nextSequence}`;
 
+    // Crear pago en Mercado Pago si aplica
+    let mpResult = null;
+    let finalAccountNumber = accountNumber || "";
+    let finalTargetName = targetName || "";
+    let finalStatus = "COMPLETED"; // Por defecto manual es COMPLETED
+    let finalComments = comments || "Sin comentarios";
+
+    if (isMercadoPago) {
+      const description = `Depósito de resguardo POS a ${mpProviderName}`;
+      const mpResponse = await createMercadoPagoCashPayment(decAmount, mpPaymentMethodId, description);
+      
+      if (!mpResponse.success) {
+        res.status(400).json({ message: mpResponse.message || "Error al generar la referencia en Mercado Pago." });
+        return;
+      }
+      
+      mpResult = mpResponse;
+      finalAccountNumber = mpResponse.reference || "PENDIENTE";
+      finalTargetName = mpProviderName;
+      finalStatus = "PENDING"; // Mercado Pago cash payments start PENDING
+
+      const meta = {
+        convenio: mpResponse.convenio,
+        barcode: mpResponse.barcode,
+        expirationDate: mpResponse.expirationDate,
+        ticketUrl: mpResponse.ticketUrl,
+        userComments: comments || ""
+      };
+      finalComments = JSON.stringify(meta);
+    }
+
     // Usar transacción ACID para asegurar consistencia
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Registrar el depósito en la tabla BankDeposit (directamente COMPLETED por defecto)
+      // 1. Registrar el depósito en la tabla BankDeposit
       const deposit = await tx.bankDeposit.create({
         data: {
-          accountNumber,
-          targetName,
+          accountNumber: finalAccountNumber,
+          targetName: finalTargetName,
           amount: decAmount,
           paymentType,
-          comments: comments || "Sin comentarios",
+          comments: finalComments,
           cashSessionId: activeSession.id,
           userId: req.user!.userId,
           branchId: req.user!.branchId,
           reference: reference,
-          status: "COMPLETED", // Sandbox/Primera versión queda directamente COMPLETED
+          status: finalStatus,
+          mercadoPagoPaymentId: mpResult?.paymentId || null,
+          mercadoPagoStatus: mpResult?.status || null,
+          ticketUrl: mpResult?.ticketUrl || null,
         },
         include: {
           user: {
@@ -591,7 +744,7 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
         },
       });
 
-      // 2. Registrar la salida de caja chica ("cashOut")
+      // 2. Registrar la salida de caja chica ("cashOut") inmediatamente
       await tx.cashSession.update({
         where: { id: activeSession.id },
         data: {
@@ -603,7 +756,9 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
     });
 
     res.status(201).json({
-      message: "Depósito de resguardo registrado en SQL Server exitosamente.",
+      message: isMercadoPago 
+        ? "Referencia de depósito de Mercado Pago generada exitosamente. Dinero retirado de caja." 
+        : "Depósito de resguardo registrado en SQL Server exitosamente.",
       deposit: {
         id: result.id,
         accountNumber: result.accountNumber,
@@ -616,6 +771,9 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
         createdAt: result.createdAt,
         sessionId: result.cashSessionId,
         userName: result.user.name,
+        ticketUrl: result.ticketUrl,
+        mercadoPagoPaymentId: result.mercadoPagoPaymentId,
+        mercadoPagoStatus: result.mercadoPagoStatus,
       },
     });
   } catch (error: any) {
@@ -924,6 +1082,16 @@ export const cancelDeposit = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    // Validar si la sesión de caja asociada ya está cerrada
+    const depositSession = await prisma.cashSession.findUnique({
+      where: { id: deposit.cashSessionId }
+    });
+
+    if (depositSession?.status === "CERRADA") {
+      res.status(400).json({ message: "No se puede cancelar un depósito de una sesión de caja ya cerrada." });
+      return;
+    }
+
     // 3. Bloque transaccional para revertir el depósito y restar de cashOut
     const updatedDeposit = await prisma.$transaction(async (tx) => {
       // a. Actualizar estado del depósito
@@ -937,7 +1105,7 @@ export const cancelDeposit = async (req: Request, res: Response): Promise<void> 
       });
 
       // b. Revertir cashOut de la caja (el dinero vuelve a estar físicamente/operativamente disponible en caja chica)
-      if (deposit.status === "COMPLETED") {
+      if (deposit.status === "COMPLETED" || deposit.status === "PENDING") {
         await tx.cashSession.update({
           where: { id: deposit.cashSessionId },
           data: {
@@ -992,7 +1160,7 @@ export const confirmQrPayment = async (req: Request, res: Response): Promise<voi
         where: { id: sale.id },
         data: { 
           status: "COMPLETADA",
-          mercadoPagoPaymentId: paymentId,
+          mercadoPagoPaymentId: String(paymentId),
           mercadoPagoStatus: "approved"
         }
       });
@@ -1009,6 +1177,7 @@ export const confirmQrPayment = async (req: Request, res: Response): Promise<voi
 
     res.status(200).json({ message: "Pago confirmado exitosamente.", saleId: updatedSale.id });
   } catch (error: any) {
+    console.error("Error al confirmar pago QR:", error);
     res.status(500).json({ message: "Error al confirmar el pago QR.", error: error.message });
   }
 };
@@ -1134,7 +1303,13 @@ export const getSaleDetailForCashier = async (req: Request, res: Response): Prom
         customer: { select: { name: true, phone: true, points: true } },
         saleDetails: {
           include: {
-            product: { select: { name: true, sku: true, sellPrice: true } }
+            product: { select: { name: true, sku: true, sellPrice: true } },
+            saleDetailTaxes: true
+          }
+        },
+        returns: {
+          include: {
+            returnDetails: true
           }
         }
       }
@@ -1145,13 +1320,50 @@ export const getSaleDetailForCashier = async (req: Request, res: Response): Prom
       return;
     }
 
+    const totalRefunded = sale.returns.reduce((acc, curr) => acc + Number(curr.totalRefunded), 0);
+
+    // Group taxes at sale level for desglose in ticket footer
+    const taxBreakdownMap: { [name: string]: { rate: number; amount: number } } = {};
+    let hasTaxDetails = false;
+
+    for (const d of sale.saleDetails) {
+      if (d.saleDetailTaxes && d.saleDetailTaxes.length > 0) {
+        hasTaxDetails = true;
+        for (const sdt of d.saleDetailTaxes) {
+          const name = sdt.taxName;
+          if (!taxBreakdownMap[name]) {
+            taxBreakdownMap[name] = {
+              rate: Number(sdt.taxRate),
+              amount: 0
+            };
+          }
+          taxBreakdownMap[name].amount += Number(sdt.taxAmount);
+        }
+      }
+    }
+
+    // Retro-compatibility fallback
+    if (!hasTaxDetails && Number(sale.taxAmount) > 0) {
+      taxBreakdownMap["IVA 16%"] = {
+        rate: 0.16,
+        amount: Number(sale.taxAmount)
+      };
+    }
+
+    const taxBreakdown = Object.keys(taxBreakdownMap).map((name) => ({
+      name,
+      rate: taxBreakdownMap[name].rate,
+      amount: Number(taxBreakdownMap[name].amount.toFixed(2))
+    }));
+
     // Mapear al formato esperado por el frontend
     const mapped = {
       id: sale.id,
       invoiceNumber: sale.invoiceNumber,
       createdAt: sale.createdAt,
-      subtotal: Number(sale.totalAmount) / 1.16,
+      subtotal: Number(sale.totalAmount) + Number(sale.pointsDiscount) - Number(sale.taxAmount),
       tax: Number(sale.taxAmount),
+      taxBreakdown,
       discountAmount: Number(sale.discountAmount),
       total: Number(sale.totalAmount),
       paymentMethod: sale.paymentMethod,
@@ -1166,20 +1378,65 @@ export const getSaleDetailForCashier = async (req: Request, res: Response): Prom
       customerName: sale.customer?.name || null,
       customerPhone: sale.customer?.phone || null,
       customerPoints: sale.customer?.points || 0,
-      items: sale.saleDetails.map((d) => ({
-        product: {
-          id: d.productId,
-          sku: d.product.sku,
-          name: d.product.name,
-          sellPrice: Number(d.unitPrice),
-        },
-        quantity: d.quantity,
-        discountAmount: Number(d.discountAmount),
-      }))
+      totalRefunded,
+      returns: sale.returns.map((ret) => ({
+        id: ret.id,
+        returnNumber: ret.returnNumber,
+        type: ret.type,
+        totalRefunded: Number(ret.totalRefunded),
+        reason: ret.reason,
+        createdAt: ret.createdAt,
+      })),
+      items: sale.saleDetails.map((d) => {
+        let returnedQuantity = 0;
+        sale.returns.forEach((ret) => {
+          ret.returnDetails.forEach((rd) => {
+            if (rd.saleDetailId === d.id) {
+              returnedQuantity += rd.quantity;
+            }
+          });
+        });
+
+        const itemTaxes = d.saleDetailTaxes.map((sdt) => ({
+          name: sdt.taxName,
+          rate: Number(sdt.taxRate),
+          amount: Number(sdt.taxAmount),
+        }));
+
+        return {
+          product: {
+            id: d.productId,
+            sku: d.product.sku,
+            name: d.product.name,
+            sellPrice: Number(d.unitPrice),
+            activePromotion: d.promotionLabel ? {
+              id: d.promotionId || 0,
+              name: d.promotionLabel,
+              type: "Custom",
+              value: null,
+              minQuantity: null,
+              payQuantity: null,
+              specialPrice: null,
+            } : null,
+          },
+          quantity: d.quantity,
+          discountAmount: Number(d.discountAmount),
+          taxAmount: Number(d.taxAmount),
+          taxes: itemTaxes,
+          returnedQuantity,
+        };
+      })
     };
 
     res.status(200).json({ sale: mapped });
   } catch (error: any) {
     res.status(500).json({ message: "Error al obtener los detalles de la venta.", error: error.message });
   }
+};
+
+/**
+ * Wrapper para sincronizar el estado del depósito bancario con Mercado Pago
+ */
+export const syncDepositStatus = async (req: Request, res: Response): Promise<void> => {
+  return mpSyncDepositStatus(req, res);
 };
