@@ -15,7 +15,13 @@ import {
   getEmployeeOperations,
   listKardex,
   listBankDeposits,
-  registerPurchase,
+  //registerPurchase,
+  listSuppliers,
+  createSupplier,
+  updateSupplier,
+  listPurchases,
+  createPurchase,
+  receivePurchase,
 } from "../controllers/admin.controller";
 import { authenticateJWT, authorizeRoles } from "../middlewares/auth.middleware";
 
@@ -47,8 +53,15 @@ router.get("/employees/:id/operations", getEmployeeOperations);
 // Kardex (movimientos de inventario)
 router.get("/kardex", listKardex);
 
-// Compras (entrada de mercancía)
-router.post("/purchases", registerPurchase);
+// Proveedores
+router.get("/suppliers", listSuppliers);
+router.post("/suppliers", createSupplier);
+router.put("/suppliers/:id", updateSupplier);
+
+// Compras (órdenes de compra — nueva arquitectura)
+router.get("/purchases", listPurchases);
+router.post("/purchases", createPurchase);
+router.put("/purchases/:id/receive", receivePurchase);
 
 // Depósitos bancarios
 router.get("/bank-deposits", listBankDeposits);
