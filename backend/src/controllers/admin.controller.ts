@@ -146,7 +146,9 @@ export const listInventory = async (req: Request, res: Response): Promise<void> 
       return {
         id: p.id,
         sku: p.sku,
+        barcode: p.barcode,
         name: p.name,
+        description: p.description,
         active: p.active,
         sellPrice: Number(p.sellPrice),
         costPrice: Number(p.costPrice),
@@ -890,3 +892,242 @@ export const registerPurchase = async (req: Request, res: Response): Promise<voi
     res.status(500).json({ message: "Error al registrar la compra.", error: error.message });
   }
 };
+
+// ===========================================================================
+// ALTA DE PRODUCTO (Crea producto e inicializa Inventario con stock 0 en cada sucursal)
+// ===========================================================================
+export const createProduct = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { sku, barcode, name, description, costPrice, sellPrice } = req.body;
+
+    if (!sku || typeof sku !== "string" || !sku.trim()) {
+      res.status(400).json({ message: "El SKU del producto es obligatorio." });
+      return;
+    }
+    if (!name || typeof name !== "string" || !name.trim()) {
+      res.status(400).json({ message: "El nombre del producto es obligatorio." });
+      return;
+    }
+
+    const cost = Number(costPrice);
+    const sell = Number(sellPrice);
+
+    if (isNaN(cost) || cost <= 0) {
+      res.status(400).json({ message: "El precio de costo debe ser un número mayor a 0." });
+      return;
+    }
+    if (isNaN(sell) || sell <= 0) {
+      res.status(400).json({ message: "El precio de venta debe ser un número mayor a 0." });
+      return;
+    }
+
+    const skuClean = sku.trim();
+    const barcodeClean = barcode && typeof barcode === "string" && barcode.trim() ? barcode.trim() : null;
+
+    // Usar una transacción para verificar unicidad y crear producto + inventarios
+    const newProduct = await prisma.$transaction(async (tx) => {
+      // Validar SKU único
+      const existingSku = await tx.product.findUnique({
+        where: { sku: skuClean }
+      });
+      if (existingSku) {
+        throw new Error("EXISTS_SKU");
+      }
+
+      // Validar barcode único si existe
+      if (barcodeClean) {
+        const existingBarcode = await tx.product.findUnique({
+          where: { barcode: barcodeClean }
+        });
+        if (existingBarcode) {
+          throw new Error("EXISTS_BARCODE");
+        }
+      }
+
+      // Crear producto
+      const product = await tx.product.create({
+        data: {
+          sku: skuClean,
+          barcode: barcodeClean,
+          name: name.trim(),
+          description: description && typeof description === "string" ? description.trim() : null,
+          costPrice: cost,
+          sellPrice: sell,
+          active: true
+        }
+      });
+
+      // Obtener todas las sucursales
+      const branches = await tx.branch.findMany({ select: { id: true } });
+
+      // Crear registro de inventario con stock 0 para cada sucursal
+      for (const branch of branches) {
+        await tx.inventory.create({
+          data: {
+            productId: product.id,
+            branchId: branch.id,
+            quantity: 0,
+            minStock: 10,
+            maxStock: 400
+          }
+        });
+      }
+
+      return product;
+    });
+
+    res.status(201).json({
+      message: "Producto registrado exitosamente.",
+      product: {
+        id: newProduct.id,
+        sku: newProduct.sku,
+        barcode: newProduct.barcode,
+        name: newProduct.name,
+        description: newProduct.description,
+        costPrice: Number(newProduct.costPrice),
+        sellPrice: Number(newProduct.sellPrice),
+        active: newProduct.active
+      }
+    });
+
+  } catch (error: any) {
+    if (error.message === "EXISTS_SKU") {
+      res.status(409).json({ message: "El SKU ingresado ya está registrado." });
+      return;
+    }
+    if (error.message === "EXISTS_BARCODE") {
+      res.status(409).json({ message: "El código de barras ingresado ya está registrado." });
+      return;
+    }
+    res.status(500).json({ message: "Error al registrar el producto.", error: error.message });
+  }
+};
+
+// ===========================================================================
+// ACTUALIZACIÓN DE PRODUCTO (Edita campos y estado activo)
+// ===========================================================================
+export const updateProduct = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      res.status(400).json({ message: "Identificador de producto inválido." });
+      return;
+    }
+
+    const { name, description, barcode, costPrice, sellPrice, active } = req.body;
+
+    if (!name || typeof name !== "string" || !name.trim()) {
+      res.status(400).json({ message: "El nombre del producto es obligatorio." });
+      return;
+    }
+
+    const cost = Number(costPrice);
+    const sell = Number(sellPrice);
+
+    if (isNaN(cost) || cost <= 0) {
+      res.status(400).json({ message: "El precio de costo debe ser un número mayor a 0." });
+      return;
+    }
+    if (isNaN(sell) || sell <= 0) {
+      res.status(400).json({ message: "El precio de venta debe ser un número mayor a 0." });
+      return;
+    }
+
+    const barcodeClean = barcode && typeof barcode === "string" && barcode.trim() ? barcode.trim() : null;
+
+    // Verificar si el producto existe
+    const existingProduct = await prisma.product.findUnique({
+      where: { id }
+    });
+
+    if (!existingProduct) {
+      res.status(404).json({ message: "Producto no encontrado." });
+      return;
+    }
+
+    // Validar código de barras único si cambia
+    if (barcodeClean) {
+      const duplicateBarcode = await prisma.product.findFirst({
+        where: {
+          barcode: barcodeClean,
+          id: { not: id }
+        }
+      });
+      if (duplicateBarcode) {
+        res.status(409).json({ message: "El código de barras ingresado ya está asignado a otro producto." });
+        return;
+      }
+    }
+
+    // Actualizar producto
+    const updated = await prisma.product.update({
+      where: { id },
+      data: {
+        name: name.trim(),
+        description: description && typeof description === "string" ? description.trim() : null,
+        barcode: barcodeClean,
+        costPrice: cost,
+        sellPrice: sell,
+        active: typeof active === "boolean" ? active : existingProduct.active
+      }
+    });
+
+    res.status(200).json({
+      message: "Producto actualizado exitosamente.",
+      product: {
+        id: updated.id,
+        sku: updated.sku,
+        barcode: updated.barcode,
+        name: updated.name,
+        description: updated.description,
+        costPrice: Number(updated.costPrice),
+        sellPrice: Number(updated.sellPrice),
+        active: updated.active
+      }
+    });
+
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al actualizar el producto.", error: error.message });
+  }
+};
+
+// ===========================================================================
+// DESACTIVACIÓN DE PRODUCTO (Soft Delete)
+// ===========================================================================
+export const deleteProduct = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      res.status(400).json({ message: "Identificador de producto inválido." });
+      return;
+    }
+
+    const existingProduct = await prisma.product.findUnique({
+      where: { id }
+    });
+
+    if (!existingProduct) {
+      res.status(404).json({ message: "Producto no encontrado." });
+      return;
+    }
+
+    const updated = await prisma.product.update({
+      where: { id },
+      data: { active: false }
+    });
+
+    res.status(200).json({
+      message: "Producto desactivado exitosamente.",
+      product: {
+        id: updated.id,
+        sku: updated.sku,
+        active: updated.active
+      }
+    });
+
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al desactivar el producto.", error: error.message });
+  }
+};
+
+

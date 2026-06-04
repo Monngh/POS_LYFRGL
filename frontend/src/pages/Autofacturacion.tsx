@@ -137,8 +137,8 @@ const Autofacturacion: React.FC = () => {
       <nav style={styles.navbar}>
         <div style={styles.navContainer}>
           <div style={styles.navBrand}>
-            <Building2 size={24} color="#0d9488" />
-            <span style={styles.navBrandText}>LYFRGL Solutions</span>
+            <Building2 size={24} color="#1e3a8a" />
+            <span style={styles.navBrandText}>LYFRGL</span>
           </div>
           <span style={styles.navBadge}>Portal de Autofacturación</span>
         </div>
@@ -197,7 +197,7 @@ const Autofacturacion: React.FC = () => {
                 <div><strong>Fecha:</strong> {new Date(ticket.createdAt).toLocaleString()}</div>
                 <div>
                   <strong>Total Compra:</strong> 
-                  <span style={{ color: "#0d9488", fontWeight: "800", marginLeft: "6px" }}>
+                  <span style={{ color: "#1e3a8a", fontWeight: "800", marginLeft: "6px" }}>
                     ${ticket.totalAmount.toFixed(2)}
                   </span>
                 </div>
@@ -330,7 +330,7 @@ const Autofacturacion: React.FC = () => {
           <div style={styles.card}>
             <div style={styles.successWrapper}>
               <div style={styles.successIconBox}>
-                <CheckCircle2 size={56} color="#059669" />
+                <CheckCircle2 size={56} color="#1e3a8a" />
               </div>
               <h1 style={styles.successTitle}>¡Factura Emitida con Éxito!</h1>
               <p style={styles.successSubtitle}>
@@ -410,8 +410,8 @@ const styles = {
   navBadge: {
     fontSize: "12px",
     fontWeight: "700",
-    color: "#0d9488",
-    backgroundColor: "#ccfbf1",
+    color: "#1e3a8a",
+    backgroundColor: "#e0e7ff",
     padding: "4px 10px",
     borderRadius: "100px"
   },
@@ -472,7 +472,7 @@ const styles = {
   },
   primaryButton: {
     width: "100%",
-    backgroundColor: "#0d9488",
+    backgroundColor: "#1e3a8a",
     color: "#ffffff",
     border: "none",
     padding: "14px",
@@ -484,7 +484,7 @@ const styles = {
   },
   successButton: {
     width: "100%",
-    backgroundColor: "#059669",
+    backgroundColor: "#1e40af",
     color: "#ffffff",
     border: "none",
     padding: "14px",
@@ -654,7 +654,7 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     gap: "8px",
-    backgroundColor: "#0d9488",
+    backgroundColor: "#1e3a8a",
     color: "#ffffff",
     textDecoration: "none",
     padding: "12px",

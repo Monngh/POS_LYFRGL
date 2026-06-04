@@ -123,50 +123,6 @@ export const closeSession = async (req: Request, res: Response): Promise<void> =
     const decDeclared = Number(declaredAmount);
     const decDifference = decDeclared - decExpected;
 
-    const closedSession = await prisma.cashSession.update({
-      where: { id: activeSession.id },
-      data: {
-        closedAt: new Date(),
-        declaredAmount: decDeclared,
-        expectedAmount: decExpected,
-        difference: decDifference,
-        status: "CERRADA",
-      },
-    });
-
-    res.status(200).json({
-      message: "Caja cerrada y arqueada exitosamente.",
-      session: closedSession,
-    });
-  } catch (error: any) {
-    res.status(500).json({ message: "Error al cerrar la caja.", error: error.message });
-  }
-};
-
-/**
- * Obtener estadísticas financieras consolidadas del turno del cajero
- */
-export const getSessionStats = async (req: Request, res: Response): Promise<void> => {
-  if (!req.user) {
-    res.status(401).json({ message: "No autenticado." });
-    return;
-  }
-
-  try {
-    const activeSession = await prisma.cashSession.findFirst({
-      where: {
-        userId: req.user.userId,
-        branchId: req.user.branchId,
-        status: "ABIERTA",
-        closedAt: null,
-      },
-    });
-
-    if (!activeSession) {
-      res.status(400).json({ message: "No hay ninguna sesión de caja abierta activa.", hasActive: false });
-      return;
-    }
-
     // Consultar todas las ventas de la sesión
     const sales = await prisma.sale.findMany({
       where: {
@@ -212,6 +168,151 @@ export const getSessionStats = async (req: Request, res: Response): Promise<void
 
     totalSalesAmount = netTotal + totalRefunds;
 
+    const closedSession = await prisma.cashSession.update({
+      where: { id: activeSession.id },
+      data: {
+        closedAt: new Date(),
+        declaredAmount: decDeclared,
+        expectedAmount: decExpected,
+        difference: decDifference,
+        status: "CERRADA",
+      },
+      include: {
+        user: {
+          select: {
+            name: true,
+          }
+        },
+        branch: {
+          select: {
+            name: true,
+          }
+        }
+      }
+    });
+
+    res.status(200).json({
+      message: "Caja cerrada y arqueada exitosamente.",
+      session: closedSession,
+      stats: {
+        session: closedSession,
+        salesCount,
+        totalSalesAmount,
+        totalRefunds,
+        netTotal,
+        initialAmount: decInitial,
+        cashIn: decCashIn,
+        cashOut: decCashOut,
+        expectedAmount: decExpected,
+        creditCardTotal,
+        debitCardTotal,
+        cashTotal,
+        declaredAmount: decDeclared,
+        difference: decDifference,
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al cerrar la caja.", error: error.message });
+  }
+};
+
+/**
+ * Obtener estadísticas financieras consolidadas del turno del cajero
+ */
+export const getSessionStats = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  try {
+    const activeSession = await prisma.cashSession.findFirst({
+      where: {
+        userId: req.user.userId,
+        branchId: req.user.branchId,
+        status: "ABIERTA",
+        closedAt: null,
+      },
+    });
+
+    if (!activeSession) {
+      res.status(400).json({ message: "No hay ninguna sesión de caja abierta activa.", hasActive: false });
+      return;
+    }
+
+    // Consultar todas las ventas de la sesión
+    const sales = await prisma.sale.findMany({
+      where: {
+        cashSessionId: activeSession.id,
+      },
+    });
+
+    // Obtener ventas canceladas con QR_MERCADOPAGO de este turno
+    const qrRefundedSales = await prisma.sale.findMany({
+      where: {
+        cashSessionId: activeSession.id,
+        status: "CANCELADA",
+        paymentMethod: "QR_MERCADOPAGO",
+        refundStatus: { not: null }
+      }
+    });
+
+    const refundedSalesCount = qrRefundedSales.length;
+    const refundedAmount = qrRefundedSales.reduce((acc, curr) => acc + (curr.refundAmount ? Number(curr.refundAmount) : 0), 0);
+    const pendingRefundsCount = qrRefundedSales.filter(s => s.refundStatus === "PENDING").length;
+
+    // Recuperar depósitos
+    const deposits = await prisma.bankDeposit.findMany({
+      where: {
+        cashSessionId: activeSession.id
+      }
+    });
+
+    const pendingDeposits = deposits.filter(d => d.status === 'PENDING').reduce((acc, curr) => acc + Number(curr.amount), 0);
+    const confirmedDeposits = deposits.filter(d => d.status === 'COMPLETED').reduce((acc, curr) => acc + Number(curr.amount), 0);
+    const cancelledDeposits = deposits.filter(d => d.status === 'CANCELLED').reduce((acc, curr) => acc + Number(curr.amount), 0);
+
+    let salesCount = 0;
+    let totalSalesAmount = 0; // Completadas + Canceladas
+    let totalRefunds = 0; // Canceladas
+    let netTotal = 0; // Completadas
+    let creditCardTotal = 0;
+    let debitCardTotal = 0;
+    let cashTotal = 0;
+    let mercadoPagoTotal = 0;
+
+    for (const sale of sales) {
+      const amount = Number(sale.totalAmount);
+      if (sale.status === "CANCELADA") {
+        totalRefunds += amount;
+      } else if (sale.status === "COMPLETADA") {
+        salesCount++;
+        netTotal += amount;
+        if (sale.paymentMethod === "EFECTIVO") {
+          cashTotal += amount;
+        } else if (sale.paymentMethod === "TARJETA") {
+          if (sale.cardType === "CREDITO") {
+            creditCardTotal += amount;
+          } else {
+            debitCardTotal += amount;
+          }
+        } else if (sale.paymentMethod === "QR_MERCADOPAGO") {
+          mercadoPagoTotal += amount;
+        } else if (sale.paymentMethod === "MIXTO") {
+          const cashPortion = Number(sale.cashReceived || 0) - Number(sale.changeGiven || 0);
+          const cardPortion = amount - cashPortion;
+          cashTotal += Math.max(0, cashPortion);
+          if (sale.cardType === "CREDITO") {
+            creditCardTotal += Math.max(0, cardPortion);
+          } else {
+            debitCardTotal += Math.max(0, cardPortion);
+          }
+        }
+      }
+    }
+
+    totalSalesAmount = netTotal + totalRefunds;
+
     res.status(200).json({
       hasActive: true,
       stats: {
@@ -224,9 +325,17 @@ export const getSessionStats = async (req: Request, res: Response): Promise<void
         cashIn: Number(activeSession.cashIn),
         cashOut: Number(activeSession.cashOut),
         expectedAmount: Number(activeSession.initialAmount) + Number(activeSession.cashIn) - Number(activeSession.cashOut),
+        pendingDeposits,
+        confirmedDeposits,
+        cancelledDeposits,
+        refundedSalesCount,
+        refundedAmount,
+        pendingRefundsCount,
+        depositsDetails: deposits,
         creditCardTotal,
         debitCardTotal,
         cashTotal,
+        mercadoPagoTotal,
       }
     });
   } catch (error: any) {

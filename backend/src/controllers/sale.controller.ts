@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../app";
 import bcrypt from "bcryptjs";
+import { executeRefund } from "./mercadopago.controller";
 import { PromotionService } from "../services/promotion.service";
 
 /**
@@ -12,7 +13,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     return;
   }
 
-  const { items, paymentMethod, cardType, cashReceived, changeGiven, customerId } = req.body;
+  const { items, paymentMethod, cardType, cashReceived, changeGiven, customerId, pointsRedeemed } = req.body;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     res.status(400).json({ message: "El carrito de ventas no puede estar vacío." });
@@ -37,26 +38,13 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
 
     // 2. Calcular importes y validar stock de productos utilizando el motor de promociones
 
-    // Mapear los items al formato esperado por el calculador de promociones
-    const cartItems = items.map((item: any) => ({
-      id: item.id,
-      productId: item.id,
-      name: item.name,
-      sellPrice: Number(item.sellPrice),
-      quantity: item.quantity,
-    }));
-
-    const promoCalc = await PromotionService.calculatePromotions(cartItems);
-
-    let calculatedSubtotal = 0;
-    const itemsWithCosts: any[] = [];
-
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      const calcLine = promoCalc.lines[i];
-
+    // Obtener productos de la base de datos y validar stock
+    const dbProducts = [];
+    const cartItems = [];
+    
+    for (const item of items) {
       const dbProduct = await prisma.product.findUnique({
-        where: { id: item.id },
+        where: { id: Number(item.id) },
         include: {
           inventories: {
             where: { branchId: req.user.branchId },
@@ -65,7 +53,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       });
 
       if (!dbProduct || !dbProduct.active) {
-        res.status(404).json({ message: `El producto ${item.name} no existe o está inactivo.` });
+        res.status(404).json({ message: `El producto ${item.name || `con ID ${item.id}`} no existe o está inactivo.` });
         return;
       }
 
@@ -79,17 +67,42 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
         return;
       }
 
-      calculatedSubtotal += Number(dbProduct.sellPrice) * item.quantity;
-      itemsWithCosts.push({
-        productId: dbProduct.id,
+      dbProducts.push({
+        product: dbProduct,
+        inventoryId: branchInventory ? branchInventory.id : 0,
+        currentStock,
         quantity: item.quantity,
-        unitPrice: Number(dbProduct.sellPrice),
-        costPrice: Number(dbProduct.costPrice),
+      });
+
+      cartItems.push({
+        id: dbProduct.id,
+        productId: dbProduct.id,
+        name: dbProduct.name,
+        sellPrice: Number(dbProduct.sellPrice),
+        quantity: item.quantity,
+      });
+    }
+
+    const promoCalc = await PromotionService.calculatePromotions(cartItems);
+
+    let calculatedSubtotal = 0;
+    const itemsWithCosts: any[] = [];
+
+    for (let i = 0; i < dbProducts.length; i++) {
+      const { product, inventoryId, currentStock, quantity } = dbProducts[i];
+      const calcLine = promoCalc.lines[i];
+
+      calculatedSubtotal += Number(product.sellPrice) * quantity;
+      itemsWithCosts.push({
+        productId: product.id,
+        quantity: quantity,
+        unitPrice: Number(product.sellPrice),
+        costPrice: Number(product.costPrice),
         discountAmount: calcLine.discountAmount,
         promotionId: calcLine.appliedPromotion?.promotionId || null,
         promotionLabel: calcLine.appliedPromotion ? calcLine.appliedPromotion.name : null,
         currentStock,
-        inventoryId: branchInventory.id,
+        inventoryId,
       });
     }
 
@@ -99,6 +112,34 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     const finalTax = finalSubtotal * 0.16; // 16% IVA
     const finalTotal = finalSubtotal + finalTax;
 
+    // Lógica de Lealtad (Puntos FMB)
+    let pointsDiscount = 0;
+    let pointsEarned = 0;
+    const ptsRedeemed = pointsRedeemed ? Number(pointsRedeemed) : 0;
+
+    if (customerId) {
+      const customer = await prisma.customer.findUnique({
+        where: { id: Number(customerId) }
+      });
+      if (!customer) {
+        res.status(404).json({ message: "El cliente seleccionado no existe." });
+        return;
+      }
+      if (ptsRedeemed > 0) {
+        if (customer.points < ptsRedeemed) {
+          res.status(400).json({ message: `El cliente no tiene puntos suficientes. Disponible: ${customer.points}, Solicitado: ${ptsRedeemed}` });
+          return;
+        }
+        pointsDiscount = ptsRedeemed * 1.0;
+        if (pointsDiscount > finalTotal) {
+          res.status(400).json({ message: `El descuento por puntos ($${pointsDiscount}) no puede superar el total de la compra ($${finalTotal.toFixed(2)}).` });
+          return;
+        }
+      }
+      // Puntos acumulados: 1 punto por cada $10.00 MXN gastados netos (redondeado hacia abajo)
+      pointsEarned = Math.floor(Math.max(0, finalTotal - pointsDiscount) / 10);
+    }
+
     // Generar Folio Único correlativo temporal
     const timestamp = Date.now().toString().slice(-6);
     const randomSuffix = Math.floor(100 + Math.random() * 900);
@@ -106,6 +147,8 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
 
     // 3. Bloque de Transacción Transaccional ACID en Prisma
     const newSale = await prisma.$transaction(async (tx) => {
+      const finalPaidAmount = finalTotal - pointsDiscount;
+
       // a. Crear registro de venta principal
       const sale = await tx.sale.create({
         data: {
@@ -114,18 +157,35 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
           userId: req.user!.userId,
           customerId: customerId ? Number(customerId) : null,
           cashSessionId: activeSession.id,
-          totalAmount: finalTotal,
+          totalAmount: finalPaidAmount,
           taxAmount: finalTax,
           discountAmount: discount,
           paymentMethod,
           cardType: cardType || null,
           cashReceived: cashReceived ? Number(cashReceived) : null,
           changeGiven: changeGiven ? Number(changeGiven) : null,
-          status: "COMPLETADA",
+          status: paymentMethod === "QR_MERCADOPAGO" ? "PENDIENTE" : "COMPLETADA",
+          pointsEarned,
+          pointsRedeemed: ptsRedeemed,
+          pointsDiscount,
         },
       });
 
-      // b. Procesar cada detalle del carrito, ajustar inventario y registrar Kardex
+      // b. Actualizar puntos del cliente si está seleccionado
+      if (customerId) {
+        const customer = await tx.customer.findUnique({
+          where: { id: Number(customerId) }
+        });
+        if (customer) {
+          const newPoints = customer.points - ptsRedeemed + pointsEarned;
+          await tx.customer.update({
+            where: { id: Number(customerId) },
+            data: { points: newPoints }
+          });
+        }
+      }
+
+      // c. Procesar cada detalle del carrito, ajustar inventario y registrar Kardex
       for (const item of itemsWithCosts) {
         // Guardar detalles de la venta
         await tx.saleDetail.create({
@@ -163,24 +223,44 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
         });
       }
 
-      // c. Actualizar montos en la sesión de caja activa
-      const cashToAdd = paymentMethod === "EFECTIVO" ? finalTotal : paymentMethod === "MIXTO" ? (cashReceived ? Number(cashReceived) - (changeGiven ? Number(changeGiven) : 0) : finalTotal) : 0;
-      
-      await tx.cashSession.update({
-        where: { id: activeSession.id },
-        data: {
-          cashIn: { increment: cashToAdd },
-          expectedAmount: { increment: finalTotal },
-        },
-      });
+      // d. Actualizar montos en la sesión de caja activa solo si no está PENDIENTE
+      if (paymentMethod !== "QR_MERCADOPAGO") {
+        const cashToAdd = paymentMethod === "EFECTIVO" ? finalPaidAmount : paymentMethod === "MIXTO" ? (cashReceived ? Number(cashReceived) - (changeGiven ? Number(changeGiven) : 0) : finalPaidAmount) : 0;
+        
+        await tx.cashSession.update({
+          where: { id: activeSession.id },
+          data: {
+            cashIn: { increment: cashToAdd },
+            expectedAmount: { increment: finalPaidAmount },
+          },
+        });
+      }
 
       return sale;
     });
+
+    // Obtener los datos actualizados del cliente
+    let customerPoints = 0;
+    let customerName = null;
+    if (customerId) {
+      const updatedCustomer = await prisma.customer.findUnique({
+        where: { id: Number(customerId) }
+      });
+      if (updatedCustomer) {
+        customerPoints = updatedCustomer.points;
+        customerName = updatedCustomer.name;
+      }
+    }
 
     res.status(201).json({
       message: "Venta registrada exitosamente.",
       invoiceNumber: newSale.invoiceNumber,
       saleId: newSale.id,
+      pointsEarned,
+      pointsRedeemed: ptsRedeemed,
+      pointsDiscount,
+      customerPoints,
+      customerName,
     });
   } catch (error: any) {
     res.status(500).json({ message: "Error al procesar la venta.", error: error.message });
@@ -196,12 +276,25 @@ export const getRecentSales = async (req: Request, res: Response): Promise<void>
     return;
   }
 
+  const { search } = req.query;
+
   try {
+    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+
+    const where: any = {
+      branchId: req.user.branchId,
+      createdAt: { gte: fortyEightHoursAgo },
+    };
+
+    if (search && typeof search === "string" && search.trim()) {
+      // When searching by folio, remove the date filter to find any sale
+      delete where.createdAt;
+      where.invoiceNumber = { contains: search.trim() };
+    }
+
     const recentSales = await prisma.sale.findMany({
-      where: {
-        branchId: req.user.branchId,
-      },
-      take: 10,
+      where,
+      take: 50,
       orderBy: { createdAt: "desc" },
       include: {
         user: { select: { name: true } },
@@ -216,6 +309,7 @@ export const getRecentSales = async (req: Request, res: Response): Promise<void>
       paymentMethod: s.paymentMethod,
       cardType: s.cardType,
       status: s.status,
+      refundStatus: s.refundStatus,
       cajero: s.user.name,
     }));
 
@@ -284,12 +378,38 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
       return;
     }
 
+    // NEW LOGIC FOR QR_MERCADOPAGO REFUND
+    let refundInfo = null;
+    if (sale.paymentMethod === "QR_MERCADOPAGO" && sale.mercadoPagoPaymentId && sale.status === "COMPLETADA") {
+      const refundResult = await executeRefund(sale.mercadoPagoPaymentId, Number(sale.totalAmount));
+      if (!refundResult.success) {
+        res.status(500).json({ message: "La devolución de Mercado Pago falló. No se puede cancelar la venta.", error: refundResult.message });
+        return;
+      }
+      refundInfo = refundResult;
+    }
+
     // 3. Bloque transaccional ACID para revertir inventario, registrar Kardex y actualizar venta
     await prisma.$transaction(async (tx) => {
       // a. Cambiar estatus de la venta
+      const updateData: any = { status: "CANCELADA" };
+      
+      // Si se ejecutó reembolso, registrar detalles
+      if (refundInfo) {
+        // Ignoramos el error de tipo con ts-ignore ya que Prisma puede no haber actualizado el cliente aún (EPERM error)
+        // @ts-ignore
+        updateData.refundStatus = refundInfo.status === 'approved' ? "APPROVED" : "PENDING";
+        // @ts-ignore
+        updateData.refundId = refundInfo.refundId;
+        // @ts-ignore
+        updateData.refundDate = new Date();
+        // @ts-ignore
+        updateData.refundAmount = sale.totalAmount;
+      }
+
       await tx.sale.update({
         where: { id: sale.id },
-        data: { status: "CANCELADA" },
+        data: updateData,
       });
 
       // b. Reintegrar cada producto al stock de la sucursal y registrar Kardex de devolución
@@ -324,16 +444,50 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
         }
       }
 
-      // c. Revertir impacto de caja en la sesión correspondiente
-      if (sale.cashSessionId) {
-        const cashToSubtract = sale.paymentMethod === "EFECTIVO" ? Number(sale.totalAmount) : 0;
-        await tx.cashSession.update({
-          where: { id: sale.cashSessionId },
-          data: {
-            cashIn: { decrement: cashToSubtract },
-            expectedAmount: { decrement: Number(sale.totalAmount) },
+      // c. Revertir impacto de caja en la sesión activa del cajero actual (si existe y está abierta),
+      // o en su defecto en la sesión original de la venta, siempre que la venta haya estado COMPLETADA.
+      if (sale.status === "COMPLETADA") {
+        const activeSession = await tx.cashSession.findFirst({
+          where: {
+            userId: req.user!.userId,
+            branchId: req.user!.branchId,
+            status: "ABIERTA",
+            closedAt: null,
           },
         });
+
+        const sessionToAffectId = activeSession ? activeSession.id : sale.cashSessionId;
+
+        if (sessionToAffectId) {
+          const cashToSubtract =
+            sale.paymentMethod === "EFECTIVO"
+              ? Number(sale.totalAmount)
+              : sale.paymentMethod === "MIXTO"
+              ? Number(sale.cashReceived || 0) - Number(sale.changeGiven || 0)
+              : 0;
+
+          await tx.cashSession.update({
+            where: { id: sessionToAffectId },
+            data: {
+              cashIn: { decrement: cashToSubtract },
+              expectedAmount: { decrement: Number(sale.totalAmount) },
+            },
+          });
+        }
+      }
+
+      // d. Revertir puntos del cliente si la venta tenía cliente asociado
+      if (sale.customerId) {
+        const customer = await tx.customer.findUnique({
+          where: { id: sale.customerId }
+        });
+        if (customer) {
+          const newPoints = Math.max(0, customer.points + sale.pointsRedeemed - sale.pointsEarned);
+          await tx.customer.update({
+            where: { id: sale.customerId },
+            data: { points: newPoints }
+          });
+        }
       }
     });
 
@@ -347,7 +501,7 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
 };
 
 /**
- * Registrar depósitos bancarios reduciendo efectivo de la sesión activa en SQL Server
+ * Registrar depósitos bancarios (resguardos de efectivo) en SQL Server
  */
 export const createBankDeposit = async (req: Request, res: Response): Promise<void> => {
   if (!req.user) {
@@ -359,6 +513,11 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
 
   if (!accountNumber || !targetName || !amount || !paymentType) {
     res.status(400).json({ message: "Todos los campos son requeridos para procesar el depósito." });
+    return;
+  }
+
+  if (paymentType !== "EFECTIVO") {
+    res.status(400).json({ message: "El tipo de depósito debe ser EFECTIVO, ya que representa un retiro de la caja física." });
     return;
   }
 
@@ -380,14 +539,36 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
     const decAmount = Number(amount);
     const inBox = Number(activeSession.initialAmount) + Number(activeSession.cashIn) - Number(activeSession.cashOut);
 
-    if (paymentType === "EFECTIVO" && inBox < decAmount) {
+    if (inBox < decAmount) {
       res.status(400).json({ message: `Efectivo insuficiente en caja chica. Disponible: $${inBox.toFixed(2)}. Requerido: $${decAmount.toFixed(2)}.` });
       return;
     }
 
+    // Generar referencia con formato DEP-YYYYMMDD-XXXX
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    const dateString = `${year}${month}${day}`;
+
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
+    const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+
+    const todayCount = await prisma.bankDeposit.count({
+      where: {
+        createdAt: {
+          gte: startOfToday,
+          lte: endOfToday,
+        },
+      },
+    });
+
+    const nextSequence = String(todayCount + 1).padStart(4, "0");
+    const reference = `DEP-${dateString}-${nextSequence}`;
+
     // Usar transacción ACID para asegurar consistencia
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Registrar el depósito en la tabla BankDeposit
+      // 1. Registrar el depósito en la tabla BankDeposit (directamente COMPLETED por defecto)
       const deposit = await tx.bankDeposit.create({
         data: {
           accountNumber,
@@ -396,7 +577,17 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
           paymentType,
           comments: comments || "Sin comentarios",
           cashSessionId: activeSession.id,
+          userId: req.user!.userId,
           branchId: req.user!.branchId,
+          reference: reference,
+          status: "COMPLETED", // Sandbox/Primera versión queda directamente COMPLETED
+        },
+        include: {
+          user: {
+            select: {
+              name: true,
+            },
+          },
         },
       });
 
@@ -412,7 +603,7 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
     });
 
     res.status(201).json({
-      message: "Depósito bancario registrado en SQL Server exitosamente.",
+      message: "Depósito de resguardo registrado en SQL Server exitosamente.",
       deposit: {
         id: result.id,
         accountNumber: result.accountNumber,
@@ -420,8 +611,11 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
         amount: Number(result.amount),
         paymentType: result.paymentType,
         comments: result.comments,
+        reference: result.reference,
+        status: result.status,
         createdAt: result.createdAt,
         sessionId: result.cashSessionId,
+        userName: result.user.name,
       },
     });
   } catch (error: any) {
@@ -443,6 +637,13 @@ export const getRecentDeposits = async (req: Request, res: Response): Promise<vo
       where: {
         branchId: req.user.branchId,
       },
+      include: {
+        user: {
+          select: {
+            name: true,
+          },
+        },
+      },
       take: 10,
       orderBy: { createdAt: "desc" },
     });
@@ -454,12 +655,531 @@ export const getRecentDeposits = async (req: Request, res: Response): Promise<vo
       amount: Number(d.amount),
       paymentType: d.paymentType,
       comments: d.comments,
+      reference: d.reference,
+      status: d.status,
       createdAt: d.createdAt,
+      confirmedAt: d.confirmedAt,
+      cancelledAt: d.cancelledAt,
+      cancelReason: d.cancelReason,
       sessionId: d.cashSessionId,
+      userName: d.user?.name || "Desconocido",
     }));
 
     res.status(200).json({ deposits: mappedDeposits });
   } catch (error: any) {
     res.status(500).json({ message: "Error al obtener depósitos recientes.", error: error.message });
+  }
+};
+
+/**
+ * Buscar depósitos con filtros
+ */
+export const searchDeposits = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  const { reference, userId, status, dateFrom, dateTo } = req.query;
+
+  try {
+    const whereClause: any = {
+      branchId: req.user.branchId,
+    };
+
+    if (reference) {
+      whereClause.reference = {
+        contains: String(reference),
+      };
+    }
+
+    if (userId) {
+      const uId = parseInt(String(userId), 10);
+      if (!isNaN(uId)) {
+        whereClause.userId = uId;
+      }
+    }
+
+    if (status && status !== "ALL") {
+      whereClause.status = String(status);
+    }
+
+    if (dateFrom || dateTo) {
+      whereClause.createdAt = {};
+      if (dateFrom) {
+        whereClause.createdAt.gte = new Date(String(dateFrom));
+      }
+      if (dateTo) {
+        const dateToParsed = new Date(String(dateTo));
+        if (String(dateTo).length <= 10) {
+          dateToParsed.setHours(23, 59, 59, 999);
+        }
+        whereClause.createdAt.lte = dateToParsed;
+      }
+    }
+
+    const deposits = await prisma.bankDeposit.findMany({
+      where: whereClause,
+      include: {
+        user: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    const mappedDeposits = deposits.map((d) => ({
+      id: d.id,
+      accountNumber: d.accountNumber,
+      targetName: d.targetName,
+      amount: Number(d.amount),
+      paymentType: d.paymentType,
+      comments: d.comments,
+      reference: d.reference,
+      status: d.status,
+      createdAt: d.createdAt,
+      confirmedAt: d.confirmedAt,
+      cancelledAt: d.cancelledAt,
+      cancelReason: d.cancelReason,
+      sessionId: d.cashSessionId,
+      userName: d.user?.name || "Desconocido",
+    }));
+
+    res.status(200).json({ deposits: mappedDeposits });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al buscar depósitos.", error: error.message });
+  }
+};
+
+/**
+ * Obtener detalle de un depósito individual
+ */
+export const getDepositById = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  const { id } = req.params;
+
+  try {
+    const depositId = parseInt(id, 10);
+    if (isNaN(depositId)) {
+      res.status(400).json({ message: "ID de depósito inválido." });
+      return;
+    }
+
+    const deposit = await prisma.bankDeposit.findUnique({
+      where: { id: depositId },
+      include: {
+        user: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!deposit) {
+      res.status(404).json({ message: "Depósito no encontrado." });
+      return;
+    }
+
+    res.status(200).json({
+      deposit: {
+        id: deposit.id,
+        accountNumber: deposit.accountNumber,
+        targetName: deposit.targetName,
+        amount: Number(deposit.amount),
+        paymentType: deposit.paymentType,
+        comments: deposit.comments,
+        reference: deposit.reference,
+        status: deposit.status,
+        createdAt: deposit.createdAt,
+        confirmedAt: deposit.confirmedAt,
+        cancelledAt: deposit.cancelledAt,
+        cancelReason: deposit.cancelReason,
+        sessionId: deposit.cashSessionId,
+        userName: deposit.user?.name || "Desconocido",
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al obtener el depósito.", error: error.message });
+  }
+};
+
+/**
+ * Confirmar depósito (pasar de PENDING a COMPLETED)
+ */
+export const confirmDeposit = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  const { id } = req.params;
+
+  try {
+    const depositId = parseInt(id, 10);
+    if (isNaN(depositId)) {
+      res.status(400).json({ message: "ID de depósito inválido." });
+      return;
+    }
+
+    const deposit = await prisma.bankDeposit.findUnique({
+      where: { id: depositId },
+    });
+
+    if (!deposit) {
+      res.status(404).json({ message: "Depósito no encontrado." });
+      return;
+    }
+
+    if (deposit.status !== "PENDING") {
+      res.status(400).json({ message: `El depósito no se puede confirmar porque está en estado: ${deposit.status}` });
+      return;
+    }
+
+    const updated = await prisma.bankDeposit.update({
+      where: { id: depositId },
+      data: {
+        status: "COMPLETED",
+        confirmedAt: new Date(),
+      },
+    });
+
+    res.status(200).json({
+      message: "Depósito confirmado exitosamente.",
+      deposit: updated,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al confirmar el depósito.", error: error.message });
+  }
+};
+
+/**
+ * Cancelar un depósito (Resguardo de Efectivo) con PIN de Administrador/Gerente
+ */
+export const cancelDeposit = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  const { id } = req.params;
+  const { pinCode, reason } = req.body;
+
+  if (!id || !pinCode || !reason) {
+    res.status(400).json({ message: "El ID del depósito, el código PIN de autorización y el motivo de cancelación son requeridos." });
+    return;
+  }
+
+  try {
+    // 1. Validar que el PIN corresponda a un Administrador o Gerente
+    const managers = await prisma.user.findMany({
+      where: {
+        role: { in: ["ADMIN", "GERENTE"] },
+        active: true,
+      },
+    });
+
+    let approver = null;
+    for (const m of managers) {
+      if (m.pinCode) {
+        const isMatch = await bcrypt.compare(pinCode, m.pinCode);
+        if (isMatch) {
+          approver = m;
+          break;
+        }
+      }
+    }
+
+    if (!approver) {
+      res.status(401).json({ message: "PIN de autorización incorrecto o el usuario no cuenta con privilegios de Administrador/Gerente." });
+      return;
+    }
+
+    // 2. Buscar el depósito
+    const depositId = parseInt(id, 10);
+    if (isNaN(depositId)) {
+      res.status(400).json({ message: "ID de depósito inválido." });
+      return;
+    }
+
+    const deposit = await prisma.bankDeposit.findUnique({
+      where: { id: depositId },
+    });
+
+    if (!deposit) {
+      res.status(404).json({ message: "Depósito no encontrado." });
+      return;
+    }
+
+    if (deposit.status === "CANCELLED") {
+      res.status(400).json({ message: "Este depósito ya fue cancelado anteriormente." });
+      return;
+    }
+
+    // 3. Bloque transaccional para revertir el depósito y restar de cashOut
+    const updatedDeposit = await prisma.$transaction(async (tx) => {
+      // a. Actualizar estado del depósito
+      const updated = await tx.bankDeposit.update({
+        where: { id: depositId },
+        data: {
+          status: "CANCELLED",
+          cancelledAt: new Date(),
+          cancelReason: `Autorizó: ${approver.name}. Motivo: ${reason}`,
+        },
+      });
+
+      // b. Revertir cashOut de la caja (el dinero vuelve a estar físicamente/operativamente disponible en caja chica)
+      if (deposit.status === "COMPLETED") {
+        await tx.cashSession.update({
+          where: { id: deposit.cashSessionId },
+          data: {
+            cashOut: { decrement: Number(deposit.amount) },
+          },
+        });
+      }
+
+      return updated;
+    });
+
+    res.status(200).json({
+      message: "Depósito cancelado exitosamente. Los saldos de caja han sido actualizados.",
+      deposit: updatedDeposit,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al cancelar el depósito.", error: error.message });
+  }
+};
+
+/**
+ * Confirmar el pago QR y cambiar el estado de la venta a COMPLETADA.
+ */
+export const confirmQrPayment = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+  
+  const { invoiceNumber, paymentId } = req.body;
+
+  if (!invoiceNumber || !paymentId) {
+    res.status(400).json({ message: "invoiceNumber y paymentId son requeridos." });
+    return;
+  }
+
+  try {
+    const sale = await prisma.sale.findUnique({ where: { invoiceNumber } });
+    if (!sale) {
+      res.status(404).json({ message: "Venta no encontrada." });
+      return;
+    }
+    
+    if (sale.status === "COMPLETADA") {
+      res.status(200).json({ message: "Venta ya estaba confirmada." });
+      return;
+    }
+
+    const updatedSale = await prisma.$transaction(async (tx) => {
+      // 1. Actualizar venta
+      const updated = await tx.sale.update({
+        where: { id: sale.id },
+        data: { 
+          status: "COMPLETADA",
+          mercadoPagoPaymentId: paymentId,
+          mercadoPagoStatus: "approved"
+        }
+      });
+      
+      // 2. Sumar el total a expectedAmount de la sesión
+      if (sale.cashSessionId) {
+        await tx.cashSession.update({
+          where: { id: sale.cashSessionId },
+          data: { expectedAmount: { increment: Number(sale.totalAmount) } }
+        });
+      }
+      return updated;
+    });
+
+    res.status(200).json({ message: "Pago confirmado exitosamente.", saleId: updatedSale.id });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al confirmar el pago QR.", error: error.message });
+  }
+};
+
+/**
+ * Buscar clientes por nombre o teléfono (acceso para cajero)
+ */
+export const searchCustomers = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const query = typeof req.query.query === "string" ? req.query.query.trim() : "";
+    if (!query) {
+      res.status(200).json({ customers: [] });
+      return;
+    }
+
+    const customers = await prisma.customer.findMany({
+      where: {
+        OR: [
+          { name: { contains: query } },
+          { phone: { contains: query } }
+        ]
+      },
+      orderBy: { name: "asc" },
+      take: 10,
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        email: true,
+        points: true,
+      }
+    });
+
+    res.status(200).json({ customers });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al buscar clientes.", error: error.message });
+  }
+};
+
+/**
+ * Registro rápido de cliente desde la caja
+ */
+export const registerCustomer = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  try {
+    const { name, phone, email } = req.body;
+
+    if (!name || typeof name !== "string" || !name.trim()) {
+      res.status(400).json({ message: "El nombre del cliente es obligatorio." });
+      return;
+    }
+    if (!phone || typeof phone !== "string" || !phone.trim()) {
+      res.status(400).json({ message: "El teléfono del cliente es obligatorio." });
+      return;
+    }
+
+    // Verificar si ya existe un cliente con ese teléfono
+    const existing = await prisma.customer.findFirst({
+      where: { phone: phone.trim() }
+    });
+
+    if (existing) {
+      res.status(400).json({ message: "Ya existe un cliente registrado con ese número de teléfono." });
+      return;
+    }
+
+    const customer = await prisma.customer.create({
+      data: {
+        name: name.trim(),
+        phone: phone.trim(),
+        email: email && typeof email === "string" && email.trim() ? email.trim() : null,
+        points: 0,
+        creditLimit: 0,
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        email: true,
+        points: true,
+      }
+    });
+
+    res.status(201).json({
+      message: "Cliente registrado exitosamente.",
+      customer,
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al registrar el cliente.", error: error.message });
+  }
+};
+
+/**
+ * Obtener detalles completos de una venta por folio (invoiceNumber) o ID (para cajero)
+ */
+export const getSaleDetailForCashier = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  const { invoiceNumber, id } = req.query;
+
+  try {
+    const where: any = { branchId: req.user.branchId };
+    if (id) {
+      where.id = Number(id);
+    } else if (invoiceNumber) {
+      where.invoiceNumber = String(invoiceNumber).trim();
+    } else {
+      res.status(400).json({ message: "Debe proporcionar el ID o el folio de la venta." });
+      return;
+    }
+
+    const sale = await prisma.sale.findFirst({
+      where,
+      include: {
+        user: { select: { name: true } },
+        customer: { select: { name: true, phone: true, points: true } },
+        saleDetails: {
+          include: {
+            product: { select: { name: true, sku: true, sellPrice: true } }
+          }
+        }
+      }
+    });
+
+    if (!sale) {
+      res.status(404).json({ message: "Venta no encontrada en esta sucursal." });
+      return;
+    }
+
+    // Mapear al formato esperado por el frontend
+    const mapped = {
+      id: sale.id,
+      invoiceNumber: sale.invoiceNumber,
+      createdAt: sale.createdAt,
+      subtotal: Number(sale.totalAmount) / 1.16,
+      tax: Number(sale.taxAmount),
+      discountAmount: Number(sale.discountAmount),
+      total: Number(sale.totalAmount),
+      paymentMethod: sale.paymentMethod,
+      cardType: sale.cardType,
+      status: sale.status,
+      cajero: sale.user.name,
+      cashReceived: sale.cashReceived ? Number(sale.cashReceived) : Number(sale.totalAmount),
+      changeGiven: sale.changeGiven ? Number(sale.changeGiven) : 0,
+      pointsEarned: sale.pointsEarned,
+      pointsRedeemed: sale.pointsRedeemed,
+      pointsDiscount: Number(sale.pointsDiscount),
+      customerName: sale.customer?.name || null,
+      customerPhone: sale.customer?.phone || null,
+      customerPoints: sale.customer?.points || 0,
+      items: sale.saleDetails.map((d) => ({
+        product: {
+          id: d.productId,
+          sku: d.product.sku,
+          name: d.product.name,
+          sellPrice: Number(d.unitPrice),
+        },
+        quantity: d.quantity,
+        discountAmount: Number(d.discountAmount),
+      }))
+    };
+
+    res.status(200).json({ sale: mapped });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al obtener los detalles de la venta.", error: error.message });
   }
 };
