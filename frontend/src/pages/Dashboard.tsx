@@ -2800,10 +2800,15 @@ const Dashboard: React.FC = () => {
                   )}
                 </div>
 
-                <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "12px", paddingTop: "8px", fontSize: "9px", textAlign: "center", color: "#64748b", lineHeight: "1.4" }}>
+                <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "12px", paddingTop: "8px", fontSize: "9px", textAlign: "center", color: "#64748b", lineHeight: "1.4", display: "flex", flexDirection: "column", alignItems: "center" }}>
                   <p>Portal de Autofacturación:</p>
-                  <p style={{ fontWeight: "700" }}>http://localhost:5173/autofacturacion</p>
-                  <p>Factura con tu folio de compra</p>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.origin + "/autofacturacion")}`}
+                    alt="QR Facturación"
+                    style={{ width: "100px", height: "100px", marginTop: "6px", marginBottom: "6px" }}
+                  />
+                  <p style={{ fontWeight: "700", wordBreak: "break-all" }}>{window.location.origin + "/autofacturacion"}</p>
+                  <p>Escanea el código QR para facturar tu compra</p>
                 </div>
 
                 <div style={{ textAlign: "center", marginTop: "20px", fontSize: "10px", color: "#64748b" }}>
@@ -3759,10 +3764,15 @@ const Dashboard: React.FC = () => {
                 )}
               </div>
 
-              <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "12px", paddingTop: "8px", fontSize: "9px", textAlign: "center", color: "#64748b", lineHeight: "1.4" }}>
+              <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "12px", paddingTop: "8px", fontSize: "9px", textAlign: "center", color: "#64748b", lineHeight: "1.4", display: "flex", flexDirection: "column", alignItems: "center" }}>
                 <p>Portal de Autofacturación:</p>
-                <p style={{ fontWeight: "700" }}>http://localhost:5173/autofacturacion</p>
-                <p>Factura con tu folio de compra</p>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.origin + "/autofacturacion")}`}
+                  alt="QR Facturación"
+                  style={{ width: "100px", height: "100px", marginTop: "6px", marginBottom: "6px" }}
+                />
+                <p style={{ fontWeight: "700", wordBreak: "break-all" }}>{window.location.origin + "/autofacturacion"}</p>
+                <p>Escanea el código QR para facturar tu compra</p>
               </div>
 
               <div style={{ textAlign: "center", marginTop: "20px", fontSize: "10px", color: "#64748b" }}>
