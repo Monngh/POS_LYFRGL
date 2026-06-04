@@ -1119,6 +1119,137 @@ const Dashboard: React.FC = () => {
       setDepLoading(false);
     }
   };
+  // ---------------------------------------------------------------------------
+  // 9.5 PAGOS PENDIENTES QR MERCADO PAGO
+  // ---------------------------------------------------------------------------
+  const [pendingQrSales, setPendingQrSales] = useState<any[]>(() => {
+    const saved = localStorage.getItem("pendingQrSales");
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [pendingQrChecking, setPendingQrChecking] = useState<string | null>(null);
+  const [viewingPendingQrSale, setViewingPendingQrSale] = useState<any | null>(null);
+  const [pendingCancelPin, setPendingCancelPin] = useState("");
+  const [pendingCancelReason, setPendingCancelReason] = useState("");
+  const [pendingCancelLoading, setPendingCancelLoading] = useState(false);
+
+  const addPendingQrSale = () => {
+    if (!qrReference) return;
+    
+    const newPending = {
+      id: Date.now(),
+      invoiceNumber: qrReference,
+      amount: cartTotal,
+      date: new Date().toISOString(),
+      qrUrl: qrUrl,
+      items: [...cart],
+      customer: selectedCustomer,
+      status: "pending"
+    };
+    
+    setPendingQrSales(prev => {
+      const updated = [...prev, newPending];
+      localStorage.setItem("pendingQrSales", JSON.stringify(updated));
+      return updated;
+    });
+    
+    // Limpiar el carrito de compras
+    setCart([]);
+    setSelectedCustomer(null);
+    setUsePoints(false);
+    setPointsToRedeem(0);
+    setCashReceived("");
+    setPaymentMethod("EFECTIVO");
+    setQrModalOpen(false);
+    showToast("Venta enviada a pagos pendientes. Puedes seguir vendiendo.");
+  };
+
+  const checkPendingQrStatus = async (invoiceNumber: string) => {
+    setPendingQrChecking(invoiceNumber);
+    try {
+      const res = await api.get(`/api/mercadopago/status/${invoiceNumber}`);
+      
+      if (res.data.status === "approved") {
+        await api.post("/api/sales/confirm-qr", {
+          invoiceNumber,
+          paymentId: res.data.paymentId || `mock-${Date.now()}`
+        });
+        
+        setPendingQrSales(prev => {
+          const updated = prev.map(sale => 
+            sale.invoiceNumber === invoiceNumber 
+              ? { ...sale, status: "approved", paymentId: res.data.paymentId } 
+              : sale
+          );
+          localStorage.setItem("pendingQrSales", JSON.stringify(updated));
+          return updated;
+        });
+
+        if (viewingPendingQrSale?.invoiceNumber === invoiceNumber) {
+          setViewingPendingQrSale(prev => prev ? { ...prev, status: "approved", paymentId: res.data.paymentId } : null);
+        }
+        
+        showToast(`¡Pago de Venta ${invoiceNumber} aprobado!`);
+        await loadDashboardData();
+      } else if (res.data.status === "rejected") {
+        setPendingQrSales(prev => {
+          const updated = prev.map(sale => 
+            sale.invoiceNumber === invoiceNumber 
+              ? { ...sale, status: "rejected" } 
+              : sale
+          );
+          localStorage.setItem("pendingQrSales", JSON.stringify(updated));
+          return updated;
+        });
+
+        if (viewingPendingQrSale?.invoiceNumber === invoiceNumber) {
+          setViewingPendingQrSale(prev => prev ? { ...prev, status: "rejected" } : null);
+        }
+
+        showToast(`Pago de Venta ${invoiceNumber} rechazado.`);
+      } else {
+        showToast(`Venta ${invoiceNumber} sigue pendiente. Estado: ${res.data.status}`);
+      }
+    } catch (err: any) {
+      showToast("Error al verificar: " + (err.response?.data?.message || err.message));
+    } finally {
+      setPendingQrChecking(null);
+    }
+  };
+
+  const printPendingQrTicket = async (sale: any) => {
+    try {
+      const saleDetailRes = await api.get(`/api/sales/detail?invoiceNumber=${sale.invoiceNumber}`);
+      setSelectedSale({
+        ...saleDetailRes.data.sale,
+        isNewSale: true
+      });
+      setActiveModal("ticket-view");
+    } catch (detailErr) {
+      console.error("Error al recuperar el detalle de la venta MP:", detailErr);
+      setSelectedSale({
+        invoiceNumber: sale.invoiceNumber,
+        items: sale.items,
+        subtotal: sale.items.reduce((acc: number, it: any) => acc + (it.product.sellPrice * it.quantity), 0) * 0.86,
+        tax: sale.items.reduce((acc: number, it: any) => acc + (it.product.sellPrice * it.quantity), 0) * 0.14,
+        total: sale.amount,
+        paymentMethod: "QR_MERCADOPAGO",
+        cashReceived: 0,
+        changeGiven: 0,
+        createdAt: sale.date,
+        isNewSale: true
+      });
+      setActiveModal("ticket-view");
+    }
+  };
+
+  const removePendingQrSale = (id: number) => {
+    setPendingQrSales(prev => {
+      const updated = prev.filter(sale => sale.id !== id);
+      localStorage.setItem("pendingQrSales", JSON.stringify(updated));
+      return updated;
+    });
+    showToast("Registro eliminado del panel.");
+  };
 
   const fetchCashiers = async () => {
     if (!user) return;
@@ -1775,32 +1906,189 @@ const Dashboard: React.FC = () => {
  
             {/* Totales y Controles Cobro */}
             <div style={styles.terminalSummary}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", width: "260px", marginLeft: "auto" }}>
-                <div style={styles.summaryRow}>
-                  <span>Subtotal Original:</span>
-                  <span style={{ fontWeight: "600" }}>${cartSubtotalOriginal.toFixed(2)}</span>
-                </div>
-                {cartDiscount > 0 && (
-                  <div style={{ ...styles.summaryRow, color: "#059669", fontWeight: "700" }}>
-                    <span>Ahorro Promociones:</span>
-                    <span>-${cartDiscount.toFixed(2)}</span>
+
+              {/* Layout: tabla pendientes QR a la izquierda | totales a la derecha */}
+              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "12px" }}>
+
+                {/* Tabla de pagos QR pendientes de MercadoPago */}
+                {pendingQrSales.length > 0 ? (
+                  <div style={{
+                    flex: "1 1 auto",
+                    backgroundColor: "#f8fafc",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "8px",
+                    padding: "4px 8px",
+                    maxHeight: "110px",
+                    overflowY: "auto",
+                    minWidth: 0,
+                  }}>
+                    <div style={{ fontSize: "9px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", marginBottom: "4px", letterSpacing: "0.5px" }}>
+                      📱 Pagos QR Pendientes
+                    </div>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px" }}>
+                      <tbody>
+                        {pendingQrSales.slice(-3).reverse().map((sale) => {
+                          const isChecking = pendingQrChecking === sale.invoiceNumber;
+                          const isApproved = sale.status === "approved";
+                          const isRejected = sale.status === "rejected";
+
+                          return (
+                            <tr
+                              key={sale.id}
+                              style={{
+                                borderBottom: "1px solid #f1f5f9",
+                                backgroundColor: isApproved ? "#f0fdf4" : isRejected ? "#fef2f2" : "transparent",
+                              }}
+                            >
+                              <td style={{ padding: "3px 4px", fontWeight: "600", color: "#334155", whiteSpace: "nowrap" }} title={sale.invoiceNumber}>
+                                ...{sale.invoiceNumber.slice(-6)}
+                              </td>
+                              <td style={{ padding: "3px 4px", fontWeight: "700", color: "#0f172a", whiteSpace: "nowrap" }}>
+                                ${Number(sale.amount).toFixed(2)}
+                              </td>
+                              <td style={{ padding: "3px 4px", textAlign: "center" }}>
+                                <span style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px",
+                                  padding: "1px 6px",
+                                  borderRadius: "10px",
+                                  fontSize: "8.5px",
+                                  fontWeight: "700",
+                                  backgroundColor: isApproved ? "#dcfce7" : isRejected ? "#fee2e2" : "#ffedd5",
+                                  color: isApproved ? "#15803d" : isRejected ? "#b91c1c" : "#c2410c",
+                                  whiteSpace: "nowrap",
+                                }}>
+                                  <span style={{
+                                    width: "4px",
+                                    height: "4px",
+                                    borderRadius: "50%",
+                                    backgroundColor: isApproved ? "#22c55e" : isRejected ? "#ef4444" : "#f97316",
+                                    flexShrink: 0,
+                                  }} />
+                                  {isApproved ? "Aprobado" : isRejected ? "Rechazado" : "Pendiente"}
+                                </span>
+                              </td>
+                              <td style={{ padding: "3px 4px", textAlign: "right", whiteSpace: "nowrap" }}>
+                                <div style={{ display: "inline-flex", gap: "3px", alignItems: "center" }}>
+                                  {/* Botón QR: abre el modal con el código QR */}
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setViewingPendingQrSale(sale); }}
+                                    title="Ver Código QR"
+                                    style={{
+                                      padding: "2px 7px",
+                                      borderRadius: "4px",
+                                      fontSize: "9px",
+                                      fontWeight: "700",
+                                      backgroundColor: "#dbeafe",
+                                      color: "#1e40af",
+                                      border: "1px solid #93c5fd",
+                                      cursor: "pointer",
+                                      lineHeight: "1.4",
+                                    }}
+                                  >
+                                    QR
+                                  </button>
+
+                                  {/* Botón Verificar: consulta el estado del pago en MercadoPago */}
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); checkPendingQrStatus(sale.invoiceNumber); }}
+                                    disabled={isApproved || isChecking}
+                                    title="Verificar estado del pago en MercadoPago"
+                                    style={{
+                                      padding: "2px 7px",
+                                      borderRadius: "4px",
+                                      fontSize: "9px",
+                                      fontWeight: "700",
+                                      backgroundColor: isApproved ? "#e2e8f0" : isChecking ? "#6b7280" : "#1e3a8a",
+                                      color: isApproved ? "#94a3b8" : "white",
+                                      border: "none",
+                                      cursor: isApproved || isChecking ? "default" : "pointer",
+                                      lineHeight: "1.4",
+                                    }}
+                                  >
+                                    {isChecking ? "..." : "Verificar"}
+                                  </button>
+
+                                  {/* Botón Imprimir: solo activo si el pago fue aprobado */}
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); printPendingQrTicket(sale); }}
+                                    disabled={!isApproved}
+                                    title={isApproved ? "Ver e Imprimir Ticket" : "Solo disponible cuando el pago sea aprobado"}
+                                    style={{
+                                      padding: "2px 7px",
+                                      borderRadius: "4px",
+                                      fontSize: "9px",
+                                      fontWeight: "700",
+                                      backgroundColor: isApproved ? "#059669" : "#e2e8f0",
+                                      color: isApproved ? "white" : "#94a3b8",
+                                      border: "none",
+                                      cursor: isApproved ? "pointer" : "default",
+                                      lineHeight: "1.4",
+                                    }}
+                                  >
+                                    Imprimir
+                                  </button>
+
+                                  {/* Botón eliminar: solo activo cuando aprobado */}
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); removePendingQrSale(sale.id); }}
+                                    disabled={!isApproved}
+                                    title={isApproved ? "Quitar de la lista" : "Solo se puede eliminar cuando esté aprobado"}
+                                    style={{
+                                      padding: "2px 5px",
+                                      borderRadius: "4px",
+                                      backgroundColor: "transparent",
+                                      color: isApproved ? "#dc2626" : "#cbd5e1",
+                                      border: "none",
+                                      cursor: isApproved ? "pointer" : "default",
+                                      fontSize: "11px",
+                                      lineHeight: "1.4",
+                                    }}
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
+                ) : (
+                  <div style={{ flex: "1 1 auto" }} />
                 )}
-                <div style={styles.summaryRow}>
-                  <span>Subtotal Neto:</span>
-                  <span style={{ fontWeight: "600" }}>${cartSubtotal.toFixed(2)}</span>
-                </div>
-                <div style={styles.summaryRow}>
-                  <span>IVA (16%):</span>
-                  <span style={{ fontWeight: "600" }}>${cartTax.toFixed(2)}</span>
-                </div>
-                <div style={{ ...styles.summaryRow, ...styles.summaryTotal }}>
-                  <span>Total:</span>
-                  <span style={{ color: "#dc2626", fontWeight: "800" }}>${cartTotal.toFixed(2)}</span>
+
+                {/* Columna de totales */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px", minWidth: "240px", flexShrink: 0 }}>
+                  <div style={styles.summaryRow}>
+                    <span>Subtotal Original:</span>
+                    <span style={{ fontWeight: "600" }}>${cartSubtotalOriginal.toFixed(2)}</span>
+                  </div>
+                  {cartDiscount > 0 && (
+                    <div style={{ ...styles.summaryRow, color: "#059669", fontWeight: "700" }}>
+                      <span>Ahorro Promociones:</span>
+                      <span>-${cartDiscount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div style={styles.summaryRow}>
+                    <span>Subtotal Neto:</span>
+                    <span style={{ fontWeight: "600" }}>${cartSubtotal.toFixed(2)}</span>
+                  </div>
+                  <div style={styles.summaryRow}>
+                    <span>IVA (16%):</span>
+                    <span style={{ fontWeight: "600" }}>${cartTax.toFixed(2)}</span>
+                  </div>
+                  <div style={{ ...styles.summaryRow, ...styles.summaryTotal }}>
+                    <span>Total:</span>
+                    <span style={{ color: "#dc2626", fontWeight: "800" }}>${cartTotal.toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
- 
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: "20px" }}>
+
+              {/* Fila de botones acción: Cancelar (izquierda) + Cobrar (derecha) */}
+              <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginTop: "12px", gap: "10px" }}>
                 <button
                   onClick={() => {
                     if (cart.length === 0) {
@@ -1817,6 +2105,7 @@ const Dashboard: React.FC = () => {
                 >
                   CANCELAR COMPRA
                 </button>
+
                 <button
                   disabled={cart.length === 0}
                   onClick={() => setCheckoutModalOpen(true)}
@@ -2103,7 +2392,7 @@ const Dashboard: React.FC = () => {
               </div>
               <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
                 <button
-                  onClick={() => setQrModalOpen(false)}
+                  onClick={addPendingQrSale}
                   style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
                 >
                   CERRAR (PAGO PENDIENTE)
@@ -2607,6 +2896,164 @@ const Dashboard: React.FC = () => {
                 <button onClick={handlePrintTicket} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
                   <Printer size={16} /> IMPRIMIR
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: VER QR DE PAGO PENDIENTE (también disponible en terminal de ventas) */}
+        {viewingPendingQrSale && (
+          <div style={{ ...styles.modalOverlay, zIndex: 9999 }}>
+            <div style={styles.checkoutModal}>
+              <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
+
+              <div style={{ textAlign: "center", padding: "12px 0" }}>
+                <p style={{ marginBottom: "10px", fontSize: "13px", color: "#475569" }}>
+                  Escanea el código QR para pagar la venta{" "}
+                  <strong>${Number(viewingPendingQrSale.amount).toFixed(2)}</strong>
+                </p>
+                {viewingPendingQrSale.qrUrl ? (
+                  <>
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(viewingPendingQrSale.qrUrl)}`}
+                      alt="QR Code"
+                      width="180"
+                      height="180"
+                      style={{ borderRadius: "8px", border: "1px solid #e2e8f0" }}
+                    />
+                    <div style={{ marginTop: "10px" }}>
+                      <a
+                        href={viewingPendingQrSale.qrUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          fontSize: "12px",
+                          color: "#2563eb",
+                          textDecoration: "underline",
+                          fontWeight: "600",
+                          display: "inline-block",
+                          padding: "6px 12px",
+                          backgroundColor: "#f1f5f9",
+                          borderRadius: "6px"
+                        }}
+                      >
+                        🔗 Abrir enlace de pago / Sandbox
+                      </a>
+                    </div>
+                  </>
+                ) : (
+                  <p style={{ fontSize: "12px", color: "#64748b" }}>Código QR no disponible.</p>
+                )}
+                <p style={{ marginTop: "10px", fontSize: "11px", color: "#64748b" }}>Folio: {viewingPendingQrSale.invoiceNumber}</p>
+                <p style={{ marginTop: "4px", fontSize: "12px", fontWeight: "700",
+                  color: viewingPendingQrSale.status === "approved" ? "#15803d" : viewingPendingQrSale.status === "rejected" ? "#b91c1c" : "#c2410c"
+                }}>
+                  Estado: {viewingPendingQrSale.status === "approved" ? "✅ Aprobado" : viewingPendingQrSale.status === "rejected" ? "❌ Rechazado" : "⏳ Pendiente"}
+                </p>
+              </div>
+
+              {/* Formulario de Cancelación con PIN si la venta sigue pendiente */}
+              {viewingPendingQrSale.status !== "approved" && (
+                <div style={{
+                  borderTop: "1px dashed #e2e8f0",
+                  paddingTop: "12px",
+                  marginTop: "8px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px"
+                }}>
+                  <div style={{ fontSize: "11px", fontWeight: "700", color: "#dc2626", textTransform: "uppercase" }}>
+                    ⚠️ Cancelar Venta (Revertir Stock)
+                  </div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="password"
+                        placeholder="PIN Gerente"
+                        maxLength={4}
+                        value={pendingCancelPin}
+                        onChange={(e) => setPendingCancelPin(e.target.value)}
+                        className="input-corporate"
+                        style={{ padding: "6px 10px", fontSize: "12px", width: "100%" }}
+                      />
+                    </div>
+                    <div style={{ flex: 2 }}>
+                      <input
+                        type="text"
+                        placeholder="Motivo de cancelación"
+                        value={pendingCancelReason}
+                        onChange={(e) => setPendingCancelReason(e.target.value)}
+                        className="input-corporate"
+                        style={{ padding: "6px 10px", fontSize: "12px", width: "100%" }}
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!pendingCancelPin || !pendingCancelReason) {
+                        showToast("El PIN de gerente y el motivo son obligatorios para cancelar.");
+                        return;
+                      }
+                      setPendingCancelLoading(true);
+                      try {
+                        const res = await api.post("/api/sales/authorize-cancel", {
+                          invoiceNumber: viewingPendingQrSale.invoiceNumber,
+                          pinCode: pendingCancelPin,
+                          reason: pendingCancelReason,
+                        });
+                        showToast(res.data.message, "success");
+                        setPendingQrSales(prev => {
+                          const updated = prev.filter(sale => sale.id !== viewingPendingQrSale.id);
+                          localStorage.setItem("pendingQrSales", JSON.stringify(updated));
+                          return updated;
+                        });
+                        setViewingPendingQrSale(null);
+                        setPendingCancelPin("");
+                        setPendingCancelReason("");
+                        await loadDashboardData();
+                      } catch (err: any) {
+                        showToast(err.response?.data?.message || "Error al cancelar la venta.");
+                      } finally {
+                        setPendingCancelLoading(false);
+                      }
+                    }}
+                    disabled={pendingCancelLoading}
+                    style={{
+                      padding: "8px",
+                      borderRadius: "6px",
+                      border: "none",
+                      backgroundColor: "#dc2626",
+                      color: "white",
+                      fontWeight: "700",
+                      fontSize: "12px",
+                      cursor: pendingCancelLoading ? "default" : "pointer"
+                    }}
+                  >
+                    {pendingCancelLoading ? "CANCELANDO..." : "CONFIRMAR CANCELACIÓN"}
+                  </button>
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: "10px", marginTop: "14px", borderTop: "1px solid #f1f5f9", paddingTop: "12px" }}>
+                <button
+                  onClick={() => {
+                    setViewingPendingQrSale(null);
+                    setPendingCancelPin("");
+                    setPendingCancelReason("");
+                  }}
+                  style={{ ...styles.modalBtn, backgroundColor: "#64748b", color: "white" }}
+                >
+                  CERRAR
+                </button>
+                {viewingPendingQrSale.status !== "approved" && (
+                  <button
+                    onClick={() => checkPendingQrStatus(viewingPendingQrSale.invoiceNumber)}
+                    disabled={pendingQrChecking === viewingPendingQrSale.invoiceNumber}
+                    style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
+                  >
+                    {pendingQrChecking === viewingPendingQrSale.invoiceNumber ? "VERIFICANDO..." : "VERIFICAR ESTADO"}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -4309,6 +4756,163 @@ const Dashboard: React.FC = () => {
               <button onClick={handleCloseModal_bankDeposit} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
                 CERRAR
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: VER QR DE PAGO PENDIENTE Y CONTROL DE CANCELACIÓN */}
+      {viewingPendingQrSale && (
+        <div style={{ ...styles.modalOverlay, zIndex: 9999 }}>
+          <div style={styles.checkoutModal}>
+            <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
+            
+            <div style={{ textAlign: "center", padding: "12px 0" }}>
+               <p style={{ marginBottom: "10px", fontSize: "13px", color: "#475569" }}>
+                 Escanea el siguiente código para pagar la venta <strong>${Number(viewingPendingQrSale.amount).toFixed(2)}</strong>
+               </p>
+               {viewingPendingQrSale.qrUrl ? (
+                 <>
+                   <img 
+                     src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(viewingPendingQrSale.qrUrl)}`} 
+                     alt="QR Code" 
+                     width="180" 
+                     height="180" 
+                   />
+                   <div style={{ marginTop: "10px" }}>
+                     <a 
+                       href={viewingPendingQrSale.qrUrl} 
+                       target="_blank" 
+                       rel="noopener noreferrer" 
+                       style={{ 
+                         fontSize: "12px", 
+                         color: "#2563eb", 
+                         textDecoration: "underline", 
+                         fontWeight: "600", 
+                         display: "inline-block", 
+                         padding: "6px 12px", 
+                         backgroundColor: "#f1f5f9", 
+                         borderRadius: "6px" 
+                       }}
+                     >
+                       🔗 Abrir enlace de pago / Sandbox
+                     </a>
+                   </div>
+                 </>
+               ) : (
+                 <p style={{ fontSize: "12px", color: "#64748b" }}>Código QR no disponible.</p>
+               )}
+               <p style={{ marginTop: "10px", fontSize: "11px", color: "#64748b" }}>Folio: {viewingPendingQrSale.invoiceNumber}</p>
+            </div>
+
+            {/* Formulario de Cancelación con PIN si la venta sigue pendiente */}
+            {viewingPendingQrSale.status !== "approved" && (
+              <div style={{
+                borderTop: "1px dashed #e2e8f0",
+                paddingTop: "12px",
+                marginTop: "8px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px"
+              }}>
+                <div style={{ fontSize: "11px", fontWeight: "700", color: "#dc2626", textTransform: "uppercase" }}>
+                  ⚠️ Cancelar Venta (Revertir Stock)
+                </div>
+                
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <div style={{ flex: 1 }}>
+                    <input
+                      type="password"
+                      placeholder="PIN Gerente"
+                      maxLength={4}
+                      value={pendingCancelPin}
+                      onChange={(e) => setPendingCancelPin(e.target.value)}
+                      className="input-corporate"
+                      style={{ padding: "6px 10px", fontSize: "12px" }}
+                    />
+                  </div>
+                  <div style={{ flex: 2 }}>
+                    <input
+                      type="text"
+                      placeholder="Motivo de cancelación"
+                      value={pendingCancelReason}
+                      onChange={(e) => setPendingCancelReason(e.target.value)}
+                      className="input-corporate"
+                      style={{ padding: "6px 10px", fontSize: "12px" }}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={async () => {
+                    if (!pendingCancelPin || !pendingCancelReason) {
+                      showToast("El PIN de gerente y el motivo son obligatorios para cancelar.");
+                      return;
+                    }
+                    setPendingCancelLoading(true);
+                    try {
+                      const res = await api.post("/api/sales/authorize-cancel", {
+                        invoiceNumber: viewingPendingQrSale.invoiceNumber,
+                        pinCode: pendingCancelPin,
+                        reason: pendingCancelReason,
+                      });
+                      
+                      showToast(res.data.message, "success");
+                      
+                      // Eliminar de pendientes localmente
+                      setPendingQrSales(prev => {
+                        const updated = prev.filter(sale => sale.id !== viewingPendingQrSale.id);
+                        localStorage.setItem("pendingQrSales", JSON.stringify(updated));
+                        return updated;
+                      });
+
+                      setViewingPendingQrSale(null);
+                      setPendingCancelPin("");
+                      setPendingCancelReason("");
+                      await loadDashboardData();
+                    } catch (err: any) {
+                      showToast(err.response?.data?.message || "Error al cancelar la venta.");
+                    } finally {
+                      setPendingCancelLoading(false);
+                    }
+                  }}
+                  disabled={pendingCancelLoading}
+                  style={{
+                    padding: "8px",
+                    borderRadius: "6px",
+                    border: "none",
+                    backgroundColor: "#dc2626",
+                    color: "white",
+                    fontWeight: "700",
+                    fontSize: "12px",
+                    cursor: pendingCancelLoading ? "default" : "pointer"
+                  }}
+                >
+                  {pendingCancelLoading ? "CANCELANDO..." : "CONFIRMAR CANCELACIÓN"}
+                </button>
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: "10px", marginTop: "14px", borderTop: "1px solid #f1f5f9", paddingTop: "12px" }}>
+              <button
+                onClick={() => {
+                  setViewingPendingQrSale(null);
+                  setPendingCancelPin("");
+                  setPendingCancelReason("");
+                }}
+                style={{ ...styles.modalBtn, backgroundColor: "#64748b", color: "white" }}
+              >
+                CERRAR
+              </button>
+              
+              {viewingPendingQrSale.status !== "approved" && (
+                <button
+                  onClick={() => checkPendingQrStatus(viewingPendingQrSale.invoiceNumber)}
+                  style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
+                >
+                  VERIFICAR ESTADO
+                </button>
+              )}
             </div>
           </div>
         </div>
