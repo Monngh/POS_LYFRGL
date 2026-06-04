@@ -1904,148 +1904,52 @@ const Dashboard: React.FC = () => {
               </table>
             </div>
  
-            {/* Totales y Controles Cobro */}
-            <div style={styles.terminalSummary}>
+            {/* Totales y Controles Cobro — layout 2 columnas */}
+            <div style={{ ...styles.terminalSummary, display: "flex", gap: "24px", alignItems: "flex-start" }}>
 
-              {/* Layout: tabla pendientes QR a la izquierda | totales a la derecha */}
-              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "12px" }}>
-
-                {/* Tabla de pagos QR pendientes de MercadoPago */}
-                {pendingQrSales.length > 0 ? (
-                  <div style={{
-                    flex: "1 1 auto",
-                    backgroundColor: "#f8fafc",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "8px",
-                    padding: "5px 10px",
-                    maxHeight: "72px",
-                    overflowY: "auto",
-                    minWidth: 0,
-                  }}>
-                    <div style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", marginBottom: "3px", letterSpacing: "0.5px" }}>
+              {/* COLUMNA IZQUIERDA: Pagos QR Pendientes (máx 3, sin scroll) */}
+              <div style={{ flex: 1 }}>
+                {pendingQrSales.length > 0 && (
+                  <>
+                    <div style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
                       📱 Pagos QR Pendientes
                     </div>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                       <tbody>
                         {pendingQrSales.slice(-3).reverse().map((sale) => {
                           const isChecking = pendingQrChecking === sale.invoiceNumber;
                           const isApproved = sale.status === "approved";
                           const isRejected = sale.status === "rejected";
-
                           return (
-                            <tr
-                              key={sale.id}
-                              style={{
-                                borderBottom: "1px solid #f1f5f9",
-                                backgroundColor: isApproved ? "#f0fdf4" : isRejected ? "#fef2f2" : "transparent",
-                              }}
-                            >
-                              <td style={{ padding: "4px 6px", fontWeight: "600", color: "#334155", whiteSpace: "nowrap", fontSize: "12px" }} title={sale.invoiceNumber}>
+                            <tr key={sale.id} style={{ borderBottom: "1px solid #f1f5f9", backgroundColor: isApproved ? "#f0fdf4" : isRejected ? "#fef2f2" : "transparent" }}>
+                              <td style={{ padding: "5px 6px", fontWeight: "600", color: "#334155", whiteSpace: "nowrap" }} title={sale.invoiceNumber}>
                                 ...{sale.invoiceNumber.slice(-6)}
                               </td>
-                              <td style={{ padding: "4px 6px", fontWeight: "700", color: "#0f172a", whiteSpace: "nowrap", fontSize: "12px" }}>
+                              <td style={{ padding: "5px 6px", fontWeight: "700", color: "#0f172a", whiteSpace: "nowrap" }}>
                                 ${Number(sale.amount).toFixed(2)}
                               </td>
-                              <td style={{ padding: "4px 6px", textAlign: "center" }}>
-                                <span style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: "4px",
-                                  padding: "2px 8px",
-                                  borderRadius: "10px",
-                                  fontSize: "11px",
-                                  fontWeight: "700",
-                                  backgroundColor: isApproved ? "#dcfce7" : isRejected ? "#fee2e2" : "#ffedd5",
-                                  color: isApproved ? "#15803d" : isRejected ? "#b91c1c" : "#c2410c",
-                                  whiteSpace: "nowrap",
-                                }}>
-                                  <span style={{
-                                    width: "5px",
-                                    height: "5px",
-                                    borderRadius: "50%",
-                                    backgroundColor: isApproved ? "#22c55e" : isRejected ? "#ef4444" : "#f97316",
-                                    flexShrink: 0,
-                                  }} />
-                                  {isApproved ? "Aprobado" : isRejected ? "Rechazado" : "• Pendiente"}
+                              <td style={{ padding: "5px 6px" }}>
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "700", backgroundColor: isApproved ? "#dcfce7" : isRejected ? "#fee2e2" : "#ffedd5", color: isApproved ? "#15803d" : isRejected ? "#b91c1c" : "#c2410c" }}>
+                                  <span style={{ width: "5px", height: "5px", borderRadius: "50%", backgroundColor: isApproved ? "#22c55e" : isRejected ? "#ef4444" : "#f97316" }} />
+                                  {isApproved ? "Aprobado" : isRejected ? "Rechazado" : "Pendiente"}
                                 </span>
                               </td>
-                              <td style={{ padding: "4px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
-                                <div style={{ display: "inline-flex", gap: "4px", alignItems: "center" }}>
-                                  {/* Botón QR: abre el modal con el código QR */}
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); setViewingPendingQrSale(sale); }}
-                                    title="Ver Código QR"
-                                    style={{
-                                      padding: "3px 10px",
-                                      borderRadius: "5px",
-                                      fontSize: "11px",
-                                      fontWeight: "700",
-                                      backgroundColor: "#dbeafe",
-                                      color: "#1e40af",
-                                      border: "1px solid #93c5fd",
-                                      cursor: "pointer",
-                                      lineHeight: "1.5",
-                                    }}
-                                  >
+                              <td style={{ padding: "5px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
+                                <div style={{ display: "inline-flex", gap: "4px" }}>
+                                  <button onClick={(e) => { e.stopPropagation(); setViewingPendingQrSale(sale); }} title="Ver QR"
+                                    style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: "#dbeafe", color: "#1e40af", border: "1px solid #93c5fd", cursor: "pointer" }}>
                                     QR
                                   </button>
-
-                                  {/* Botón Verificar: consulta el estado del pago en MercadoPago */}
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); checkPendingQrStatus(sale.invoiceNumber); }}
-                                    disabled={isApproved || isChecking}
-                                    title="Verificar estado del pago en MercadoPago"
-                                    style={{
-                                      padding: "3px 10px",
-                                      borderRadius: "5px",
-                                      fontSize: "11px",
-                                      fontWeight: "700",
-                                      backgroundColor: isApproved ? "#e2e8f0" : isChecking ? "#6b7280" : "#1e3a8a",
-                                      color: isApproved ? "#94a3b8" : "white",
-                                      border: "none",
-                                      cursor: isApproved || isChecking ? "default" : "pointer",
-                                      lineHeight: "1.5",
-                                    }}
-                                  >
+                                  <button onClick={(e) => { e.stopPropagation(); checkPendingQrStatus(sale.invoiceNumber); }} disabled={isApproved || isChecking} title="Verificar pago"
+                                    style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: isApproved ? "#e2e8f0" : isChecking ? "#6b7280" : "#1e3a8a", color: isApproved ? "#94a3b8" : "white", border: "none", cursor: isApproved || isChecking ? "default" : "pointer" }}>
                                     {isChecking ? "..." : "Verificar"}
                                   </button>
-
-                                  {/* Botón Imprimir: solo activo si el pago fue aprobado */}
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); printPendingQrTicket(sale); }}
-                                    disabled={!isApproved}
-                                    title={isApproved ? "Ver e Imprimir Ticket" : "Solo disponible cuando el pago sea aprobado"}
-                                    style={{
-                                      padding: "3px 10px",
-                                      borderRadius: "5px",
-                                      fontSize: "11px",
-                                      fontWeight: "700",
-                                      backgroundColor: isApproved ? "#059669" : "#e2e8f0",
-                                      color: isApproved ? "white" : "#94a3b8",
-                                      border: "none",
-                                      cursor: isApproved ? "pointer" : "default",
-                                      lineHeight: "1.5",
-                                    }}
-                                  >
+                                  <button onClick={(e) => { e.stopPropagation(); printPendingQrTicket(sale); }} disabled={!isApproved} title="Imprimir ticket"
+                                    style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: isApproved ? "#059669" : "#e2e8f0", color: isApproved ? "white" : "#94a3b8", border: "none", cursor: isApproved ? "pointer" : "default" }}>
                                     Imprimir
                                   </button>
-
-                                  {/* Botón eliminar: solo activo cuando aprobado */}
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); removePendingQrSale(sale.id); }}
-                                    disabled={!isApproved}
-                                    title={isApproved ? "Quitar de la lista" : "Solo se puede eliminar cuando esté aprobado"}
-                                    style={{
-                                      padding: "3px 6px",
-                                      borderRadius: "5px",
-                                      backgroundColor: "transparent",
-                                      color: isApproved ? "#dc2626" : "#cbd5e1",
-                                      border: "none",
-                                      cursor: isApproved ? "pointer" : "default",
-                                      fontSize: "13px",
-                                      lineHeight: "1.5",
-                                    }}
-                                  >
+                                  <button onClick={(e) => { e.stopPropagation(); removePendingQrSale(sale.id); }} disabled={!isApproved} title="Quitar de lista"
+                                    style={{ padding: "3px 6px", borderRadius: "4px", fontSize: "13px", backgroundColor: "transparent", color: isApproved ? "#dc2626" : "#cbd5e1", border: "none", cursor: isApproved ? "pointer" : "default" }}>
                                     🗑️
                                   </button>
                                 </div>
@@ -2055,69 +1959,60 @@ const Dashboard: React.FC = () => {
                         })}
                       </tbody>
                     </table>
-                  </div>
-                ) : (
-                  <div style={{ flex: "1 1 auto" }} />
+                  </>
                 )}
+              </div>
 
-                {/* Columna de totales */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px", minWidth: "240px", flexShrink: 0 }}>
-                  <div style={styles.summaryRow}>
-                    <span>Subtotal Original:</span>
-                    <span style={{ fontWeight: "600" }}>${cartSubtotalOriginal.toFixed(2)}</span>
+              {/* COLUMNA DERECHA: Resumen de totales + botones debajo */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px", minWidth: "260px", flexShrink: 0 }}>
+                <div style={styles.summaryRow}>
+                  <span>Subtotal Original:</span>
+                  <span style={{ fontWeight: "600" }}>${cartSubtotalOriginal.toFixed(2)}</span>
+                </div>
+                {cartDiscount > 0 && (
+                  <div style={{ ...styles.summaryRow, color: "#059669", fontWeight: "700" }}>
+                    <span>Ahorro Promociones:</span>
+                    <span>-${cartDiscount.toFixed(2)}</span>
                   </div>
-                  {cartDiscount > 0 && (
-                    <div style={{ ...styles.summaryRow, color: "#059669", fontWeight: "700" }}>
-                      <span>Ahorro Promociones:</span>
-                      <span>-${cartDiscount.toFixed(2)}</span>
-                    </div>
-                  )}
-                  <div style={styles.summaryRow}>
-                    <span>Subtotal Neto:</span>
-                    <span style={{ fontWeight: "600" }}>${cartSubtotal.toFixed(2)}</span>
-                  </div>
-                  <div style={styles.summaryRow}>
-                    <span>IVA (16%):</span>
-                    <span style={{ fontWeight: "600" }}>${cartTax.toFixed(2)}</span>
-                  </div>
-                  <div style={{ ...styles.summaryRow, ...styles.summaryTotal }}>
-                    <span>Total:</span>
-                    <span style={{ color: "#dc2626", fontWeight: "800" }}>${cartTotal.toFixed(2)}</span>
-                  </div>
+                )}
+                <div style={styles.summaryRow}>
+                  <span>Subtotal Neto:</span>
+                  <span style={{ fontWeight: "600" }}>${cartSubtotal.toFixed(2)}</span>
+                </div>
+                <div style={styles.summaryRow}>
+                  <span>IVA (16%):</span>
+                  <span style={{ fontWeight: "600" }}>${cartTax.toFixed(2)}</span>
+                </div>
+                <div style={{ ...styles.summaryRow, ...styles.summaryTotal }}>
+                  <span>Total:</span>
+                  <span style={{ color: "#dc2626", fontWeight: "800" }}>${cartTotal.toFixed(2)}</span>
+                </div>
+                <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                  <button
+                    onClick={() => {
+                      if (cart.length === 0) { setView("dashboard"); }
+                      else { setCartPin(""); setCartPinError(""); setPendingCartAction({ type: "cancel" }); setActiveModal("cart-pin-auth"); }
+                    }}
+                    className="active-tap"
+                    style={{ ...styles.terminalBtn, flex: 1, backgroundColor: "#dc2626", color: "white" }}
+                  >
+                    CANCELAR COMPRA
+                  </button>
+                  <button
+                    disabled={cart.length === 0}
+                    onClick={() => setCheckoutModalOpen(true)}
+                    className="active-tap"
+                    style={{ ...styles.terminalBtn, flex: 1, backgroundColor: "#059669", color: "white" }}
+                  >
+                    COBRAR
+                  </button>
                 </div>
               </div>
 
-              {/* Fila de botones acción: Cancelar (izquierda) + Cobrar (derecha) */}
-              <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginTop: "12px", gap: "10px" }}>
-                <button
-                  onClick={() => {
-                    if (cart.length === 0) {
-                      setView("dashboard");
-                    } else {
-                      setCartPin("");
-                      setCartPinError("");
-                      setPendingCartAction({ type: "cancel" });
-                      setActiveModal("cart-pin-auth");
-                    }
-                  }}
-                  className="active-tap"
-                  style={{ ...styles.terminalBtn, backgroundColor: "#dc2626", color: "white" }}
-                >
-                  CANCELAR COMPRA
-                </button>
-
-                <button
-                  disabled={cart.length === 0}
-                  onClick={() => setCheckoutModalOpen(true)}
-                  className="active-tap"
-                  style={{ ...styles.terminalBtn, backgroundColor: "#059669", color: "white" }}
-                >
-                  COBRAR
-                </button>
-              </div>
             </div>
           </div>
         </div>
+
 
         {/* COBRO MODAL (Mockup 4) */}
         {checkoutModalOpen && (
