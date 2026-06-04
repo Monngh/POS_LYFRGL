@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { AlertTriangle, Printer, X, Plus } from "lucide-react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import { AlertTriangle, Printer, X, Plus, BadgePercent } from "lucide-react";
 import api from "../../services/api";
 import KardexView from "./KardexView";
 import {
@@ -20,7 +20,9 @@ import {
 interface ProductRow {
   id: number;
   sku: string;
+  barcode: string | null;
   name: string;
+  description: string | null;
   active: boolean;
   sellPrice: number;
   costPrice: number;
@@ -81,6 +83,50 @@ const subModalStyle: React.CSSProperties = {
   padding: 20,
 };
 
+interface TaxOption {
+  id: number;
+  name: string;
+  description: string | null;
+  rate: number | string;
+  active: boolean;
+}
+
+interface TaxListResponse {
+  data: TaxOption[];
+}
+
+interface ProductTaxResponse {
+  data: {
+    productId: number;
+    taxIds: number[];
+    taxes: TaxOption[];
+  };
+}
+
+const emptyForm = { sku: "", barcode: "", name: "", description: "", costPrice: "", sellPrice: "" };
+
+const getErrorMessage = (err: unknown, fallback: string) => {
+  if (typeof err === "object" && err !== null && "response" in err) {
+    const apiError = err as { response?: { data?: { message?: string } } };
+    return apiError.response?.data?.message || fallback;
+  }
+
+  return fallback;
+};
+
+const extractTaxOptions = (payload: TaxListResponse | { data?: unknown }) => {
+  return Array.isArray(payload.data) ? payload.data as TaxOption[] : [];
+};
+
+const formatTaxRate = (rate: number | string) => {
+  const value = Number(rate);
+  const percent = Number.isFinite(value) ? value * 100 : 0;
+  return `${percent.toLocaleString("es-MX", {
+    minimumFractionDigits: percent % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 4,
+  })}%`;
+};
+
 const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [activeTab, setActiveTab] = useState<"existencias" | "kardex">("existencias");
   const [rows, setRows] = useState<ProductRow[]>([]);
@@ -117,10 +163,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [transferQty, setTransferQty] = useState(0);
   const [transferError, setTransferError] = useState<string | null>(null);
 
-  // Feature 4: create product
-  const [createOpen, setCreateOpen] = useState(false);
-  const [newProd, setNewProd] = useState({ sku: "", name: "", description: "", costPrice: 0, sellPrice: 0 });
-  const [createError, setCreateError] = useState<string | null>(null);
+
 
   // Suppliers catalog (shared between create + detail modals)
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
@@ -129,7 +172,193 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [editingSuppliersMode, setEditingSuppliersMode] = useState(false);
   const [suppliersError, setSuppliersError] = useState<string | null>(null);
 
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ ...emptyForm });
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [taxOptions, setTaxOptions] = useState<TaxOption[]>([]);
+  const [selectedTaxIds, setSelectedTaxIds] = useState<number[]>([]);
+  const [taxLoading, setTaxLoading] = useState(false);
+  const [taxError, setTaxError] = useState<string | null>(null);
+  const taxRequestId = useRef(0);
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const closeForm = () => {
+    if (saving) return;
+    taxRequestId.current += 1;
+    setShowForm(false);
+    setEditingId(null);
+    setFormError(null);
+    setTaxError(null);
+    setTaxOptions([]);
+    setSelectedTaxIds([]);
+  };
+
+  const loadProductTaxes = async (productId: number) => {
+    const requestId = taxRequestId.current + 1;
+    taxRequestId.current = requestId;
+    setTaxLoading(true);
+    setTaxError(null);
+    setTaxOptions([]);
+    setSelectedTaxIds([]);
+
+    try {
+      const [taxesRes, productTaxesRes] = await Promise.all([
+        api.get<TaxListResponse>("/api/admin-tax/taxes"),
+        api.get<ProductTaxResponse>(`/api/admin-tax/products/${productId}/taxes`),
+      ]);
+
+      if (taxRequestId.current !== requestId) return;
+
+      const activeTaxes = extractTaxOptions(taxesRes.data).filter((tax) => tax.active);
+      setTaxOptions(activeTaxes);
+      setSelectedTaxIds(productTaxesRes.data.data.taxIds);
+    } catch (err: unknown) {
+      if (taxRequestId.current !== requestId) return;
+      setTaxError(getErrorMessage(err, "No se pudieron cargar los impuestos del producto."));
+    } finally {
+      if (taxRequestId.current === requestId) {
+        setTaxLoading(false);
+      }
+    }
+  };
+
+  const toggleTax = (taxId: number) => {
+    setSelectedTaxIds((current) =>
+      current.includes(taxId)
+        ? current.filter((id) => id !== taxId)
+        : [...current, taxId]
+    );
+  };
+
+  const handleOpenCreate = () => {
+    taxRequestId.current += 1;
+    setForm({ ...emptyForm });
+    setEditingId(null);
+    setFormError(null);
+    setTaxError(null);
+    setTaxOptions([]);
+    setSelectedTaxIds([]);
+    setShowForm(true);
+  };
+
+  const handleEdit = (p: ProductRow | ProductDetail) => {
+    closeDetail();
+    setForm({
+      sku: p.sku,
+      barcode: p.barcode || "",
+      name: p.name,
+      description: p.description || "",
+      costPrice: String(p.costPrice),
+      sellPrice: String(p.sellPrice),
+    });
+    setEditingId(p.id);
+    setFormError(null);
+    setShowForm(true);
+    void loadProductTaxes(p.id);
+  };
+
+  const handleToggleActive = async (p: ProductRow | ProductDetail) => {
+    try {
+      if (p.active) {
+        // Soft delete (desactivar)
+        await api.delete(`/api/admin/products/${p.id}`);
+      } else {
+        // Activar (usando PUT con active: true)
+        await api.put(`/api/admin/products/${p.id}`, {
+          name: p.name,
+          description: p.description || undefined,
+          barcode: p.barcode || undefined,
+          costPrice: p.costPrice,
+          sellPrice: p.sellPrice,
+          active: true,
+        });
+      }
+      if (detailOpen && selectedProduct?.id === p.id) {
+        await fetchDetail(p.id);
+      }
+      await load();
+    } catch (err: unknown) {
+      alert(getErrorMessage(err, "No se pudo cambiar el estado del producto."));
+    }
+  };
+
+
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.sku.trim()) {
+      setFormError("El SKU es obligatorio.");
+      return;
+    }
+    if (!form.name.trim()) {
+      setFormError("El nombre del producto es obligatorio.");
+      return;
+    }
+    const cost = parseFloat(form.costPrice);
+    const sell = parseFloat(form.sellPrice);
+
+    if (isNaN(cost) || cost <= 0) {
+      setFormError("El precio de costo debe ser mayor a 0.");
+      return;
+    }
+    if (isNaN(sell) || sell <= 0) {
+      setFormError("El precio de venta debe ser mayor a 0.");
+      return;
+    }
+    if (editingId !== null && taxLoading) {
+      setFormError("Espere a que terminen de cargar los impuestos del producto.");
+      return;
+    }
+    if (editingId !== null && taxError) {
+      setFormError("No se puede guardar hasta cargar correctamente los impuestos aplicables.");
+      return;
+    }
+
+    setSaving(true);
+    setFormError(null);
+    try {
+      if (editingId !== null) {
+        // Modo Edición
+        await api.put(`/api/admin/products/${editingId}`, {
+          name: form.name.trim(),
+          barcode: form.barcode.trim() || undefined,
+          description: form.description.trim() || undefined,
+          costPrice: cost,
+          sellPrice: sell,
+        });
+        await api.put(`/api/admin-tax/products/${editingId}/taxes`, {
+          taxIds: selectedTaxIds,
+        });
+      } else {
+        // Modo Creación
+        await api.post("/api/admin/products", {
+          sku: form.sku.trim(),
+          barcode: form.barcode.trim() || undefined,
+          name: form.name.trim(),
+          description: form.description.trim() || undefined,
+          costPrice: cost,
+          sellPrice: sell,
+        });
+      }
+      setShowForm(false);
+      setForm({ ...emptyForm });
+      setEditingId(null);
+      setTaxOptions([]);
+      setSelectedTaxIds([]);
+      await load();
+    } catch (err: unknown) {
+      setFormError(getErrorMessage(err, "No se pudo guardar el producto."));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const load = useCallback(async () => {
+    void refreshToken;
     setLoading(true);
     setError(null);
     try {
@@ -140,8 +369,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         },
       });
       setRows(res.data.products);
-    } catch (err: any) {
-      setError(err.response?.data?.message || "No se pudo cargar el inventario.");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "No se pudo cargar el inventario."));
     } finally {
       setLoading(false);
     }
@@ -327,33 +556,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     }
   };
 
-  // Feature 4: create product
-  const submitCreateProduct = async () => {
-    setCreateError(null);
-    if (!newProd.sku.trim() || !newProd.name.trim() || !newProd.costPrice || !newProd.sellPrice) {
-      setCreateError("Completa los campos requeridos (SKU, Nombre, Costo, Precio).");
-      return;
-    }
-    try {
-      const res = await api.post<{ product: { id: number } }>("/api/admin/products", {
-        sku: newProd.sku.trim(),
-        name: newProd.name.trim(),
-        description: newProd.description.trim() || undefined,
-        costPrice: newProd.costPrice,
-        sellPrice: newProd.sellPrice,
-      });
-      const productId = res.data.product.id;
-      for (const supplierId of selectedSuppliers) {
-        await api.post("/api/admin/suppliers/products/assign", { supplierId, productId });
-      }
-      load();
-      setCreateOpen(false);
-      setNewProd({ sku: "", name: "", description: "", costPrice: 0, sellPrice: 0 });
-      setSelectedSuppliers([]);
-    } catch (err: any) {
-      setCreateError(err.response?.data?.message || "Error al crear producto.");
-    }
-  };
+
 
   const saveSuppliersChanges = async () => {
     if (!selectedProduct) return;
@@ -401,7 +604,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       />
 
       <div style={{ display: "flex", gap: 0, marginBottom: 18, borderBottom: "1px solid #e2e8f0" }}>
-        {(["existencias", "kardex"] as const).map((tab) => {
+        {([`existencias`, `kardex`] as const).map((tab) => {
           const isActive = activeTab === tab;
           return (
             <button
@@ -450,7 +653,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b", fontWeight: 600 }}>
               {filteredRows.length} producto{filteredRows.length === 1 ? "" : "s"}
             </span>
-            <button onClick={() => { setCreateError(null); setCreateOpen(true); }} style={ui.primaryBtn}>
+            <button onClick={handleOpenCreate} style={ui.primaryBtn}>
               <Plus size={15} /> Nuevo producto
             </button>
           </Toolbar>
@@ -627,20 +830,16 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
                     {!selectedProduct.active && <Badge tone="red">Inactivo</Badge>}
                     {selectedProduct.isReturnable && (
-                      <Badge tone="green">Retornable ({selectedProduct.returnWindowDays}d)</Badge>
+                      <Badge tone="blue">Devoluciones permitidas ({selectedProduct.returnWindowDays} días)</Badge>
                     )}
-                    {selectedProduct.trackingType !== "NONE" && (
-                      <Badge tone="blue">Tracking: {selectedProduct.trackingType}</Badge>
-                    )}
-                    {selectedProduct.description && (
-                      <span style={{ fontSize: 12, color: "#64748b" }}>{selectedProduct.description}</span>
-                    )}
+                    {selectedProduct.trackingType === "SERIE" && <Badge tone="amber">Rastreo por Serie</Badge>}
+                    {selectedProduct.trackingType === "LOTE" && <Badge tone="amber">Rastreo por Lote</Badge>}
                   </div>
 
-                  {/* ── Stock por sucursal ── */}
-                  <div style={{ marginBottom: 16 }}>
+                  {/* ── Existencias por sucursal ── */}
+                  <div style={{ marginBottom: 20 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#1e3a8a", marginBottom: 10 }}>
-                      Stock por sucursal
+                      Existencias por Sucursal
                     </div>
                     <div style={{ ...ui.tableWrap, boxShadow: "none" }}>
                       <table style={ui.table}>
@@ -648,19 +847,12 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           <tr style={ui.theadRow}>
                             <th style={ui.th}>Sucursal</th>
                             <th style={{ ...ui.th, textAlign: "center" }}>Stock</th>
-                            <th style={{ ...ui.th, textAlign: "center" }}>Mín</th>
-                            <th style={{ ...ui.th, textAlign: "center" }}>Máx</th>
-                            <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                            <th style={{ ...ui.th, textAlign: "center" }}>Min</th>
+                            <th style={{ ...ui.th, textAlign: "center" }}>Max</th>
+                            <th style={{ ...ui.th, textAlign: "center" }}>Alerta</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {selectedProduct.inventories.length === 0 && (
-                            <tr>
-                              <td colSpan={5} style={{ ...ui.td, textAlign: "center", color: "#94a3b8" }}>
-                                Sin inventario registrado
-                              </td>
-                            </tr>
-                          )}
                           {selectedProduct.inventories.map((inv) => (
                             <tr key={inv.id}>
                               <td style={ui.td}>{inv.branch}</td>
@@ -831,13 +1023,36 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </div>
 
             {/* Footer */}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid #e2e8f0" }}>
-              <button onClick={closeDetail} style={ui.ghostBtn}>Cerrar</button>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid #e2e8f0", alignItems: "center" }}>
               {selectedProduct && (
-                <button onClick={printProduct} style={ui.primaryBtn}>
-                  <Printer size={15} /> Imprimir ficha
-                </button>
+                <>
+                  <button
+                    onClick={() => handleToggleActive(selectedProduct)}
+                    style={{
+                      ...ui.ghostBtn,
+                      color: selectedProduct.active ? "#b91c1c" : "#15803d",
+                      borderColor: selectedProduct.active ? "#fca5a5" : "#86efac",
+                      marginRight: "auto"
+                    }}
+                  >
+                    {selectedProduct.active ? "Desactivar" : "Activar"}
+                  </button>
+                  <button
+                    onClick={() => handleEdit(selectedProduct)}
+                    style={{
+                      ...ui.ghostBtn,
+                      color: "#2563eb",
+                      borderColor: "#93c5fd",
+                    }}
+                  >
+                    Editar producto
+                  </button>
+                  <button onClick={printProduct} style={ui.primaryBtn}>
+                    <Printer size={15} /> Imprimir ficha
+                  </button>
+                </>
               )}
+              <button onClick={closeDetail} style={ui.ghostBtn}>Cerrar</button>
             </div>
           </div>
         </div>
@@ -845,23 +1060,27 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
       {/* =================== SUB-MODAL: AJUSTAR STOCK =================== */}
       {adjustOpen && selectedProduct && (
-        <div style={subModalStyle} onClick={() => setAdjustOpen(false)}>
+        <div style={ui.overlay} onClick={() => setAdjustOpen(false)}>
           <div style={{ ...ui.modal, maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
             <div style={ui.modalHeader}>
-              <div style={ui.modalTitle}>⚙️ Ajustar stock — {selectedProduct.name}</div>
+              <div style={ui.modalTitle}>Ajustar Stock Manual</div>
               <button onClick={() => setAdjustOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }}>
                 <X size={16} />
               </button>
             </div>
             <div style={ui.modalBody}>
-              <div style={{ marginBottom: 16 }}>
-                <label style={ui.fieldLabel}>Sucursal</label>
+              <div style={{ marginBottom: 14 }}>
+                <label style={ui.fieldLabel}>Producto</label>
+                <div style={{ fontWeight: 600, color: "#0f172a" }}>{selectedProduct.name}</div>
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <label style={ui.fieldLabel}>Sucursal de ajuste *</label>
                 <select
-                  value={adjustBranch || ""}
-                  onChange={(e) => setAdjustBranch(Number(e.target.value))}
-                  style={{ ...ui.input, cursor: "pointer" }}
+                  value={adjustBranch}
+                  onChange={(e) => setAdjustBranch(parseInt(e.target.value) || 0)}
+                  style={ui.input}
                 >
-                  <option value="">Selecciona sucursal</option>
+                  <option value={0}>-- Selecciona sucursal --</option>
                   {selectedProduct.inventories.map((inv) => (
                     <option key={inv.branchId} value={inv.branchId}>
                       {inv.branch} (Stock actual: {inv.quantity})
@@ -869,49 +1088,48 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   ))}
                 </select>
               </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={ui.fieldLabel}>Tipo de movimiento</label>
-                <select
-                  value={adjustType}
-                  onChange={(e) => setAdjustType(e.target.value)}
-                  style={{ ...ui.input, cursor: "pointer" }}
-                >
-                  <option value="">Selecciona tipo</option>
-                  <option value="AJUSTE_INVENTARIO">Entrada / Ajuste positivo</option>
-                  <option value="AJUSTE_MERMA">Salida / Merma o pérdida</option>
-                </select>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                <div>
+                  <label style={ui.fieldLabel}>Tipo de ajuste *</label>
+                  <select
+                    value={adjustType}
+                    onChange={(e) => setAdjustType(e.target.value)}
+                    style={ui.input}
+                  >
+                    <option value="">-- Selecciona --</option>
+                    <option value="AJUSTE_ENTRADA">Entrada (+)</option>
+                    <option value="AJUSTE_SALIDA">Salida (-)</option>
+                    <option value="MERMA">Merma (-)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={ui.fieldLabel}>Cantidad *</label>
+                  <input
+                    type="number"
+                    value={adjustQuantity || ""}
+                    onChange={(e) => setAdjustQuantity(parseInt(e.target.value) || 0)}
+                    placeholder="Cantidad"
+                    style={ui.input}
+                  />
+                </div>
               </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={ui.fieldLabel}>Cantidad</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={adjustQuantity || ""}
-                  onChange={(e) => setAdjustQuantity(parseInt(e.target.value) || 0)}
-                  style={ui.input}
-                />
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={ui.fieldLabel}>Motivo</label>
+              <div style={{ marginBottom: 14 }}>
+                <label style={ui.fieldLabel}>Motivo del ajuste *</label>
                 <textarea
                   value={adjustReason}
                   onChange={(e) => setAdjustReason(e.target.value)}
-                  placeholder="Describe el motivo del ajuste"
-                  style={{
-                    ...ui.input,
-                    minHeight: 80,
-                    resize: "vertical",
-                    fontFamily: "inherit",
-                  }}
+                  placeholder="Justifica el movimiento de inventario"
+                  style={{ ...ui.input, minHeight: 60, resize: "vertical", fontFamily: "inherit" }}
                 />
               </div>
+
               {adjustError && (
                 <p style={{ fontSize: 13, color: "#b91c1c", marginBottom: 12 }}>{adjustError}</p>
               )}
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid #e2e8f0" }}>
               <button onClick={() => setAdjustOpen(false)} style={ui.ghostBtn}>Cancelar</button>
-              <button onClick={submitAdjustment} style={ui.primaryBtn}>✓ Aplicar ajuste</button>
+              <button onClick={submitAdjustment} style={ui.primaryBtn}>✓ Aplicar Ajuste</button>
             </div>
           </div>
         </div>
@@ -919,57 +1137,62 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
       {/* =================== SUB-MODAL: TRASLADAR STOCK =================== */}
       {transferOpen && selectedProduct && (
-        <div style={subModalStyle} onClick={() => setTransferOpen(false)}>
+        <div style={ui.overlay} onClick={() => setTransferOpen(false)}>
           <div style={{ ...ui.modal, maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
             <div style={ui.modalHeader}>
-              <div style={ui.modalTitle}>🔄 Trasladar stock — {selectedProduct.name}</div>
+              <div style={ui.modalTitle}>Trasladar Stock entre Sucursales</div>
               <button onClick={() => setTransferOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }}>
                 <X size={16} />
               </button>
             </div>
             <div style={ui.modalBody}>
-              <div style={{ marginBottom: 16 }}>
-                <label style={ui.fieldLabel}>Desde (sucursal origen)</label>
-                <select
-                  value={transferFrom || ""}
-                  onChange={(e) => setTransferFrom(Number(e.target.value))}
-                  style={{ ...ui.input, cursor: "pointer" }}
-                >
-                  <option value="">Selecciona origen</option>
-                  {selectedProduct.inventories.map((inv) => (
-                    <option key={inv.branchId} value={inv.branchId}>
-                      {inv.branch} (Stock: {inv.quantity})
-                    </option>
-                  ))}
-                </select>
+              <div style={{ marginBottom: 14 }}>
+                <label style={ui.fieldLabel}>Producto</label>
+                <div style={{ fontWeight: 600, color: "#0f172a" }}>{selectedProduct.name}</div>
               </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={ui.fieldLabel}>Hacia (sucursal destino)</label>
-                <select
-                  value={transferTo || ""}
-                  onChange={(e) => setTransferTo(Number(e.target.value))}
-                  style={{ ...ui.input, cursor: "pointer" }}
-                >
-                  <option value="">Selecciona destino</option>
-                  {selectedProduct.inventories
-                    .filter((inv) => inv.branchId !== transferFrom)
-                    .map((inv) => (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                <div>
+                  <label style={ui.fieldLabel}>Origen *</label>
+                  <select
+                    value={transferFrom}
+                    onChange={(e) => setTransferFrom(parseInt(e.target.value) || 0)}
+                    style={ui.input}
+                  >
+                    <option value={0}>-- Selecciona --</option>
+                    {selectedProduct.inventories.map((inv) => (
                       <option key={inv.branchId} value={inv.branchId}>
-                        {inv.branch}
+                        {inv.branch} ({inv.quantity} pzs)
                       </option>
                     ))}
-                </select>
+                  </select>
+                </div>
+                <div>
+                  <label style={ui.fieldLabel}>Destino *</label>
+                  <select
+                    value={transferTo}
+                    onChange={(e) => setTransferTo(parseInt(e.target.value) || 0)}
+                    style={ui.input}
+                  >
+                    <option value={0}>-- Selecciona --</option>
+                    {selectedProduct.inventories.map((inv) => (
+                      <option key={inv.branchId} value={inv.branchId}>
+                        {inv.branch} ({inv.quantity} pzs)
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={ui.fieldLabel}>Cantidad a trasladar</label>
+              <div style={{ marginBottom: 14 }}>
+                <label style={ui.fieldLabel}>Cantidad a trasladar *</label>
                 <input
                   type="number"
-                  min={1}
                   value={transferQty || ""}
                   onChange={(e) => setTransferQty(parseInt(e.target.value) || 0)}
+                  placeholder="Cantidad"
                   style={ui.input}
                 />
               </div>
+
               {transferError && (
                 <p style={{ fontSize: 13, color: "#b91c1c", marginBottom: 12 }}>{transferError}</p>
               )}
@@ -982,110 +1205,228 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         </div>
       )}
 
-      {/* =================== MODAL: CREAR PRODUCTO =================== */}
-      {createOpen && (
-        <div style={{ ...ui.overlay, zIndex: 200 }} onClick={() => setCreateOpen(false)}>
-          <div style={{ ...ui.modal, maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
+      {/* =================== MODAL: ALTA Y EDICIÓN (IMPUESTOS) =================== */}
+      {showForm && (
+        <div style={ui.overlay} onClick={closeForm}>
+          <form style={{ ...ui.modal, maxWidth: 600 }} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
             <div style={ui.modalHeader}>
-              <div style={ui.modalTitle}>Crear nuevo producto</div>
-              <button onClick={() => { setCreateOpen(false); setSelectedSuppliers([]); setCreateError(null); }} style={{ ...ui.ghostBtn, padding: "6px 10px" }}>
-                <X size={16} />
+              <span style={ui.modalTitle}>
+                {editingId !== null ? "Editar producto" : "Registrar nuevo producto"}
+              </span>
+              <button type="button" style={ui.linkBtn} onClick={closeForm}>
+                <X size={18} color="#64748b" />
               </button>
             </div>
             <div style={ui.modalBody}>
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>SKU *</label>
-                <input
-                  type="text"
-                  value={newProd.sku}
-                  onChange={(e) => setNewProd({ ...newProd, sku: e.target.value })}
-                  placeholder="Ej: PROD-001"
-                  style={ui.input}
-                />
-              </div>
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Nombre *</label>
-                <input
-                  type="text"
-                  value={newProd.name}
-                  onChange={(e) => setNewProd({ ...newProd, name: e.target.value })}
-                  placeholder="Ej: Coca Cola 600ml"
-                  style={ui.input}
-                />
-              </div>
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Descripción</label>
-                <textarea
-                  value={newProd.description}
-                  onChange={(e) => setNewProd({ ...newProd, description: e.target.value })}
-                  placeholder="Opcional"
-                  style={{ ...ui.input, minHeight: 60, resize: "vertical", fontFamily: "inherit" }}
-                />
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
                 <div>
-                  <label style={ui.fieldLabel}>Costo *</label>
+                  <label style={ui.fieldLabel}>SKU *</label>
                   <input
-                    type="number"
-                    value={newProd.costPrice || ""}
-                    onChange={(e) => setNewProd({ ...newProd, costPrice: parseFloat(e.target.value) || 0 })}
-                    step="0.01"
-                    style={ui.input}
+                    style={{ ...ui.input, backgroundColor: editingId !== null ? "#f1f5f9" : "#ffffff" }}
+                    value={form.sku}
+                    onChange={set("sku")}
+                    placeholder="SKU-XXX"
+                    autoFocus={editingId === null}
+                    readOnly={editingId !== null}
                   />
                 </div>
                 <div>
-                  <label style={ui.fieldLabel}>Precio venta *</label>
-                  <input
-                    type="number"
-                    value={newProd.sellPrice || ""}
-                    onChange={(e) => setNewProd({ ...newProd, sellPrice: parseFloat(e.target.value) || 0 })}
-                    step="0.01"
-                    style={ui.input}
-                  />
-                </div>
-              </div>
-              {/* Proveedores */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Proveedores</label>
-                <div style={{ maxHeight: 140, overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 12px" }}>
-                  {suppliers.length === 0 && (
-                    <p style={{ fontSize: 12, color: "#94a3b8", margin: 0 }}>No hay proveedores disponibles</p>
-                  )}
-                  {suppliers.map((s) => (
-                    <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "4px 0", fontSize: 13, color: "#334155" }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedSuppliers.includes(s.id)}
-                        onChange={(e) =>
-                          setSelectedSuppliers(
-                            e.target.checked
-                              ? [...selectedSuppliers, s.id]
-                              : selectedSuppliers.filter((id) => id !== s.id)
-                          )
-                        }
-                        style={{ width: 15, height: 15, cursor: "pointer", flexShrink: 0 }}
-                      />
-                      {s.name}
-                    </label>
-                  ))}
+                  <label style={ui.fieldLabel}>Código de barras</label>
+                  <input style={ui.input} value={form.barcode} onChange={set("barcode")} placeholder="7501000000000" />
                 </div>
               </div>
 
-              {createError && (
-                <p style={{ fontSize: 13, color: "#b91c1c", marginBottom: 12 }}>{createError}</p>
+              <div style={{ marginBottom: 14 }}>
+                <label style={ui.fieldLabel}>Nombre *</label>
+                <input style={ui.input} value={form.name} onChange={set("name")} placeholder="Nombre del producto" />
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={ui.fieldLabel}>Descripción</label>
+                <textarea
+                  style={{ ...ui.input, resize: "vertical", minHeight: 60 }}
+                  value={form.description}
+                  onChange={set("description")}
+                  placeholder="Detalle o descripción opcional"
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+                <div>
+                  <label style={ui.fieldLabel}>Precio Costo ($) *</label>
+                  <input style={ui.input} value={form.costPrice} onChange={set("costPrice")} placeholder="0.00" />
+                </div>
+                <div>
+                  <label style={ui.fieldLabel}>Precio Venta ($) *</label>
+                  <input style={ui.input} value={form.sellPrice} onChange={set("sellPrice")} placeholder="0.00" />
+                </div>
+              </div>
+
+              {editingId !== null && (
+                <div style={styles.taxSection}>
+                  <div style={styles.taxHeader}>
+                    <div style={styles.taxTitleWrap}>
+                      <BadgePercent size={16} color="#1e3a8a" />
+                      <span style={styles.taxTitle}>Impuestos aplicables</span>
+                    </div>
+                    {!taxLoading && !taxError && (
+                      <span style={styles.taxCounter}>
+                        {taxOptions.filter((tax) => selectedTaxIds.includes(tax.id)).length} seleccionado(s)
+                      </span>
+                    )}
+                  </div>
+
+                  {taxLoading && <p style={styles.taxMuted}>Cargando impuestos aplicables...</p>}
+
+                  {!taxLoading && taxError && (
+                    <div style={styles.taxErrorBox}>
+                      <span>{taxError}</span>
+                      <button type="button" style={ui.linkBtn} onClick={() => void loadProductTaxes(editingId)}>
+                        Reintentar
+                      </button>
+                    </div>
+                  )}
+
+                  {!taxLoading && !taxError && taxOptions.length === 0 && (
+                    <p style={styles.taxMuted}>No hay impuestos activos para asignar.</p>
+                  )}
+
+                  {!taxLoading && !taxError && taxOptions.length > 0 && (
+                    <div style={styles.taxGrid}>
+                      {taxOptions.map((tax) => {
+                        const checked = selectedTaxIds.includes(tax.id);
+                        return (
+                          <label
+                            key={tax.id}
+                            style={{
+                              ...styles.taxOption,
+                              borderColor: checked ? "#93c5fd" : "#e2e8f0",
+                              backgroundColor: checked ? "#eff6ff" : "#ffffff",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={saving}
+                              onChange={() => toggleTax(tax.id)}
+                              style={styles.taxCheckbox}
+                            />
+                            <span style={styles.taxOptionText}>
+                              <span style={styles.taxOptionName}>{tax.name}</span>
+                              <span style={styles.taxOptionMeta}>{formatTaxRate(tax.rate)}</span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               )}
+
+              {formError && (
+                <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 4, marginBottom: 14 }}>{formError}</p>
+              )}
+
+              <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+                <button type="button" style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={closeForm}>
+                  Cancelar
+                </button>
+                <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
+                  {saving ? "Guardando..." : "Guardar producto"}
+                </button>
+              </div>
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid #e2e8f0" }}>
-              <button onClick={() => { setCreateOpen(false); setSelectedSuppliers([]); setCreateError(null); }} style={ui.ghostBtn}>Cancelar</button>
-              <button onClick={submitCreateProduct} style={ui.primaryBtn}>
-                <Plus size={15} /> Crear producto
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+          </form>
+: { [key: string]: React.CSSProperties } = {
+  taxSection: {
+    border: "1px solid #e2e8f0",
+    borderRadius: 10,
+    backgroundColor: "#f8fafc",
+    padding: 14,
+    marginBottom: 14,
+  },
+  taxHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 10,
+  },
+  taxTitleWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  taxTitle: {
+    color: "#0f172a",
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  taxCounter: {
+    color: "#64748b",
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  taxMuted: {
+    color: "#64748b",
+    fontSize: 13,
+    fontWeight: 600,
+    margin: 0,
+  },
+  taxErrorBox: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    border: "1px solid #fecaca",
+    borderRadius: 8,
+    backgroundColor: "#fef2f2",
+    color: "#b91c1c",
+    fontSize: 13,
+    fontWeight: 700,
+    padding: "10px 12px",
+  },
+  taxGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+    gap: 10,
+  },
+  taxOption: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    border: "1px solid #e2e8f0",
+    borderRadius: 8,
+    padding: "10px 12px",
+    cursor: "pointer",
+    minHeight: 46,
+  },
+  taxCheckbox: {
+    width: 16,
+    height: 16,
+    accentColor: "#1e3a8a",
+    cursor: "pointer",
+    flexShrink: 0,
+  },
+  taxOptionText: {
+    display: "flex",
+    flexDirection: "column",
+    minWidth: 0,
+  },
+  taxOptionName: {
+    color: "#0f172a",
+    fontSize: 13,
+    fontWeight: 800,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  taxOptionMeta: {
+    color: "#64748b",
+    fontSize: 12,
+    fontWeight: 700,
+    marginTop: 2,
+  },
 };
 
 export default InventarioView;

@@ -41,7 +41,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     // Obtener productos de la base de datos y validar stock
     const dbProducts = [];
     const cartItems = [];
-    
+
     for (const item of items) {
       const dbProduct = await prisma.product.findUnique({
         where: { id: Number(item.id) },
@@ -273,7 +273,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       // d. Actualizar montos en la sesión de caja activa solo si no está PENDIENTE
       if (paymentMethod !== "QR_MERCADOPAGO") {
         const cashToAdd = paymentMethod === "EFECTIVO" ? finalPaidAmount : paymentMethod === "MIXTO" ? (cashReceived ? Number(cashReceived) - (changeGiven ? Number(changeGiven) : 0) : finalPaidAmount) : 0;
-        
+
         await tx.cashSession.update({
           where: { id: activeSession.id },
           data: {
@@ -485,7 +485,7 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
     await prisma.$transaction(async (tx) => {
       // a. Cambiar estatus de la venta
       const updateData: any = { status: "CANCELADA" };
-      
+
       // Si se ejecutó reembolso, registrar detalles
       if (refundInfo) {
         // Ignoramos el error de tipo con ts-ignore ya que Prisma puede no haber actualizado el cliente aún (EPERM error)
@@ -555,8 +555,8 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
             sale.paymentMethod === "EFECTIVO"
               ? Number(sale.totalAmount)
               : sale.paymentMethod === "MIXTO"
-              ? Number(sale.cashReceived || 0) - Number(sale.changeGiven || 0)
-              : 0;
+                ? Number(sale.cashReceived || 0) - Number(sale.changeGiven || 0)
+                : 0;
 
           await tx.cashSession.update({
             where: { id: sessionToAffectId },
@@ -736,7 +736,7 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
           ticketUrl: mpResult?.ticketUrl || null,
         },
         include: {
-          user: {
+          User: {
             select: {
               name: true,
             },
@@ -796,7 +796,7 @@ export const getRecentDeposits = async (req: Request, res: Response): Promise<vo
         branchId: req.user.branchId,
       },
       include: {
-        user: {
+        User: {
           select: {
             name: true,
           },
@@ -820,7 +820,7 @@ export const getRecentDeposits = async (req: Request, res: Response): Promise<vo
       cancelledAt: d.cancelledAt,
       cancelReason: d.cancelReason,
       sessionId: d.cashSessionId,
-      userName: d.user?.name || "Desconocido",
+      userName: d.User?.name || "Desconocido",
     }));
 
     res.status(200).json({ deposits: mappedDeposits });
@@ -879,7 +879,7 @@ export const searchDeposits = async (req: Request, res: Response): Promise<void>
     const deposits = await prisma.bankDeposit.findMany({
       where: whereClause,
       include: {
-        user: {
+        User: {
           select: {
             name: true,
           },
@@ -904,7 +904,7 @@ export const searchDeposits = async (req: Request, res: Response): Promise<void>
       cancelledAt: d.cancelledAt,
       cancelReason: d.cancelReason,
       sessionId: d.cashSessionId,
-      userName: d.user?.name || "Desconocido",
+      userName: d.User?.name || "Desconocido",
     }));
 
     res.status(200).json({ deposits: mappedDeposits });
@@ -934,7 +934,7 @@ export const getDepositById = async (req: Request, res: Response): Promise<void>
     const deposit = await prisma.bankDeposit.findUnique({
       where: { id: depositId },
       include: {
-        user: {
+        User: {
           select: {
             name: true,
           },
@@ -962,7 +962,7 @@ export const getDepositById = async (req: Request, res: Response): Promise<void>
         cancelledAt: deposit.cancelledAt,
         cancelReason: deposit.cancelReason,
         sessionId: deposit.cashSessionId,
-        userName: deposit.user?.name || "Desconocido",
+        userName: deposit.User?.name || "Desconocido",
       },
     });
   } catch (error: any) {
@@ -1134,7 +1134,7 @@ export const confirmQrPayment = async (req: Request, res: Response): Promise<voi
     res.status(401).json({ message: "No autenticado." });
     return;
   }
-  
+
   const { invoiceNumber, paymentId } = req.body;
 
   if (!invoiceNumber || !paymentId) {
@@ -1148,7 +1148,7 @@ export const confirmQrPayment = async (req: Request, res: Response): Promise<voi
       res.status(404).json({ message: "Venta no encontrada." });
       return;
     }
-    
+
     if (sale.status === "COMPLETADA") {
       res.status(200).json({ message: "Venta ya estaba confirmada." });
       return;
@@ -1158,13 +1158,13 @@ export const confirmQrPayment = async (req: Request, res: Response): Promise<voi
       // 1. Actualizar venta
       const updated = await tx.sale.update({
         where: { id: sale.id },
-        data: { 
+        data: {
           status: "COMPLETADA",
           mercadoPagoPaymentId: String(paymentId),
           mercadoPagoStatus: "approved"
         }
       });
-      
+
       // 2. Sumar el total a expectedAmount de la sesión
       if (sale.cashSessionId) {
         await tx.cashSession.update({
