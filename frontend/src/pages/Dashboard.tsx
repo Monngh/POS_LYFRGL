@@ -1917,15 +1917,15 @@ const Dashboard: React.FC = () => {
                     backgroundColor: "#f8fafc",
                     border: "1px solid #e2e8f0",
                     borderRadius: "8px",
-                    padding: "4px 8px",
-                    maxHeight: "110px",
+                    padding: "5px 10px",
+                    maxHeight: "72px",
                     overflowY: "auto",
                     minWidth: 0,
                   }}>
-                    <div style={{ fontSize: "9px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", marginBottom: "4px", letterSpacing: "0.5px" }}>
+                    <div style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", marginBottom: "3px", letterSpacing: "0.5px" }}>
                       📱 Pagos QR Pendientes
                     </div>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                       <tbody>
                         {pendingQrSales.slice(-3).reverse().map((sale) => {
                           const isChecking = pendingQrChecking === sale.invoiceNumber;
@@ -1940,51 +1940,51 @@ const Dashboard: React.FC = () => {
                                 backgroundColor: isApproved ? "#f0fdf4" : isRejected ? "#fef2f2" : "transparent",
                               }}
                             >
-                              <td style={{ padding: "3px 4px", fontWeight: "600", color: "#334155", whiteSpace: "nowrap" }} title={sale.invoiceNumber}>
+                              <td style={{ padding: "4px 6px", fontWeight: "600", color: "#334155", whiteSpace: "nowrap", fontSize: "12px" }} title={sale.invoiceNumber}>
                                 ...{sale.invoiceNumber.slice(-6)}
                               </td>
-                              <td style={{ padding: "3px 4px", fontWeight: "700", color: "#0f172a", whiteSpace: "nowrap" }}>
+                              <td style={{ padding: "4px 6px", fontWeight: "700", color: "#0f172a", whiteSpace: "nowrap", fontSize: "12px" }}>
                                 ${Number(sale.amount).toFixed(2)}
                               </td>
-                              <td style={{ padding: "3px 4px", textAlign: "center" }}>
+                              <td style={{ padding: "4px 6px", textAlign: "center" }}>
                                 <span style={{
                                   display: "inline-flex",
                                   alignItems: "center",
-                                  gap: "3px",
-                                  padding: "1px 6px",
+                                  gap: "4px",
+                                  padding: "2px 8px",
                                   borderRadius: "10px",
-                                  fontSize: "8.5px",
+                                  fontSize: "11px",
                                   fontWeight: "700",
                                   backgroundColor: isApproved ? "#dcfce7" : isRejected ? "#fee2e2" : "#ffedd5",
                                   color: isApproved ? "#15803d" : isRejected ? "#b91c1c" : "#c2410c",
                                   whiteSpace: "nowrap",
                                 }}>
                                   <span style={{
-                                    width: "4px",
-                                    height: "4px",
+                                    width: "5px",
+                                    height: "5px",
                                     borderRadius: "50%",
                                     backgroundColor: isApproved ? "#22c55e" : isRejected ? "#ef4444" : "#f97316",
                                     flexShrink: 0,
                                   }} />
-                                  {isApproved ? "Aprobado" : isRejected ? "Rechazado" : "Pendiente"}
+                                  {isApproved ? "Aprobado" : isRejected ? "Rechazado" : "• Pendiente"}
                                 </span>
                               </td>
-                              <td style={{ padding: "3px 4px", textAlign: "right", whiteSpace: "nowrap" }}>
-                                <div style={{ display: "inline-flex", gap: "3px", alignItems: "center" }}>
+                              <td style={{ padding: "4px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
+                                <div style={{ display: "inline-flex", gap: "4px", alignItems: "center" }}>
                                   {/* Botón QR: abre el modal con el código QR */}
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setViewingPendingQrSale(sale); }}
                                     title="Ver Código QR"
                                     style={{
-                                      padding: "2px 7px",
-                                      borderRadius: "4px",
-                                      fontSize: "9px",
+                                      padding: "3px 10px",
+                                      borderRadius: "5px",
+                                      fontSize: "11px",
                                       fontWeight: "700",
                                       backgroundColor: "#dbeafe",
                                       color: "#1e40af",
                                       border: "1px solid #93c5fd",
                                       cursor: "pointer",
-                                      lineHeight: "1.4",
+                                      lineHeight: "1.5",
                                     }}
                                   >
                                     QR
@@ -1996,15 +1996,15 @@ const Dashboard: React.FC = () => {
                                     disabled={isApproved || isChecking}
                                     title="Verificar estado del pago en MercadoPago"
                                     style={{
-                                      padding: "2px 7px",
-                                      borderRadius: "4px",
-                                      fontSize: "9px",
+                                      padding: "3px 10px",
+                                      borderRadius: "5px",
+                                      fontSize: "11px",
                                       fontWeight: "700",
                                       backgroundColor: isApproved ? "#e2e8f0" : isChecking ? "#6b7280" : "#1e3a8a",
                                       color: isApproved ? "#94a3b8" : "white",
                                       border: "none",
                                       cursor: isApproved || isChecking ? "default" : "pointer",
-                                      lineHeight: "1.4",
+                                      lineHeight: "1.5",
                                     }}
                                   >
                                     {isChecking ? "..." : "Verificar"}
@@ -2016,15 +2016,15 @@ const Dashboard: React.FC = () => {
                                     disabled={!isApproved}
                                     title={isApproved ? "Ver e Imprimir Ticket" : "Solo disponible cuando el pago sea aprobado"}
                                     style={{
-                                      padding: "2px 7px",
-                                      borderRadius: "4px",
-                                      fontSize: "9px",
+                                      padding: "3px 10px",
+                                      borderRadius: "5px",
+                                      fontSize: "11px",
                                       fontWeight: "700",
                                       backgroundColor: isApproved ? "#059669" : "#e2e8f0",
                                       color: isApproved ? "white" : "#94a3b8",
                                       border: "none",
                                       cursor: isApproved ? "pointer" : "default",
-                                      lineHeight: "1.4",
+                                      lineHeight: "1.5",
                                     }}
                                   >
                                     Imprimir
@@ -2036,14 +2036,14 @@ const Dashboard: React.FC = () => {
                                     disabled={!isApproved}
                                     title={isApproved ? "Quitar de la lista" : "Solo se puede eliminar cuando esté aprobado"}
                                     style={{
-                                      padding: "2px 5px",
-                                      borderRadius: "4px",
+                                      padding: "3px 6px",
+                                      borderRadius: "5px",
                                       backgroundColor: "transparent",
                                       color: isApproved ? "#dc2626" : "#cbd5e1",
                                       border: "none",
                                       cursor: isApproved ? "pointer" : "default",
-                                      fontSize: "11px",
-                                      lineHeight: "1.4",
+                                      fontSize: "13px",
+                                      lineHeight: "1.5",
                                     }}
                                   >
                                     🗑️
