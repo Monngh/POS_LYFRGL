@@ -78,6 +78,8 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [branches, setBranches] = useState<BranchOption[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
+  const [supplierProducts, setSupplierProducts] = useState<ProductOption[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
   // Formulario nueva orden
   const [branchId, setBranchId] = useState("");
@@ -129,11 +131,26 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
     loadPurchases();
   }, [loadPurchases]);
 
+  // Cargar productos del proveedor seleccionado
+  useEffect(() => {
+    if (!supplierId) {
+      setSupplierProducts([]);
+      return;
+    }
+    setLoadingProducts(true);
+    api
+      .get<ProductOption[]>(`/api/admin/suppliers/${supplierId}/products`)
+      .then((r) => setSupplierProducts(r.data))
+      .catch(() => setSupplierProducts([]))
+      .finally(() => setLoadingProducts(false));
+  }, [supplierId]);
+
   const setLine = (i: number, k: keyof Line, v: string) =>
     setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, [k]: v } : l)));
 
   const onPickProduct = (i: number, productId: string) => {
-    const prod = products.find((p) => String(p.id) === productId);
+    const pool = supplierId && supplierProducts.length > 0 ? supplierProducts : products;
+    const prod = pool.find((p) => String(p.id) === productId);
     setLines((ls) =>
       ls.map((l, idx) =>
         idx === i
@@ -250,7 +267,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
             <select
               style={ui.input}
               value={supplierId}
-              onChange={(e) => setSupplierId(e.target.value)}
+              onChange={(e) => { setSupplierId(e.target.value); setLines([newLine()]); }}
             >
               <option value="">Seleccione proveedor...</option>
               {suppliers.map((s) => (
@@ -299,11 +316,18 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                     style={{ ...ui.input, padding: "8px 10px" }}
                     value={l.productId}
                     onChange={(e) => onPickProduct(i, e.target.value)}
+                    disabled={!supplierId || loadingProducts}
                   >
-                    <option value="">Seleccione producto...</option>
-                    {products.map((p) => (
+                    <option value="">
+                      {loadingProducts
+                        ? "Cargando productos..."
+                        : supplierId && supplierProducts.length === 0
+                        ? "Sin productos asignados a este proveedor"
+                        : "Seleccione producto..."}
+                    </option>
+                    {(supplierId ? supplierProducts : products).map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.name} ({p.sku})
+                        {p.name} ({p.sku}) — ${p.costPrice}
                       </option>
                     ))}
                   </select>

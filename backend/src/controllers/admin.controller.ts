@@ -1743,3 +1743,104 @@ export const transferInventory = async (req: Request, res: Response): Promise<vo
     res.status(500).json({ message: "Error al aplicar traslado.", error: error.message });
   }
 };
+
+// ===========================================================================
+// RELACIÓN PROVEEDOR ↔ PRODUCTOS
+// ===========================================================================
+export const getSupplierProducts = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const supplierId = Number(req.params.supplierId);
+    if (isNaN(supplierId)) {
+      res.status(400).json({ message: "Identificador de proveedor inválido." });
+      return;
+    }
+
+    const records = await prisma.supplierProduct.findMany({
+      where: { supplierId },
+      include: {
+        product: { select: { id: true, sku: true, name: true, costPrice: true, sellPrice: true, active: true } },
+      },
+    });
+
+    res.status(200).json(
+      records.map((sp) => ({
+        id: sp.product.id,
+        sku: sp.product.sku,
+        name: sp.product.name,
+        costPrice: Number(sp.product.costPrice),
+        sellPrice: Number(sp.product.sellPrice),
+        active: sp.product.active,
+      }))
+    );
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al obtener productos del proveedor.", error: error.message });
+  }
+};
+
+export const assignProductToSupplier = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const supplierId = Number(req.body.supplierId);
+    const productId = Number(req.body.productId);
+
+    if (!supplierId || !productId) {
+      res.status(400).json({ message: "supplierId y productId son requeridos." });
+      return;
+    }
+
+    const existing = await prisma.supplierProduct.findUnique({
+      where: { supplierId_productId: { supplierId, productId } },
+    });
+    if (existing) {
+      res.status(400).json({ message: "Este producto ya está asignado a este proveedor." });
+      return;
+    }
+
+    const record = await prisma.supplierProduct.create({
+      data: { supplierId, productId },
+      include: { product: { select: { id: true, sku: true, name: true } }, supplier: { select: { id: true, name: true } } },
+    });
+
+    res.status(201).json({ message: "Producto asignado al proveedor exitosamente.", record });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al asignar producto al proveedor.", error: error.message });
+  }
+};
+
+export const removeProductFromSupplier = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const supplierId = Number(req.body.supplierId);
+    const productId = Number(req.body.productId);
+
+    if (!supplierId || !productId) {
+      res.status(400).json({ message: "supplierId y productId son requeridos." });
+      return;
+    }
+
+    await prisma.supplierProduct.delete({
+      where: { supplierId_productId: { supplierId, productId } },
+    });
+
+    res.status(200).json({ message: "Producto removido del proveedor exitosamente." });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al remover producto del proveedor.", error: error.message });
+  }
+};
+
+export const getProductSuppliers = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const productId = Number(req.params.productId);
+    if (isNaN(productId)) {
+      res.status(400).json({ message: "Identificador de producto inválido." });
+      return;
+    }
+
+    const records = await prisma.supplierProduct.findMany({
+      where: { productId },
+      include: { supplier: { select: { id: true, name: true, rfc: true, email: true } } },
+    });
+
+    res.status(200).json(records.map((sp) => sp.supplier));
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al obtener proveedores del producto.", error: error.message });
+  }
+};

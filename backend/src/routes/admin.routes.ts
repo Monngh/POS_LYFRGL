@@ -30,6 +30,10 @@ import {
   updateProduct,
   adjustInventory,
   transferInventory,
+  getSupplierProducts,
+  assignProductToSupplier,
+  removeProductFromSupplier,
+  getProductSuppliers,
 } from "../controllers/admin.controller";
 import { authenticateJWT, authorizeRoles } from "../middlewares/auth.middleware";
 
@@ -51,6 +55,7 @@ router.post("/inventory/transfer", transferInventory);
 // Productos
 router.get("/products", listProducts);
 router.post("/products", createProduct);
+router.get("/products/:productId/suppliers", getProductSuppliers);
 router.get("/products/:id", getProductDetail);
 router.put("/products/:id", updateProduct);
 
@@ -75,6 +80,9 @@ router.get("/kardex", listKardex);
 router.get("/suppliers", listSuppliers);
 router.post("/suppliers", createSupplier);
 router.put("/suppliers/:id", updateSupplier);
+router.get("/suppliers/:supplierId/products", getSupplierProducts);
+router.post("/suppliers/products/assign", assignProductToSupplier);
+router.post("/suppliers/products/remove", removeProductFromSupplier);
 
 // Compras (órdenes de compra — nueva arquitectura)
 router.get("/purchases", listPurchases);

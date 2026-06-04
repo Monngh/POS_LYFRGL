@@ -64,6 +64,11 @@ interface ProductDetail {
   }[];
 }
 
+interface SupplierOption {
+  id: number;
+  name: string;
+}
+
 const subModalStyle: React.CSSProperties = {
   ...({} as any),
   position: "fixed",
@@ -117,6 +122,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [newProd, setNewProd] = useState({ sku: "", name: "", description: "", costPrice: 0, sellPrice: 0 });
   const [createError, setCreateError] = useState<string | null>(null);
 
+  // Suppliers catalog (shared between create + detail modals)
+  const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
+  const [selectedSuppliers, setSelectedSuppliers] = useState<number[]>([]);
+  const [productSuppliers, setProductSuppliers] = useState<number[]>([]);
+  const [editingSuppliersMode, setEditingSuppliersMode] = useState(false);
+  const [suppliersError, setSuppliersError] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -140,6 +152,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     return () => clearTimeout(t);
   }, [load]);
 
+  useEffect(() => {
+    api
+      .get<SupplierOption[]>("/api/admin/suppliers")
+      .then((r) => setSuppliers(r.data))
+      .catch(() => { });
+  }, []);
+
   const fetchDetail = async (id: number) => {
     const res = await api.get<{ product: ProductDetail }>(`/api/admin/products/${id}`);
     setSelectedProduct(res.data.product);
@@ -154,8 +173,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setSelectedProduct(null);
     setEditMode(false);
     setSaveError(null);
+    setEditingSuppliersMode(false);
+    setProductSuppliers([]);
+    setSuppliersError(null);
     try {
       await fetchDetail(id);
+      const spRes = await api.get<SupplierOption[]>(`/api/admin/products/${id}/suppliers`);
+      setProductSuppliers(spRes.data.map((s) => s.id));
     } catch (err: any) {
       setDetailError(err.response?.data?.message || "No se pudo cargar el detalle del producto.");
     } finally {
@@ -168,6 +192,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setEditMode(false);
     setAdjustOpen(false);
     setTransferOpen(false);
+    setEditingSuppliersMode(false);
+    setProductSuppliers([]);
+    setSuppliersError(null);
   };
 
   const printProduct = useCallback(() => {
@@ -308,18 +335,46 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       return;
     }
     try {
-      await api.post("/api/admin/products", {
+      const res = await api.post<{ product: { id: number } }>("/api/admin/products", {
         sku: newProd.sku.trim(),
         name: newProd.name.trim(),
         description: newProd.description.trim() || undefined,
         costPrice: newProd.costPrice,
         sellPrice: newProd.sellPrice,
       });
+      const productId = res.data.product.id;
+      for (const supplierId of selectedSuppliers) {
+        await api.post("/api/admin/suppliers/products/assign", { supplierId, productId });
+      }
       load();
       setCreateOpen(false);
       setNewProd({ sku: "", name: "", description: "", costPrice: 0, sellPrice: 0 });
+      setSelectedSuppliers([]);
     } catch (err: any) {
       setCreateError(err.response?.data?.message || "Error al crear producto.");
+    }
+  };
+
+  const saveSuppliersChanges = async () => {
+    if (!selectedProduct) return;
+    setSuppliersError(null);
+    try {
+      const res = await api.get<SupplierOption[]>(`/api/admin/products/${selectedProduct.id}/suppliers`);
+      const oldIds = res.data.map((s) => s.id);
+
+      for (const supplierId of oldIds) {
+        if (!productSuppliers.includes(supplierId)) {
+          await api.post("/api/admin/suppliers/products/remove", { supplierId, productId: selectedProduct.id });
+        }
+      }
+      for (const supplierId of productSuppliers) {
+        if (!oldIds.includes(supplierId)) {
+          await api.post("/api/admin/suppliers/products/assign", { supplierId, productId: selectedProduct.id });
+        }
+      }
+      setEditingSuppliersMode(false);
+    } catch (err: any) {
+      setSuppliersError(err.response?.data?.message || "Error al guardar proveedores.");
     }
   };
 
@@ -429,8 +484,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           hoveredRow === p.id
                             ? "#eff6ff"
                             : p.low
-                            ? "#fffbeb"
-                            : undefined,
+                              ? "#fffbeb"
+                              : undefined,
                       }}
                     >
                       <td style={{ ...ui.td, color: "#94a3b8", fontWeight: 600 }}>{p.sku}</td>
@@ -658,6 +713,70 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     )}
                   </div>
 
+                  {/* ── Proveedores ── */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1e3a8a" }}>Proveedores</div>
+                      {!editingSuppliersMode && (
+                        <button
+                          onClick={() => { setEditingSuppliersMode(true); setSuppliersError(null); }}
+                          style={{ ...ui.ghostBtn, fontSize: 12, padding: "4px 10px", color: "#2563eb", borderColor: "#93c5fd" }}
+                        >
+                          ✏️ Editar
+                        </button>
+                      )}
+                    </div>
+
+                    {!editingSuppliersMode ? (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                        {productSuppliers.length === 0 ? (
+                          <span style={{ fontSize: 12, color: "#94a3b8" }}>Sin proveedores asignados</span>
+                        ) : (
+                          productSuppliers.map((sid) => {
+                            const s = suppliers.find((x) => x.id === sid);
+                            return (
+                              <Badge key={sid} tone="blue">
+                                {s?.name ?? `Proveedor ${sid}`}
+                              </Badge>
+                            );
+                          })
+                        )}
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ maxHeight: 140, overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>
+                          {suppliers.length === 0 && (
+                            <p style={{ fontSize: 12, color: "#94a3b8", margin: 0 }}>No hay proveedores disponibles</p>
+                          )}
+                          {suppliers.map((s) => (
+                            <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "4px 0", fontSize: 13, color: "#334155" }}>
+                              <input
+                                type="checkbox"
+                                checked={productSuppliers.includes(s.id)}
+                                onChange={(e) =>
+                                  setProductSuppliers(
+                                    e.target.checked
+                                      ? [...productSuppliers, s.id]
+                                      : productSuppliers.filter((id) => id !== s.id)
+                                  )
+                                }
+                                style={{ width: 15, height: 15, cursor: "pointer", flexShrink: 0 }}
+                              />
+                              {s.name}
+                            </label>
+                          ))}
+                        </div>
+                        {suppliersError && (
+                          <p style={{ fontSize: 12, color: "#b91c1c", marginBottom: 10 }}>{suppliersError}</p>
+                        )}
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={saveSuppliersChanges} style={ui.primaryBtn}>✓ Guardar</button>
+                          <button onClick={() => { setEditingSuppliersMode(false); setSuppliersError(null); }} style={ui.ghostBtn}>✕ Cancelar</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* ── Últimos movimientos kardex ── */}
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#1e3a8a", marginBottom: 10 }}>
@@ -869,7 +988,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           <div style={{ ...ui.modal, maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
             <div style={ui.modalHeader}>
               <div style={ui.modalTitle}>Crear nuevo producto</div>
-              <button onClick={() => setCreateOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }}>
+              <button onClick={() => { setCreateOpen(false); setSelectedSuppliers([]); setCreateError(null); }} style={{ ...ui.ghostBtn, padding: "6px 10px" }}>
                 <X size={16} />
               </button>
             </div>
@@ -925,12 +1044,39 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   />
                 </div>
               </div>
+              {/* Proveedores */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={ui.fieldLabel}>Proveedores</label>
+                <div style={{ maxHeight: 140, overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 12px" }}>
+                  {suppliers.length === 0 && (
+                    <p style={{ fontSize: 12, color: "#94a3b8", margin: 0 }}>No hay proveedores disponibles</p>
+                  )}
+                  {suppliers.map((s) => (
+                    <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "4px 0", fontSize: 13, color: "#334155" }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedSuppliers.includes(s.id)}
+                        onChange={(e) =>
+                          setSelectedSuppliers(
+                            e.target.checked
+                              ? [...selectedSuppliers, s.id]
+                              : selectedSuppliers.filter((id) => id !== s.id)
+                          )
+                        }
+                        style={{ width: 15, height: 15, cursor: "pointer", flexShrink: 0 }}
+                      />
+                      {s.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               {createError && (
                 <p style={{ fontSize: 13, color: "#b91c1c", marginBottom: 12 }}>{createError}</p>
               )}
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid #e2e8f0" }}>
-              <button onClick={() => setCreateOpen(false)} style={ui.ghostBtn}>Cancelar</button>
+              <button onClick={() => { setCreateOpen(false); setSelectedSuppliers([]); setCreateError(null); }} style={ui.ghostBtn}>Cancelar</button>
               <button onClick={submitCreateProduct} style={ui.primaryBtn}>
                 <Plus size={15} /> Crear producto
               </button>
