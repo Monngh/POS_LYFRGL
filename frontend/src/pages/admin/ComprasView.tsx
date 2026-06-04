@@ -50,18 +50,6 @@ interface PurchaseRow {
   }>;
   createdByUser: { id: number; name: string };
 }
-// KardexRow kept for backward compatibility (unused after refactor)
-interface KardexRow {
-  id: number;
-  createdAt: string;
-  product: string;
-  sku: string;
-  branch: string;
-  user: string;
-  quantityChange: number;
-  balanceAfter: number;
-  reason: string | null;
-}
 
 interface Line {
   productId: string;
