@@ -17,6 +17,8 @@ import {
   LogOut,
   RefreshCw,
   Store,
+  BadgePercent,
+  Tags,
   type LucideIcon,
 } from "lucide-react";
 
@@ -31,6 +33,8 @@ import ReportesView from "./admin/ReportesView";
 import KardexView from "./admin/KardexView";
 import ComprasView from "./admin/ComprasView";
 import DepositosView from "./admin/DepositosView";
+import ImpuestosView from "./admin/ImpuestosView";
+import PromocionesView from "./admin/PromocionesView";
 import type { ViewProps } from "./admin/shared";
 
 interface BranchOption {
@@ -49,6 +53,8 @@ const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<
   { key: "depositos", label: "Depósitos", icon: Landmark, view: DepositosView, branchScoped: true },
   { key: "empleados", label: "Empleados", icon: UserCog, view: EmpleadosView, branchScoped: true },
   { key: "sucursales", label: "Sucursales", icon: Building2, view: SucursalesView, branchScoped: false },
+  { key: "impuestos", label: "Impuestos", icon: BadgePercent, view: ImpuestosView, branchScoped: false },
+  { key: "promociones", label: "Promociones", icon: Tags, view: PromocionesView, branchScoped: false },
   { key: "reportes", label: "Reportes", icon: BarChart3, view: ReportesView, branchScoped: true },
 ];
 
@@ -210,7 +216,7 @@ const styles: { [k: string]: React.CSSProperties } = {
     flexShrink: 0,
   },
   brandText: { color: "#ffffff", fontWeight: 800, fontSize: 16, letterSpacing: "-0.3px", whiteSpace: "nowrap" },
-  nav: { display: "flex", flexDirection: "column", gap: 4, padding: "16px 12px", flex: 1 },
+  nav: { display: "flex", flexDirection: "column", gap: 4, padding: "16px 12px", flex: 1, minHeight: 0, overflowY: "auto" },
   navItem: {
     display: "flex",
     alignItems: "center",

@@ -77,3 +77,73 @@ export const deleteTaxFromProduct = async (productId: number, taxTypeId: number)
         },
     })
 }
+
+export const getTaxesByProduct = async (productId: number) => {
+    const product = await prisma.product.findUnique({
+        where: { id: productId },
+        select: { id: true },
+    });
+
+    if (!product) {
+        return null;
+    }
+
+    return prisma.productTax.findMany({
+        where: { productId },
+        include: {
+            TaxType: true,
+        },
+        orderBy: {
+            taxTypeId: "asc",
+        },
+    });
+}
+
+export const syncTaxesForProduct = async (productId: number, taxIds: number[]) => {
+    const uniqueTaxIds = [...new Set(taxIds)];
+
+    return prisma.$transaction(async (tx) => {
+        const product = await tx.product.findUnique({
+            where: { id: productId },
+            select: { id: true },
+        });
+
+        if (!product) {
+            throw new Error("PRODUCT_NOT_FOUND");
+        }
+
+        const taxes = uniqueTaxIds.length > 0
+            ? await tx.taxType.findMany({
+                where: { id: { in: uniqueTaxIds } },
+                select: { id: true },
+            })
+            : [];
+
+        if (taxes.length !== uniqueTaxIds.length) {
+            throw new Error("TAX_NOT_FOUND");
+        }
+
+        await tx.productTax.deleteMany({
+            where: { productId },
+        });
+
+        if (uniqueTaxIds.length > 0) {
+            await tx.productTax.createMany({
+                data: uniqueTaxIds.map((taxTypeId) => ({
+                    productId,
+                    taxTypeId,
+                })),
+            });
+        }
+
+        return tx.productTax.findMany({
+            where: { productId },
+            include: {
+                TaxType: true,
+            },
+            orderBy: {
+                taxTypeId: "asc",
+            },
+        });
+    });
+}
