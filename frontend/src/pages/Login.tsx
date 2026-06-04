@@ -36,6 +36,8 @@ const Login: React.FC = () => {
   // Formulario Cajero (PIN)
   const [cashierEmail, setCashierEmail] = useState("");
   const [pinCode, setPinCode] = useState("");
+  const [cashierSearch, setCashierSearch] = useState("");
+  const [showCashierDropdown, setShowCashierDropdown] = useState(false);
 
   // Cargar sucursales al montar el componente
   useEffect(() => {
@@ -66,12 +68,14 @@ const Login: React.FC = () => {
       setLoadingCashiers(true);
       setCashiers([]);
       setCashierEmail("");
+      setCashierSearch("");
       try {
         const response = await api.get(`/api/auth/cashiers/${selectedBranchId}`);
         const cashierList = response.data.cashiers;
         setCashiers(cashierList);
         if (cashierList.length > 0) {
           setCashierEmail(cashierList[0].email);
+          setCashierSearch(cashierList[0].name); // Inicializar búsqueda con el primer cajero
         }
       } catch (err) {
         console.error("Error al cargar cajeros:", err);
@@ -83,6 +87,47 @@ const Login: React.FC = () => {
 
     fetchCashiers();
   }, [selectedBranchId]);
+
+  // Filtrar cajeros por nombre
+  const filteredCashiers = cashiers.filter((c) =>
+    c.name.toLowerCase().includes(cashierSearch.toLowerCase())
+  );
+
+  // Escuchar teclado físico para el ingreso del PIN de cajero
+  useEffect(() => {
+    if (activeTab !== "cashier") return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInputFocused = activeEl && (
+        activeEl.tagName === "INPUT" && activeEl.getAttribute("type") === "text"
+      );
+
+      if (isInputFocused) {
+        return;
+      }
+
+      if (e.key >= "0" && e.key <= "9") {
+        e.preventDefault();
+        setError(null);
+        setPinCode((prev) => (prev.length < 4 ? prev + e.key : prev));
+      } else if (e.key === "Backspace" || e.key === "Delete") {
+        e.preventDefault();
+        setError(null);
+        setPinCode((prev) => prev.slice(0, -1));
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (pinCode.length === 4 && cashierEmail) {
+          handleCashierSubmit();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activeTab, pinCode, cashierEmail]);
 
   const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -268,17 +313,53 @@ const Login: React.FC = () => {
                 ) : cashiers.length === 0 ? (
                   <div style={styles.emptyBox}>No hay cajeros en esta sucursal</div>
                 ) : (
-                  <select
-                    value={cashierEmail}
-                    onChange={(e) => setCashierEmail(e.target.value)}
-                    style={styles.select}
-                  >
-                    {cashiers.map((c) => (
-                      <option key={c.id} value={c.email}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type="text"
+                      placeholder="Buscar o seleccionar cajero..."
+                      className="input-corporate"
+                      value={cashierSearch}
+                      onChange={(e) => {
+                        setCashierSearch(e.target.value);
+                        setShowCashierDropdown(true);
+                        setCashierEmail("");
+                      }}
+                      onFocus={() => setShowCashierDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowCashierDropdown(false), 200)}
+                      style={{ width: "100%", padding: "10px 14px", fontSize: "14px", borderRadius: "6px", border: "1px solid #cbd5e1" }}
+                    />
+                    {showCashierDropdown && (
+                      <div style={styles.autocompleteDropdown}>
+                        {filteredCashiers.map((c) => (
+                          <div
+                            key={c.id}
+                            style={{
+                              padding: "10px 14px",
+                              cursor: "pointer",
+                              fontSize: "14px",
+                              backgroundColor: cashierEmail === c.email ? "#eff6ff" : "#ffffff",
+                              color: cashierEmail === c.email ? "#1e3a8a" : "#0f172a",
+                              fontWeight: cashierEmail === c.email ? "600" : "500",
+                              transition: "background-color 0.15s ease",
+                            }}
+                            onMouseDown={() => {
+                              setCashierEmail(c.email);
+                              setCashierSearch(c.name);
+                              setShowCashierDropdown(false);
+                            }}
+                            className="autocomplete-item-hover"
+                          >
+                            {c.name}
+                          </div>
+                        ))}
+                        {filteredCashiers.length === 0 && (
+                          <div style={{ padding: "10px 14px", color: "#64748b", fontSize: "13px" }}>
+                            No se encontraron resultados
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -608,6 +689,20 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: "6px",
     cursor: "pointer",
     boxShadow: "0 4px 6px rgba(37, 99, 235, 0.2)",
+  },
+  autocompleteDropdown: {
+    position: "absolute" as const,
+    top: "100%",
+    left: 0,
+    right: 0,
+    backgroundColor: "#ffffff",
+    border: "1px solid #cbd5e1",
+    borderRadius: "6px",
+    marginTop: "4px",
+    maxHeight: "200px",
+    overflowY: "auto" as const,
+    zIndex: 1000,
+    boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
   },
 };
 

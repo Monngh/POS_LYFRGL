@@ -158,3 +158,24 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+
+/* Efectos de Hover para Autocomplete Dropdown */
+.autocomplete-item-hover:hover {
+  background-color: #f1f5f9 !important;
+}
+
+/* Notificaciones Toast Premium */
+@keyframes toast-slide-in {
+  from {
+    transform: translateY(30px) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.toast-premium {
+  animation: toast-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
