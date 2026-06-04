@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { AlertTriangle, Plus, X } from "lucide-react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import { AlertTriangle, BadgePercent, Plus, X } from "lucide-react";
 import api from "../../services/api";
 import {
   ui,
@@ -27,7 +27,49 @@ interface ProductRow {
   branchCount: number;
 }
 
+interface TaxOption {
+  id: number;
+  name: string;
+  description: string | null;
+  rate: number | string;
+  active: boolean;
+}
+
+interface TaxListResponse {
+  data: TaxOption[];
+}
+
+interface ProductTaxResponse {
+  data: {
+    productId: number;
+    taxIds: number[];
+    taxes: TaxOption[];
+  };
+}
+
 const emptyForm = { sku: "", barcode: "", name: "", description: "", costPrice: "", sellPrice: "" };
+
+const getErrorMessage = (err: unknown, fallback: string) => {
+  if (typeof err === "object" && err !== null && "response" in err) {
+    const apiError = err as { response?: { data?: { message?: string } } };
+    return apiError.response?.data?.message || fallback;
+  }
+
+  return fallback;
+};
+
+const extractTaxOptions = (payload: TaxListResponse | { data?: unknown }) => {
+  return Array.isArray(payload.data) ? payload.data as TaxOption[] : [];
+};
+
+const formatTaxRate = (rate: number | string) => {
+  const value = Number(rate);
+  const percent = Number.isFinite(value) ? value * 100 : 0;
+  return `${percent.toLocaleString("es-MX", {
+    minimumFractionDigits: percent % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 4,
+  })}%`;
+};
 
 const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [rows, setRows] = useState<ProductRow[]>([]);
@@ -40,14 +82,71 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [taxOptions, setTaxOptions] = useState<TaxOption[]>([]);
+  const [selectedTaxIds, setSelectedTaxIds] = useState<number[]>([]);
+  const [taxLoading, setTaxLoading] = useState(false);
+  const [taxError, setTaxError] = useState<string | null>(null);
+  const taxRequestId = useRef(0);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  const closeForm = () => {
+    if (saving) return;
+    taxRequestId.current += 1;
+    setShowForm(false);
+    setEditingId(null);
+    setFormError(null);
+    setTaxError(null);
+    setTaxOptions([]);
+    setSelectedTaxIds([]);
+  };
+
+  const loadProductTaxes = async (productId: number) => {
+    const requestId = taxRequestId.current + 1;
+    taxRequestId.current = requestId;
+    setTaxLoading(true);
+    setTaxError(null);
+    setTaxOptions([]);
+    setSelectedTaxIds([]);
+
+    try {
+      const [taxesRes, productTaxesRes] = await Promise.all([
+        api.get<TaxListResponse>("/api/admin-tax/taxes"),
+        api.get<ProductTaxResponse>(`/api/admin-tax/products/${productId}/taxes`),
+      ]);
+
+      if (taxRequestId.current !== requestId) return;
+
+      const activeTaxes = extractTaxOptions(taxesRes.data).filter((tax) => tax.active);
+      setTaxOptions(activeTaxes);
+      setSelectedTaxIds(productTaxesRes.data.data.taxIds);
+    } catch (err: unknown) {
+      if (taxRequestId.current !== requestId) return;
+      setTaxError(getErrorMessage(err, "No se pudieron cargar los impuestos del producto."));
+    } finally {
+      if (taxRequestId.current === requestId) {
+        setTaxLoading(false);
+      }
+    }
+  };
+
+  const toggleTax = (taxId: number) => {
+    setSelectedTaxIds((current) =>
+      current.includes(taxId)
+        ? current.filter((id) => id !== taxId)
+        : [...current, taxId]
+    );
+  };
+
   const handleOpenCreate = () => {
+    taxRequestId.current += 1;
     setForm({ ...emptyForm });
     setEditingId(null);
     setFormError(null);
+    setTaxError(null);
+    setTaxOptions([]);
+    setSelectedTaxIds([]);
     setShowForm(true);
   };
 
@@ -63,6 +162,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setEditingId(p.id);
     setFormError(null);
     setShowForm(true);
+    void loadProductTaxes(p.id);
   };
 
   const handleToggleActive = async (p: ProductRow) => {
@@ -82,8 +182,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         });
       }
       await load();
-    } catch (err: any) {
-      alert(err.response?.data?.message || "No se pudo cambiar el estado del producto.");
+    } catch (err: unknown) {
+      alert(getErrorMessage(err, "No se pudo cambiar el estado del producto."));
     }
   };
 
@@ -108,6 +208,14 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setFormError("El precio de venta debe ser mayor a 0.");
       return;
     }
+    if (editingId !== null && taxLoading) {
+      setFormError("Espere a que terminen de cargar los impuestos del producto.");
+      return;
+    }
+    if (editingId !== null && taxError) {
+      setFormError("No se puede guardar hasta cargar correctamente los impuestos aplicables.");
+      return;
+    }
 
     setSaving(true);
     setFormError(null);
@@ -120,6 +228,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           description: form.description.trim() || undefined,
           costPrice: cost,
           sellPrice: sell,
+        });
+        await api.put(`/api/admin-tax/products/${editingId}/taxes`, {
+          taxIds: selectedTaxIds,
         });
       } else {
         // Modo Creación
@@ -135,15 +246,18 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setShowForm(false);
       setForm({ ...emptyForm });
       setEditingId(null);
+      setTaxOptions([]);
+      setSelectedTaxIds([]);
       await load();
-    } catch (err: any) {
-      setFormError(err.response?.data?.message || "No se pudo guardar el producto.");
+    } catch (err: unknown) {
+      setFormError(getErrorMessage(err, "No se pudo guardar el producto."));
     } finally {
       setSaving(false);
     }
   };
 
   const load = useCallback(async () => {
+    void refreshToken;
     setLoading(true);
     setError(null);
     try {
@@ -154,8 +268,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         },
       });
       setRows(res.data.products);
-    } catch (err: any) {
-      setError(err.response?.data?.message || "No se pudo cargar el inventario.");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "No se pudo cargar el inventario."));
     } finally {
       setLoading(false);
     }
@@ -265,13 +379,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
       {/* Modal de alta / edición */}
       {showForm && (
-        <div style={ui.overlay} onClick={() => !saving && setShowForm(false)}>
-          <form style={ui.modal} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+        <div style={ui.overlay} onClick={closeForm}>
+          <form style={{ ...ui.modal, maxWidth: 600 }} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
             <div style={ui.modalHeader}>
               <span style={ui.modalTitle}>
                 {editingId !== null ? "Editar producto" : "Registrar nuevo producto"}
               </span>
-              <button type="button" style={ui.linkBtn} onClick={() => setShowForm(false)}>
+              <button type="button" style={ui.linkBtn} onClick={closeForm}>
                 <X size={18} color="#64748b" />
               </button>
             </div>
@@ -320,12 +434,73 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 </div>
               </div>
 
+              {editingId !== null && (
+                <div style={styles.taxSection}>
+                  <div style={styles.taxHeader}>
+                    <div style={styles.taxTitleWrap}>
+                      <BadgePercent size={16} color="#1e3a8a" />
+                      <span style={styles.taxTitle}>Impuestos aplicables</span>
+                    </div>
+                    {!taxLoading && !taxError && (
+                      <span style={styles.taxCounter}>
+                        {taxOptions.filter((tax) => selectedTaxIds.includes(tax.id)).length} seleccionado(s)
+                      </span>
+                    )}
+                  </div>
+
+                  {taxLoading && <p style={styles.taxMuted}>Cargando impuestos aplicables...</p>}
+
+                  {!taxLoading && taxError && (
+                    <div style={styles.taxErrorBox}>
+                      <span>{taxError}</span>
+                      <button type="button" style={ui.linkBtn} onClick={() => void loadProductTaxes(editingId)}>
+                        Reintentar
+                      </button>
+                    </div>
+                  )}
+
+                  {!taxLoading && !taxError && taxOptions.length === 0 && (
+                    <p style={styles.taxMuted}>No hay impuestos activos para asignar.</p>
+                  )}
+
+                  {!taxLoading && !taxError && taxOptions.length > 0 && (
+                    <div style={styles.taxGrid}>
+                      {taxOptions.map((tax) => {
+                        const checked = selectedTaxIds.includes(tax.id);
+                        return (
+                          <label
+                            key={tax.id}
+                            style={{
+                              ...styles.taxOption,
+                              borderColor: checked ? "#93c5fd" : "#e2e8f0",
+                              backgroundColor: checked ? "#eff6ff" : "#ffffff",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={saving}
+                              onChange={() => toggleTax(tax.id)}
+                              style={styles.taxCheckbox}
+                            />
+                            <span style={styles.taxOptionText}>
+                              <span style={styles.taxOptionName}>{tax.name}</span>
+                              <span style={styles.taxOptionMeta}>{formatTaxRate(tax.rate)}</span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {formError && (
                 <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 4, marginBottom: 14 }}>{formError}</p>
               )}
 
               <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-                <button type="button" style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={() => setShowForm(false)}>
+                <button type="button" style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={closeForm}>
                   Cancelar
                 </button>
                 <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
@@ -338,6 +513,98 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       )}
     </div>
   );
+};
+
+const styles: { [key: string]: React.CSSProperties } = {
+  taxSection: {
+    border: "1px solid #e2e8f0",
+    borderRadius: 10,
+    backgroundColor: "#f8fafc",
+    padding: 14,
+    marginBottom: 14,
+  },
+  taxHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 10,
+  },
+  taxTitleWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  taxTitle: {
+    color: "#0f172a",
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  taxCounter: {
+    color: "#64748b",
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  taxMuted: {
+    color: "#64748b",
+    fontSize: 13,
+    fontWeight: 600,
+    margin: 0,
+  },
+  taxErrorBox: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    border: "1px solid #fecaca",
+    borderRadius: 8,
+    backgroundColor: "#fef2f2",
+    color: "#b91c1c",
+    fontSize: 13,
+    fontWeight: 700,
+    padding: "10px 12px",
+  },
+  taxGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+    gap: 10,
+  },
+  taxOption: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    border: "1px solid #e2e8f0",
+    borderRadius: 8,
+    padding: "10px 12px",
+    cursor: "pointer",
+    minHeight: 46,
+  },
+  taxCheckbox: {
+    width: 16,
+    height: 16,
+    accentColor: "#1e3a8a",
+    cursor: "pointer",
+    flexShrink: 0,
+  },
+  taxOptionText: {
+    display: "flex",
+    flexDirection: "column",
+    minWidth: 0,
+  },
+  taxOptionName: {
+    color: "#0f172a",
+    fontSize: 13,
+    fontWeight: 800,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  taxOptionMeta: {
+    color: "#64748b",
+    fontSize: 12,
+    fontWeight: 700,
+    marginTop: 2,
+  },
 };
 
 export default InventarioView;

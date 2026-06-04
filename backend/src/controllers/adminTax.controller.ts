@@ -1,5 +1,55 @@
 import { Request, Response } from "express";
-import { getAllTaxes, postTax, editTax, editTaxStatus, assignTaxToProduct, deleteTaxFromProduct } from "../services/adminTax.service";
+import {
+    getAllTaxes,
+    postTax,
+    editTax,
+    editTaxStatus,
+    assignTaxToProduct,
+    deleteTaxFromProduct,
+    getTaxesByProduct,
+    syncTaxesForProduct,
+} from "../services/adminTax.service";
+
+const parsePositiveInt = (value: unknown): number | null => {
+    const id = Number(value);
+    return Number.isInteger(id) && id > 0 ? id : null;
+};
+
+const parseTaxIds = (value: unknown): number[] | null => {
+    if (!Array.isArray(value)) {
+        return null;
+    }
+
+    const taxIds: number[] = [];
+    for (const raw of value) {
+        const id = parsePositiveInt(raw);
+        if (id === null) {
+            return null;
+        }
+        if (!taxIds.includes(id)) {
+            taxIds.push(id);
+        }
+    }
+
+    return taxIds;
+};
+
+const mapProductTaxResponse = (productTaxes: Awaited<ReturnType<typeof getTaxesByProduct>>) => {
+    const rows = productTaxes ?? [];
+
+    return {
+        taxIds: rows.map((row) => row.taxTypeId),
+        taxes: rows.map((row) => ({
+            id: row.TaxType.id,
+            name: row.TaxType.name,
+            description: row.TaxType.description,
+            rate: row.TaxType.rate,
+            active: row.TaxType.active,
+            createdAt: row.TaxType.createdAt,
+            updatedAt: row.TaxType.updatedAt,
+        })),
+    };
+};
 
 /**
  * Traer todos los impuestos o buscar por nombre/id
@@ -239,6 +289,101 @@ export const deleteProductTax = async (req: Request, res: Response): Promise<voi
 
         res.status(500).json({
             message: "Error al eliminar el impuesto",
+            error: error.message,
+        });
+    }
+};
+
+/**
+ * Obtener impuestos asignados a un producto
+ */
+export const getProductTaxes = async (req: Request, res: Response): Promise<void> => {
+    if (!req.user) {
+        res.status(401).json({ message: "No autenticado." });
+        return;
+    }
+
+    try {
+        const productId = parsePositiveInt(req.params.productId);
+
+        if (productId === null) {
+            res.status(400).json({ message: "El id del producto es inválido" });
+            return;
+        }
+
+        const productTaxes = await getTaxesByProduct(productId);
+
+        if (productTaxes === null) {
+            res.status(404).json({ message: "Producto no encontrado" });
+            return;
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "Impuestos del producto obtenidos exitosamente",
+            data: {
+                productId,
+                ...mapProductTaxResponse(productTaxes),
+            },
+        });
+    } catch (error: any) {
+        console.log("Error al obtener los impuestos del producto", error.message);
+
+        res.status(500).json({
+            message: "Error al obtener los impuestos del producto",
+            error: error.message,
+        });
+    }
+};
+
+/**
+ * Sincronizar impuestos seleccionados para un producto
+ */
+export const syncProductTaxes = async (req: Request, res: Response): Promise<void> => {
+    if (!req.user) {
+        res.status(401).json({ message: "No autenticado." });
+        return;
+    }
+
+    try {
+        const productId = parsePositiveInt(req.params.productId);
+        const taxIds = parseTaxIds(req.body.taxIds);
+
+        if (productId === null) {
+            res.status(400).json({ message: "El id del producto es inválido" });
+            return;
+        }
+
+        if (taxIds === null) {
+            res.status(400).json({ message: "taxIds debe ser un arreglo de ids numéricos válidos" });
+            return;
+        }
+
+        const productTaxes = await syncTaxesForProduct(productId, taxIds);
+
+        res.status(200).json({
+            success: true,
+            message: "Impuestos del producto sincronizados exitosamente",
+            data: {
+                productId,
+                ...mapProductTaxResponse(productTaxes),
+            },
+        });
+    } catch (error: any) {
+        if (error.message === "PRODUCT_NOT_FOUND") {
+            res.status(404).json({ message: "Producto no encontrado" });
+            return;
+        }
+
+        if (error.message === "TAX_NOT_FOUND") {
+            res.status(400).json({ message: "Uno o más impuestos seleccionados no existen" });
+            return;
+        }
+
+        console.log("Error al sincronizar los impuestos del producto", error.message);
+
+        res.status(500).json({
+            message: "Error al sincronizar los impuestos del producto",
             error: error.message,
         });
     }
