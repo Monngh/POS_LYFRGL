@@ -6,6 +6,8 @@ import {
   listCustomers,
   createCustomer,
   listCashSessions,
+  getCashSessionDetail,
+  forceCloseCashSession,
   listEmployees,
   getReports,
   listBranches,
@@ -15,7 +17,23 @@ import {
   getEmployeeOperations,
   listKardex,
   listBankDeposits,
-  registerPurchase,
+  //registerPurchase,
+  listSuppliers,
+  createSupplier,
+  updateSupplier,
+  listPurchases,
+  createPurchase,
+  receivePurchase,
+  createProduct,
+  listProducts,
+  getProductDetail,
+  updateProduct,
+  adjustInventory,
+  transferInventory,
+  getSupplierProducts,
+  assignProductToSupplier,
+  removeProductFromSupplier,
+  getProductSuppliers,
 } from "../controllers/admin.controller";
 import { authenticateJWT, authorizeRoles } from "../middlewares/auth.middleware";
 
@@ -31,6 +49,15 @@ router.get("/sales/:id", getSaleDetail);
 
 // Inventario
 router.get("/inventory", listInventory);
+router.post("/inventory/adjust", adjustInventory);
+router.post("/inventory/transfer", transferInventory);
+
+// Productos
+router.get("/products", listProducts);
+router.post("/products", createProduct);
+router.get("/products/:productId/suppliers", getProductSuppliers);
+router.get("/products/:id", getProductDetail);
+router.put("/products/:id", updateProduct);
 
 // Clientes
 router.get("/customers", listCustomers);
@@ -38,6 +65,8 @@ router.post("/customers", createCustomer);
 
 // Cajas
 router.get("/cash-sessions", listCashSessions);
+router.get("/cash-sessions/:id", getCashSessionDetail);
+router.put("/cash-sessions/:id/force-close", forceCloseCashSession);
 
 // Empleados
 router.get("/employees", listEmployees);
@@ -47,8 +76,18 @@ router.get("/employees/:id/operations", getEmployeeOperations);
 // Kardex (movimientos de inventario)
 router.get("/kardex", listKardex);
 
-// Compras (entrada de mercancía)
-router.post("/purchases", registerPurchase);
+// Proveedores
+router.get("/suppliers", listSuppliers);
+router.post("/suppliers", createSupplier);
+router.put("/suppliers/:id", updateSupplier);
+router.get("/suppliers/:supplierId/products", getSupplierProducts);
+router.post("/suppliers/products/assign", assignProductToSupplier);
+router.post("/suppliers/products/remove", removeProductFromSupplier);
+
+// Compras (órdenes de compra — nueva arquitectura)
+router.get("/purchases", listPurchases);
+router.post("/purchases", createPurchase);
+router.put("/purchases/:id/receive", receivePurchase);
 
 // Depósitos bancarios
 router.get("/bank-deposits", listBankDeposits);

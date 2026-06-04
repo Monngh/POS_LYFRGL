@@ -40,6 +40,8 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [movementType, setMovementType] = useState("all");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -50,6 +52,8 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           ...(branchId !== "all" ? { branchId } : {}),
           ...(movementType !== "all" ? { movementType } : {}),
           ...(search.trim() ? { search: search.trim() } : {}),
+          ...(from ? { from } : {}),
+          ...(to ? { to } : {}),
         },
       });
       setRows(res.data.entries);
@@ -58,7 +62,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     } finally {
       setLoading(false);
     }
-  }, [branchId, movementType, search, refreshToken]);
+  }, [branchId, movementType, search, from, to, refreshToken]);
 
   useEffect(() => {
     const t = setTimeout(load, 300);
@@ -85,6 +89,28 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             { value: "TRASPASO_SALIDA", label: "Traspaso salida" },
           ]}
         />
+        <input
+          type="date"
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+          title="Desde"
+          style={ui.filterSelect}
+        />
+        <input
+          type="date"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          title="Hasta"
+          style={ui.filterSelect}
+        />
+        {(from || to) && (
+          <button
+            onClick={() => { setFrom(""); setTo(""); }}
+            style={{ ...ui.ghostBtn, fontSize: 12 }}
+          >
+            ✕ Limpiar fechas
+          </button>
+        )}
         <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b", fontWeight: 600 }}>
           {rows.length} movimiento{rows.length === 1 ? "" : "s"}
         </span>

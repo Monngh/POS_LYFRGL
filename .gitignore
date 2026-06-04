@@ -44,6 +44,7 @@ Thumbs.db
 # Agent Tooling
 .agents/
 .claude/skills/
+skills-lock.json
 
 # Referencias locales
 contexto/
