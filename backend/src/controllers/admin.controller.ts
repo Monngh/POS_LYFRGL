@@ -32,11 +32,19 @@ export const listSales = async (req: Request, res: Response): Promise<void> => {
     const branchId = parseBranch(req);
     const status = req.query.status as string | undefined;
     const search = trimQuery(req.query.search);
+    const from = trimQuery(req.query.from);
+    const to = trimQuery(req.query.to);
 
     const where: any = {};
     if (branchId) where.branchId = branchId;
     if (status && status !== "all") where.status = status;
     if (search) where.invoiceNumber = { contains: search };
+    if (from && to) {
+      const fromDate = new Date(from);
+      const toDate = new Date(to);
+      toDate.setDate(toDate.getDate() + 1);
+      where.createdAt = { gte: fromDate, lt: toDate };
+    }
 
     const sales = await prisma.sale.findMany({
       where,
@@ -45,6 +53,7 @@ export const listSales = async (req: Request, res: Response): Promise<void> => {
       include: {
         branch: { select: { name: true } },
         user: { select: { name: true } },
+        customer: { select: { name: true } },
         _count: { select: { saleDetails: true } },
       },
     });
@@ -55,6 +64,7 @@ export const listSales = async (req: Request, res: Response): Promise<void> => {
       createdAt: s.createdAt,
       branch: s.branch.name,
       cajero: s.user.name,
+      customer: s.customer?.name ?? "Público General",
       items: s._count.saleDetails,
       totalAmount: Number(s.totalAmount),
       taxAmount: Number(s.taxAmount),
