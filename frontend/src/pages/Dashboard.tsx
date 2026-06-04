@@ -2975,61 +2975,7 @@ const Dashboard: React.FC = () => {
             <p style={styles.profileBranch}>{user?.branch.name}</p>
           </div>
 
-          <a
-            href="/autofacturacion"
-            target="_blank"
-            rel="noreferrer"
-            style={{
-              marginTop: "auto",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "10px 14px",
-              borderRadius: "8px",
-              border: "1px solid #cbd5e1",
-              backgroundColor: "#f8fafc",
-              color: "#334155",
-              textDecoration: "none",
-              fontSize: "12px",
-              fontWeight: "600",
-              width: "100%",
-              justifyContent: "center",
-              cursor: "pointer",
-              transition: "background-color 0.2s",
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#f1f5f9")}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "#f8fafc")}
-          >
-            <FileText size={14} color="#0d9488" />
-            Autofacturación
-          </a>
 
-          <button
-            onClick={() => setActiveModal("returns")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "10px 14px",
-              borderRadius: "8px",
-              border: "1px solid #cbd5e1",
-              backgroundColor: "#f8fafc",
-              color: "#334155",
-              textDecoration: "none",
-              fontSize: "12px",
-              fontWeight: "600",
-              width: "100%",
-              justifyContent: "center",
-              cursor: "pointer",
-              transition: "background-color 0.2s",
-              marginTop: "8px",
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#f1f5f9")}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "#f8fafc")}
-          >
-            <RotateCcw size={14} color="#dc2626" />
-            Devoluciones
-          </button>
         </aside>
 
         {/* Content Area */}
@@ -3144,6 +3090,10 @@ const Dashboard: React.FC = () => {
               <button onClick={() => setActiveModal("returns")} style={styles.actionBtn} className="active-tap">
                 <RotateCcw size={28} color="#dc2626" />
                 <span>Devoluciones</span>
+              </button>
+              <button onClick={() => window.open("/autofacturacion", "_blank")} style={styles.actionBtn} className="active-tap">
+                <FileText size={28} color="#0d9488" />
+                <span>Autofacturación</span>
               </button>
             </div>
           </div>
@@ -5665,7 +5615,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   actionsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(6, 1fr)",
+    gridTemplateColumns: "repeat(4, 1fr)",
     gap: "16px",
   },
   actionBtn: {
