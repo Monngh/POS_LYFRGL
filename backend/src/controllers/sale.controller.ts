@@ -736,7 +736,7 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
           ticketUrl: mpResult?.ticketUrl || null,
         },
         include: {
-          User: {
+          user: {
             select: {
               name: true,
             },
@@ -796,7 +796,7 @@ export const getRecentDeposits = async (req: Request, res: Response): Promise<vo
         branchId: req.user.branchId,
       },
       include: {
-        User: {
+        user: {
           select: {
             name: true,
           },
@@ -820,7 +820,7 @@ export const getRecentDeposits = async (req: Request, res: Response): Promise<vo
       cancelledAt: d.cancelledAt,
       cancelReason: d.cancelReason,
       sessionId: d.cashSessionId,
-      userName: d.User?.name || "Desconocido",
+      userName: d.user?.name || "Desconocido",
     }));
 
     res.status(200).json({ deposits: mappedDeposits });
@@ -879,7 +879,7 @@ export const searchDeposits = async (req: Request, res: Response): Promise<void>
     const deposits = await prisma.bankDeposit.findMany({
       where: whereClause,
       include: {
-        User: {
+        user: {
           select: {
             name: true,
           },
@@ -904,7 +904,7 @@ export const searchDeposits = async (req: Request, res: Response): Promise<void>
       cancelledAt: d.cancelledAt,
       cancelReason: d.cancelReason,
       sessionId: d.cashSessionId,
-      userName: d.User?.name || "Desconocido",
+      userName: d.user?.name || "Desconocido",
     }));
 
     res.status(200).json({ deposits: mappedDeposits });
@@ -934,7 +934,7 @@ export const getDepositById = async (req: Request, res: Response): Promise<void>
     const deposit = await prisma.bankDeposit.findUnique({
       where: { id: depositId },
       include: {
-        User: {
+        user: {
           select: {
             name: true,
           },
@@ -962,7 +962,7 @@ export const getDepositById = async (req: Request, res: Response): Promise<void>
         cancelledAt: deposit.cancelledAt,
         cancelReason: deposit.cancelReason,
         sessionId: deposit.cashSessionId,
-        userName: deposit.User?.name || "Desconocido",
+        userName: deposit.user?.name || "Desconocido",
       },
     });
   } catch (error: any) {

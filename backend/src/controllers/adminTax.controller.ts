@@ -38,15 +38,15 @@ const mapProductTaxResponse = (productTaxes: Awaited<ReturnType<typeof getTaxesB
     const rows = productTaxes ?? [];
 
     return {
-        taxIds: rows.map((row) => row.taxTypeId),
-        taxes: rows.map((row) => ({
-            id: row.TaxType.id,
-            name: row.TaxType.name,
-            description: row.TaxType.description,
-            rate: row.TaxType.rate,
-            active: row.TaxType.active,
-            createdAt: row.TaxType.createdAt,
-            updatedAt: row.TaxType.updatedAt,
+        taxIds: rows.map((row: any) => row.taxTypeId),
+        taxes: rows.map((row: any) => ({
+            id: row.taxType.id,
+            name: row.taxType.name,
+            description: row.taxType.description,
+            rate: row.taxType.rate,
+            active: row.taxType.active,
+            createdAt: row.taxType.createdAt,
+            updatedAt: row.taxType.updatedAt,
         })),
     };
 };

@@ -17,7 +17,6 @@ import {
   getEmployeeOperations,
   listKardex,
   listBankDeposits,
-  registerPurchase,
   listSuppliers,
   createSupplier,
   updateSupplier,

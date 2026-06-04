@@ -1396,7 +1396,7 @@ export const getCashSessionDetail = async (req: Request, res: Response): Promise
 
     // Construir lista de movimientos con saldo corrido (últimos 20)
     type RawMov = { date: Date; type: string; description: string; amount: number };
-    const rawMovements = [];
+    const rawMovements: RawMov[] = [];
 
     for (const sale of session.sales) {
       const amount = Number(sale.totalAmount);
@@ -1437,7 +1437,7 @@ export const getCashSessionDetail = async (req: Request, res: Response): Promise
     const expected =
       Number(session.initialAmount) + Number(session.cashIn) - Number(session.cashOut);
 
-    const s = session;
+    const s = session as any;
     res.status(200).json({
       session: {
         id: session.id,
@@ -1634,7 +1634,7 @@ export const listProducts = async (req: Request, res: Response): Promise<void> =
     const search = trimQuery(req.query.search);
     const includeInactive = req.query.includeInactive === "true";
 
-    const where = {};
+    const where: any = {};
     if (!includeInactive) where.active = true;
     if (search) {
       where.OR = [
