@@ -895,8 +895,17 @@ const Dashboard: React.FC = () => {
 
   const handleCloseTicket = () => {
     const wasNewSale = selectedSale?.isNewSale;
+    const fromPendingQrId = selectedSale?.fromPendingQrId;
     setSelectedSale(null);
     setActiveModal(null);
+    // Si el ticket venía de un QR pendiente, eliminar el registro de la lista al cerrar
+    if (fromPendingQrId) {
+      setPendingQrSales(prev => {
+        const updated = prev.filter(sale => sale.id !== fromPendingQrId);
+        localStorage.setItem("pendingQrSales", JSON.stringify(updated));
+        return updated;
+      });
+    }
     if (wasNewSale) {
       setView("sales-terminal");
       setCart([]);
@@ -906,7 +915,7 @@ const Dashboard: React.FC = () => {
       setMixtoCash("");
       setMixtoCard("");
     }
-    loadDashboardData(); // Recargar estadísticas de caja para actualizar el contador de tickets
+    loadDashboardData();
   };
 
   const handleCloseLookup = () => {
@@ -1173,22 +1182,41 @@ const Dashboard: React.FC = () => {
           invoiceNumber,
           paymentId: res.data.paymentId || `mock-${Date.now()}`
         });
-        
-        setPendingQrSales(prev => {
-          const updated = prev.map(sale => 
-            sale.invoiceNumber === invoiceNumber 
-              ? { ...sale, status: "approved", paymentId: res.data.paymentId } 
-              : sale
-          );
-          localStorage.setItem("pendingQrSales", JSON.stringify(updated));
-          return updated;
-        });
 
-        if (viewingPendingQrSale?.invoiceNumber === invoiceNumber) {
-          setViewingPendingQrSale(prev => prev ? { ...prev, status: "approved", paymentId: res.data.paymentId } : null);
+        // Obtener el objeto completo del sale pendiente para mostrar el ticket
+        const salePending = pendingQrSales.find(s => s.invoiceNumber === invoiceNumber);
+
+        // Cerrar el modal de QR si estaba abierto
+        setViewingPendingQrSale(null);
+        setPendingCancelPin("");
+        setPendingCancelReason("");
+
+        // Mostrar directamente el ticket de impresión
+        if (salePending) {
+          try {
+            const saleDetailRes = await api.get(`/api/sales/detail?invoiceNumber=${invoiceNumber}`);
+            setSelectedSale({
+              ...saleDetailRes.data.sale,
+              isNewSale: false,          // No limpiar carrito al cerrar
+              fromPendingQrId: salePending.id  // Para eliminar de la lista al cerrar el ticket
+            });
+          } catch {
+            setSelectedSale({
+              invoiceNumber: salePending.invoiceNumber,
+              items: salePending.items,
+              total: salePending.amount,
+              paymentMethod: "QR_MERCADOPAGO",
+              cashReceived: 0,
+              changeGiven: 0,
+              createdAt: salePending.date,
+              isNewSale: false,
+              fromPendingQrId: salePending.id
+            });
+          }
+          setActiveModal("ticket-view");
         }
-        
-        showToast(`¡Pago de Venta ${invoiceNumber} aprobado!`);
+
+        showToast(`¡Pago de Venta ${invoiceNumber} aprobado!`, "success");
         await loadDashboardData();
       } else if (res.data.status === "rejected") {
         setPendingQrSales(prev => {
@@ -1202,7 +1230,7 @@ const Dashboard: React.FC = () => {
         });
 
         if (viewingPendingQrSale?.invoiceNumber === invoiceNumber) {
-          setViewingPendingQrSale(prev => prev ? { ...prev, status: "rejected" } : null);
+          setViewingPendingQrSale((prev: any) => prev ? { ...prev, status: "rejected" } : null);
         }
 
         showToast(`Pago de Venta ${invoiceNumber} rechazado.`);
@@ -1214,41 +1242,6 @@ const Dashboard: React.FC = () => {
     } finally {
       setPendingQrChecking(null);
     }
-  };
-
-  const printPendingQrTicket = async (sale: any) => {
-    try {
-      const saleDetailRes = await api.get(`/api/sales/detail?invoiceNumber=${sale.invoiceNumber}`);
-      setSelectedSale({
-        ...saleDetailRes.data.sale,
-        isNewSale: true
-      });
-      setActiveModal("ticket-view");
-    } catch (detailErr) {
-      console.error("Error al recuperar el detalle de la venta MP:", detailErr);
-      setSelectedSale({
-        invoiceNumber: sale.invoiceNumber,
-        items: sale.items,
-        subtotal: sale.items.reduce((acc: number, it: any) => acc + (it.product.sellPrice * it.quantity), 0) * 0.86,
-        tax: sale.items.reduce((acc: number, it: any) => acc + (it.product.sellPrice * it.quantity), 0) * 0.14,
-        total: sale.amount,
-        paymentMethod: "QR_MERCADOPAGO",
-        cashReceived: 0,
-        changeGiven: 0,
-        createdAt: sale.date,
-        isNewSale: true
-      });
-      setActiveModal("ticket-view");
-    }
-  };
-
-  const removePendingQrSale = (id: number) => {
-    setPendingQrSales(prev => {
-      const updated = prev.filter(sale => sale.id !== id);
-      localStorage.setItem("pendingQrSales", JSON.stringify(updated));
-      return updated;
-    });
-    showToast("Registro eliminado del panel.");
   };
 
   const fetchCashiers = async () => {
@@ -1940,17 +1933,9 @@ const Dashboard: React.FC = () => {
                                     style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: "#dbeafe", color: "#1e40af", border: "1px solid #93c5fd", cursor: "pointer" }}>
                                     QR
                                   </button>
-                                  <button onClick={(e) => { e.stopPropagation(); checkPendingQrStatus(sale.invoiceNumber); }} disabled={isApproved || isChecking} title="Verificar pago"
-                                    style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: isApproved ? "#e2e8f0" : isChecking ? "#6b7280" : "#1e3a8a", color: isApproved ? "#94a3b8" : "white", border: "none", cursor: isApproved || isChecking ? "default" : "pointer" }}>
+                                  <button onClick={(e) => { e.stopPropagation(); checkPendingQrStatus(sale.invoiceNumber); }} disabled={isChecking} title="Verificar pago — si está aprobado muestra el ticket"
+                                    style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: isChecking ? "#6b7280" : "#1e3a8a", color: "white", border: "none", cursor: isChecking ? "default" : "pointer" }}>
                                     {isChecking ? "..." : "Verificar"}
-                                  </button>
-                                  <button onClick={(e) => { e.stopPropagation(); printPendingQrTicket(sale); }} disabled={!isApproved} title="Imprimir ticket"
-                                    style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: isApproved ? "#059669" : "#e2e8f0", color: isApproved ? "white" : "#94a3b8", border: "none", cursor: isApproved ? "pointer" : "default" }}>
-                                    Imprimir
-                                  </button>
-                                  <button onClick={(e) => { e.stopPropagation(); removePendingQrSale(sale.id); }} disabled={!isApproved} title="Quitar de lista"
-                                    style={{ padding: "3px 6px", borderRadius: "4px", fontSize: "13px", backgroundColor: "transparent", color: isApproved ? "#dc2626" : "#cbd5e1", border: "none", cursor: isApproved ? "pointer" : "default" }}>
-                                    🗑️
                                   </button>
                                 </div>
                               </td>
@@ -2940,15 +2925,13 @@ const Dashboard: React.FC = () => {
                 >
                   CERRAR
                 </button>
-                {viewingPendingQrSale.status !== "approved" && (
-                  <button
-                    onClick={() => checkPendingQrStatus(viewingPendingQrSale.invoiceNumber)}
-                    disabled={pendingQrChecking === viewingPendingQrSale.invoiceNumber}
-                    style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
-                  >
-                    {pendingQrChecking === viewingPendingQrSale.invoiceNumber ? "VERIFICANDO..." : "VERIFICAR ESTADO"}
-                  </button>
-                )}
+                <button
+                  onClick={() => checkPendingQrStatus(viewingPendingQrSale.invoiceNumber)}
+                  disabled={pendingQrChecking === viewingPendingQrSale.invoiceNumber}
+                  style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
+                >
+                  {pendingQrChecking === viewingPendingQrSale.invoiceNumber ? "VERIFICANDO..." : "VERIFICAR ESTADO"}
+                </button>
               </div>
             </div>
           </div>
@@ -4800,14 +4783,12 @@ const Dashboard: React.FC = () => {
                 CERRAR
               </button>
               
-              {viewingPendingQrSale.status !== "approved" && (
-                <button
-                  onClick={() => checkPendingQrStatus(viewingPendingQrSale.invoiceNumber)}
-                  style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
-                >
-                  VERIFICAR ESTADO
-                </button>
-              )}
+              <button
+                onClick={() => checkPendingQrStatus(viewingPendingQrSale.invoiceNumber)}
+                style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
+              >
+                VERIFICAR ESTADO
+              </button>
             </div>
           </div>
         </div>
