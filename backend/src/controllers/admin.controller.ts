@@ -900,3 +900,272 @@ export const registerPurchase = async (req: Request, res: Response): Promise<voi
     res.status(500).json({ message: "Error al registrar la compra.", error: error.message });
   }
 };
+
+// ===========================================================================
+// PROVEEDORES (Suppliers)
+// ===========================================================================
+
+export const listSuppliers = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const suppliers = await prisma.supplier.findMany({
+      orderBy: { name: "asc" },
+    });
+    res.json(suppliers);
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al listar proveedores.", error: error.message });
+  }
+};
+
+export const createSupplier = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { name, rfc, email, phone, address, city, state, zipCode, contactName } = req.body;
+    if (!name || String(name).trim() === "") {
+      res.status(400).json({ message: "El nombre del proveedor es requerido." });
+      return;
+    }
+    const supplier = await prisma.supplier.create({
+      data: {
+        name: String(name).trim(),
+        rfc: rfc ? String(rfc).trim() : undefined,
+        email: email ? String(email).trim() : undefined,
+        phone: phone ? String(phone).trim() : undefined,
+        address: address ? String(address).trim() : undefined,
+        city: city ? String(city).trim() : undefined,
+        state: state ? String(state).trim() : undefined,
+        zipCode: zipCode ? String(zipCode).trim() : undefined,
+        contactName: contactName ? String(contactName).trim() : undefined,
+      },
+    });
+    res.status(201).json(supplier);
+  } catch (error: any) {
+    if (error.code === "P2002") {
+      res.status(400).json({ message: "Ya existe un proveedor con ese nombre." });
+      return;
+    }
+    res.status(500).json({ message: "Error al crear proveedor.", error: error.message });
+  }
+};
+
+export const updateSupplier = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    if (!id || isNaN(id)) {
+      res.status(400).json({ message: "ID de proveedor inválido." });
+      return;
+    }
+    const { name, rfc, email, phone, address, city, state, zipCode, contactName, active } = req.body;
+    const supplier = await prisma.supplier.update({
+      where: { id },
+      data: {
+        ...(name !== undefined && { name: String(name).trim() }),
+        ...(rfc !== undefined && { rfc: String(rfc).trim() || null }),
+        ...(email !== undefined && { email: String(email).trim() || null }),
+        ...(phone !== undefined && { phone: String(phone).trim() || null }),
+        ...(address !== undefined && { address: String(address).trim() || null }),
+        ...(city !== undefined && { city: String(city).trim() || null }),
+        ...(state !== undefined && { state: String(state).trim() || null }),
+        ...(zipCode !== undefined && { zipCode: String(zipCode).trim() || null }),
+        ...(contactName !== undefined && { contactName: String(contactName).trim() || null }),
+        ...(active !== undefined && { active: Boolean(active) }),
+      },
+    });
+    res.json(supplier);
+  } catch (error: any) {
+    if (error.code === "P2025") {
+      res.status(404).json({ message: "Proveedor no encontrado." });
+      return;
+    }
+    res.status(500).json({ message: "Error al actualizar proveedor.", error: error.message });
+  }
+};
+
+// ===========================================================================
+// ÓRDENES DE COMPRA (Purchase Orders)
+// ===========================================================================
+
+export const listPurchases = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { branchId, status, supplierId, from, to } = req.query;
+    const where: any = {};
+    if (branchId && branchId !== "all") where.branchId = Number(branchId);
+    if (status && status !== "all") where.status = String(status);
+    if (supplierId) where.supplierId = Number(supplierId);
+    if (from && to) {
+      where.purchaseDate = {
+        gte: new Date(String(from)),
+        lte: new Date(String(to)),
+      };
+    }
+    const purchases = await prisma.purchaseOrder.findMany({
+      where,
+      include: {
+        supplier: { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true } },
+        details: {
+          include: { product: { select: { id: true, sku: true, name: true } } },
+        },
+        createdByUser: { select: { id: true, name: true } },
+      },
+      orderBy: { purchaseDate: "desc" },
+      take: 100,
+    });
+    res.json(purchases);
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al listar compras.", error: error.message });
+  }
+};
+
+export const createPurchase = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+  try {
+    const { supplierId, branchId, reference, details, notes } = req.body;
+    const userId = req.user.userId;
+
+    if (!supplierId || !branchId || !reference || !Array.isArray(details) || details.length === 0) {
+      res.status(400).json({ message: "Faltan campos requeridos: supplierId, branchId, reference, details." });
+      return;
+    }
+
+    const validDetails = details.filter((d: any) => d.productId && Number(d.quantity) > 0);
+    if (validDetails.length === 0) {
+      res.status(400).json({ message: "Agregue al menos un producto con cantidad mayor a 0." });
+      return;
+    }
+
+    const productIds = [...new Set(validDetails.map((d: any) => Number(d.productId)))] as number[];
+    const foundProducts = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true },
+    });
+    if (foundProducts.length !== productIds.length) {
+      res.status(404).json({ message: "Uno o más productos no existen en el catálogo." });
+      return;
+    }
+
+    const supplier = await prisma.supplier.findUnique({ where: { id: Number(supplierId) } });
+    if (!supplier) {
+      res.status(404).json({ message: "Proveedor no encontrado." });
+      return;
+    }
+    const branch = await prisma.branch.findUnique({ where: { id: Number(branchId) } });
+    if (!branch) {
+      res.status(404).json({ message: "Sucursal no encontrada." });
+      return;
+    }
+
+    const subtotalNum = validDetails.reduce(
+      (sum: number, d: any) => sum + Number(d.quantity) * Number(d.unitCost || 0),
+      0
+    );
+    const taxNum = Math.round(subtotalNum * 0.16 * 100) / 100;
+    const totalNum = Math.round((subtotalNum + taxNum) * 100) / 100;
+
+    const purchase = await prisma.purchaseOrder.create({
+      data: {
+        supplierId: Number(supplierId),
+        branchId: Number(branchId),
+        reference: String(reference).trim(),
+        subtotal: subtotalNum,
+        tax: taxNum,
+        total: totalNum,
+        notes: notes ? String(notes).trim() : undefined,
+        createdBy: userId,
+        details: {
+          createMany: {
+            data: validDetails.map((d: any) => ({
+              productId: Number(d.productId),
+              quantity: Number(d.quantity),
+              unitCost: Number(d.unitCost || 0),
+              subtotal: Math.round(Number(d.quantity) * Number(d.unitCost || 0) * 100) / 100,
+            })),
+          },
+        },
+      },
+      include: {
+        supplier: { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true } },
+        details: { include: { product: { select: { id: true, sku: true, name: true } } } },
+      },
+    });
+
+    res.status(201).json(purchase);
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al crear la orden de compra.", error: error.message });
+  }
+};
+
+export const receivePurchase = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+  try {
+    const id = Number(req.params.id);
+    const userId = req.user.userId;
+
+    const purchase = await prisma.purchaseOrder.findUnique({
+      where: { id },
+      include: { details: true, supplier: true },
+    });
+
+    if (!purchase) {
+      res.status(404).json({ message: "Orden de compra no encontrada." });
+      return;
+    }
+    if (purchase.status === "RECIBIDA") {
+      res.status(400).json({ message: "La orden de compra ya fue recibida." });
+      return;
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      for (const detail of purchase.details) {
+        const existing = await tx.inventory.findUnique({
+          where: {
+            productId_branchId: { productId: detail.productId, branchId: purchase.branchId },
+          },
+        });
+
+        let newQty: number;
+        if (existing) {
+          newQty = existing.quantity + detail.quantity;
+          await tx.inventory.update({ where: { id: existing.id }, data: { quantity: newQty } });
+        } else {
+          newQty = detail.quantity;
+          await tx.inventory.create({
+            data: { productId: detail.productId, branchId: purchase.branchId, quantity: detail.quantity },
+          });
+        }
+
+        await tx.kardex.create({
+          data: {
+            productId: detail.productId,
+            branchId: purchase.branchId,
+            userId,
+            quantityChange: detail.quantity,
+            balanceAfter: newQty,
+            movementType: "COMPRA",
+            reason: `Compra ${purchase.reference} de ${purchase.supplier.name}. Costo unit: $${Number(detail.unitCost).toFixed(2)}`,
+            purchaseOrderId: purchase.id,
+          },
+        });
+      }
+
+      return await tx.purchaseOrder.update({
+        where: { id: purchase.id },
+        data: { status: "RECIBIDA", receivedBy: userId, receivedDate: new Date() },
+        include: {
+          supplier: { select: { id: true, name: true } },
+          branch: { select: { id: true, name: true } },
+          details: { include: { product: { select: { id: true, sku: true, name: true } } } },
+        },
+      });
+    });
+
+    res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al recibir la orden de compra.", error: error.message });
+  }
+};

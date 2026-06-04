@@ -31,6 +31,7 @@ import ReportesView from "./admin/ReportesView";
 import KardexView from "./admin/KardexView";
 import ComprasView from "./admin/ComprasView";
 import DepositosView from "./admin/DepositosView";
+import ProveedoresView from "./admin/ProveedoresView";
 import type { ViewProps } from "./admin/shared";
 
 interface BranchOption {
@@ -49,6 +50,7 @@ const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<
   { key: "depositos", label: "Depósitos", icon: Landmark, view: DepositosView, branchScoped: true },
   { key: "empleados", label: "Empleados", icon: UserCog, view: EmpleadosView, branchScoped: true },
   { key: "sucursales", label: "Sucursales", icon: Building2, view: SucursalesView, branchScoped: false },
+  { key: "proveedores", label: "Proveedores", icon: Building2, view: ProveedoresView, branchScoped: false },
   { key: "reportes", label: "Reportes", icon: BarChart3, view: ReportesView, branchScoped: true },
 ];
 
@@ -57,7 +59,7 @@ const NAV_SECTIONS: { label: string; items: string[] }[] = [
   { label: "Operación", items: ["ventas", "compras"] },
   { label: "Caja y finanzas", items: ["cajas", "depositos"] },
   { label: "Inventario", items: ["inventario"] },
-  { label: "Catálogos", items: ["clientes", "empleados", "sucursales"] },
+  { label: "Catálogos", items: ["clientes", "empleados", "sucursales", "proveedores"] },
   { label: "Reportes", items: ["reportes"] },
 ];
 
