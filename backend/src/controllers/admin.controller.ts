@@ -461,6 +461,7 @@ export const getReports = async (req: Request, res: Response): Promise<void> => 
       byBranchRaw,
       completedSales,
       branches,
+      salesListRaw,
     ] = await Promise.all([
       prisma.sale.aggregate({
         where: completedWhere,
@@ -482,15 +483,33 @@ export const getReports = async (req: Request, res: Response): Promise<void> => 
       }),
       prisma.sale.findMany({ where: completedWhere, select: { id: true } }),
       prisma.branch.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { id: "asc" } }),
+      prisma.sale.findMany({
+        where: { ...branchFilter, ...rangeFilter },
+        select: {
+          id: true,
+          invoiceNumber: true,
+          createdAt: true,
+          totalAmount: true,
+          taxAmount: true,
+          discountAmount: true,
+          status: true,
+        },
+        orderBy: { createdAt: "desc" },
+      }),
     ]);
 
     const saleIds = completedSales.map((s) => s.id);
 
     let utilidad = 0;
     let topProducts: { id: number; name: string; unidades: number; importe: number }[] = [];
+    let taxBreakdown: { taxName: string; taxRate: number; total: number }[] = [];
+    let taxByProduct: { productId: number; name: string; sku: string; totalTax: number }[] = [];
+    let ivaAmount = 0;
+    let iepsAmount = 0;
+    let otherTaxesAmount = 0;
 
     if (saleIds.length > 0) {
-      const [detailsForProfit, topRaw] = await Promise.all([
+      const [detailsForProfit, topRaw, saleDetailTaxes] = await Promise.all([
         prisma.saleDetail.findMany({
           where: { saleId: { in: saleIds } },
           select: { quantity: true, unitPrice: true, costPrice: true },
@@ -502,6 +521,26 @@ export const getReports = async (req: Request, res: Response): Promise<void> => 
           orderBy: { _sum: { quantity: "desc" } },
           take: 8,
         }),
+        prisma.saleDetailTax.findMany({
+          where: {
+            saleDetail: {
+              saleId: { in: saleIds }
+            }
+          },
+          include: {
+            saleDetail: {
+              select: {
+                productId: true,
+                product: {
+                  select: {
+                    name: true,
+                    sku: true
+                  }
+                }
+              }
+            }
+          }
+        })
       ]);
 
       utilidad = detailsForProfit.reduce(
@@ -525,6 +564,62 @@ export const getReports = async (req: Request, res: Response): Promise<void> => 
           importe: unidades * Number(prod?.sellPrice ?? 0),
         };
       });
+
+      // Calcular desgloses de impuestos detallados
+      const taxBreakdownMap = new Map<string, { taxName: string; taxRate: number; total: number }>();
+      const taxByProductMap = new Map<number, { productId: number; name: string; sku: string; totalTax: number }>();
+
+      for (const sdt of saleDetailTaxes) {
+        const amount = Number(sdt.taxAmount);
+        const name = sdt.taxName;
+        const rate = Number(sdt.taxRate);
+
+        if (!taxBreakdownMap.has(name)) {
+          taxBreakdownMap.set(name, { taxName: name, taxRate: rate, total: 0 });
+        }
+        taxBreakdownMap.get(name)!.total += amount;
+
+        const nameUpper = name.toUpperCase();
+        if (nameUpper.includes("IVA")) {
+          ivaAmount += amount;
+        } else if (nameUpper.includes("IEPS")) {
+          iepsAmount += amount;
+        } else {
+          otherTaxesAmount += amount;
+        }
+
+        const prodId = sdt.saleDetail.productId;
+        const prodName = sdt.saleDetail.product.name;
+        const prodSku = sdt.saleDetail.product.sku;
+
+        if (!taxByProductMap.has(prodId)) {
+          taxByProductMap.set(prodId, { productId: prodId, name: prodName, sku: prodSku, totalTax: 0 });
+        }
+        taxByProductMap.get(prodId)!.totalTax += amount;
+      }
+
+      // Manejar el fallback de impuestos de ventas legacy
+      const sumNewTaxes = saleDetailTaxes.reduce((acc, sdt) => acc + Number(sdt.taxAmount), 0);
+      const totalTaxSum = Number(totalsAgg._sum.taxAmount ?? 0);
+      const legacyTaxAmount = totalTaxSum - sumNewTaxes;
+
+      if (legacyTaxAmount > 0.05) {
+        ivaAmount += legacyTaxAmount;
+        const legacyKey = "IVA 16% (Legacy)";
+        if (!taxBreakdownMap.has(legacyKey)) {
+          taxBreakdownMap.set(legacyKey, { taxName: legacyKey, taxRate: 0.16, total: 0 });
+        }
+        taxBreakdownMap.get(legacyKey)!.total += legacyTaxAmount;
+      }
+
+      taxBreakdown = Array.from(taxBreakdownMap.values()).map((tb) => ({
+        ...tb,
+        total: Number(tb.total.toFixed(2)),
+      }));
+      taxByProduct = Array.from(taxByProductMap.values()).map((tbp) => ({
+        ...tbp,
+        totalTax: Number(tbp.totalTax.toFixed(2)),
+      })).sort((a, b) => b.totalTax - a.totalTax);
     }
 
     const ventasNetas = Number(totalsAgg._sum.totalAmount ?? 0);
@@ -532,11 +627,24 @@ export const getReports = async (req: Request, res: Response): Promise<void> => 
 
     const branchNameById = new Map(branches.map((b) => [b.id, b.name]));
 
+    const salesList = salesListRaw.map((s) => ({
+      id: s.id,
+      invoiceNumber: s.invoiceNumber,
+      createdAt: s.createdAt,
+      subtotal: Number(s.totalAmount) - Number(s.taxAmount),
+      taxAmount: Number(s.taxAmount),
+      totalAmount: Number(s.totalAmount),
+      status: s.status,
+    }));
+
     res.status(200).json({
       range: { from: from.toISOString(), to: to.toISOString() },
       totals: {
         ventasNetas,
         impuestos: Number(totalsAgg._sum.taxAmount ?? 0),
+        ivaAmount: Number(ivaAmount.toFixed(2)),
+        iepsAmount: Number(iepsAmount.toFixed(2)),
+        otherTaxesAmount: Number(otherTaxesAmount.toFixed(2)),
         descuentos: Number(totalsAgg._sum.discountAmount ?? 0),
         utilidad,
         ticketCount,
@@ -557,6 +665,9 @@ export const getReports = async (req: Request, res: Response): Promise<void> => 
         }))
         .sort((a, b) => b.total - a.total),
       topProducts,
+      taxBreakdown,
+      taxByProduct,
+      salesList,
     });
   } catch (error: any) {
     res.status(500).json({ message: "Error al generar los reportes.", error: error.message });

@@ -707,6 +707,18 @@ const Dashboard: React.FC = () => {
         setQrModalOpen(false);
         setCart([]);
         setPaymentMethod("EFECTIVO");
+
+        // Fetch fully populated sale details from backend
+        try {
+          const saleDetailRes = await api.get(`/api/sales/detail?invoiceNumber=${qrReference}`);
+          setSelectedSale({
+            ...saleDetailRes.data.sale,
+            isNewSale: true
+          });
+        } catch (detailErr) {
+          console.error("Error al recuperar el detalle de la venta MP:", detailErr);
+        }
+
         setActiveModal("ticket-view");
       } else if (res.data.status === "rejected") {
         alert("Pago rechazado.");
@@ -823,28 +835,37 @@ const Dashboard: React.FC = () => {
       });
 
       // Guardar info para imprimir ticket
-      setSelectedSale({
-        invoiceNumber: res.data.invoiceNumber,
-        items: [...cart],
-        subtotal: cartSubtotal,
-        discountAmount: cartDiscount,
-        subtotalOriginal: cartSubtotalOriginal,
-        tax: cartTax,
-        total: cartTotal,
-        paymentMethod,
-        cardType: (paymentMethod === "TARJETA" || paymentMethod === "MIXTO") ? cardType : undefined,
-        cashReceived: paymentMethod === "EFECTIVO" ? parsedReceived : paymentMethod === "MIXTO" ? Number(mixtoCash) : 0,
-        changeGiven: calculatedChange,
-        createdAt: new Date().toISOString(),
-        isNewSale: true,
-        status: "COMPLETADA",
-        // Datos de lealtad retornados por el backend
-        pointsEarned: res.data.pointsEarned || 0,
-        pointsRedeemed: res.data.pointsRedeemed || 0,
-        pointsDiscount: res.data.pointsDiscount || 0,
-        customerPoints: res.data.customerPoints || 0,
-        customerName: res.data.customerName || null,
-      });
+      try {
+        const saleDetailRes = await api.get(`/api/sales/detail?id=${res.data.saleId}`);
+        setSelectedSale({
+          ...saleDetailRes.data.sale,
+          isNewSale: true
+        });
+      } catch (detailErr) {
+        console.error("Error al recuperar el detalle de la venta:", detailErr);
+        // Fallback en caso de que falle la petición de detalle
+        setSelectedSale({
+          invoiceNumber: res.data.invoiceNumber,
+          items: [...cart],
+          subtotal: cartSubtotal,
+          discountAmount: cartDiscount,
+          subtotalOriginal: cartSubtotalOriginal,
+          tax: cartTax,
+          total: cartTotal,
+          paymentMethod,
+          cardType: (paymentMethod === "TARJETA" || paymentMethod === "MIXTO") ? cardType : undefined,
+          cashReceived: paymentMethod === "EFECTIVO" ? parsedReceived : paymentMethod === "MIXTO" ? Number(mixtoCash) : 0,
+          changeGiven: calculatedChange,
+          createdAt: new Date().toISOString(),
+          isNewSale: true,
+          status: "COMPLETADA",
+          pointsEarned: res.data.pointsEarned || 0,
+          pointsRedeemed: res.data.pointsRedeemed || 0,
+          pointsDiscount: res.data.pointsDiscount || 0,
+          customerPoints: res.data.customerPoints || 0,
+          customerName: res.data.customerName || null,
+        });
+      }
 
       // Limpiar carrito, borrador, cliente seleccionado y cerrar cobro
       setCart([]);
@@ -2446,6 +2467,11 @@ const Dashboard: React.FC = () => {
                                 ↳ Devuelto: {item.returnedQuantity} ud{item.returnedQuantity > 1 ? 's' : ''}
                               </div>
                             )}
+                            {(item.taxes || item.taxDetail) && (item.taxes?.length > 0 || item.taxDetail?.length > 0) && (
+                              <div style={{ fontSize: "9px", color: "#64748b", fontStyle: "italic", marginTop: "2px" }}>
+                                {(item.taxes || item.taxDetail).map((t: any) => `${t.name}: $${Number(t.amount).toFixed(2)}`).join(" | ")}
+                              </div>
+                            )}
                           </td>
                           <td style={{ textAlign: "center", padding: "4px 0" }}>{item.quantity}</td>
                           <td style={{ textAlign: "right", padding: "4px 0" }}>
@@ -2494,10 +2520,25 @@ const Dashboard: React.FC = () => {
                     <span>Subtotal:</span>
                     <span>${selectedSale.subtotal.toFixed(2)}</span>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>IVA (16%):</span>
-                    <span>${selectedSale.tax.toFixed(2)}</span>
-                  </div>
+                  {selectedSale.taxBreakdown && selectedSale.taxBreakdown.length > 0 ? (
+                    selectedSale.taxBreakdown.map((tb: any, i: number) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>{tb.name}:</span>
+                        <span>${Number(tb.amount).toFixed(2)}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span>IVA (16%):</span>
+                      <span>${selectedSale.tax.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {selectedSale.taxBreakdown && selectedSale.taxBreakdown.length > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", fontStyle: "italic", color: "#64748b" }}>
+                      <span>Total Impuestos:</span>
+                      <span>${selectedSale.tax.toFixed(2)}</span>
+                    </div>
+                  )}
                   {selectedSale.totalRefunded > 0 && (
                     <>
                       <div style={{ display: "flex", justifyContent: "space-between", color: "#dc2626", fontWeight: "700", borderTop: "1px dashed #dc2626", paddingTop: "4px", marginTop: "4px" }}>
@@ -3279,6 +3320,11 @@ const Dashboard: React.FC = () => {
                               ↳ Devuelto: {item.returnedQuantity} ud{item.returnedQuantity > 1 ? 's' : ''}
                             </div>
                           )}
+                          {(item.taxes || item.taxDetail) && (item.taxes?.length > 0 || item.taxDetail?.length > 0) && (
+                            <div style={{ fontSize: "9px", color: "#64748b", fontStyle: "italic", marginTop: "2px" }}>
+                              {(item.taxes || item.taxDetail).map((t: any) => `${t.name}: $${Number(t.amount).toFixed(2)}`).join(" | ")}
+                            </div>
+                          )}
                         </td>
                         <td style={{ textAlign: "center", padding: "4px 0" }}>{item.quantity}</td>
                         <td style={{ textAlign: "right", padding: "4px 0" }}>
@@ -3327,10 +3373,25 @@ const Dashboard: React.FC = () => {
                   <span>Subtotal:</span>
                   <span>${selectedSale.subtotal.toFixed(2)}</span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>IVA (16%):</span>
-                  <span>${selectedSale.tax.toFixed(2)}</span>
-                </div>
+                {selectedSale.taxBreakdown && selectedSale.taxBreakdown.length > 0 ? (
+                  selectedSale.taxBreakdown.map((tb: any, i: number) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span>{tb.name}:</span>
+                      <span>${Number(tb.amount).toFixed(2)}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>IVA (16%):</span>
+                    <span>${selectedSale.tax.toFixed(2)}</span>
+                  </div>
+                )}
+                {selectedSale.taxBreakdown && selectedSale.taxBreakdown.length > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontStyle: "italic", color: "#64748b" }}>
+                    <span>Total Impuestos:</span>
+                    <span>${selectedSale.tax.toFixed(2)}</span>
+                  </div>
+                )}
                 <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "800", fontSize: "12px" }}>
                   <span>TOTAL:</span>
                   <span>${selectedSale.total.toFixed(2)}</span>
@@ -4984,7 +5045,7 @@ const Dashboard: React.FC = () => {
 };
 
 // Estilos premium que calcan la estética y estructura de todas las maquetas (1 a 8)
-const styles = {
+const styles: { [key: string]: React.CSSProperties } = {
   loadingScreen: {
     display: "flex",
     flexDirection: "column" as const,

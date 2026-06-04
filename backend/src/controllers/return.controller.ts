@@ -203,7 +203,12 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
     const sale = await prisma.sale.findUnique({
       where: { id: Number(saleId) },
       include: {
-        saleDetails: { include: { product: true } },
+        saleDetails: {
+          include: {
+            product: true,
+            saleDetailTaxes: true,
+          }
+        },
         returns: { include: { returnDetails: true } },
       },
     });
@@ -276,11 +281,24 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
         return;
       }
 
-      // Calcular proporción de descuento e IVA a devolver
+      // Calcular proporción de descuento a devolver
       const discountRatio = Number(saleDetail.discountAmount) / saleDetail.quantity;
       const lineOriginalTotal = Number(saleDetail.unitPrice) * requestedQty;
       const lineDiscountRefund = discountRatio * requestedQty;
       const lineNetRefund = lineOriginalTotal - lineDiscountRefund;
+
+      // Calcular impuestos a reembolsar usando registros históricos de SaleDetailTax
+      let lineTaxRefund = 0;
+      if (saleDetail.saleDetailTaxes && saleDetail.saleDetailTaxes.length > 0) {
+        // Proratear cada impuesto basado en las unidades devueltas
+        for (const sdt of saleDetail.saleDetailTaxes) {
+          const perUnitTax = Number(sdt.taxAmount) / saleDetail.quantity;
+          lineTaxRefund += Number((perUnitTax * requestedQty).toFixed(2));
+        }
+      } else {
+        // Fallback para ventas antiguas sin SaleDetailTax: usar 16% IVA por defecto
+        lineTaxRefund = lineNetRefund * 0.16;
+      }
 
       refundSubtotal += lineOriginalTotal;
       refundDiscount += lineDiscountRefund;
@@ -292,7 +310,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
         quantity: requestedQty,
         unitPrice: Number(saleDetail.unitPrice),
         discountAmount: lineDiscountRefund,
-        taxAmount: lineNetRefund * 0.16,
+        taxAmount: lineTaxRefund,
         netRefund: lineNetRefund,
         destination: item.destination,
         serialNumber: item.serialNumber || null,
@@ -300,7 +318,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       });
     }
 
-    const refundTax = (refundSubtotal - refundDiscount) * 0.16;
+    const refundTax = validatedItems.reduce((acc, item) => acc + item.taxAmount, 0);
     const refundTotal = (refundSubtotal - refundDiscount) + refundTax;
 
     // 5. Procesar cambio de producto (si aplica)
@@ -339,11 +357,34 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       for (let i = 0; i < cartItems.length; i++) {
         const item = cartItems[i];
         const dbProduct = await prisma.product.findUnique({
-          where: { id: item.productId }
+          where: { id: item.productId },
+          include: {
+            productTaxes: { include: { taxType: true } }
+          }
         });
         const calcLine = promoCalc.lines[i];
 
         calcSubtotal += Number(dbProduct!.sellPrice) * item.quantity;
+
+        // Calculate taxes for exchange item
+        const exchangeLineNet = (Number(dbProduct!.sellPrice) * item.quantity) - calcLine.discountAmount;
+        const applicableTaxes = dbProduct!.productTaxes
+          ? dbProduct!.productTaxes.map((pt) => pt.taxType).filter((t) => t.active)
+          : [];
+
+        let exchangeLineTax = 0;
+        const exchangeLineTaxes = applicableTaxes.map((tax) => {
+          const rate = Number(tax.rate);
+          const amount = Number((exchangeLineNet * rate).toFixed(2));
+          exchangeLineTax += amount;
+          return {
+            taxTypeId: tax.id,
+            taxName: tax.name,
+            taxRate: tax.rate,
+            taxAmount: amount,
+          };
+        });
+
         exchangeItemsWithPrices.push({
           productId: item.productId,
           quantity: item.quantity,
@@ -352,11 +393,13 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
           discountAmount: calcLine.discountAmount,
           promotionId: calcLine.appliedPromotion?.promotionId || null,
           promotionLabel: calcLine.appliedPromotion ? calcLine.appliedPromotion.name : null,
+          taxAmount: exchangeLineTax,
+          taxes: exchangeLineTaxes,
         });
       }
 
       const exchangeSubtotal = promoCalc.totalFinal;
-      exchangeTax = exchangeSubtotal * 0.16;
+      exchangeTax = exchangeItemsWithPrices.reduce((acc: number, item: any) => acc + item.taxAmount, 0);
       exchangeTotal = exchangeSubtotal + exchangeTax;
 
       // Balance = total a favor del cliente - total de nuevos productos
@@ -548,19 +591,34 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
 
         // Guardar detalles del intercambio e inventario
         for (const item of exchangeItemsWithPrices) {
-          await tx.saleDetail.create({
+          const exchangeDetail = await tx.saleDetail.create({
             data: {
               saleId: newSale.id,
               productId: item.productId,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
               costPrice: item.costPrice,
-              taxAmount: (item.unitPrice * item.quantity - item.discountAmount) * 0.16,
+              taxAmount: item.taxAmount,
               discountAmount: item.discountAmount,
               promotionId: item.promotionId,
               promotionLabel: item.promotionLabel
             }
           });
+
+          // Save tax breakdown for the exchange sale detail
+          if (item.taxes && item.taxes.length > 0) {
+            for (const sdt of item.taxes) {
+              await tx.saleDetailTax.create({
+                data: {
+                  saleDetailId: exchangeDetail.id,
+                  taxTypeId: sdt.taxTypeId,
+                  taxName: sdt.taxName,
+                  taxRate: sdt.taxRate,
+                  taxAmount: sdt.taxAmount,
+                },
+              });
+            }
+          }
 
           // Decrementar inventario del producto de intercambio
           const inv = await tx.inventory.findFirst({
