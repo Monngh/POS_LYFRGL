@@ -12,7 +12,8 @@ import promotionRouter from "./routes/promotion.routes";
 import dashboardRouter from "./routes/dashboard.routes";
 import adminRouter from "./routes/admin.routes";
 import returnRouter from "./routes/return.routes";
-
+import adminTaxRouter from "./routes/adminTax.routes";
+import adminPromotionRouter from "./routes/adminPromotion.routes";
 
 // Inicializar cliente de Prisma como Singleton
 export const prisma = new PrismaClient();
@@ -23,7 +24,7 @@ const app = express();
 app.use(helmet());
 app.use(cors({
   origin: "*", // En producción configurar para los dominios permitidos
-  methods: ["GET", "POST", "PUT", "DELETE"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
 app.use(express.json());
@@ -39,7 +40,8 @@ app.use("/api/promotions", promotionRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/returns", returnRouter);
-
+app.use("/api/admin-tax", adminTaxRouter);
+app.use("/api/admin-promotions", adminPromotionRouter);
 
 // Ruta de healthcheck
 app.get("/health", async (_req: Request, res: Response) => {

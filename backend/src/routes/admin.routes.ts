@@ -17,7 +17,7 @@ import {
   getEmployeeOperations,
   listKardex,
   listBankDeposits,
-  //registerPurchase,
+  registerPurchase,
   listSuppliers,
   createSupplier,
   updateSupplier,
@@ -34,6 +34,7 @@ import {
   assignProductToSupplier,
   removeProductFromSupplier,
   getProductSuppliers,
+  deleteProduct,
 } from "../controllers/admin.controller";
 import { authenticateJWT, authorizeRoles } from "../middlewares/auth.middleware";
 
@@ -58,6 +59,7 @@ router.post("/products", createProduct);
 router.get("/products/:productId/suppliers", getProductSuppliers);
 router.get("/products/:id", getProductDetail);
 router.put("/products/:id", updateProduct);
+router.delete("/products/:id", deleteProduct);
 
 // Clientes
 router.get("/customers", listCustomers);
