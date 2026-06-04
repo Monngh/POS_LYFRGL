@@ -16,7 +16,8 @@ import {
   Delete,
   KeyRound,
   AlertTriangle,
-  FileText
+  FileText,
+  RotateCcw
 } from "lucide-react";
 
 interface Product {
@@ -98,6 +99,21 @@ const Dashboard: React.FC = () => {
   const [depCancelReason, setDepCancelReason] = useState("");
   const [depCancelPin, setDepCancelPin] = useState("");
   const [depCancelLoading, setDepCancelLoading] = useState(false);
+
+  // ---------------------------------------------------------------------------
+  // ESTADOS PARA MÓDULO DE DEVOLUCIONES
+  // ---------------------------------------------------------------------------
+  const [returnStep, setReturnStep] = useState<"search" | "select" | "confirm" | "receipt">("search");
+  const [returnFolio, setReturnFolio] = useState("");
+  const [returnLoading, setReturnLoading] = useState(false);
+  const [returnSaleData, setReturnSaleData] = useState<any>(null);
+  const [returnItems, setReturnItems] = useState<any[]>([]);
+  const [returnReason, setReturnReason] = useState("");
+  const [returnPin, setReturnPin] = useState("");
+  const [returnPinAttempts, setReturnPinAttempts] = useState<number>(0);
+  const [returnPaymentMethod, setReturnPaymentMethod] = useState("EFECTIVO");
+  const [returnProcessing, setReturnProcessing] = useState(false);
+  const [returnReceipt, setReturnReceipt] = useState<any>(null);
 
   // Estados para alertas personalizadas y cobro (Fase 3.5)
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" | "info" } | null>(null);
@@ -335,16 +351,27 @@ const Dashboard: React.FC = () => {
 
   // Estados para búsqueda de tickets en reimpresión (Fase 3.8)
   const [ticketSearch, setTicketSearch] = useState("");
-  const [filteredSales, setFilteredSales] = useState<Sale[]>([]);
+  const [ticketCustomer, setTicketCustomer] = useState("");
+  const [ticketPhone, setTicketPhone] = useState("");
+  const [ticketDateFrom, setTicketDateFrom] = useState("");
+  const [ticketDateTo, setTicketDateTo] = useState("");
+  const [filteredSales, setFilteredSales] = useState<any[]>([]);
+
 
   // Efecto para buscar y filtrar tickets de venta para reimpresión
   useEffect(() => {
     if (activeModal !== "ticket-history") return;
-    const query = ticketSearch.trim();
 
     const timer = setTimeout(async () => {
       try {
-        const res = await api.get(`/api/sales/recent?search=${query}`);
+        const params: any = {};
+        if (ticketSearch.trim()) params.search = ticketSearch.trim();
+        if (ticketCustomer.trim()) params.customer = ticketCustomer.trim();
+        if (ticketPhone.trim()) params.phone = ticketPhone.trim();
+        if (ticketDateFrom) params.dateFrom = ticketDateFrom;
+        if (ticketDateTo) params.dateTo = ticketDateTo;
+
+        const res = await api.get("/api/sales/recent", { params });
         setFilteredSales(res.data.sales || []);
       } catch (err) {
         console.error("Error al buscar tickets:", err);
@@ -352,7 +379,7 @@ const Dashboard: React.FC = () => {
     }, 200);
 
     return () => clearTimeout(timer);
-  }, [ticketSearch, activeModal]);
+  }, [ticketSearch, ticketCustomer, ticketPhone, ticketDateFrom, ticketDateTo, activeModal]);
 
   // Efecto de búsqueda predictiva para Clientes en la caja
   useEffect(() => {
@@ -588,15 +615,22 @@ const Dashboard: React.FC = () => {
     let discountAmount = 0;
     let finalPrice = originalPrice;
 
+    // Verificar minQuantity para TODOS los tipos de promoción
+    const minQty = promo.minQuantity || 1;
+
     if (promo.type === "Percentage") {
-      const val = promo.value || 0;
-      const discountPerUnit = originalPrice * (val / 100);
-      discountAmount = discountPerUnit * quantity;
-      finalPrice = originalPrice - discountPerUnit;
+      if (quantity >= minQty) {
+        const val = promo.value || 0;
+        const discountPerUnit = originalPrice * (val / 100);
+        discountAmount = discountPerUnit * quantity;
+        finalPrice = originalPrice - discountPerUnit;
+      }
     } else if (promo.type === "FixedAmount") {
-      const val = promo.value || 0;
-      discountAmount = val * quantity;
-      finalPrice = Math.max(0, originalPrice - val);
+      if (quantity >= minQty) {
+        const val = promo.value || 0;
+        discountAmount = val * quantity;
+        finalPrice = Math.max(0, originalPrice - val);
+      }
     } else if (promo.type === "BuyXPayY") {
       const x = promo.minQuantity || 1;
       const y = promo.payQuantity || 1;
@@ -609,7 +643,6 @@ const Dashboard: React.FC = () => {
         finalPrice = lineCost / quantity;
       }
     } else if (promo.type === "SpecialPrice") {
-      const minQty = promo.minQuantity || 1;
       const special = promo.specialPrice || originalPrice;
       if (quantity >= minQty) {
         finalPrice = special;
@@ -617,10 +650,13 @@ const Dashboard: React.FC = () => {
       }
     }
 
+    const promoApplied = discountAmount > 0;
+
     return {
       finalPrice,
       discountAmount,
-      label: promo.name,
+      label: promoApplied ? promo.name : "",
+      promoApplied,
     };
   };
 
@@ -949,6 +985,10 @@ const Dashboard: React.FC = () => {
   const handleCloseModal_ticketHistory = () => {
     setActiveModal(null);
     setTicketSearch("");
+    setTicketCustomer("");
+    setTicketPhone("");
+    setTicketDateFrom("");
+    setTicketDateTo("");
     setFilteredSales([]);
   };
 
@@ -1134,6 +1174,175 @@ const Dashboard: React.FC = () => {
       return () => clearTimeout(delayDebounce);
     }
   }, [searchDepRef, searchDepStatus, searchDepUser, searchDepDateFrom, searchDepDateTo]);
+
+  // ---------------------------------------------------------------------------
+  // 12. MÓDULO DE DEVOLUCIONES — HANDLERS
+  // ---------------------------------------------------------------------------
+  const handleReturnReset = () => {
+    setReturnStep("search");
+    setReturnFolio("");
+    setReturnSaleData(null);
+    setReturnItems([]);
+    setReturnReason("");
+    setReturnPin("");
+    setReturnPinAttempts(0);
+    setReturnPaymentMethod("EFECTIVO");
+    setReturnProcessing(false);
+    setReturnReceipt(null);
+  };
+
+  const handleReturnSearch = async () => {
+    const folio = returnFolio.trim();
+    if (!folio) {
+      showToast("Ingrese el folio de la venta (V-XXXXXX).", "error");
+      return;
+    }
+    setReturnLoading(true);
+    try {
+      const res = await api.get(`/api/returns/eligible/${encodeURIComponent(folio)}`);
+      setReturnSaleData(res.data.sale);
+      setReturnItems(
+        res.data.items.map((item: any) => ({
+          ...item,
+          selected: false,
+          qtyToReturn: 0,
+          destination: "INVENTARIO_VENDIBLE",
+          serialNumberInput: "",
+          batchNumberInput: "",
+        }))
+      );
+      setReturnStep("select");
+    } catch (err: any) {
+      showToast(err.response?.data?.message || "Error al buscar la venta.", "error");
+    } finally {
+      setReturnLoading(false);
+    }
+  };
+
+  const handleReturnToggleItem = (idx: number) => {
+    setReturnItems((prev) =>
+      prev.map((item, i) =>
+        i === idx
+          ? {
+              ...item,
+              selected: !item.selected,
+              qtyToReturn: !item.selected ? Math.min(1, item.maxReturnableQty) : 0,
+            }
+          : item
+      )
+    );
+  };
+
+  const handleReturnQtyChange = (idx: number, qty: number) => {
+    setReturnItems((prev) =>
+      prev.map((item, i) =>
+        i === idx ? { ...item, qtyToReturn: Math.max(0, Math.min(qty, item.maxReturnableQty)) } : item
+      )
+    );
+  };
+
+  const handleReturnDestinationChange = (idx: number, dest: string) => {
+    setReturnItems((prev) =>
+      prev.map((item, i) => (i === idx ? { ...item, destination: dest } : item))
+    );
+  };
+
+  const handleReturnSelectAll = () => {
+    const allSelected = returnItems.filter((it) => it.isEligible).every((it) => it.selected);
+    setReturnItems((prev) =>
+      prev.map((item) =>
+        item.isEligible
+          ? { ...item, selected: !allSelected, qtyToReturn: !allSelected ? item.maxReturnableQty : 0 }
+          : item
+      )
+    );
+  };
+
+  const getReturnRefundTotal = () => {
+    return returnItems
+      .filter((it) => it.selected && it.qtyToReturn > 0)
+      .reduce((acc, it) => {
+        const net = it.netUnitPrice * it.qtyToReturn;
+        const tax = net * 0.16;
+        return acc + net + tax;
+      }, 0);
+  };
+
+  const handleReturnProceed = () => {
+    const selected = returnItems.filter((it) => it.selected && it.qtyToReturn > 0);
+    if (selected.length === 0) {
+      showToast("Seleccione al menos un producto para devolver.", "error");
+      return;
+    }
+    if (!returnReason.trim()) {
+      showToast("Indique el motivo de la devolución.", "error");
+      return;
+    }
+    setReturnStep("confirm");
+  };
+
+  const handleReturnProcess = async () => {
+    if (returnPinAttempts >= 3) {
+      showToast("Se ha superado el máximo de 3 intentos de PIN. El módulo se cerrará.", "error");
+      setTimeout(() => {
+        handleReturnReset();
+        setActiveModal(null);
+      }, 2000);
+      return;
+    }
+    if (!returnPin.trim()) {
+      showToast("Ingrese el PIN de autorización del supervisor.", "error");
+      return;
+    }
+    setReturnProcessing(true);
+    try {
+      const selected = returnItems.filter((it) => it.selected && it.qtyToReturn > 0);
+      const payload = {
+        saleId: returnSaleData.id,
+        reason: returnReason.trim(),
+        pinCode: returnPin,
+        paymentMethod: returnPaymentMethod,
+        items: selected.map((it) => ({
+          saleDetailId: it.saleDetailId,
+          quantity: it.qtyToReturn,
+          destination: it.destination,
+          serialNumber: it.serialNumberInput || undefined,
+          batchNumber: it.batchNumberInput || undefined,
+        })),
+      };
+      const res = await api.post("/api/returns", payload);
+      setReturnPinAttempts(0);
+      setReturnReceipt(res.data);
+      setReturnStep("receipt");
+      showToast("Devolución procesada exitosamente.", "success");
+      // Refrescar datos del dashboard
+      await loadDashboardData();
+    } catch (err: any) {
+      if (err.response?.status === 401) {
+        const nextAttempts = returnPinAttempts + 1;
+        setReturnPinAttempts(nextAttempts);
+        if (nextAttempts >= 3) {
+          showToast("El NIP es incorrecto. Se ha superado el máximo de 3 intentos. Saliendo...", "error");
+          setTimeout(() => {
+            handleReturnReset();
+            setActiveModal(null);
+          }, 2000);
+        } else {
+          showToast(`El NIP es incorrecto. Intento ${nextAttempts}/3.`, "error");
+        }
+      } else {
+        showToast(err.response?.data?.message || "Error al procesar la devolución.", "error");
+      }
+    } finally {
+      setReturnProcessing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeModal === "returns") {
+      handleReturnReset();
+    }
+  }, [activeModal]);
 
   // ---------------------------------------------------------------------------
   // RENDER PANTALLA DE CARGA
@@ -1454,12 +1663,13 @@ const Dashboard: React.FC = () => {
                   {cart.map((item) => {
                     const promoDetails = calculateItemPromotion(item);
                     const hasDiscount = promoDetails.discountAmount > 0;
+                    const promoApplied = promoDetails.promoApplied ?? hasDiscount;
                     return (
                       <tr key={item.product.id} style={styles.tableRow}>
                         <td style={styles.td}>{item.product.sku}</td>
                         <td style={{ ...styles.td, fontWeight: "600" }}>
                           <div>{item.product.name}</div>
-                          {item.product.activePromotion && (
+                          {item.product.activePromotion && promoApplied && (
                             <span style={{
                               fontSize: "10px",
                               backgroundColor: "#dbeafe",
@@ -1471,6 +1681,20 @@ const Dashboard: React.FC = () => {
                               display: "inline-block"
                             }}>
                               🏷️ {item.product.activePromotion.name}
+                            </span>
+                          )}
+                          {item.product.activePromotion && !promoApplied && (
+                            <span style={{
+                              fontSize: "9px",
+                              backgroundColor: "#f1f5f9",
+                              color: "#94a3b8",
+                              padding: "2px 6px",
+                              borderRadius: "4px",
+                              fontWeight: "600",
+                              marginTop: "4px",
+                              display: "inline-block"
+                            }}>
+                              🏷️ {item.product.activePromotion.name} (mín. {item.product.activePromotion.minQuantity || 1})
                             </span>
                           )}
                         </td>
@@ -1965,6 +2189,33 @@ const Dashboard: React.FC = () => {
               </p>
               
               <form onSubmit={handleCartPinSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                {/* Input oculto para capturar teclado físico */}
+                <input
+                  autoFocus
+                  type="text"
+                  inputMode="numeric"
+                  value={cartPin}
+                  onChange={() => {}}
+                  onKeyDown={(e) => {
+                    e.preventDefault();
+                    if (/^[0-9]$/.test(e.key) && cartPin.length < 4) {
+                      setCartPin((prev) => prev + e.key);
+                    } else if (e.key === "Backspace") {
+                      setCartPin((prev) => prev.slice(0, -1));
+                    } else if (e.key === "Enter" && cartPin.length === 4) {
+                      handleCartPinSubmit(e as any);
+                    }
+                  }}
+                  style={{
+                    position: "absolute",
+                    opacity: 0,
+                    width: "1px",
+                    height: "1px",
+                    overflow: "hidden",
+                    pointerEvents: "none",
+                  }}
+                  aria-label="PIN de autorización"
+                />
                 {/* PIN Dots Row */}
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
                   <div style={{ display: "flex", gap: "12px", height: "16px", alignItems: "center" }}>
@@ -2116,6 +2367,38 @@ const Dashboard: React.FC = () => {
                     *** CANCELADO ***
                   </div>
                 )}
+                {selectedSale.totalRefunded > 0 && Number(selectedSale.totalRefunded).toFixed(2) === Number(selectedSale.total).toFixed(2) && (
+                  <div style={{
+                    textAlign: "center",
+                    color: "#dc2626",
+                    fontWeight: "900",
+                    fontSize: "15px",
+                    border: "2px solid #dc2626",
+                    padding: "4px",
+                    marginBottom: "12px",
+                    borderRadius: "4px",
+                    textTransform: "uppercase",
+                    backgroundColor: "#fef2f2"
+                  }}>
+                    *** DEVOLUCIÓN TOTAL ***
+                  </div>
+                )}
+                {selectedSale.totalRefunded > 0 && Number(selectedSale.totalRefunded).toFixed(2) !== Number(selectedSale.total).toFixed(2) && (
+                  <div style={{
+                    textAlign: "center",
+                    color: "#d97706",
+                    fontWeight: "900",
+                    fontSize: "14px",
+                    border: "2px solid #d97706",
+                    padding: "4px",
+                    marginBottom: "12px",
+                    borderRadius: "4px",
+                    textTransform: "uppercase",
+                    backgroundColor: "#fffbeb"
+                  }}>
+                    *** DEVOLUCIÓN PARCIAL ***
+                  </div>
+                )}
                 <div style={{ textAlign: "center", marginBottom: "14px" }}>
                   <h4 style={{ textTransform: "uppercase", fontWeight: "800" }}>LYFRGL</h4>
                   <p style={{ fontSize: "11px", color: "#475569" }}>SUCURSAL: {user?.branch.name}</p>
@@ -2136,20 +2419,32 @@ const Dashboard: React.FC = () => {
                       <th style={{ textAlign: "left", paddingBottom: "4px" }}>Producto</th>
                       <th style={{ textAlign: "center", paddingBottom: "4px" }}>Cant</th>
                       <th style={{ textAlign: "right", paddingBottom: "4px" }}>Importe</th>
+                      <th style={{ textAlign: "right", paddingBottom: "4px", paddingLeft: "8px" }}>P. Unit</th>
                     </tr>
                   </thead>
                   <tbody>
                     {selectedSale.items.map((item: any, idx: number) => {
-                      const promoDetails = calculateItemPromotion(item);
+                      const promoDetails = selectedSale.isNewSale === false
+                        ? {
+                            finalPrice: Number(item.product.sellPrice) - (Number(item.discountAmount || 0) / item.quantity),
+                            discountAmount: Number(item.discountAmount || 0),
+                            label: item.product.activePromotion?.name || ""
+                          }
+                        : calculateItemPromotion(item);
                       const hasDiscount = promoDetails.discountAmount > 0;
                       return (
                         <tr key={idx}>
                           <td style={{ padding: "4px 0" }}>
                             <div>{item.product.name}</div>
                             {item.product.activePromotion && (
-                              <span style={{ fontSize: "9px", color: "#1e40af", fontWeight: "600" }}>
+                              <div style={{ fontSize: "9px", color: "#1e40af", fontWeight: "600" }}>
                                 ({item.product.activePromotion.name})
-                              </span>
+                              </div>
+                            )}
+                            {item.returnedQuantity > 0 && (
+                              <div style={{ fontSize: "9px", color: "#dc2626", fontWeight: "700", marginTop: "2px" }}>
+                                ↳ Devuelto: {item.returnedQuantity} ud{item.returnedQuantity > 1 ? 's' : ''}
+                              </div>
                             )}
                           </td>
                           <td style={{ textAlign: "center", padding: "4px 0" }}>{item.quantity}</td>
@@ -2167,6 +2462,9 @@ const Dashboard: React.FC = () => {
                               `$${(item.product.sellPrice * item.quantity).toFixed(2)}`
                             )}
                           </td>
+                          <td style={{ textAlign: "right", padding: "4px 0", paddingLeft: "8px" }}>
+                            ${Number(item.product.sellPrice).toFixed(2)}
+                          </td>
                         </tr>
                       );
                     })}
@@ -2176,8 +2474,20 @@ const Dashboard: React.FC = () => {
                 <div style={{ borderTop: "1px dashed #cbd5e1", paddingTop: "8px", display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px" }}>
                   {selectedSale.discountAmount > 0 && (
                     <div style={{ display: "flex", justifyContent: "space-between", color: "#059669", fontWeight: "700" }}>
-                      <span>AHORRO:</span>
+                      <span>Descuento Promos:</span>
                       <span>-${Number(selectedSale.discountAmount).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {selectedSale.pointsDiscount > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "#059669", fontWeight: "700" }}>
+                      <span>Descuento Puntos:</span>
+                      <span>-${Number(selectedSale.pointsDiscount).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {((Number(selectedSale.discountAmount || 0) + Number(selectedSale.pointsDiscount || 0)) > 0) && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "#166534", fontWeight: "800", backgroundColor: "#f0fdf4", padding: "4px 6px", borderRadius: "4px", margin: "2px 0" }}>
+                      <span>¡TU AHORRO TOTAL!:</span>
+                      <span>${(Number(selectedSale.discountAmount || 0) + Number(selectedSale.pointsDiscount || 0)).toFixed(2)}</span>
                     </div>
                   )}
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -2188,6 +2498,18 @@ const Dashboard: React.FC = () => {
                     <span>IVA (16%):</span>
                     <span>${selectedSale.tax.toFixed(2)}</span>
                   </div>
+                  {selectedSale.totalRefunded > 0 && (
+                    <>
+                      <div style={{ display: "flex", justifyContent: "space-between", color: "#dc2626", fontWeight: "700", borderTop: "1px dashed #dc2626", paddingTop: "4px", marginTop: "4px" }}>
+                        <span>Total Devuelto:</span>
+                        <span>-${Number(selectedSale.totalRefunded).toFixed(2)}</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", color: "#0f172a", fontWeight: "800", backgroundColor: "#fef2f2", padding: "4px 6px", borderRadius: "4px", margin: "2px 0" }}>
+                        <span>Neto Final:</span>
+                        <span>${(Number(selectedSale.total) - Number(selectedSale.totalRefunded)).toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
                   <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "800", fontSize: "12px" }}>
                     <span>TOTAL:</span>
                     <span>${selectedSale.total.toFixed(2)}</span>
@@ -2231,6 +2553,9 @@ const Dashboard: React.FC = () => {
                 <div style={{ textAlign: "center", marginTop: "20px", fontSize: "10px", color: "#64748b" }}>
                   <p>¡GRACIAS POR SU COMPRA!</p>
                   <p>REGRESE PRONTO</p>
+                  <p style={{ marginTop: "12px", fontSize: "9px", fontWeight: "600", fontStyle: "italic", borderTop: "1px dashed #cbd5e1", paddingTop: "8px" }}>
+                    Para devoluciones y cancelaciones, es indispensable presentar este ticket original.
+                  </p>
                 </div>
               </div>
 
@@ -2254,6 +2579,14 @@ const Dashboard: React.FC = () => {
   // ===========================================================================
   return (
     <div style={styles.appContainer}>
+      <style>{`
+        @media print {
+          #print-area {
+            max-height: none !important;
+            overflow: visible !important;
+          }
+        }
+      `}</style>
       {/* Navbar */}
       <header style={styles.navbar}>
         <div style={styles.navBrand}>
@@ -2304,6 +2637,33 @@ const Dashboard: React.FC = () => {
             <FileText size={14} color="#0d9488" />
             Autofacturación
           </a>
+
+          <button
+            onClick={() => setActiveModal("returns")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "10px 14px",
+              borderRadius: "8px",
+              border: "1px solid #cbd5e1",
+              backgroundColor: "#f8fafc",
+              color: "#334155",
+              textDecoration: "none",
+              fontSize: "12px",
+              fontWeight: "600",
+              width: "100%",
+              justifyContent: "center",
+              cursor: "pointer",
+              transition: "background-color 0.2s",
+              marginTop: "8px",
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#f1f5f9")}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "#f8fafc")}
+          >
+            <RotateCcw size={14} color="#dc2626" />
+            Devoluciones
+          </button>
         </aside>
 
         {/* Content Area */}
@@ -2414,6 +2774,10 @@ const Dashboard: React.FC = () => {
               <button onClick={() => setActiveModal("bank-deposit")} style={styles.actionBtn} className="active-tap">
                 <PiggyBank size={28} color="#0d9488" />
                 <span>Depósito Banco</span>
+              </button>
+              <button onClick={() => setActiveModal("returns")} style={styles.actionBtn} className="active-tap">
+                <RotateCcw size={28} color="#dc2626" />
+                <span>Devoluciones</span>
               </button>
             </div>
           </div>
@@ -2825,6 +3189,38 @@ const Dashboard: React.FC = () => {
                   *** CANCELADO ***
                 </div>
               )}
+              {selectedSale.totalRefunded > 0 && Number(selectedSale.totalRefunded).toFixed(2) === Number(selectedSale.total).toFixed(2) && (
+                <div style={{
+                  textAlign: "center",
+                  color: "#dc2626",
+                  fontWeight: "900",
+                  fontSize: "15px",
+                  border: "2px solid #dc2626",
+                  padding: "4px",
+                  marginBottom: "12px",
+                  borderRadius: "4px",
+                  textTransform: "uppercase",
+                  backgroundColor: "#fef2f2"
+                }}>
+                  *** DEVOLUCIÓN TOTAL ***
+                </div>
+              )}
+              {selectedSale.totalRefunded > 0 && Number(selectedSale.totalRefunded).toFixed(2) !== Number(selectedSale.total).toFixed(2) && (
+                <div style={{
+                  textAlign: "center",
+                  color: "#d97706",
+                  fontWeight: "900",
+                  fontSize: "14px",
+                  border: "2px solid #d97706",
+                  padding: "4px",
+                  marginBottom: "12px",
+                  borderRadius: "4px",
+                  textTransform: "uppercase",
+                  backgroundColor: "#fffbeb"
+                }}>
+                  *** DEVOLUCIÓN PARCIAL ***
+                </div>
+              )}
               <div style={{ textAlign: "center", marginBottom: "14px" }}>
                 <h4 style={{ textTransform: "uppercase", fontWeight: "800" }}>LYFRGL</h4>
                 <p style={{ fontSize: "11px", color: "#475569" }}>SUCURSAL: {user?.branch.name}</p>
@@ -2856,22 +3252,77 @@ const Dashboard: React.FC = () => {
                     <th style={{ textAlign: "left", paddingBottom: "4px" }}>Producto</th>
                     <th style={{ textAlign: "center", paddingBottom: "4px" }}>Cant</th>
                     <th style={{ textAlign: "right", paddingBottom: "4px" }}>Importe</th>
+                    <th style={{ textAlign: "right", paddingBottom: "4px", paddingLeft: "8px" }}>P. Unit</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedSale.items.map((item: any, idx: number) => (
-                    <tr key={idx}>
-                      <td style={{ padding: "4px 0" }}>{item.product.name}</td>
-                      <td style={{ textAlign: "center", padding: "4px 0" }}>{item.quantity}</td>
-                      <td style={{ textAlign: "right", padding: "4px 0" }}>
-                        ${(item.product.sellPrice * item.quantity).toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
+                  {selectedSale.items.map((item: any, idx: number) => {
+                    const promoDetails = selectedSale.isNewSale === false
+                      ? {
+                          finalPrice: Number(item.product.sellPrice) - (Number(item.discountAmount || 0) / item.quantity),
+                          discountAmount: Number(item.discountAmount || 0),
+                          label: item.product.activePromotion?.name || ""
+                        }
+                      : calculateItemPromotion(item);
+                    const hasDiscount = promoDetails.discountAmount > 0;
+                    return (
+                      <tr key={idx}>
+                        <td style={{ padding: "4px 0" }}>
+                          <div>{item.product.name}</div>
+                          {item.product.activePromotion && (
+                            <div style={{ fontSize: "9px", color: "#1e40af", fontWeight: "600" }}>
+                              ({item.product.activePromotion.name})
+                            </div>
+                          )}
+                          {item.returnedQuantity > 0 && (
+                            <div style={{ fontSize: "9px", color: "#dc2626", fontWeight: "700", marginTop: "2px" }}>
+                              ↳ Devuelto: {item.returnedQuantity} ud{item.returnedQuantity > 1 ? 's' : ''}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ textAlign: "center", padding: "4px 0" }}>{item.quantity}</td>
+                        <td style={{ textAlign: "right", padding: "4px 0" }}>
+                          {hasDiscount ? (
+                            <>
+                              <span style={{ textDecoration: "line-through", color: "#94a3b8", marginRight: "4px", fontSize: "10px" }}>
+                                ${(item.product.sellPrice * item.quantity).toFixed(2)}
+                              </span>
+                              <span>
+                                ${(promoDetails.finalPrice * item.quantity).toFixed(2)}
+                              </span>
+                            </>
+                          ) : (
+                            `$${(item.product.sellPrice * item.quantity).toFixed(2)}`
+                          )}
+                        </td>
+                        <td style={{ textAlign: "right", padding: "4px 0", paddingLeft: "8px" }}>
+                          ${Number(item.product.sellPrice).toFixed(2)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
 
               <div style={{ borderTop: "1px dashed #cbd5e1", paddingTop: "8px", display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px" }}>
+                {selectedSale.discountAmount > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "#059669", fontWeight: "700" }}>
+                    <span>Descuento Promos:</span>
+                    <span>-${Number(selectedSale.discountAmount).toFixed(2)}</span>
+                  </div>
+                )}
+                {selectedSale.pointsDiscount > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "#059669", fontWeight: "700" }}>
+                    <span>Descuento Puntos:</span>
+                    <span>-${Number(selectedSale.pointsDiscount).toFixed(2)}</span>
+                  </div>
+                )}
+                {((Number(selectedSale.discountAmount || 0) + Number(selectedSale.pointsDiscount || 0)) > 0) && (
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "#166534", fontWeight: "800", backgroundColor: "#f0fdf4", padding: "4px 6px", borderRadius: "4px", margin: "2px 0" }}>
+                    <span>¡TU AHORRO TOTAL!:</span>
+                    <span>${(Number(selectedSale.discountAmount || 0) + Number(selectedSale.pointsDiscount || 0)).toFixed(2)}</span>
+                  </div>
+                )}
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span>Subtotal:</span>
                   <span>${selectedSale.subtotal.toFixed(2)}</span>
@@ -2884,6 +3335,18 @@ const Dashboard: React.FC = () => {
                   <span>TOTAL:</span>
                   <span>${selectedSale.total.toFixed(2)}</span>
                 </div>
+                {selectedSale.totalRefunded > 0 && (
+                  <>
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "#dc2626", fontWeight: "700", borderTop: "1px dashed #dc2626", paddingTop: "4px", marginTop: "4px" }}>
+                      <span>Total Devuelto:</span>
+                      <span>-${Number(selectedSale.totalRefunded).toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "#0f172a", fontWeight: "800", backgroundColor: "#fef2f2", padding: "4px 6px", borderRadius: "4px", margin: "2px 0" }}>
+                      <span>Neto Final:</span>
+                      <span>${(Number(selectedSale.total) - Number(selectedSale.totalRefunded)).toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
               </div>
 
                <div style={{ borderTop: "1px solid #cbd5e1", marginTop: "8px", paddingTop: "8px", fontSize: "11px" }}>
@@ -2923,6 +3386,9 @@ const Dashboard: React.FC = () => {
               <div style={{ textAlign: "center", marginTop: "20px", fontSize: "10px", color: "#64748b" }}>
                 <p>¡GRACIAS POR SU COMPRA!</p>
                 <p>REGRESE PRONTO</p>
+                <p style={{ marginTop: "12px", fontSize: "9px", fontWeight: "600", fontStyle: "italic", borderTop: "1px dashed #cbd5e1", paddingTop: "8px" }}>
+                  Para devoluciones y cancelaciones, es indispensable presentar este ticket original.
+                </p>
               </div>
             </div>
 
@@ -3035,6 +3501,10 @@ const Dashboard: React.FC = () => {
                 <span>Cancelaciones:</span>
                 <span style={{ fontWeight: "600", color: "#dc2626" }}>${sessionStats?.totalRefunds?.toFixed(2) || "0.00"}</span>
               </div>
+              <div style={styles.summaryRow}>
+                <span>Devoluciones:</span>
+                <span style={{ fontWeight: "600", color: "#dc2626" }}>${sessionStats?.totalReturnsAmount?.toFixed(2) || "0.00"}</span>
+              </div>
               <div style={{ ...styles.summaryRow, borderTop: "1px dashed #cbd5e1", paddingTop: "10px", paddingBottom: "10px" }}>
                 <span>Total Neto:</span>
                 <span style={{ fontWeight: "800", color: "#1e3a8a", fontSize: "16px" }}>
@@ -3111,6 +3581,12 @@ const Dashboard: React.FC = () => {
                   <span>CANCELACIONES:</span>
                   <strong style={{ color: "#dc2626" }}>-${Number(partialCutData.totalRefunds).toFixed(2)}</strong>
                 </div>
+                {partialCutData.totalReturns !== undefined && (
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>DEVOLUCIONES:</span>
+                    <strong style={{ color: "#dc2626" }}>-${Number(partialCutData.totalReturns).toFixed(2)}</strong>
+                  </div>
+                )}
               </div>
 
               <div style={{ marginTop: "14px", paddingTop: "8px", borderTop: "2px solid #0f172a", display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
@@ -3210,6 +3686,10 @@ const Dashboard: React.FC = () => {
               <div style={styles.summaryRow}>
                 <span>Reembolsos (x{sessionStats?.refundedSalesCount || 0}):</span>
                 <span style={{ fontWeight: "600", color: "#64748b" }}>${sessionStats?.refundedAmount?.toFixed(2) || "0.00"}</span>
+              </div>
+              <div style={styles.summaryRow}>
+                <span>Devoluciones de Producto (-):</span>
+                <span style={{ fontWeight: "600", color: "#dc2626" }}>${sessionStats?.totalReturnsAmount?.toFixed(2) || "0.00"}</span>
               </div>
               <div style={{ ...styles.summaryRow, borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px" }}>
                 <span>Efectivo Esperado en Caja:</span>
@@ -3861,9 +4341,15 @@ const Dashboard: React.FC = () => {
                   <strong>${Number(lastClosedStats.creditCardTotal || 0).toFixed(2)}</strong>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>TOTAL DE DEVOLUCIONES:</span>
+                  <span>CANCELACIONES:</span>
                   <strong>${Number(lastClosedStats.totalRefunds || 0).toFixed(2)}</strong>
                 </div>
+                {lastClosedStats.totalReturnsAmount !== undefined && (
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>DEVOLUCIONES DE PRODUCTO:</span>
+                    <strong style={{ color: "#dc2626" }}>-${Number(lastClosedStats.totalReturnsAmount).toFixed(2)}</strong>
+                  </div>
+                )}
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span>TRANS. COMPLETADAS:</span>
                   <strong>{lastClosedStats.salesCount}</strong>
@@ -3924,59 +4410,530 @@ const Dashboard: React.FC = () => {
             <h3 style={styles.modalTitle}>Reimprimir Ticket de Venta:</h3>
             <p style={{ fontSize: "12px", color: "#64748b", marginBottom: "14px" }}>Seleccione la venta de la sucursal para reimprimir su comprobante.</p>
             
-            <div style={{ ...styles.inputGroup, marginBottom: "12px" }}>
-              <input
-                type="text"
-                className="input-corporate"
-                placeholder="Buscar por folio de venta (V-XXXXXX)..."
-                value={ticketSearch}
-                onChange={(e) => setTicketSearch(e.target.value)}
-              />
+            {/* Grid de Filtros */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
+              <div style={{ ...styles.inputGroup, gridColumn: "span 2" }}>
+                <label style={styles.label}>Folio de Venta:</label>
+                <input
+                  type="text"
+                  className="input-corporate"
+                  placeholder="Buscar por folio de venta (V-XXXXXX)..."
+                  value={ticketSearch}
+                  onChange={(e) => setTicketSearch(e.target.value)}
+                />
+              </div>
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>Cliente (Nombre):</label>
+                <input
+                  type="text"
+                  className="input-corporate"
+                  placeholder="Coincidencia parcial..."
+                  value={ticketCustomer}
+                  onChange={(e) => setTicketCustomer(e.target.value)}
+                />
+              </div>
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>Teléfono:</label>
+                <input
+                  type="text"
+                  className="input-corporate"
+                  placeholder="Coincidencia parcial..."
+                  value={ticketPhone}
+                  onChange={(e) => setTicketPhone(e.target.value)}
+                />
+              </div>
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>Desde:</label>
+                <input
+                  type="date"
+                  className="input-corporate"
+                  value={ticketDateFrom}
+                  onChange={(e) => setTicketDateFrom(e.target.value)}
+                />
+              </div>
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>Hasta:</label>
+                <input
+                  type="date"
+                  className="input-corporate"
+                  value={ticketDateTo}
+                  onChange={(e) => setTicketDateTo(e.target.value)}
+                />
+              </div>
             </div>
 
             <div style={{ maxHeight: "240px", overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
               <table style={styles.table}>
                 <thead>
                   <tr style={styles.tableHeaderRow}>
-                    <th style={styles.th}>Folio</th>
-                    <th style={styles.th}>Total</th>
-                    <th style={styles.th}>Acción</th>
+                    <th style={styles.th}>Folio / Fecha</th>
+                    <th style={styles.th}>Cliente / Tel</th>
+                    <th style={{ ...styles.th, textAlign: "right" }}>Total</th>
+                    <th style={{ ...styles.th, textAlign: "center" }}>Acción</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredSales.map((sale) => (
-                    <tr key={sale.id} style={styles.tableRow}>
-                      <td style={{ ...styles.td, fontWeight: "600" }}>{sale.invoiceNumber}</td>
-                      <td style={styles.td}>${sale.totalAmount.toFixed(2)}</td>
-                      <td style={styles.td}>
-                        <button
-                          onClick={async () => {
-                            try {
-                              const res = await api.get(`/api/sales/detail?id=${sale.id}`);
-                              setSelectedSale({
-                                ...res.data.sale,
-                                refundStatus: sale.refundStatus,
-                                isNewSale: false
-                              });
-                              setActiveModal("ticket-view");
-                            } catch (e: any) {
-                              showToast(e.response?.data?.message || "Error al recuperar los detalles de la venta.", "error");
-                            }
-                          }}
-                          className="btn-primary"
-                          style={{ padding: "6px 10px", fontSize: "12px" }}
-                        >
-                          Reimprimir
-                        </button>
+                  {filteredSales.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} style={{ textAlign: "center", padding: "16px", color: "#64748b", fontSize: "12px" }}>
+                        No se encontraron ventas.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredSales.map((sale) => (
+                      <tr key={sale.id} style={styles.tableRow}>
+                        <td style={{ ...styles.td }}>
+                          <div style={{ fontWeight: "600", color: "#0f172a" }}>{sale.invoiceNumber}</div>
+                          <div style={{ fontSize: "10px", color: "#64748b" }}>{new Date(sale.createdAt).toLocaleDateString()}</div>
+                        </td>
+                        <td style={{ ...styles.td, fontSize: "11px" }}>
+                          {sale.customerName ? (
+                            <>
+                              <div style={{ fontWeight: "600", color: "#334155" }}>{sale.customerName}</div>
+                              {sale.customerPhone && <div style={{ fontSize: "10px", color: "#64748b" }}>{sale.customerPhone}</div>}
+                            </>
+                          ) : (
+                            <span style={{ color: "#94a3b8", fontStyle: "italic" }}>General</span>
+                          )}
+                        </td>
+                        <td style={{ ...styles.td, textAlign: "right", fontWeight: "700" }}>
+                          ${sale.totalAmount.toFixed(2)}
+                        </td>
+                        <td style={{ ...styles.td, textAlign: "center" }}>
+                          <button
+                            onClick={async () => {
+                              try {
+                                const res = await api.get(`/api/sales/detail?id=${sale.id}`);
+                                setSelectedSale({
+                                  ...res.data.sale,
+                                  refundStatus: sale.refundStatus,
+                                  isNewSale: false
+                                });
+                                setActiveModal("ticket-view");
+                              } catch (e: any) {
+                                showToast(e.response?.data?.message || "Error al recuperar los detalles de la venta.", "error");
+                              }
+                            }}
+                            className="btn-primary"
+                            style={{ padding: "6px 10px", fontSize: "12px" }}
+                          >
+                            Reimprimir
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
             <button onClick={handleCloseModal_ticketHistory} style={{ ...styles.submitBtn, backgroundColor: "#64748b", marginTop: "14px", width: "100%" }}>
               Cerrar
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* MODAL: MÓDULO DE DEVOLUCIONES                                    */}
+      {/* ================================================================= */}
+      {activeModal === "returns" && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.cancelModal, width: returnStep === "receipt" ? "460px" : "640px", maxWidth: "95vw", maxHeight: "90vh", overflowY: "auto" }}>
+
+            {/* HEADER */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+              <h3 style={{ ...styles.modalTitle, margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+                <RotateCcw size={20} color="#dc2626" />
+                Devoluciones
+              </h3>
+              <button onClick={() => setActiveModal(null)} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px" }}>
+                <XCircle size={20} color="#94a3b8" />
+              </button>
+            </div>
+
+            {/* Indicador de pasos */}
+            <div style={{ display: "flex", gap: "4px", marginBottom: "18px" }}>
+              {["search", "select", "confirm", "receipt"].map((step, i) => (
+                <div
+                  key={step}
+                  style={{
+                    flex: 1,
+                    height: "4px",
+                    borderRadius: "2px",
+                    backgroundColor:
+                      ["search", "select", "confirm", "receipt"].indexOf(returnStep) >= i
+                        ? "#1e3a8a"
+                        : "#e2e8f0",
+                    transition: "background-color 0.3s",
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* =========== PASO 1: BÚSQUEDA DE TICKET =========== */}
+            {returnStep === "search" && (
+              <div>
+                <p style={{ fontSize: "13px", color: "#475569", marginBottom: "14px" }}>
+                  Ingrese el folio de la venta original para iniciar el proceso de devolución.
+                </p>
+                <div style={styles.inputGroup}>
+                  <label style={styles.label}>Folio de Venta:</label>
+                  <input
+                    type="text"
+                    className="input-corporate"
+                    placeholder="V-XXXXXX"
+                    value={returnFolio}
+                    onChange={(e) => setReturnFolio(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleReturnSearch(); }}
+                    autoFocus
+                  />
+                </div>
+                <button
+                  onClick={handleReturnSearch}
+                  disabled={returnLoading}
+                  className="btn-primary"
+                  style={{ ...styles.submitBtn, marginTop: "14px", width: "100%", opacity: returnLoading ? 0.7 : 1 }}
+                >
+                  {returnLoading ? "Buscando..." : "Buscar Venta"}
+                </button>
+              </div>
+            )}
+
+            {/* =========== PASO 2: SELECCIÓN DE PRODUCTOS =========== */}
+            {returnStep === "select" && returnSaleData && (
+              <div>
+                {/* Info de la venta */}
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "8px",
+                  backgroundColor: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                  padding: "12px",
+                  marginBottom: "14px",
+                  fontSize: "12px"
+                }}>
+                  <div><strong>Folio:</strong> {returnSaleData.invoiceNumber}</div>
+                  <div><strong>Fecha:</strong> {new Date(returnSaleData.createdAt).toLocaleDateString()}</div>
+                  <div><strong>Cliente:</strong> {returnSaleData.customerName}</div>
+                  <div><strong>Total:</strong> ${Number(returnSaleData.totalAmount).toFixed(2)}</div>
+                </div>
+
+                {/* Seleccionar todos */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                  <span style={{ fontSize: "12px", fontWeight: "700", color: "#334155" }}>Productos del ticket:</span>
+                  <button
+                    onClick={handleReturnSelectAll}
+                    style={{ fontSize: "11px", color: "#1e3a8a", background: "none", border: "none", cursor: "pointer", fontWeight: "600", textDecoration: "underline" }}
+                  >
+                    {returnItems.filter((it) => it.isEligible).every((it) => it.selected) ? "Deseleccionar todos" : "Seleccionar todos (Dev. Total)"}
+                  </button>
+                </div>
+
+                {/* Lista de productos */}
+                <div style={{ maxHeight: "260px", overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: "8px" }}>
+                  {returnItems.map((item, idx) => (
+                    <div
+                      key={item.saleDetailId}
+                      style={{
+                        padding: "10px 12px",
+                        borderBottom: idx < returnItems.length - 1 ? "1px solid #f1f5f9" : "none",
+                        backgroundColor: item.selected ? "#eff6ff" : "transparent",
+                        opacity: item.isEligible ? 1 : 0.5,
+                        transition: "background-color 0.2s",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <input
+                          type="checkbox"
+                          checked={item.selected}
+                          disabled={!item.isEligible}
+                          onChange={() => handleReturnToggleItem(idx)}
+                          style={{ accentColor: "#1e3a8a", width: "16px", height: "16px" }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: "600", fontSize: "13px", color: "#0f172a" }}>{item.name}</div>
+                          <div style={{ fontSize: "10px", color: "#64748b" }}>
+                            SKU: {item.sku} | Comprado: {item.originalQuantity} | Devuelto prev.: {item.alreadyReturnedQty} | Disponible: {item.maxReturnableQty}
+                          </div>
+                          {!item.isEligible && (
+                            <div style={{ fontSize: "10px", color: "#dc2626", fontWeight: "600", marginTop: "2px" }}>
+                              {!item.isReturnable ? "Producto no admite devolución" : !item.inWindow ? `Fuera de ventana (${item.returnWindowDays} días)` : "Sin cantidad disponible"}
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ textAlign: "right", fontSize: "12px", fontWeight: "700", color: "#0f172a" }}>
+                          ${item.netUnitPrice.toFixed(2)}
+                          <div style={{ fontSize: "9px", color: "#94a3b8", fontWeight: "400" }}>c/u neto</div>
+                        </div>
+                      </div>
+
+                      {/* Controles de cantidad y destino (visible si seleccionado) */}
+                      {item.selected && (
+                        <div style={{ marginTop: "8px", paddingLeft: "26px", display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                            <label style={{ fontSize: "11px", color: "#475569", fontWeight: "600" }}>Cant:</label>
+                            <button
+                              onClick={() => handleReturnQtyChange(idx, item.qtyToReturn - 1)}
+                              style={{ width: "24px", height: "24px", border: "1px solid #cbd5e1", borderRadius: "4px", backgroundColor: "#f8fafc", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                            ><Minus size={12} /></button>
+                            <span style={{ fontSize: "13px", fontWeight: "700", minWidth: "24px", textAlign: "center" }}>{item.qtyToReturn}</span>
+                            <button
+                              onClick={() => handleReturnQtyChange(idx, item.qtyToReturn + 1)}
+                              style={{ width: "24px", height: "24px", border: "1px solid #cbd5e1", borderRadius: "4px", backgroundColor: "#f8fafc", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                            ><Plus size={12} /></button>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                            <label style={{ fontSize: "11px", color: "#475569", fontWeight: "600" }}>Destino:</label>
+                            <select
+                              value={item.destination}
+                              onChange={(e) => handleReturnDestinationChange(idx, e.target.value)}
+                              style={{ fontSize: "11px", padding: "3px 6px", borderRadius: "4px", border: "1px solid #cbd5e1", backgroundColor: "#ffffff" }}
+                            >
+                              <option value="INVENTARIO_VENDIBLE">Inventario Vendible</option>
+                              <option value="MERMA">Merma</option>
+                              <option value="GARANTIA">Garantía</option>
+                              <option value="REPARACION">Reparación</option>
+                              <option value="PROVEEDOR">Proveedor</option>
+                            </select>
+                          </div>
+                          {item.trackingType === "SERIAL" && (
+                            <input
+                              type="text"
+                              placeholder="No. Serie"
+                              value={item.serialNumberInput}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setReturnItems((prev) => prev.map((it, i) => i === idx ? { ...it, serialNumberInput: val } : it));
+                              }}
+                              style={{ fontSize: "11px", padding: "3px 6px", borderRadius: "4px", border: "1px solid #cbd5e1", width: "110px" }}
+                            />
+                          )}
+                          {item.trackingType === "LOT" && (
+                            <input
+                              type="text"
+                              placeholder="No. Lote"
+                              value={item.batchNumberInput}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setReturnItems((prev) => prev.map((it, i) => i === idx ? { ...it, batchNumberInput: val } : it));
+                              }}
+                              style={{ fontSize: "11px", padding: "3px 6px", borderRadius: "4px", border: "1px solid #cbd5e1", width: "110px" }}
+                            />
+                          )}
+                          <span style={{ fontSize: "11px", color: "#1e3a8a", fontWeight: "700", marginLeft: "auto" }}>
+                            Reembolso: ${(item.netUnitPrice * item.qtyToReturn * 1.16).toFixed(2)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Motivo y método de pago */}
+                <div style={{ marginTop: "14px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.label}>Motivo de devolución:</label>
+                    <input
+                      type="text"
+                      className="input-corporate"
+                      placeholder="Ej: Producto defectuoso, talla incorrecta..."
+                      value={returnReason}
+                      onChange={(e) => setReturnReason(e.target.value)}
+                    />
+                  </div>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.label}>Método de reembolso:</label>
+                    <select
+                      className="input-corporate"
+                      value={returnPaymentMethod}
+                      onChange={(e) => setReturnPaymentMethod(e.target.value)}
+                    >
+                      <option value="EFECTIVO">Efectivo</option>
+                      <option value="TARJETA">Tarjeta</option>
+                      <option value="QR_MERCADOPAGO">Mercado Pago</option>
+                      <option value="VALE_DEVOLUCION">Vale de Devolución</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Resumen y acción */}
+                <div style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginTop: "14px",
+                  padding: "10px 14px",
+                  backgroundColor: "#f0fdf4",
+                  border: "1px solid #bbf7d0",
+                  borderRadius: "8px"
+                }}>
+                  <div>
+                    <div style={{ fontSize: "11px", color: "#166534", fontWeight: "600" }}>TOTAL A REEMBOLSAR (IVA incluido)</div>
+                    <div style={{ fontSize: "20px", fontWeight: "800", color: "#166534" }}>${getReturnRefundTotal().toFixed(2)}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button onClick={() => { setReturnStep("search"); setReturnSaleData(null); setReturnItems([]); }} style={{ ...styles.modalBtn, backgroundColor: "#64748b", color: "white" }}>
+                      ← Atrás
+                    </button>
+                    <button onClick={handleReturnProceed} className="btn-primary" style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}>
+                      Continuar →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* =========== PASO 3: CONFIRMACIÓN Y PIN =========== */}
+            {returnStep === "confirm" && (
+              <div>
+                <p style={{ fontSize: "13px", color: "#475569", marginBottom: "14px" }}>
+                  Revise el resumen de la devolución e ingrese el PIN de autorización del supervisor.
+                </p>
+
+                {/* Resumen de artículos seleccionados */}
+                <div style={{
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                  marginBottom: "14px"
+                }}>
+                  <div style={{ backgroundColor: "#f8fafc", padding: "8px 12px", fontSize: "11px", fontWeight: "700", color: "#334155", borderBottom: "1px solid #e2e8f0" }}>
+                    ARTÍCULOS A DEVOLVER
+                  </div>
+                  {returnItems.filter((it) => it.selected && it.qtyToReturn > 0).map((item) => (
+                    <div key={item.saleDetailId} style={{ padding: "8px 12px", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+                      <div>
+                        <span style={{ fontWeight: "600" }}>{item.name}</span>
+                        <span style={{ color: "#64748b" }}> × {item.qtyToReturn}</span>
+                        <span style={{ color: "#94a3b8", marginLeft: "8px", fontSize: "10px" }}>→ {item.destination.replace("_", " ")}</span>
+                      </div>
+                      <span style={{ fontWeight: "700" }}>${(item.netUnitPrice * item.qtyToReturn * 1.16).toFixed(2)}</span>
+                    </div>
+                  ))}
+                  <div style={{ padding: "10px 12px", backgroundColor: "#f0fdf4", display: "flex", justifyContent: "space-between", fontWeight: "800", fontSize: "14px", color: "#166534" }}>
+                    <span>TOTAL REEMBOLSO</span>
+                    <span>${getReturnRefundTotal().toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "14px" }}>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.label}>Motivo:</label>
+                    <div style={{ fontSize: "12px", fontWeight: "600", color: "#0f172a", padding: "6px 0" }}>{returnReason}</div>
+                  </div>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.label}>Reembolso vía:</label>
+                    <div style={{ fontSize: "12px", fontWeight: "600", color: "#0f172a", padding: "6px 0" }}>{returnPaymentMethod.replace("_", " ")}</div>
+                  </div>
+                </div>
+
+                {/* PIN de autorización */}
+                <div style={{
+                  backgroundColor: "#fffbeb",
+                  border: "1px solid #fef3c7",
+                  borderRadius: "8px",
+                  padding: "12px 14px",
+                  marginBottom: "14px"
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <KeyRound size={16} color="#d97706" />
+                      <span style={{ fontSize: "12px", fontWeight: "700", color: "#92400e" }}>Autorización de Supervisor</span>
+                    </div>
+                    {returnPinAttempts > 0 && (
+                      <span style={{ fontSize: "11px", fontWeight: "600", color: "#dc2626" }}>
+                        Intento {returnPinAttempts}/3
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="password"
+                    className="input-corporate"
+                    placeholder="Ingrese PIN de Gerente/Admin"
+                    value={returnPin}
+                    onChange={(e) => setReturnPin(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleReturnProcess(); }}
+                    style={{ textAlign: "center", letterSpacing: "8px", fontSize: "18px", fontWeight: "700" }}
+                  />
+                </div>
+
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button onClick={() => setReturnStep("select")} style={{ ...styles.submitBtn, backgroundColor: "#64748b", flex: 1 }}>
+                    ← Atrás
+                  </button>
+                  <button
+                    onClick={handleReturnProcess}
+                    disabled={returnProcessing}
+                    className="btn-primary"
+                    style={{ ...styles.submitBtn, backgroundColor: "#dc2626", flex: 2, opacity: returnProcessing ? 0.7 : 1 }}
+                  >
+                    {returnProcessing ? "Procesando Devolución..." : "PROCESAR DEVOLUCIÓN"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* =========== PASO 4: RECIBO DE DEVOLUCIÓN =========== */}
+            {returnStep === "receipt" && returnReceipt && (
+              <div>
+                <div style={{
+                  textAlign: "center",
+                  padding: "20px",
+                  backgroundColor: "#f0fdf4",
+                  border: "1px solid #bbf7d0",
+                  borderRadius: "10px",
+                  marginBottom: "16px"
+                }}>
+                  <div style={{ fontSize: "36px", marginBottom: "4px" }}>✅</div>
+                  <h4 style={{ fontSize: "16px", fontWeight: "800", color: "#166534", margin: "0 0 4px 0" }}>Devolución Exitosa</h4>
+                  <p style={{ fontSize: "12px", color: "#166534", margin: 0 }}>La devolución fue procesada correctamente.</p>
+                </div>
+
+                <div style={{
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                  marginBottom: "14px"
+                }}>
+                  <div style={{ padding: "10px 14px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+                    <span style={{ color: "#64748b" }}>Folio Devolución:</span>
+                    <span style={{ fontWeight: "700", color: "#0f172a" }}>{returnReceipt.returnNumber}</span>
+                  </div>
+                  <div style={{ padding: "10px 14px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+                    <span style={{ color: "#64748b" }}>Total Reembolsado:</span>
+                    <span style={{ fontWeight: "700", color: "#166534", fontSize: "16px" }}>${Number(returnReceipt.totalRefunded).toFixed(2)}</span>
+                  </div>
+                  {returnReceipt.storeCreditCode && (
+                    <div style={{ padding: "10px 14px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+                      <span style={{ color: "#64748b" }}>Código de Vale:</span>
+                      <span style={{ fontWeight: "700", color: "#7c3aed", fontSize: "14px", letterSpacing: "1px" }}>{returnReceipt.storeCreditCode}</span>
+                    </div>
+                  )}
+                  {returnReceipt.cfdiUuid && (
+                    <div style={{ padding: "10px 14px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+                      <span style={{ color: "#64748b" }}>Nota de Crédito SAT:</span>
+                      <span style={{ fontWeight: "600", color: "#0d9488", fontSize: "10px" }}>{returnReceipt.cfdiUuid}</span>
+                    </div>
+                  )}
+                  {returnReceipt.exchangeSaleInvoice && (
+                    <div style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+                      <span style={{ color: "#64748b" }}>Cambio de Producto (nueva venta):</span>
+                      <span style={{ fontWeight: "700", color: "#1e3a8a" }}>{returnReceipt.exchangeSaleInvoice}</span>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => { handleReturnReset(); setActiveModal(null); }}
+                  className="btn-primary"
+                  style={{ ...styles.submitBtn, width: "100%", backgroundColor: "#1e3a8a" }}
+                >
+                  Cerrar
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -4497,7 +5454,8 @@ const styles = {
     boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
   },
   historyModal: {
-    width: "420px",
+    width: "520px",
+    maxWidth: "95vw",
     backgroundColor: "#ffffff",
     borderRadius: "12px",
     padding: "24px",
@@ -4516,6 +5474,8 @@ const styles = {
     borderRadius: "8px",
     backgroundColor: "#fffdf9", // Color de papel
     fontFamily: "monospace",
+    maxHeight: "55vh",
+    overflowY: "auto",
   },
   select: {
     width: "100%",

@@ -111,26 +111,40 @@ export class PromotionService {
       let appliedPromo: AppliedPromotion | undefined;
 
       if (promoType === "Percentage") {
-        const percentage = Number(promo.value || 0);
-        const discountPerUnit = originalPrice * (percentage / 100);
-        discountAmount = discountPerUnit * quantity;
-        finalPrice = originalPrice - discountPerUnit;
-        appliedPromo = {
-          promotionId: promo.id,
-          name: promo.name,
-          type: "Percentage",
-          discountAmount,
-        };
+        const minQty = promo.minQuantity || 1;
+        if (quantity >= minQty) {
+          const percentage = Number(promo.value || 0);
+          const discountPerUnit = originalPrice * (percentage / 100);
+          discountAmount = discountPerUnit * quantity;
+          finalPrice = originalPrice - discountPerUnit;
+          appliedPromo = {
+            promotionId: promo.id,
+            name: promo.name,
+            type: "Percentage",
+            discountAmount,
+          };
+        } else {
+          // No alcanza la cantidad mínima
+          discountAmount = 0;
+          finalPrice = originalPrice;
+        }
       } else if (promoType === "FixedAmount") {
-        const discountPerUnit = Number(promo.value || 0);
-        discountAmount = discountPerUnit * quantity;
-        finalPrice = Math.max(0, originalPrice - discountPerUnit);
-        appliedPromo = {
-          promotionId: promo.id,
-          name: promo.name,
-          type: "FixedAmount",
-          discountAmount,
-        };
+        const minQty = promo.minQuantity || 1;
+        if (quantity >= minQty) {
+          const discountPerUnit = Number(promo.value || 0);
+          discountAmount = discountPerUnit * quantity;
+          finalPrice = Math.max(0, originalPrice - discountPerUnit);
+          appliedPromo = {
+            promotionId: promo.id,
+            name: promo.name,
+            type: "FixedAmount",
+            discountAmount,
+          };
+        } else {
+          // No alcanza la cantidad mínima
+          discountAmount = 0;
+          finalPrice = originalPrice;
+        }
       } else if (promoType === "BuyXPayY") {
         const x = promo.minQuantity || 1;
         const y = promo.payQuantity || 1;

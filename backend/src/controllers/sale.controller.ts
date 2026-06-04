@@ -276,20 +276,52 @@ export const getRecentSales = async (req: Request, res: Response): Promise<void>
     return;
   }
 
-  const { search } = req.query;
+  const { search, customer, phone, dateFrom, dateTo } = req.query;
 
   try {
-    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
-
     const where: any = {
       branchId: req.user.branchId,
-      createdAt: { gte: fortyEightHoursAgo },
     };
 
-    if (search && typeof search === "string" && search.trim()) {
-      // When searching by folio, remove the date filter to find any sale
-      delete where.createdAt;
-      where.invoiceNumber = { contains: search.trim() };
+    const hasSearchFilters = 
+      (search && typeof search === "string" && search.trim()) ||
+      (customer && typeof customer === "string" && customer.trim()) ||
+      (phone && typeof phone === "string" && phone.trim()) ||
+      dateFrom || 
+      dateTo;
+
+    if (!hasSearchFilters) {
+      const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+      where.createdAt = { gte: fortyEightHoursAgo };
+    } else {
+      if (search && typeof search === "string" && search.trim()) {
+        where.invoiceNumber = { contains: search.trim() };
+      }
+
+      if ((customer && typeof customer === "string" && customer.trim()) || 
+          (phone && typeof phone === "string" && phone.trim())) {
+        where.customer = {};
+        if (customer && typeof customer === "string" && customer.trim()) {
+          where.customer.name = { contains: customer.trim() };
+        }
+        if (phone && typeof phone === "string" && phone.trim()) {
+          where.customer.phone = { contains: phone.trim() };
+        }
+      }
+
+      if (dateFrom || dateTo) {
+        where.createdAt = {};
+        if (dateFrom) {
+          where.createdAt.gte = new Date(String(dateFrom));
+        }
+        if (dateTo) {
+          const dateToParsed = new Date(String(dateTo));
+          if (String(dateTo).length <= 10) {
+            dateToParsed.setHours(23, 59, 59, 999);
+          }
+          where.createdAt.lte = dateToParsed;
+        }
+      }
     }
 
     const recentSales = await prisma.sale.findMany({
@@ -298,6 +330,7 @@ export const getRecentSales = async (req: Request, res: Response): Promise<void>
       orderBy: { createdAt: "desc" },
       include: {
         user: { select: { name: true } },
+        customer: { select: { name: true, phone: true } },
       },
     });
 
@@ -311,6 +344,8 @@ export const getRecentSales = async (req: Request, res: Response): Promise<void>
       status: s.status,
       refundStatus: s.refundStatus,
       cajero: s.user.name,
+      customerName: s.customer?.name || null,
+      customerPhone: s.customer?.phone || null,
     }));
 
     res.status(200).json({ sales: mappedSales });
@@ -1136,6 +1171,11 @@ export const getSaleDetailForCashier = async (req: Request, res: Response): Prom
           include: {
             product: { select: { name: true, sku: true, sellPrice: true } }
           }
+        },
+        returns: {
+          include: {
+            returnDetails: true
+          }
         }
       }
     });
@@ -1144,6 +1184,8 @@ export const getSaleDetailForCashier = async (req: Request, res: Response): Prom
       res.status(404).json({ message: "Venta no encontrada en esta sucursal." });
       return;
     }
+
+    const totalRefunded = sale.returns.reduce((acc, curr) => acc + Number(curr.totalRefunded), 0);
 
     // Mapear al formato esperado por el frontend
     const mapped = {
@@ -1166,16 +1208,45 @@ export const getSaleDetailForCashier = async (req: Request, res: Response): Prom
       customerName: sale.customer?.name || null,
       customerPhone: sale.customer?.phone || null,
       customerPoints: sale.customer?.points || 0,
-      items: sale.saleDetails.map((d) => ({
-        product: {
-          id: d.productId,
-          sku: d.product.sku,
-          name: d.product.name,
-          sellPrice: Number(d.unitPrice),
-        },
-        quantity: d.quantity,
-        discountAmount: Number(d.discountAmount),
-      }))
+      totalRefunded,
+      returns: sale.returns.map((ret) => ({
+        id: ret.id,
+        returnNumber: ret.returnNumber,
+        type: ret.type,
+        totalRefunded: Number(ret.totalRefunded),
+        reason: ret.reason,
+        createdAt: ret.createdAt,
+      })),
+      items: sale.saleDetails.map((d) => {
+        let returnedQuantity = 0;
+        sale.returns.forEach((ret) => {
+          ret.returnDetails.forEach((rd) => {
+            if (rd.saleDetailId === d.id) {
+              returnedQuantity += rd.quantity;
+            }
+          });
+        });
+        return {
+          product: {
+            id: d.productId,
+            sku: d.product.sku,
+            name: d.product.name,
+            sellPrice: Number(d.unitPrice),
+            activePromotion: d.promotionLabel ? {
+              id: d.promotionId || 0,
+              name: d.promotionLabel,
+              type: "Custom",
+              value: null,
+              minQuantity: null,
+              payQuantity: null,
+              specialPrice: null,
+            } : null,
+          },
+          quantity: d.quantity,
+          discountAmount: Number(d.discountAmount),
+          returnedQuantity,
+        };
+      })
     };
 
     res.status(200).json({ sale: mapped });
