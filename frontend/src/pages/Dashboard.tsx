@@ -2264,7 +2264,28 @@ const Dashboard: React.FC = () => {
               <div style={{ textAlign: "center", padding: "20px 0" }}>
                  <p style={{marginBottom: "10px", fontSize: "14px", color: "#475569"}}>Escanea el siguiente código para pagar <strong>${cartTotal.toFixed(2)}</strong></p>
                  {qrUrl ? (
-                   <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" width="200" height="200" />
+                   <>
+                     <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" width="200" height="200" />
+                     <div style={{ marginTop: "12px" }}>
+                       <a 
+                         href={qrUrl} 
+                         target="_blank" 
+                         rel="noopener noreferrer" 
+                         style={{ 
+                           fontSize: "12px", 
+                           color: "#2563eb", 
+                           textDecoration: "underline", 
+                           fontWeight: "600", 
+                           display: "inline-block", 
+                           padding: "6px 12px", 
+                           backgroundColor: "#f1f5f9", 
+                           borderRadius: "6px" 
+                         }}
+                       >
+                         🔗 Abrir enlace de pago / Sandbox
+                       </a>
+                     </div>
+                   </>
                  ) : (
                    <p>Generando QR...</p>
                  )}
