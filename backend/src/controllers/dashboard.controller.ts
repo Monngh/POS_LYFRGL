@@ -27,8 +27,10 @@ export const getAdminMetrics = async (req: Request, res: Response): Promise<void
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const dayOfWeek = startOfToday.getDay(); // 0 = Dom, 1 = Lun, ..., 6 = Sáb
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     const startOfWeekWindow = new Date(startOfToday);
-    startOfWeekWindow.setDate(startOfWeekWindow.getDate() - 6); // 7 cubos: hoy y los 6 días previos
+    startOfWeekWindow.setDate(startOfToday.getDate() - daysToMonday); // retrocede al lunes
 
     const COMPLETADA = "COMPLETADA";
 
@@ -71,7 +73,7 @@ export const getAdminMetrics = async (req: Request, res: Response): Promise<void
         where: { ...branchFilter },
         select: { quantity: true, minStock: true },
       }),
-      // Ventas de los últimos 7 días para la gráfica
+      // Ventas de la semana natural (Lun–Dom) para la gráfica
       prisma.sale.findMany({
         where: { ...branchFilter, status: COMPLETADA, createdAt: { gte: startOfWeekWindow } },
         select: { createdAt: true, totalAmount: true },
@@ -142,18 +144,19 @@ export const getAdminMetrics = async (req: Request, res: Response): Promise<void
     }
 
     // -----------------------------------------------------------------------
-    // Gráfica: ventas de los últimos 7 días
+    // Gráfica: semana natural Lun–Dom
     // -----------------------------------------------------------------------
     const dayLabels = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
     const week: { label: string; date: string; total: number }[] = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(startOfWeekWindow);
       d.setDate(d.getDate() + i);
-      week.push({ label: dayLabels[d.getDay()], date: d.toISOString().slice(0, 10), total: 0 });
+      week.push({ label: dayLabels[d.getDay()], date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`, total: 0 });
     }
     const indexByDate = new Map(week.map((w, idx) => [w.date, idx]));
     for (const s of weekSales) {
-      const key = new Date(s.createdAt).toISOString().slice(0, 10);
+      const dt = new Date(s.createdAt);
+      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
       const idx = indexByDate.get(key);
       if (idx !== undefined) week[idx].total += Number(s.totalAmount);
     }

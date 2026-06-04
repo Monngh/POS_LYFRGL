@@ -8,6 +8,10 @@ import {
   Package,
   UserPlus,
   AlertTriangle,
+  Wallet,
+  CreditCard,
+  Landmark,
+  Scale,
 } from "lucide-react";
 import api from "../../services/api";
 import { ui, type ViewProps, SectionHeader, money } from "./shared";
@@ -43,6 +47,24 @@ interface DashboardResponse {
   ventasPorSucursal: BranchSales[];
   productosMasVendidos: TopProduct[];
 }
+interface CashSessionRow {
+  id: number;
+  branch: string;
+  cajero: string;
+  openedAt: string;
+  closedAt: string | null;
+  status: string;
+  difference: number | null;
+}
+interface CustomerRow {
+  id: number;
+  balance: number;
+}
+interface DepositRow {
+  id: number;
+  amount: number;
+  createdAt: string;
+}
 
 const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [data, setData] = useState<DashboardResponse | null>(null);
@@ -68,6 +90,34 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     load();
   }, [load]);
 
+  const [sessions, setSessions] = useState<CashSessionRow[]>([]);
+  const [customers, setCustomers] = useState<CustomerRow[]>([]);
+  const [deposits, setDeposits] = useState<DepositRow[]>([]);
+  const [loadingCash, setLoadingCash] = useState(true);
+
+  const loadCash = useCallback(async () => {
+    setLoadingCash(true);
+    try {
+      const params = branchId !== "all" ? { branchId } : {};
+      const [sessRes, custRes, depRes] = await Promise.all([
+        api.get<{ sessions: CashSessionRow[] }>("/api/admin/cash-sessions", { params }),
+        api.get<{ customers: CustomerRow[] }>("/api/admin/customers"),
+        api.get<{ deposits: DepositRow[] }>("/api/admin/bank-deposits", { params }),
+      ]);
+      setSessions(sessRes.data.sessions);
+      setCustomers(custRes.data.customers);
+      setDeposits(depRes.data.deposits);
+    } catch {
+      // widgets muestran "—" si falla
+    } finally {
+      setLoadingCash(false);
+    }
+  }, [branchId, refreshToken]);
+
+  useEffect(() => {
+    loadCash();
+  }, [loadCash]);
+
   const m = data?.metrics;
   const cards = [
     { label: "Ventas de hoy", value: m ? money(m.ventasHoy) : "—", icon: TrendingUp },
@@ -88,6 +138,33 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const maxDay = Math.max(1, ...(data?.ventas7dias.map((d) => d.total) ?? [0]));
   const maxBranch = Math.max(1, ...(data?.ventasPorSucursal.map((b) => b.total) ?? [0]));
 
+  // ── Cálculos para los 4 widgets nuevos ──
+  const cajasAbiertas = sessions.filter((s) => s.status === "ABIERTA").length;
+  const ultimaApertura = sessions
+    .filter((s) => s.status === "ABIERTA")
+    .sort((a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime())[0];
+  const minutosDesdeApertura = ultimaApertura
+    ? Math.round((Date.now() - new Date(ultimaApertura.openedAt).getTime()) / 60000)
+    : null;
+
+  const cobranzaTotal = customers.reduce((acc, c) => acc + (c.balance > 0 ? c.balance : 0), 0);
+  const creditosConSaldo = customers.filter((c) => c.balance > 0).length;
+
+  const hoy = new Date().toDateString();
+  const depositosHoy = deposits.filter((d) => new Date(d.createdAt).toDateString() === hoy);
+  const totalDepositosHoy = depositosHoy.reduce((acc, d) => acc + d.amount, 0);
+
+  const sesionesHoyCerradas = sessions.filter(
+    (s) => s.status === "CERRADA" && s.closedAt && new Date(s.closedAt).toDateString() === hoy
+  );
+  const totalSesionesHoy = sesionesHoyCerradas.length;
+  const cajasCuadradas = sesionesHoyCerradas.filter((s) => s.difference === null || s.difference === 0).length;
+  const diferenciaTotalHoy = sesionesHoyCerradas.reduce((acc, s) => acc + Math.abs(s.difference ?? 0), 0);
+  const hasDiferencias = diferenciaTotalHoy > 0;
+  const sesionesConDiferencia = sesionesHoyCerradas.filter(
+    (sess) => sess.difference !== null && sess.difference !== 0
+  );
+
   if (error) {
     return (
       <div>
@@ -105,7 +182,7 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   return (
     <div>
-      <SectionHeader title="Dashboard" subtitle="Métricas empresariales en tiempo real desde SQL Server" />
+      <SectionHeader title="Dashboard" subtitle="Métricas en tiempo real desde SQL Server" />
 
       {/* Tarjetas de métricas */}
       <div style={s.metricsGrid}>
@@ -125,6 +202,105 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </div>
           );
         })}
+      </div>
+
+      {/* ── Fila 3: Operaciones del día ── */}
+      <div style={{ ...s.metricsGrid, marginTop: 16 }}>
+        {/* Widget: Estado de cajas */}
+        <div style={s.metricCard}>
+          <div style={s.metricHead}>
+            <span style={s.metricLabel}>Estado de cajas</span>
+            <div style={{ ...s.metricIcon, backgroundColor: "#eff6ff" }}>
+              <Wallet size={16} color="#2563eb" />
+            </div>
+          </div>
+          <h2 style={s.metricValue}>
+            {loadingCash ? "…" : `${cajasAbiertas} abierta${cajasAbiertas !== 1 ? "s" : ""}`}
+          </h2>
+          <p style={s.metricSecondary}>
+            {!loadingCash && minutosDesdeApertura !== null
+              ? `Última apertura hace ${minutosDesdeApertura} min`
+              : !loadingCash
+                ? "Sin cajas activas ahora"
+                : ""}
+          </p>
+        </div>
+
+        {/* Widget: Cobranza pendiente */}
+        <div style={s.metricCard}>
+          <div style={s.metricHead}>
+            <span style={s.metricLabel}>Cobranza pendiente</span>
+            <div style={{ ...s.metricIcon, backgroundColor: creditosConSaldo > 0 ? "#fef3c7" : "#eff6ff" }}>
+              <CreditCard size={16} color={creditosConSaldo > 0 ? "#d97706" : "#2563eb"} />
+            </div>
+          </div>
+          <h2 style={{ ...s.metricValue, color: creditosConSaldo > 0 ? "#b45309" : "#0f172a" }}>
+            {loadingCash ? "…" : money(cobranzaTotal)}
+          </h2>
+          <p style={s.metricSecondary}>
+            {!loadingCash ? `${creditosConSaldo} cliente${creditosConSaldo !== 1 ? "s" : ""} con saldo` : ""}
+          </p>
+        </div>
+
+        {/* Widget: Depósitos hoy */}
+        <div style={s.metricCard}>
+          <div style={s.metricHead}>
+            <span style={s.metricLabel}>Depósitos hoy</span>
+            <div style={{ ...s.metricIcon, backgroundColor: "#dcfce7" }}>
+              <Landmark size={16} color="#16a34a" />
+            </div>
+          </div>
+          <h2 style={{ ...s.metricValue, color: "#15803d" }}>
+            {loadingCash ? "…" : money(totalDepositosHoy)}
+          </h2>
+          <p style={s.metricSecondary}>
+            {!loadingCash ? `${depositosHoy.length} depósito${depositosHoy.length !== 1 ? "s" : ""}` : ""}
+          </p>
+        </div>
+
+        {/* Widget: Diferencia de caja */}
+        <div style={s.metricCard}>
+          <div style={s.metricHead}>
+            <span style={s.metricLabel}>Diferencia de caja</span>
+            <div style={{ ...s.metricIcon, backgroundColor: hasDiferencias ? "#fee2e2" : "#dcfce7" }}>
+              <Scale size={16} color={hasDiferencias ? "#dc2626" : "#16a34a"} />
+            </div>
+          </div>
+          <h2 style={{ ...s.metricValue, color: hasDiferencias ? "#b91c1c" : "#15803d" }}>
+            {loadingCash
+              ? "…"
+              : totalSesionesHoy > 0
+                ? `${cajasCuadradas} de ${totalSesionesHoy}`
+                : "Sin cortes hoy"}
+          </h2>
+          {!loadingCash && totalSesionesHoy > 0 && !hasDiferencias && (
+            <p style={s.metricSecondary}>Todas cuadradas</p>
+          )}
+          {!loadingCash && sesionesConDiferencia.length > 0 && (
+            <div style={{ marginTop: 6 }}>
+              {sesionesConDiferencia.slice(0, 3).map((sess) => (
+                <div
+                  key={sess.id}
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 5 }}
+                >
+                  <span style={{ ...s.metricSecondary, marginTop: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "65%" }}>
+                    {sess.branch}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#dc2626", flexShrink: 0 }}>
+                    {sess.difference! >= 0
+                      ? `+${money(sess.difference!)}`
+                      : `-${money(Math.abs(sess.difference!))}`}
+                  </span>
+                </div>
+              ))}
+              {sesionesConDiferencia.length > 3 && (
+                <p style={{ ...s.metricSecondary, marginTop: 5 }}>
+                  +{sesionesConDiferencia.length - 3} caja{sesionesConDiferencia.length - 3 !== 1 ? "s" : ""} más
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Gráfica de 7 días */}
@@ -216,6 +392,7 @@ const s: { [k: string]: React.CSSProperties } = {
     justifyContent: "center",
   },
   metricValue: { fontSize: 26, fontWeight: 800, marginTop: 12, letterSpacing: "-0.5px" },
+  metricSecondary: { fontSize: 12, color: "#94a3b8", marginTop: 4, fontWeight: 500 },
   panelTitle: { fontSize: 15, fontWeight: 800, color: "#0f172a" },
   chart: {
     display: "flex",
