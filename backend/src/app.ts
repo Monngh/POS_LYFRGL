@@ -11,6 +11,8 @@ import mercadopagoRouter from "./routes/mercadopago.routes";
 import promotionRouter from "./routes/promotion.routes";
 import dashboardRouter from "./routes/dashboard.routes";
 import adminRouter from "./routes/admin.routes";
+import returnRouter from "./routes/return.routes";
+
 
 // Inicializar cliente de Prisma como Singleton
 export const prisma = new PrismaClient();
@@ -36,6 +38,8 @@ app.use("/api/mercadopago", mercadopagoRouter);
 app.use("/api/promotions", promotionRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/returns", returnRouter);
+
 
 // Ruta de healthcheck
 app.get("/health", async (_req: Request, res: Response) => {

@@ -168,6 +168,15 @@ export const closeSession = async (req: Request, res: Response): Promise<void> =
 
     totalSalesAmount = netTotal + totalRefunds;
 
+    // Consultar devoluciones de la sesión
+    const sessionReturns = await prisma.return.findMany({
+      where: {
+        cashSessionId: activeSession.id,
+      },
+    });
+    const totalReturnsAmount = sessionReturns.reduce((acc, curr) => acc + Number(curr.totalRefunded), 0);
+    const returnsCount = sessionReturns.length;
+
     const closedSession = await prisma.cashSession.update({
       where: { id: activeSession.id },
       data: {
@@ -199,7 +208,9 @@ export const closeSession = async (req: Request, res: Response): Promise<void> =
         salesCount,
         totalSalesAmount,
         totalRefunds,
-        netTotal,
+        totalReturnsAmount,
+        returnsCount,
+        netTotal: netTotal - totalReturnsAmount,
         initialAmount: decInitial,
         cashIn: decCashIn,
         cashOut: decCashOut,
@@ -313,6 +324,15 @@ export const getSessionStats = async (req: Request, res: Response): Promise<void
 
     totalSalesAmount = netTotal + totalRefunds;
 
+    // Consultar devoluciones de la sesión
+    const sessionReturns = await prisma.return.findMany({
+      where: {
+        cashSessionId: activeSession.id,
+      },
+    });
+    const totalReturnsAmount = sessionReturns.reduce((acc, curr) => acc + Number(curr.totalRefunded), 0);
+    const returnsCount = sessionReturns.length;
+
     res.status(200).json({
       hasActive: true,
       stats: {
@@ -320,7 +340,9 @@ export const getSessionStats = async (req: Request, res: Response): Promise<void
         salesCount,
         totalSalesAmount,
         totalRefunds,
-        netTotal,
+        totalReturnsAmount,
+        returnsCount,
+        netTotal: netTotal - totalReturnsAmount,
         initialAmount: Number(activeSession.initialAmount),
         cashIn: Number(activeSession.cashIn),
         cashOut: Number(activeSession.cashOut),
@@ -410,6 +432,14 @@ export const createPartialCut = async (req: Request, res: Response): Promise<voi
     const totalSalesSum = totalSales + totalRefunds;
     const netTotal = totalSales; // Equivale al neto de ventas completadas
 
+    // Consultar devoluciones de la sesión
+    const sessionReturns = await prisma.return.findMany({
+      where: {
+        cashSessionId: activeSession.id,
+      },
+    });
+    const totalReturnsAmount = sessionReturns.reduce((acc, curr) => acc + Number(curr.totalRefunded), 0);
+
     // Obtener el número de corte actual
     const cutsCount = await prisma.cashCut.count({
       where: {
@@ -434,7 +464,11 @@ export const createPartialCut = async (req: Request, res: Response): Promise<voi
 
     res.status(201).json({
       message: "Corte parcial registrado exitosamente.",
-      cut: newCut,
+      cut: {
+        ...newCut,
+        totalReturns: totalReturnsAmount,
+        netTotal: Number(newCut.netTotal) - totalReturnsAmount,
+      },
     });
   } catch (error: any) {
     res.status(500).json({ message: "Error al generar corte parcial.", error: error.message });
@@ -474,7 +508,25 @@ export const getPartialCuts = async (req: Request, res: Response): Promise<void>
       },
     });
 
-    res.status(200).json({ cuts });
+    const cutsWithReturns = [];
+    for (const cut of cuts) {
+      const returnsBeforeCut = await prisma.return.findMany({
+        where: {
+          cashSessionId: activeSession.id,
+          createdAt: {
+            lte: cut.createdAt,
+          },
+        },
+      });
+      const totalReturns = returnsBeforeCut.reduce((acc, curr) => acc + Number(curr.totalRefunded), 0);
+      cutsWithReturns.push({
+        ...cut,
+        totalReturns,
+        netTotal: Number(cut.netTotal) - totalReturns,
+      });
+    }
+
+    res.status(200).json({ cuts: cutsWithReturns });
   } catch (error: any) {
     res.status(500).json({ message: "Error al cargar historial de cortes.", error: error.message });
   }
