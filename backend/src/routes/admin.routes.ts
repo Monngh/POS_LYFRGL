@@ -24,6 +24,12 @@ import {
   listPurchases,
   createPurchase,
   receivePurchase,
+  createProduct,
+  listProducts,
+  getProductDetail,
+  updateProduct,
+  adjustInventory,
+  transferInventory,
 } from "../controllers/admin.controller";
 import { authenticateJWT, authorizeRoles } from "../middlewares/auth.middleware";
 
@@ -39,6 +45,14 @@ router.get("/sales/:id", getSaleDetail);
 
 // Inventario
 router.get("/inventory", listInventory);
+router.post("/inventory/adjust", adjustInventory);
+router.post("/inventory/transfer", transferInventory);
+
+// Productos
+router.get("/products", listProducts);
+router.post("/products", createProduct);
+router.get("/products/:id", getProductDetail);
+router.put("/products/:id", updateProduct);
 
 // Clientes
 router.get("/customers", listCustomers);

@@ -743,10 +743,19 @@ export const listKardex = async (req: Request, res: Response): Promise<void> => 
     const movementType = req.query.movementType as string | undefined;
     const search = trimQuery(req.query.search);
 
+    const from = req.query.from as string | undefined;
+    const to = req.query.to as string | undefined;
+
     const where: any = {};
     if (branchId) where.branchId = branchId;
     if (movementType && movementType !== "all") where.movementType = movementType;
     if (search) where.product = { OR: [{ name: { contains: search } }, { sku: { contains: search } }] };
+    if (from && to) {
+      where.createdAt = {
+        gte: new Date(from),
+        lte: new Date(to + "T23:59:59"),
+      };
+    }
 
     const entries = await prisma.kardex.findMany({
       where,
@@ -785,7 +794,7 @@ export const listBankDeposits = async (req: Request, res: Response): Promise<voi
   try {
     const branchId = parseBranch(req);
     const { from, to, account } = req.query;
-    
+
     const where: any = {};
     if (branchId) where.branchId = branchId;
     if (account) where.accountNumber = String(account);
@@ -1160,6 +1169,11 @@ export const receivePurchase = async (req: Request, res: Response): Promise<void
           });
         }
 
+        await tx.product.update({
+          where: { id: detail.productId },
+          data: { costPrice: detail.unitCost }
+        });
+
         await tx.kardex.create({
           data: {
             productId: detail.productId,
@@ -1382,5 +1396,350 @@ export const forceCloseCashSession = async (req: Request, res: Response): Promis
     });
   } catch (error: any) {
     res.status(500).json({ message: "Error al cerrar la caja forzadamente.", error: error.message });
+  }
+};
+
+// ===========================================================================
+// PRODUCTOS — CRUD completo (admin)
+// ===========================================================================
+
+export const createProduct = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { sku, barcode, name, description, costPrice, sellPrice, trackingType, isReturnable, returnWindowDays } = req.body;
+
+    if (!sku || typeof sku !== "string" || !sku.trim()) {
+      res.status(400).json({ message: "El SKU es requerido." });
+      return;
+    }
+    if (!name || typeof name !== "string" || !name.trim()) {
+      res.status(400).json({ message: "El nombre del producto es requerido." });
+      return;
+    }
+    if (sellPrice === undefined || isNaN(Number(sellPrice)) || Number(sellPrice) < 0) {
+      res.status(400).json({ message: "El precio de venta es requerido y debe ser un número no negativo." });
+      return;
+    }
+
+    const existing = await prisma.product.findUnique({ where: { sku: sku.trim() } });
+    if (existing) {
+      res.status(400).json({ message: `El SKU '${sku.trim()}' ya está registrado.` });
+      return;
+    }
+
+    if (barcode && String(barcode).trim()) {
+      const existingBarcode = await prisma.product.findUnique({ where: { barcode: String(barcode).trim() } });
+      if (existingBarcode) {
+        res.status(400).json({ message: `El código de barras '${barcode}' ya está registrado.` });
+        return;
+      }
+    }
+
+    const product = await prisma.product.create({
+      data: {
+        sku: sku.trim(),
+        barcode: barcode && String(barcode).trim() ? String(barcode).trim() : null,
+        name: name.trim(),
+        description: description && String(description).trim() ? String(description).trim() : null,
+        costPrice: Number(costPrice) || 0,
+        sellPrice: Number(sellPrice),
+        active: true,
+        isReturnable: isReturnable !== undefined ? Boolean(isReturnable) : true,
+        returnWindowDays: returnWindowDays !== undefined ? Number(returnWindowDays) : 30,
+        trackingType: trackingType && String(trackingType).trim() ? String(trackingType).trim() : "NONE",
+      },
+    });
+
+    res.status(201).json({ message: "Producto creado exitosamente.", product });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al crear el producto.", error: error.message });
+  }
+};
+
+export const listProducts = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const search = trimQuery(req.query.search);
+    const includeInactive = req.query.includeInactive === "true";
+
+    const where: any = {};
+    if (!includeInactive) where.active = true;
+    if (search) {
+      where.OR = [
+        { sku: { contains: search } },
+        { name: { contains: search } },
+        { barcode: { contains: search } },
+      ];
+    }
+
+    const products = await prisma.product.findMany({
+      where,
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        sku: true,
+        barcode: true,
+        name: true,
+        description: true,
+        costPrice: true,
+        sellPrice: true,
+        active: true,
+        trackingType: true,
+        isReturnable: true,
+        createdAt: true,
+      },
+    });
+
+    const mapped = products.map((p) => ({
+      ...p,
+      costPrice: Number(p.costPrice),
+      sellPrice: Number(p.sellPrice),
+    }));
+
+    res.status(200).json({ products: mapped });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al listar productos.", error: error.message });
+  }
+};
+
+export const getProductDetail = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      res.status(400).json({ message: "Identificador de producto inválido." });
+      return;
+    }
+
+    const product = await prisma.product.findUnique({
+      where: { id },
+      include: {
+        inventories: {
+          include: { branch: { select: { id: true, name: true } } },
+        },
+        kardexEntries: {
+          take: 20,
+          orderBy: { createdAt: "desc" },
+          include: { branch: { select: { name: true } }, user: { select: { name: true } } },
+        },
+      },
+    });
+
+    if (!product) {
+      res.status(404).json({ message: "Producto no encontrado." });
+      return;
+    }
+
+    res.status(200).json({
+      product: {
+        id: product.id,
+        sku: product.sku,
+        barcode: product.barcode,
+        name: product.name,
+        description: product.description,
+        costPrice: Number(product.costPrice),
+        sellPrice: Number(product.sellPrice),
+        active: product.active,
+        trackingType: product.trackingType,
+        isReturnable: product.isReturnable,
+        returnWindowDays: product.returnWindowDays,
+        createdAt: product.createdAt,
+        updatedAt: product.updatedAt,
+        inventories: product.inventories.map((inv) => ({
+          id: inv.id,
+          branch: inv.branch.name,
+          branchId: inv.branchId,
+          quantity: inv.quantity,
+          minStock: inv.minStock,
+          maxStock: inv.maxStock,
+        })),
+        recentKardex: product.kardexEntries.map((k) => ({
+          id: k.id,
+          date: k.createdAt,
+          branch: k.branch.name,
+          user: k.user.name,
+          movementType: k.movementType,
+          quantityChange: k.quantityChange,
+          balanceAfter: k.balanceAfter,
+          reason: k.reason,
+        })),
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al obtener el detalle del producto.", error: error.message });
+  }
+};
+
+export const updateProduct = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      res.status(400).json({ message: "Identificador de producto inválido." });
+      return;
+    }
+
+    const { name, description, costPrice, sellPrice, active, isReturnable, returnWindowDays, trackingType } = req.body;
+
+    const existing = await prisma.product.findUnique({ where: { id } });
+    if (!existing) {
+      res.status(404).json({ message: "Producto no encontrado." });
+      return;
+    }
+
+    const data: any = {};
+    if (name !== undefined && String(name).trim()) data.name = String(name).trim();
+    if (description !== undefined) data.description = description ? String(description).trim() : null;
+    if (costPrice !== undefined && !isNaN(Number(costPrice))) data.costPrice = Number(costPrice);
+    if (sellPrice !== undefined && !isNaN(Number(sellPrice))) data.sellPrice = Number(sellPrice);
+    if (active !== undefined) data.active = Boolean(active);
+    if (isReturnable !== undefined) data.isReturnable = Boolean(isReturnable);
+    if (returnWindowDays !== undefined && !isNaN(Number(returnWindowDays))) data.returnWindowDays = Number(returnWindowDays);
+    if (trackingType !== undefined && String(trackingType).trim()) data.trackingType = String(trackingType).trim();
+
+    if (Object.keys(data).length === 0) {
+      res.status(400).json({ message: "No se proporcionaron campos para actualizar." });
+      return;
+    }
+
+    const product = await prisma.product.update({
+      where: { id },
+      data,
+    });
+
+    res.status(200).json({
+      message: "Producto actualizado exitosamente.",
+      product: {
+        ...product,
+        costPrice: Number(product.costPrice),
+        sellPrice: Number(product.sellPrice),
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al actualizar el producto.", error: error.message });
+  }
+};
+
+// ===========================================================================
+// AJUSTE MANUAL DE INVENTARIO
+// ===========================================================================
+export const adjustInventory = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const productId = Number(req.body.productId);
+    const branchId = Number(req.body.branchId);
+    const quantityChange = Number(req.body.quantityChange);
+    const movementType = String(req.body.movementType || "").trim();
+    const reason = String(req.body.reason || "").trim();
+    const userId = req.user!.userId;
+
+    if (!productId || !branchId || quantityChange === 0 || !movementType || !reason) {
+      res.status(400).json({ message: "Campos requeridos incompletos." });
+      return;
+    }
+
+    const inventory = await prisma.inventory.findUnique({
+      where: { productId_branchId: { productId, branchId } },
+    });
+
+    if (!inventory) {
+      res.status(404).json({ message: "Inventario no encontrado para este producto y sucursal." });
+      return;
+    }
+
+    const newQuantity = inventory.quantity + quantityChange;
+    if (newQuantity < 0) {
+      res.status(400).json({ message: "El ajuste resultaría en stock negativo." });
+      return;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.inventory.update({
+        where: { id: inventory.id },
+        data: { quantity: newQuantity },
+      });
+      await tx.kardex.create({
+        data: { productId, branchId, userId, quantityChange, balanceAfter: newQuantity, movementType, reason },
+      });
+    });
+
+    res.status(200).json({ message: "Ajuste aplicado exitosamente.", newQuantity });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al aplicar ajuste de inventario.", error: error.message });
+  }
+};
+
+// ===========================================================================
+// TRASLADO ENTRE SUCURSALES
+// ===========================================================================
+export const transferInventory = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const productId = Number(req.body.productId);
+    const fromBranch = Number(req.body.fromBranch);
+    const toBranch = Number(req.body.toBranch);
+    const quantity = Number(req.body.quantity);
+    const userId = req.user!.userId;
+
+    if (!productId || !fromBranch || !toBranch || !quantity) {
+      res.status(400).json({ message: "Campos requeridos incompletos." });
+      return;
+    }
+    if (fromBranch === toBranch) {
+      res.status(400).json({ message: "El origen y destino deben ser diferentes." });
+      return;
+    }
+    if (quantity <= 0) {
+      res.status(400).json({ message: "La cantidad debe ser mayor a cero." });
+      return;
+    }
+
+    const fromInv = await prisma.inventory.findUnique({
+      where: { productId_branchId: { productId, branchId: fromBranch } },
+    });
+
+    if (!fromInv || fromInv.quantity < quantity) {
+      res.status(400).json({ message: "Stock insuficiente en la sucursal de origen." });
+      return;
+    }
+
+    // Fetch branch names for kardex reason
+    const [branchFrom, branchTo] = await Promise.all([
+      prisma.branch.findUnique({ where: { id: fromBranch }, select: { name: true } }),
+      prisma.branch.findUnique({ where: { id: toBranch }, select: { name: true } }),
+    ]);
+
+    await prisma.$transaction(async (tx) => {
+      const fromBalance = fromInv.quantity - quantity;
+      await tx.inventory.update({ where: { id: fromInv.id }, data: { quantity: fromBalance } });
+      await tx.kardex.create({
+        data: {
+          productId, branchId: fromBranch, userId,
+          quantityChange: -quantity, balanceAfter: fromBalance,
+          movementType: "TRASPASO_SALIDA",
+          reason: `Traslado a ${branchTo?.name ?? `sucursal ${toBranch}`}`,
+        },
+      });
+
+      const existingTo = await tx.inventory.findUnique({
+        where: { productId_branchId: { productId, branchId: toBranch } },
+      });
+      const toBalance = (existingTo?.quantity ?? 0) + quantity;
+
+      if (existingTo) {
+        await tx.inventory.update({ where: { id: existingTo.id }, data: { quantity: toBalance } });
+      } else {
+        await tx.inventory.create({
+          data: { productId, branchId: toBranch, quantity: toBalance, minStock: 0, maxStock: 100 },
+        });
+      }
+
+      await tx.kardex.create({
+        data: {
+          productId, branchId: toBranch, userId,
+          quantityChange: quantity, balanceAfter: toBalance,
+          movementType: "TRASPASO_ENTRADA",
+          reason: `Traslado desde ${branchFrom?.name ?? `sucursal ${fromBranch}`}`,
+        },
+      });
+    });
+
+    res.status(200).json({ message: "Traslado aplicado exitosamente." });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al aplicar traslado.", error: error.message });
   }
 };

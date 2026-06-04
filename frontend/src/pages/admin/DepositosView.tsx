@@ -381,7 +381,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   fontWeight: "600"
                 }}
               >
-                🖨️ Imprimir
+                Imprimir
               </button>
             </div>
           </div>
