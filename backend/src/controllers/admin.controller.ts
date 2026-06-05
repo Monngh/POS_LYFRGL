@@ -1798,7 +1798,7 @@ export const forceCloseCashSession = async (req: Request, res: Response): Promis
 
 export const createProduct = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { sku, barcode, name, description, costPrice, sellPrice, trackingType, isReturnable, returnWindowDays } = req.body;
+    const { sku, barcode, name, description, costPrice, sellPrice, trackingType, isReturnable, returnWindowDays, satProductKey, satUnitKey } = req.body;
 
     if (!sku || typeof sku !== "string" || !sku.trim()) {
       res.status(400).json({ message: "El SKU del producto es obligatorio." });
@@ -1857,6 +1857,8 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
           isReturnable: isReturnable !== undefined ? Boolean(isReturnable) : true,
           returnWindowDays: returnWindowDays !== undefined ? Number(returnWindowDays) : 30,
           trackingType: trackingType && String(trackingType).trim() ? String(trackingType).trim() : "NONE",
+          satProductKey: satProductKey && String(satProductKey).trim() ? String(satProductKey).trim() : "01010101",
+          satUnitKey: satUnitKey && String(satUnitKey).trim() ? String(satUnitKey).trim() : "H87",
         }
       });
 
@@ -1893,6 +1895,8 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
         isReturnable: newProduct.isReturnable,
         returnWindowDays: newProduct.returnWindowDays,
         trackingType: newProduct.trackingType,
+        satProductKey: newProduct.satProductKey,
+        satUnitKey: newProduct.satUnitKey,
       }
     });
 
@@ -1994,6 +1998,8 @@ export const getProductDetail = async (req: Request, res: Response): Promise<voi
         trackingType: product.trackingType,
         isReturnable: product.isReturnable,
         returnWindowDays: product.returnWindowDays,
+        satProductKey: product.satProductKey,
+        satUnitKey: product.satUnitKey,
         createdAt: product.createdAt,
         updatedAt: product.updatedAt,
         inventories: product.inventories.map((inv) => ({
@@ -2029,7 +2035,7 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const { name, description, barcode, costPrice, sellPrice, active, isReturnable, returnWindowDays, trackingType } = req.body;
+    const { name, description, barcode, costPrice, sellPrice, active, isReturnable, returnWindowDays, trackingType, satProductKey, satUnitKey } = req.body;
 
     if (!name || typeof name !== "string" || !name.trim()) {
       res.status(400).json({ message: "El nombre del producto es obligatorio." });
@@ -2084,6 +2090,8 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
         isReturnable: isReturnable !== undefined ? Boolean(isReturnable) : existingProduct.isReturnable,
         returnWindowDays: returnWindowDays !== undefined ? Number(returnWindowDays) : existingProduct.returnWindowDays,
         trackingType: trackingType !== undefined ? String(trackingType).trim() : existingProduct.trackingType,
+        satProductKey: satProductKey !== undefined ? String(satProductKey).trim() : existingProduct.satProductKey,
+        satUnitKey: satUnitKey !== undefined ? String(satUnitKey).trim() : existingProduct.satUnitKey,
       }
     });
 
@@ -2101,6 +2109,8 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
         isReturnable: updated.isReturnable,
         returnWindowDays: updated.returnWindowDays,
         trackingType: updated.trackingType,
+        satProductKey: updated.satProductKey,
+        satUnitKey: updated.satUnitKey,
       }
     });
   } catch (error: any) {

@@ -121,7 +121,7 @@ const Dashboard: React.FC = () => {
 
   // Simulación de venta: impuestos y promociones dinámicos desde backend
   const [simulationData, setSimulationData] = useState<any>(null);
-  const [loadingSimulation, setLoadingSimulation] = useState(false);
+  const [, setLoadingSimulation] = useState(false);
 
   const showToast = (message: string, type: "error" | "success" | "info" = "error") => {
     setToast({ message, type });

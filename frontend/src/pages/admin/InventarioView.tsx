@@ -44,6 +44,8 @@ interface ProductDetail {
   trackingType: string;
   isReturnable: boolean;
   returnWindowDays: number;
+  satProductKey?: string;
+  satUnitKey?: string;
   createdAt: string;
   updatedAt: string;
   inventories: {
@@ -103,7 +105,7 @@ interface ProductTaxResponse {
   };
 }
 
-const emptyForm = { sku: "", barcode: "", name: "", description: "", costPrice: "", sellPrice: "" };
+const emptyForm = { sku: "", barcode: "", name: "", description: "", costPrice: "", sellPrice: "", satProductKey: "", satUnitKey: "" };
 
 const getErrorMessage = (err: unknown, fallback: string) => {
   if (typeof err === "object" && err !== null && "response" in err) {
@@ -259,7 +261,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const handleOpenCreate = () => {
     taxRequestId.current += 1;
-    setForm({ ...emptyForm });
+    setForm({ ...emptyForm, satProductKey: "01010101", satUnitKey: "H87" });
     setEditingId(null);
     setFormError(null);
     setTaxError(null);
@@ -270,6 +272,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const handleEdit = (p: ProductRow | ProductDetail) => {
     closeDetail();
+    const detail = p as any;
     setForm({
       sku: p.sku,
       barcode: p.barcode || "",
@@ -277,6 +280,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       description: p.description || "",
       costPrice: String(p.costPrice),
       sellPrice: String(p.sellPrice),
+      satProductKey: detail.satProductKey || "01010101",
+      satUnitKey: detail.satUnitKey || "H87",
     });
     setEditingId(p.id);
     setFormError(null);
@@ -350,6 +355,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           description: form.description.trim() || undefined,
           costPrice: cost,
           sellPrice: sell,
+          satProductKey: form.satProductKey.trim() || "01010101",
+          satUnitKey: form.satUnitKey.trim() || "H87",
         });
         await api.put(`/api/admin-tax/products/${editingId}/taxes`, {
           taxIds: selectedTaxIds,
@@ -363,6 +370,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           description: form.description.trim() || undefined,
           costPrice: cost,
           sellPrice: sell,
+          satProductKey: form.satProductKey.trim() || "01010101",
+          satUnitKey: form.satUnitKey.trim() || "H87",
         });
         if (selectedTaxIds.length > 0) {
           const newProductId = createRes.data.product.id;
@@ -885,7 +894,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   </div>
 
                   {/* ── Badges de atributos ── */}
-                  <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap", alignItems: "center" }}>
                     {!selectedProduct.active && <Badge tone="red">Inactivo</Badge>}
                     {selectedProduct.isReturnable && (
                       <Badge tone="green">Retornable ({selectedProduct.returnWindowDays}d)</Badge>
@@ -893,6 +902,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     {selectedProduct.trackingType !== "NONE" && (
                       <Badge tone="blue">Tracking: {selectedProduct.trackingType}</Badge>
                     )}
+                    <Badge tone="slate">SAT: {selectedProduct.satProductKey || "01010101"} ({selectedProduct.satUnitKey || "H87"})</Badge>
                     {selectedProduct.description && (
                       <span style={{ fontSize: 12, color: "#64748b" }}>{selectedProduct.description}</span>
                     )}
@@ -1455,6 +1465,17 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <div>
                   <label style={ui.fieldLabel}>Precio Venta ($) *</label>
                   <input style={ui.input} value={form.sellPrice} onChange={set("sellPrice")} placeholder="0.00" />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+                <div>
+                  <label style={ui.fieldLabel}>Clave SAT (ClaveProdServ) *</label>
+                  <input style={ui.input} value={form.satProductKey} onChange={set("satProductKey")} placeholder="01010101" />
+                </div>
+                <div>
+                  <label style={ui.fieldLabel}>Clave Unidad SAT (ClaveUnidad) *</label>
+                  <input style={ui.input} value={form.satUnitKey} onChange={set("satUnitKey")} placeholder="H87" />
                 </div>
               </div>
 

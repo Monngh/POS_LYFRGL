@@ -18,7 +18,17 @@ export class BillingService {
       where: { id: saleId },
       include: {
         saleDetails: {
-          include: { product: true }
+          include: {
+            product: {
+              include: {
+                productTaxes: {
+                  include: {
+                    taxType: true
+                  }
+                }
+              }
+            }
+          }
         },
         branch: true
       }
@@ -39,32 +49,87 @@ export class BillingService {
       throw new Error("API Key de Facturapi no configurada en las variables de entorno (.env). El sistema está configurado en modo estrictamente real.");
     }
 
+    // Registrar o actualizar los datos fiscales del cliente en la DB si corresponde
+    if (sale.customerId) {
+      try {
+        await prisma.customer.update({
+          where: { id: sale.customerId },
+          data: {
+            taxId: customer.rfc.toUpperCase(),
+            zipCode: customer.zip,
+            taxRegime: customer.taxSystem,
+            cfdiUse: customer.cfdiUse
+          }
+        });
+      } catch (custErr) {
+        console.error("Error al actualizar datos fiscales del cliente:", custErr);
+      }
+    }
+
     // --- MODO REAL: Facturapi REST API ---
     try {
       const paymentFormMap: Record<string, string> = {
         "EFECTIVO": "01", // Efectivo
-        "TARJETA": "04",  // Tarjeta de crédito o 28 (Tarjeta de débito)
+        "TARJETA": "04",  // Tarjeta de crédito o débito
         "CREDITO": "99",  // Por definir
         "MIXTO": "01"     // Efectivo por defecto
       };
 
       const facturapiItems = sale.saleDetails.map((detail) => {
         const unitPrice = Number(detail.unitPrice);
-        const basePrice = unitPrice / 1.16;
+        const applicableTaxes = detail.product.productTaxes.filter((pt) => pt.taxType.active);
+
+        let totalTaxRate = 0;
+        for (const pt of applicableTaxes) {
+          totalTaxRate += Number(pt.taxType.rate);
+        }
+
+        const basePrice = totalTaxRate > 0 ? (unitPrice / (1 + totalTaxRate)) : unitPrice;
+
+        const mappedTaxes = applicableTaxes.map((pt) => {
+          const rateVal = Number(pt.taxType.rate);
+          const nameUpper = pt.taxType.name.toUpperCase();
+
+          if (nameUpper.includes("EXENTO")) {
+            return {
+              rate: 0,
+              type: "IVA",
+              exento: true,
+              withholding: false
+            };
+          }
+
+          let taxType = "IVA";
+          if (nameUpper.includes("IEPS")) {
+            taxType = "IEPS";
+          } else if (nameUpper.includes("ISR")) {
+            taxType = "ISR";
+          }
+
+          return {
+            rate: rateVal,
+            type: taxType,
+            withholding: false
+          };
+        });
+
+        // Fallback a IVA 16% si no hay impuestos asignados
+        if (mappedTaxes.length === 0) {
+          mappedTaxes.push({
+            rate: 0.16,
+            type: "IVA",
+            withholding: false
+          });
+        }
 
         return {
           quantity: detail.quantity,
           product: {
             description: detail.product.name,
             price: Number(basePrice.toFixed(2)),
-            product_key: "01010101", // Clave del SAT genérica
-            taxes: [
-              {
-                rate: 0.16,
-                type: "IVA",
-                withholding: false
-              }
-            ]
+            product_key: detail.product.satProductKey || "01010101",
+            unit_key: detail.product.satUnitKey || "H87",
+            taxes: mappedTaxes
           }
         };
       });
@@ -140,7 +205,7 @@ export class BillingService {
   /**
    * Generar y timbrar nota de crédito (CFDI de Egreso) de un ticket (Facturapi)
    */
-  static async createCreditNote(saleId: number, returnedItems: { name: string; quantity: number; unitPrice: number; discountAmount: number }[], returnId: number) {
+  static async createCreditNote(saleId: number, _returnedItems: { name: string; quantity: number; unitPrice: number; discountAmount: number }[], returnId: number) {
     const sale = await prisma.sale.findUnique({
       where: { id: saleId },
       include: {
@@ -175,52 +240,113 @@ export class BillingService {
         "MIXTO": "01"
       };
 
-      const facturapiItems = returnedItems.map((item) => {
-        const discountPerUnit = item.discountAmount / item.quantity;
-        const netUnitPrice = item.unitPrice - discountPerUnit;
-        const basePrice = netUnitPrice / 1.16;
+      const returnRecord = await prisma.return.findUnique({
+        where: { id: returnId },
+        include: {
+          returnDetails: {
+            include: {
+              product: {
+                include: {
+                  productTaxes: {
+                    include: {
+                      taxType: true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (!returnRecord) {
+        throw new Error("No se encontró el registro de devolución especificado.");
+      }
+
+      const facturapiItems = returnRecord.returnDetails.map((detail) => {
+        const unitPrice = Number(detail.unitPrice);
+        const quantity = detail.quantity;
+        const discountPerUnit = Number(detail.discountAmount) / quantity;
+        const netUnitPrice = unitPrice - discountPerUnit;
+
+        const applicableTaxes = detail.product.productTaxes.filter((pt) => pt.taxType.active);
+
+        let totalTaxRate = 0;
+        for (const pt of applicableTaxes) {
+          totalTaxRate += Number(pt.taxType.rate);
+        }
+
+        const basePrice = totalTaxRate > 0 ? (netUnitPrice / (1 + totalTaxRate)) : netUnitPrice;
+
+        const mappedTaxes = applicableTaxes.map((pt) => {
+          const rateVal = Number(pt.taxType.rate);
+          const nameUpper = pt.taxType.name.toUpperCase();
+
+          if (nameUpper.includes("EXENTO")) {
+            return {
+              rate: 0,
+              type: "IVA",
+              exento: true,
+              withholding: false
+            };
+          }
+
+          let taxType = "IVA";
+          if (nameUpper.includes("IEPS")) {
+            taxType = "IEPS";
+          } else if (nameUpper.includes("ISR")) {
+            taxType = "ISR";
+          }
+
+          return {
+            rate: rateVal,
+            type: taxType,
+            withholding: false
+          };
+        });
+
+        // Fallback a IVA 16% si no hay impuestos
+        if (mappedTaxes.length === 0) {
+          mappedTaxes.push({
+            rate: 0.16,
+            type: "IVA",
+            withholding: false
+          });
+        }
 
         return {
-          quantity: item.quantity,
+          quantity,
           product: {
-            description: `Devolución de: ${item.name}`,
+            description: `Devolución de: ${detail.product.name}`,
             price: Number(basePrice.toFixed(2)),
-            product_key: "01010101",
-            taxes: [
-              {
-                rate: 0.16,
-                type: "IVA",
-                withholding: false
-              }
-            ]
+            product_key: detail.product.satProductKey || "01010101",
+            unit_key: detail.product.satUnitKey || "H87",
+            taxes: mappedTaxes
           }
         };
       });
 
+      const defaultZip = (process.env.CORPORATE_ZIP || "42080").trim();
+      const rfc = sale.customer?.taxId?.toUpperCase() || "XAXX010101000";
+      const isGeneric = rfc === "XAXX010101000";
+
       const requestBody = {
         type: "E",
         customer: {
-          legal_name: sale.customer?.name.toUpperCase() || "PÚBLICO GENERAL",
-          tax_id: sale.customer?.taxId?.toUpperCase() || "XAXX010101000",
-          tax_system: "616",
-          email: sale.cfdiEmail || "clientes@fmb.com",
+          legal_name: isGeneric ? "PÚBLICO GENERAL" : (sale.customer?.name.toUpperCase() || "PÚBLICO GENERAL"),
+          tax_id: rfc,
+          tax_system: isGeneric ? "616" : (sale.customer?.taxRegime || "616"),
+          email: sale.cfdiEmail || sale.customer?.email || "clientes@fmb.com",
           address: {
-            zip: "01000"
+            zip: isGeneric ? defaultZip : (sale.customer?.zipCode || defaultZip)
           }
         },
         items: facturapiItems,
         payment_form: paymentFormMap[sale.paymentMethod] || "01",
-        use: "G02",
+        use: isGeneric ? "S01" : (sale.customer?.cfdiUse || "G02"),
         relation: "01",
         related_documents: [originalInvoiceId]
       };
-
-      if (sale.customer && sale.customer.taxId && sale.customer.taxId !== "XAXX010101000") {
-        requestBody.customer.tax_id = sale.customer.taxId.toUpperCase();
-        requestBody.customer.legal_name = sale.customer.name.toUpperCase();
-        requestBody.customer.email = sale.cfdiEmail || sale.customer.email || "clientes@fmb.com";
-        requestBody.customer.tax_system = "616";
-      }
 
       const authHeader = "Bearer " + apiKey;
 
