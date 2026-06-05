@@ -154,6 +154,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [adjustType, setAdjustType] = useState("");
   const [adjustQuantity, setAdjustQuantity] = useState(0);
   const [adjustReason, setAdjustReason] = useState("");
+  const [adjustObservations, setAdjustObservations] = useState("");
   const [adjustError, setAdjustError] = useState<string | null>(null);
 
   // Feature 3: transfer
@@ -161,6 +162,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [transferFrom, setTransferFrom] = useState(0);
   const [transferTo, setTransferTo] = useState(0);
   const [transferQty, setTransferQty] = useState(0);
+  const [transferConfirm, setTransferConfirm] = useState(false);
   const [transferError, setTransferError] = useState<string | null>(null);
 
 
@@ -225,6 +227,28 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     }
   };
 
+  const loadTaxList = async () => {
+    const requestId = taxRequestId.current + 1;
+    taxRequestId.current = requestId;
+    setTaxLoading(true);
+    setTaxError(null);
+    setTaxOptions([]);
+
+    try {
+      const taxesRes = await api.get<TaxListResponse>("/api/admin-tax/taxes");
+      if (taxRequestId.current !== requestId) return;
+      const activeTaxes = extractTaxOptions(taxesRes.data).filter((tax) => tax.active);
+      setTaxOptions(activeTaxes);
+    } catch (err: unknown) {
+      if (taxRequestId.current !== requestId) return;
+      setTaxError(getErrorMessage(err, "No se pudieron cargar los impuestos."));
+    } finally {
+      if (taxRequestId.current === requestId) {
+        setTaxLoading(false);
+      }
+    }
+  };
+
   const toggleTax = (taxId: number) => {
     setSelectedTaxIds((current) =>
       current.includes(taxId)
@@ -239,9 +263,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setEditingId(null);
     setFormError(null);
     setTaxError(null);
-    setTaxOptions([]);
     setSelectedTaxIds([]);
     setShowForm(true);
+    void loadTaxList();
   };
 
   const handleEdit = (p: ProductRow | ProductDetail) => {
@@ -332,7 +356,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         });
       } else {
         // Modo Creación
-        await api.post("/api/admin/products", {
+        const createRes = await api.post("/api/admin/products", {
           sku: form.sku.trim(),
           barcode: form.barcode.trim() || undefined,
           name: form.name.trim(),
@@ -340,6 +364,12 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           costPrice: cost,
           sellPrice: sell,
         });
+        if (selectedTaxIds.length > 0) {
+          const newProductId = createRes.data.product.id;
+          await api.put(`/api/admin-tax/products/${newProductId}/taxes`, {
+            taxIds: selectedTaxIds,
+          });
+        }
       }
       setShowForm(false);
       setForm({ ...emptyForm });
@@ -501,19 +531,49 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const submitAdjustment = async () => {
     if (!selectedProduct) return;
     setAdjustError(null);
-    if (!adjustBranch || !adjustType || !adjustQuantity || !adjustReason.trim()) {
-      setAdjustError("Completa todos los campos.");
+    if (!adjustBranch || !adjustType || !adjustReason.trim()) {
+      setAdjustError("Completa todos los campos obligatorios.");
       return;
     }
-    const quantityChange =
-      adjustType === "AJUSTE_INVENTARIO" ? Math.abs(adjustQuantity) : -Math.abs(adjustQuantity);
+    if (adjustQuantity <= 0) {
+      setAdjustError("La cantidad debe ser mayor a 0.");
+      return;
+    }
+
+    const currentStock = selectedProduct.inventories.find((inv) => inv.branchId === adjustBranch)?.quantity ?? 0;
+
+    let quantityChange = 0;
+    let movementType = "";
+    if (adjustType === "RECOUNT") {
+      quantityChange = adjustQuantity - currentStock;
+      movementType = "AJUSTE_INVENTARIO";
+    } else if (adjustType === "ENTRADA") {
+      quantityChange = adjustQuantity;
+      movementType = "AJUSTE_INVENTARIO";
+    } else if (adjustType === "SALIDA") {
+      quantityChange = -adjustQuantity;
+      movementType = "AJUSTE_INVENTARIO";
+    } else if (adjustType === "MERMA") {
+      quantityChange = -adjustQuantity;
+      movementType = "AJUSTE_MERMA";
+    }
+
+    if (quantityChange === 0 && adjustType !== "RECOUNT") {
+      setAdjustError("La cantidad no puede ser 0.");
+      return;
+    }
+
+    const fullReason = adjustObservations.trim()
+      ? `${adjustReason} — ${adjustObservations.trim()}`
+      : adjustReason;
+
     try {
       await api.post("/api/admin/inventory/adjust", {
         productId: selectedProduct.id,
         branchId: adjustBranch,
         quantityChange,
-        movementType: adjustType,
-        reason: adjustReason.trim(),
+        movementType,
+        reason: fullReason,
       });
       await fetchDetail(selectedProduct.id);
       load();
@@ -522,6 +582,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setAdjustType("");
       setAdjustQuantity(0);
       setAdjustReason("");
+      setAdjustObservations("");
     } catch (err: any) {
       setAdjustError(err.response?.data?.message || "Error al aplicar ajuste.");
     }
@@ -548,7 +609,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setTransferFrom(0);
       setTransferTo(0);
       setTransferQty(0);
+      setTransferConfirm(false);
     } catch (err: any) {
+      setTransferConfirm(false);
       setTransferError(err.response?.data?.message || "Error al trasladar.");
     }
   };
@@ -780,7 +843,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             borderColor: "#93c5fd",
                           }}
                         >
-                          ✏️ Editar precios
+                          Editar precios
                         </button>
                       </>
                     ) : (
@@ -892,7 +955,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             backgroundColor: "#fffbeb",
                           }}
                         >
-                          ⚙️ Ajustar stock
+                          Ajustar stock
                         </button>
                         {selectedProduct.inventories.length > 1 && (
                           <button
@@ -904,7 +967,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               backgroundColor: "#f5f3ff",
                             }}
                           >
-                            🔄 Trasladar stock
+                            Trasladar stock
                           </button>
                         )}
                       </div>
@@ -920,7 +983,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           onClick={() => { setEditingSuppliersMode(true); setSuppliersError(null); }}
                           style={{ ...ui.ghostBtn, fontSize: 12, padding: "4px 10px", color: "#2563eb", borderColor: "#93c5fd" }}
                         >
-                          ✏️ Editar
+                          Editar
                         </button>
                       )}
                     </div>
@@ -1065,143 +1128,280 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       )}
 
       {/* =================== SUB-MODAL: AJUSTAR STOCK =================== */}
-      {adjustOpen && selectedProduct && (
-        <div style={subModalStyle} onClick={() => setAdjustOpen(false)}>
-          <div style={{ ...ui.modal, maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
-            <div style={ui.modalHeader}>
-              <div style={ui.modalTitle}>⚙️ Ajustar stock — {selectedProduct.name}</div>
-              <button onClick={() => setAdjustOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }}>
-                <X size={16} />
-              </button>
-            </div>
-            <div style={ui.modalBody}>
-              <div style={{ marginBottom: 16 }}>
-                <label style={ui.fieldLabel}>Sucursal</label>
-                <select
-                  value={adjustBranch || ""}
-                  onChange={(e) => setAdjustBranch(Number(e.target.value))}
-                  style={{ ...ui.input, cursor: "pointer" }}
-                >
-                  <option value="">Selecciona sucursal</option>
-                  {selectedProduct.inventories.map((inv) => (
-                    <option key={inv.branchId} value={inv.branchId}>
-                      {inv.branch} (Stock actual: {inv.quantity})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={ui.fieldLabel}>Tipo de movimiento</label>
-                <select
-                  value={adjustType}
-                  onChange={(e) => setAdjustType(e.target.value)}
-                  style={{ ...ui.input, cursor: "pointer" }}
-                >
-                  <option value="">Selecciona tipo</option>
-                  <option value="AJUSTE_INVENTARIO">Entrada / Ajuste positivo</option>
-                  <option value="AJUSTE_MERMA">Salida / Merma o pérdida</option>
-                </select>
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={ui.fieldLabel}>Cantidad</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={adjustQuantity || ""}
-                  onChange={(e) => setAdjustQuantity(parseInt(e.target.value) || 0)}
-                  style={ui.input}
-                />
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={ui.fieldLabel}>Motivo</label>
-                <textarea
-                  value={adjustReason}
-                  onChange={(e) => setAdjustReason(e.target.value)}
-                  placeholder="Describe el motivo del ajuste"
-                  style={{
-                    ...ui.input,
-                    minHeight: 80,
-                    resize: "vertical",
-                    fontFamily: "inherit",
-                  }}
-                />
-              </div>
-              {adjustError && (
-                <p style={{ fontSize: 13, color: "#b91c1c", marginBottom: 12 }}>{adjustError}</p>
-              )}
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid #e2e8f0" }}>
-              <button onClick={() => setAdjustOpen(false)} style={ui.ghostBtn}>Cancelar</button>
-              <button onClick={submitAdjustment} style={ui.primaryBtn}>✓ Aplicar ajuste</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {adjustOpen && selectedProduct && (() => {
+        const currentStock = selectedProduct.inventories.find((inv) => inv.branchId === adjustBranch)?.quantity ?? 0;
+        const expectedStock = adjustType === "RECOUNT"
+          ? adjustQuantity
+          : adjustType === "ENTRADA"
+            ? currentStock + adjustQuantity
+            : currentStock - adjustQuantity;
+        const diff = adjustType === "RECOUNT" ? adjustQuantity - currentStock : null;
 
-      {/* =================== SUB-MODAL: TRASLADAR STOCK =================== */}
-      {transferOpen && selectedProduct && (
-        <div style={subModalStyle} onClick={() => setTransferOpen(false)}>
-          <div style={{ ...ui.modal, maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
-            <div style={ui.modalHeader}>
-              <div style={ui.modalTitle}>🔄 Trasladar stock — {selectedProduct.name}</div>
-              <button onClick={() => setTransferOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }}>
-                <X size={16} />
-              </button>
-            </div>
-            <div style={ui.modalBody}>
-              <div style={{ marginBottom: 16 }}>
-                <label style={ui.fieldLabel}>Desde (sucursal origen)</label>
-                <select
-                  value={transferFrom || ""}
-                  onChange={(e) => setTransferFrom(Number(e.target.value))}
-                  style={{ ...ui.input, cursor: "pointer" }}
-                >
-                  <option value="">Selecciona origen</option>
-                  {selectedProduct.inventories.map((inv) => (
-                    <option key={inv.branchId} value={inv.branchId}>
-                      {inv.branch} (Stock: {inv.quantity})
-                    </option>
-                  ))}
-                </select>
+        return (
+          <div style={subModalStyle} onClick={() => setAdjustOpen(false)}>
+            <div style={{ ...ui.modal, maxWidth: 500 }} onClick={(e) => e.stopPropagation()}>
+              <div style={ui.modalHeader}>
+                <div style={ui.modalTitle}>⚙️ Ajustar stock — {selectedProduct.name}</div>
+                <button onClick={() => setAdjustOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }}>
+                  <X size={16} />
+                </button>
               </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={ui.fieldLabel}>Hacia (sucursal destino)</label>
-                <select
-                  value={transferTo || ""}
-                  onChange={(e) => setTransferTo(Number(e.target.value))}
-                  style={{ ...ui.input, cursor: "pointer" }}
-                >
-                  <option value="">Selecciona destino</option>
-                  {selectedProduct.inventories
-                    .filter((inv) => inv.branchId !== transferFrom)
-                    .map((inv) => (
+              <div style={ui.modalBody}>
+                {/* Sucursal */}
+                <div style={{ marginBottom: 16 }}>
+                  <label style={ui.fieldLabel}>Sucursal *</label>
+                  <select
+                    value={adjustBranch || ""}
+                    onChange={(e) => { setAdjustBranch(Number(e.target.value)); setAdjustType(""); setAdjustQuantity(0); setAdjustReason(""); }}
+                    style={{ ...ui.input, cursor: "pointer" }}
+                  >
+                    <option value="">Selecciona sucursal</option>
+                    {selectedProduct.inventories.map((inv) => (
                       <option key={inv.branchId} value={inv.branchId}>
-                        {inv.branch}
+                        {inv.branch} — Stock actual: {inv.quantity} uds.
                       </option>
                     ))}
-                </select>
+                  </select>
+                </div>
+
+                {adjustBranch > 0 && (
+                  <>
+                    {/* Stock actual destacado */}
+                    <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#0369a1" }}>
+                      Stock actual: <strong>{currentStock} unidades</strong>
+                    </div>
+
+                    {/* Tipo de movimiento */}
+                    <div style={{ marginBottom: 16 }}>
+                      <label style={ui.fieldLabel}>Tipo de movimiento *</label>
+                      <select
+                        value={adjustType}
+                        onChange={(e) => { setAdjustType(e.target.value); setAdjustQuantity(0); setAdjustReason(""); }}
+                        style={{ ...ui.input, cursor: "pointer" }}
+                      >
+                        <option value="">Selecciona tipo...</option>
+                        <option value="RECOUNT">RECONTEO — Declarar stock final real</option>
+                        <option value="ENTRADA">ENTRADA — Agregar unidades</option>
+                        <option value="SALIDA">SALIDA — Quitar unidades</option>
+                        <option value="MERMA">MERMA — Rotura, expiración, pérdida</option>
+                      </select>
+                    </div>
+
+                    {/* Cantidad con preview */}
+                    {adjustType && (
+                      <div style={{ marginBottom: 16 }}>
+                        <label style={ui.fieldLabel}>
+                          {adjustType === "RECOUNT" ? "Stock final declarado (reconteo) *" : `Cantidad a ${adjustType === "ENTRADA" ? "agregar" : "retirar"} *`}
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={adjustQuantity || ""}
+                          onChange={(e) => setAdjustQuantity(parseInt(e.target.value) || 0)}
+                          style={ui.input}
+                          placeholder="0"
+                          autoFocus
+                        />
+                        {adjustQuantity > 0 && (
+                          adjustType === "RECOUNT" ? (
+                            <p style={{ fontSize: 12, color: diff === 0 ? "#6b7280" : diff! > 0 ? "#059669" : "#b91c1c", marginTop: 4 }}>
+                              Diferencia: {diff! > 0 ? "+" : ""}{diff} uds. → Stock quedará en <strong>{expectedStock}</strong>
+                            </p>
+                          ) : (
+                            <p style={{ fontSize: 12, color: "#1e3a8a", marginTop: 4 }}>
+                              Stock esperado: <strong>{expectedStock}</strong> uds.
+                              {expectedStock < 0 && <span style={{ color: "#b91c1c" }}> (stock negativo — no permitido)</span>}
+                            </p>
+                          )
+                        )}
+                      </div>
+                    )}
+
+                    {/* Motivo como SELECT contextual */}
+                    {adjustType && (
+                      <div style={{ marginBottom: 16 }}>
+                        <label style={ui.fieldLabel}>Motivo *</label>
+                        <select
+                          value={adjustReason}
+                          onChange={(e) => setAdjustReason(e.target.value)}
+                          style={{ ...ui.input, cursor: "pointer" }}
+                        >
+                          <option value="">Selecciona motivo...</option>
+                          {adjustType === "RECOUNT" && (
+                            <>
+                              <option value="Reconteo físico periódico">Reconteo físico periódico</option>
+                              <option value="Corrección de conteo anterior">Corrección de conteo anterior</option>
+                              <option value="Auditoría de inventario">Auditoría de inventario</option>
+                            </>
+                          )}
+                          {adjustType === "ENTRADA" && (
+                            <>
+                              <option value="Mercancía sin factura">Mercancía sin factura</option>
+                              <option value="Devolución de proveedor">Devolución de proveedor</option>
+                              <option value="Mercancía encontrada">Mercancía encontrada</option>
+                              <option value="Otro">Otro</option>
+                            </>
+                          )}
+                          {adjustType === "SALIDA" && (
+                            <>
+                              <option value="Muestreo / Prueba">Muestreo / Prueba</option>
+                              <option value="Obsequio">Obsequio</option>
+                              <option value="Ajuste de conteo">Ajuste de conteo</option>
+                              <option value="Otro">Otro</option>
+                            </>
+                          )}
+                          {adjustType === "MERMA" && (
+                            <>
+                              <option value="Producto expirado">Producto expirado</option>
+                              <option value="Producto dañado / roto">Producto dañado / roto</option>
+                              <option value="Hurto / pérdida">Hurto / pérdida</option>
+                              <option value="Otro">Otro</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Observaciones libres */}
+                    {adjustType && (
+                      <div style={{ marginBottom: 16 }}>
+                        <label style={ui.fieldLabel}>Observaciones adicionales</label>
+                        <textarea
+                          value={adjustObservations}
+                          onChange={(e) => setAdjustObservations(e.target.value)}
+                          placeholder="Detalles adicionales (opcional)"
+                          style={{ ...ui.input, minHeight: 60, resize: "vertical", fontFamily: "inherit" }}
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {adjustError && (
+                  <p style={{ fontSize: 13, color: "#b91c1c", marginBottom: 12 }}>{adjustError}</p>
+                )}
               </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={ui.fieldLabel}>Cantidad a trasladar</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={transferQty || ""}
-                  onChange={(e) => setTransferQty(parseInt(e.target.value) || 0)}
-                  style={ui.input}
-                />
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid #e2e8f0" }}>
+                <button onClick={() => setAdjustOpen(false)} style={ui.ghostBtn}>Cancelar</button>
+                <button onClick={submitAdjustment} style={ui.primaryBtn} disabled={!adjustBranch || !adjustType || !adjustReason}>
+                  ✓ Aplicar ajuste
+                </button>
               </div>
-              {transferError && (
-                <p style={{ fontSize: 13, color: "#b91c1c", marginBottom: 12 }}>{transferError}</p>
-              )}
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid #e2e8f0" }}>
-              <button onClick={() => setTransferOpen(false)} style={ui.ghostBtn}>Cancelar</button>
-              <button onClick={submitTransfer} style={ui.primaryBtn}>🔄 Trasladar</button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {/* =================== SUB-MODAL: TRASLADAR STOCK =================== */}
+      {transferOpen && selectedProduct && (() => {
+        const fromInv = selectedProduct.inventories.find((inv) => inv.branchId === transferFrom);
+        const toInv = selectedProduct.inventories.find((inv) => inv.branchId === transferTo);
+
+        return (
+          <div style={subModalStyle} onClick={() => { if (!transferConfirm) setTransferOpen(false); }}>
+            <div style={{ ...ui.modal, maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+              <div style={ui.modalHeader}>
+                <div style={ui.modalTitle}>🔄 Trasladar stock — {selectedProduct.name}</div>
+                <button onClick={() => setTransferOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }}>
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Overlay de confirmación dentro del modal */}
+              {transferConfirm && fromInv && toInv ? (
+                <div style={{ padding: "24px 22px" }}>
+                  <p style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: "#1e3a8a" }}>⚠️ Confirmar traslado</p>
+                  <p style={{ fontSize: 14, marginBottom: 16 }}>
+                    Trasladar <strong>{transferQty} uds.</strong> de <strong>{fromInv.branch}</strong> a <strong>{toInv.branch}</strong>
+                  </p>
+                  <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 8, padding: "12px 16px", marginBottom: 20, fontSize: 13, lineHeight: 1.8 }}>
+                    <div><strong>{fromInv.branch}:</strong> {fromInv.quantity} → {fromInv.quantity - transferQty} uds.</div>
+                    <div><strong>{toInv.branch}:</strong> {toInv.quantity} → {toInv.quantity + transferQty} uds.</div>
+                  </div>
+                  {transferError && (
+                    <p style={{ fontSize: 13, color: "#b91c1c", marginBottom: 12 }}>{transferError}</p>
+                  )}
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button onClick={() => setTransferConfirm(false)} style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }}>
+                      Volver
+                    </button>
+                    <button onClick={submitTransfer} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
+                      ✓ Confirmar traslado
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={ui.modalBody}>
+                    <div style={{ marginBottom: 16 }}>
+                      <label style={ui.fieldLabel}>Desde (sucursal origen)</label>
+                      <select
+                        value={transferFrom || ""}
+                        onChange={(e) => { setTransferFrom(Number(e.target.value)); setTransferQty(0); }}
+                        style={{ ...ui.input, cursor: "pointer" }}
+                      >
+                        <option value="">Selecciona origen</option>
+                        {selectedProduct.inventories.map((inv) => (
+                          <option key={inv.branchId} value={inv.branchId}>
+                            {inv.branch} — Stock: {inv.quantity} uds.
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{ marginBottom: 16 }}>
+                      <label style={ui.fieldLabel}>Hacia (sucursal destino)</label>
+                      <select
+                        value={transferTo || ""}
+                        onChange={(e) => setTransferTo(Number(e.target.value))}
+                        style={{ ...ui.input, cursor: "pointer" }}
+                      >
+                        <option value="">Selecciona destino</option>
+                        {selectedProduct.inventories
+                          .filter((inv) => inv.branchId !== transferFrom)
+                          .map((inv) => (
+                            <option key={inv.branchId} value={inv.branchId}>
+                              {inv.branch} — Stock: {inv.quantity} uds.
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    <div style={{ marginBottom: 16 }}>
+                      <label style={ui.fieldLabel}>Cantidad a trasladar</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={transferQty || ""}
+                        onChange={(e) => setTransferQty(parseInt(e.target.value) || 0)}
+                        style={ui.input}
+                      />
+                      {fromInv && transferQty > 0 && (
+                        <p style={{ fontSize: 12, color: transferQty > fromInv.quantity ? "#b91c1c" : "#1e3a8a", marginTop: 4 }}>
+                          {transferQty > fromInv.quantity
+                            ? `⚠️ Stock insuficiente — hay ${fromInv.quantity} uds. disponibles`
+                            : `Quedarán ${fromInv.quantity - transferQty} uds. en ${fromInv.branch}`}
+                        </p>
+                      )}
+                    </div>
+                    {transferError && (
+                      <p style={{ fontSize: 13, color: "#b91c1c", marginBottom: 12 }}>{transferError}</p>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid #e2e8f0" }}>
+                    <button onClick={() => setTransferOpen(false)} style={ui.ghostBtn}>Cancelar</button>
+                    <button
+                      onClick={() => { setTransferError(null); setTransferConfirm(true); }}
+                      style={ui.primaryBtn}
+                      disabled={!transferFrom || !transferTo || !transferQty || (fromInv ? transferQty > fromInv.quantity : false)}
+                    >
+                      🔄 Trasladar
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
       {showForm && (
         <div style={ui.overlay} onClick={closeForm}>
           <form style={{ ...ui.modal, maxWidth: 600 }} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
@@ -1258,66 +1458,68 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 </div>
               </div>
 
-              {editingId !== null && (
-                <div style={styles.taxSection}>
-                  <div style={styles.taxHeader}>
-                    <div style={styles.taxTitleWrap}>
-                      <BadgePercent size={16} color="#1e3a8a" />
-                      <span style={styles.taxTitle}>Impuestos aplicables</span>
-                    </div>
-                    {!taxLoading && !taxError && (
-                      <span style={styles.taxCounter}>
-                        {taxOptions.filter((tax) => selectedTaxIds.includes(tax.id)).length} seleccionado(s)
-                      </span>
-                    )}
+              <div style={styles.taxSection}>
+                <div style={styles.taxHeader}>
+                  <div style={styles.taxTitleWrap}>
+                    <BadgePercent size={16} color="#1e3a8a" />
+                    <span style={styles.taxTitle}>Impuestos aplicables</span>
                   </div>
-
-                  {taxLoading && <p style={styles.taxMuted}>Cargando impuestos aplicables...</p>}
-
-                  {!taxLoading && taxError && (
-                    <div style={styles.taxErrorBox}>
-                      <span>{taxError}</span>
-                      <button type="button" style={ui.linkBtn} onClick={() => void loadProductTaxes(editingId)}>
-                        Reintentar
-                      </button>
-                    </div>
-                  )}
-
-                  {!taxLoading && !taxError && taxOptions.length === 0 && (
-                    <p style={styles.taxMuted}>No hay impuestos activos para asignar.</p>
-                  )}
-
-                  {!taxLoading && !taxError && taxOptions.length > 0 && (
-                    <div style={styles.taxGrid}>
-                      {taxOptions.map((tax) => {
-                        const checked = selectedTaxIds.includes(tax.id);
-                        return (
-                          <label
-                            key={tax.id}
-                            style={{
-                              ...styles.taxOption,
-                              borderColor: checked ? "#93c5fd" : "#e2e8f0",
-                              backgroundColor: checked ? "#eff6ff" : "#ffffff",
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              disabled={saving}
-                              onChange={() => toggleTax(tax.id)}
-                              style={styles.taxCheckbox}
-                            />
-                            <span style={styles.taxOptionText}>
-                              <span style={styles.taxOptionName}>{tax.name}</span>
-                              <span style={styles.taxOptionMeta}>{formatTaxRate(tax.rate)}</span>
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
+                  {!taxLoading && !taxError && (
+                    <span style={styles.taxCounter}>
+                      {taxOptions.filter((tax) => selectedTaxIds.includes(tax.id)).length} seleccionado(s)
+                    </span>
                   )}
                 </div>
-              )}
+
+                {taxLoading && <p style={styles.taxMuted}>Cargando impuestos aplicables...</p>}
+
+                {!taxLoading && taxError && (
+                  <div style={styles.taxErrorBox}>
+                    <span>{taxError}</span>
+                    <button
+                      type="button"
+                      style={ui.linkBtn}
+                      onClick={() => editingId !== null ? void loadProductTaxes(editingId) : void loadTaxList()}
+                    >
+                      Reintentar
+                    </button>
+                  </div>
+                )}
+
+                {!taxLoading && !taxError && taxOptions.length === 0 && (
+                  <p style={styles.taxMuted}>No hay impuestos activos para asignar.</p>
+                )}
+
+                {!taxLoading && !taxError && taxOptions.length > 0 && (
+                  <div style={styles.taxGrid}>
+                    {taxOptions.map((tax) => {
+                      const checked = selectedTaxIds.includes(tax.id);
+                      return (
+                        <label
+                          key={tax.id}
+                          style={{
+                            ...styles.taxOption,
+                            borderColor: checked ? "#93c5fd" : "#e2e8f0",
+                            backgroundColor: checked ? "#eff6ff" : "#ffffff",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={saving}
+                            onChange={() => toggleTax(tax.id)}
+                            style={styles.taxCheckbox}
+                          />
+                          <span style={styles.taxOptionText}>
+                            <span style={styles.taxOptionName}>{tax.name}</span>
+                            <span style={styles.taxOptionMeta}>{formatTaxRate(tax.rate)}</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
               {formError && (
                 <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 4, marginBottom: 14 }}>{formError}</p>

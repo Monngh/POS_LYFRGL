@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   createSale,
+  simulateSale,
   getRecentSales,
   authorizeAndCancelSale,
   createBankDeposit,
@@ -23,6 +24,7 @@ const router = Router();
 router.use(authenticateJWT);
 
 router.post("/", createSale);
+router.post("/simulate", simulateSale);
 router.get("/recent", getRecentSales);
 router.post("/authorize-cancel", authorizeAndCancelSale);
 router.post("/bank-deposit", createBankDeposit);

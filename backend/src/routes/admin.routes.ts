@@ -5,10 +5,12 @@ import {
   listInventory,
   listCustomers,
   createCustomer,
+  updateCustomer,
   listCashSessions,
   getCashSessionDetail,
   forceCloseCashSession,
   listEmployees,
+  updateEmployee,
   getReports,
   listBranches,
   createBranch,
@@ -63,6 +65,7 @@ router.delete("/products/:id", deleteProduct);
 // Clientes
 router.get("/customers", listCustomers);
 router.post("/customers", createCustomer);
+router.put("/customers/:id", updateCustomer);
 
 // Cajas
 router.get("/cash-sessions", listCashSessions);
@@ -72,6 +75,7 @@ router.put("/cash-sessions/:id/force-close", forceCloseCashSession);
 // Empleados
 router.get("/employees", listEmployees);
 router.post("/employees", createEmployee);
+router.put("/employees/:id", updateEmployee);
 router.get("/employees/:id/operations", getEmployeeOperations);
 
 // Kardex (movimientos de inventario)

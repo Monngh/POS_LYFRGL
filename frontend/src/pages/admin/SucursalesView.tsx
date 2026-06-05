@@ -38,11 +38,20 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
-  // Modal: modo "create" o el id que se edita
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+
+  // Modal crear / editar sucursal
   const [editing, setEditing] = useState<"create" | number | null>(null);
   const [form, setForm] = useState<FormState>({ ...emptyForm });
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Modal de empleados y reasignación
+  const [selectedBranch, setSelectedBranch] = useState<BranchRow | null>(null);
+  const [showEmployeesModal, setShowEmployeesModal] = useState(false);
+  const [allEmployees, setAllEmployees] = useState<any[]>([]);
+  const [reassignId, setReassignId] = useState<number | null>(null);
+  const [reassignTarget, setReassignTarget] = useState<string>("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -63,6 +72,43 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
     const t = setTimeout(load, 300);
     return () => clearTimeout(t);
   }, [load]);
+
+  const loadEmployees = useCallback(async () => {
+    try {
+      const res = await api.get<{ employees: any[] }>("/api/admin/employees");
+      setAllEmployees(res.data.employees);
+    } catch {
+      // silencioso; no bloquea el resto de la vista
+    }
+  }, []);
+
+  useEffect(() => { loadEmployees(); }, [loadEmployees]);
+
+  const openEmployeesModal = (b: BranchRow) => {
+    setSelectedBranch(b);
+    setReassignId(null);
+    setReassignTarget("");
+    setShowEmployeesModal(true);
+  };
+
+  const handleReassign = async () => {
+    if (!reassignId || !reassignTarget) {
+      alert("Selecciona un empleado y una sucursal destino.");
+      return;
+    }
+    try {
+      await api.put(`/api/admin/employees/${reassignId}`, { branchId: parseInt(reassignTarget) });
+      await Promise.all([load(), loadEmployees()]);
+      setReassignId(null);
+      setReassignTarget("");
+      // Actualizar conteo en el modal
+      setSelectedBranch((prev) =>
+        prev ? { ...prev, employees: prev.employees - 1 } : prev
+      );
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Error al reasignar empleado.");
+    }
+  };
 
   const openCreate = () => {
     setForm({ ...emptyForm });
@@ -111,6 +157,13 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
       setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const activeCount = rows.filter((r) => r.active).length;
+  const inactiveCount = rows.length - activeCount;
+
+  const filteredRows = rows.filter((r) => {
+    if (statusFilter === "active") return r.active;
+    if (statusFilter === "inactive") return !r.active;
+    return true;
+  });
 
   return (
     <div>
@@ -127,8 +180,17 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
       <Toolbar>
         <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre o dirección" />
         <span style={{ fontSize: 13, color: "#15803d", fontWeight: 700 }}>{activeCount} activa(s)</span>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as "all" | "active" | "inactive")}
+          style={{ ...ui.input, width: "auto", padding: "4px 10px", fontSize: 13 }}
+        >
+          <option value="all">Todas ({rows.length})</option>
+          <option value="active">Solo activas ({activeCount})</option>
+          <option value="inactive">Solo inactivas ({inactiveCount})</option>
+        </select>
         <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b", fontWeight: 600 }}>
-          {rows.length} sucursal{rows.length === 1 ? "" : "es"}
+          {filteredRows.length} sucursal{filteredRows.length === 1 ? "" : "es"}
         </span>
       </Toolbar>
 
@@ -148,10 +210,10 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
             </tr>
           </thead>
           <tbody>
-            <TableState colSpan={9} loading={loading} error={error} empty={!loading && rows.length === 0} />
+            <TableState colSpan={9} loading={loading} error={error} empty={!loading && filteredRows.length === 0} />
             {!loading &&
               !error &&
-              rows.map((b) => (
+              filteredRows.map((b) => (
                 <tr key={b.id}>
                   <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{b.id}</td>
                   <td style={{ ...ui.td, fontWeight: 700, color: "#0f172a", whiteSpace: "normal" }}>{b.name}</td>
@@ -164,9 +226,14 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                   </td>
                   <td style={{ ...ui.td, color: "#64748b" }}>{fmtDate(b.createdAt)}</td>
                   <td style={{ ...ui.td, textAlign: "center" }}>
-                    <button style={ui.linkBtn} className="active-tap" onClick={() => openEdit(b)}>
-                      <Pencil size={14} style={{ verticalAlign: "-2px" }} /> Editar
-                    </button>
+                    <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                      <button style={ui.linkBtn} className="active-tap" onClick={() => openEmployeesModal(b)}>
+                        Empleados
+                      </button>
+                      <button style={ui.linkBtn} className="active-tap" onClick={() => openEdit(b)}>
+                        <Pencil size={14} style={{ verticalAlign: "-2px" }} /> Editar
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -224,6 +291,129 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
               </div>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Modal de empleados y reasignación */}
+      {showEmployeesModal && selectedBranch && (
+        <div style={ui.overlay} onClick={() => setShowEmployeesModal(false)}>
+          <div
+            style={{ ...ui.modal, maxWidth: 640, width: "100%", maxHeight: "80vh", overflowY: "auto" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={ui.modalHeader}>
+              <span style={ui.modalTitle}>Empleados — {selectedBranch.name}</span>
+              <button style={ui.linkBtn} onClick={() => setShowEmployeesModal(false)}>
+                <X size={18} color="#64748b" />
+              </button>
+            </div>
+
+            <div style={ui.modalBody}>
+              {(() => {
+                const branchEmployees = allEmployees.filter(
+                  (e: any) => e.branchId === selectedBranch.id
+                );
+                return branchEmployees.length === 0 ? (
+                  <p style={{ color: "#64748b", textAlign: "center", padding: "16px 0" }}>
+                    No hay empleados en esta sucursal.
+                  </p>
+                ) : (
+                  <>
+                    <table style={ui.table}>
+                      <thead>
+                        <tr style={ui.theadRow}>
+                          <th style={ui.th}>Nombre</th>
+                          <th style={{ ...ui.th, textAlign: "center" }}>Rol</th>
+                          <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                          <th style={{ ...ui.th, textAlign: "center" }}>Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {branchEmployees.map((emp: any) => (
+                          <tr key={emp.id}>
+                            <td style={ui.td}>{emp.name}</td>
+                            <td style={{ ...ui.td, textAlign: "center" }}>
+                              <Badge
+                                tone={
+                                  emp.role === "ADMIN"
+                                    ? "red"
+                                    : emp.role === "GERENTE"
+                                    ? "amber"
+                                    : "blue"
+                                }
+                              >
+                                {emp.role}
+                              </Badge>
+                            </td>
+                            <td style={{ ...ui.td, textAlign: "center" }}>
+                              <Badge tone={emp.active ? "green" : "red"}>
+                                {emp.active ? "Activo" : "Inactivo"}
+                              </Badge>
+                            </td>
+                            <td style={{ ...ui.td, textAlign: "center" }}>
+                              <button
+                                style={ui.linkBtn}
+                                onClick={() => {
+                                  setReassignId(emp.id);
+                                  setReassignTarget("");
+                                }}
+                              >
+                                Reasignar
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    {/* Formulario de reasignación */}
+                    {reassignId !== null && (
+                      <div
+                        style={{
+                          marginTop: 18,
+                          padding: 16,
+                          background: "#eff6ff",
+                          borderRadius: 8,
+                          border: "1px solid #bfdbfe",
+                        }}
+                      >
+                        <p style={{ fontWeight: 700, marginBottom: 10, fontSize: 14 }}>
+                          Reasignar:{" "}
+                          {branchEmployees.find((e: any) => e.id === reassignId)?.name}
+                        </p>
+                        <label style={ui.fieldLabel}>Sucursal destino</label>
+                        <select
+                          value={reassignTarget}
+                          onChange={(e) => setReassignTarget(e.target.value)}
+                          style={{ ...ui.input, marginBottom: 12 }}
+                        >
+                          <option value="">-- Seleccionar --</option>
+                          {rows
+                            .filter((b) => b.id !== selectedBranch.id)
+                            .map((b) => (
+                              <option key={b.id} value={b.id}>
+                                {b.name} ({b.employees} empleado{b.employees === 1 ? "" : "s"})
+                              </option>
+                            ))}
+                        </select>
+                        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                          <button
+                            style={ui.ghostBtn}
+                            onClick={() => { setReassignId(null); setReassignTarget(""); }}
+                          >
+                            Cancelar
+                          </button>
+                          <button style={ui.primaryBtn} onClick={handleReassign}>
+                            Confirmar reasignación
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          </div>
         </div>
       )}
     </div>

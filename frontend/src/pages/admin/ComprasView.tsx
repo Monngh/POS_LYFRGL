@@ -57,6 +57,12 @@ interface Line {
   unitCost: string;
 }
 
+interface ProductTaxEntry {
+  id: number;
+  name: string;
+  rate: number;
+}
+
 const newLine = (): Line => ({ productId: "", quantity: "", unitCost: "" });
 
 const statusTone = (s: string) =>
@@ -75,6 +81,8 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<Line[]>([newLine()]);
+  // Caché de impuestos por productId (se carga al seleccionar)
+  const [productTaxes, setProductTaxes] = useState<Record<string, ProductTaxEntry[]>>({});
 
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -146,16 +154,47 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
           : l
       )
     );
+    // Cargar impuestos del producto si no están en caché
+    if (productId && productTaxes[productId] === undefined) {
+      api
+        .get<{ data: { taxes: Array<{ id: number; name: string; rate: number | string; active: boolean }> } }>(
+          `/api/admin-tax/products/${productId}/taxes`
+        )
+        .then((r) => {
+          const activeTaxes: ProductTaxEntry[] = r.data.data.taxes
+            .filter((t) => t.active)
+            .map((t) => ({ id: t.id, name: t.name, rate: Number(t.rate) }));
+          setProductTaxes((prev) => ({ ...prev, [productId]: activeTaxes }));
+        })
+        .catch(() => {
+          setProductTaxes((prev) => ({ ...prev, [productId]: [] }));
+        });
+    }
   };
 
   const addLine = () => setLines((ls) => [...ls, newLine()]);
   const removeLine = (i: number) =>
     setLines((ls) => (ls.length === 1 ? ls : ls.filter((_, idx) => idx !== i)));
 
-  const totalEstimado = lines.reduce(
-    (acc, l) => acc + (Number(l.quantity) || 0) * (Number(l.unitCost) || 0),
-    0
-  );
+  const computedTotals = (() => {
+    let subtotal = 0;
+    const taxMap: Record<string, { name: string; amount: number }> = {};
+
+    for (const l of lines) {
+      const lineSubtotal = (Number(l.quantity) || 0) * (Number(l.unitCost) || 0);
+      subtotal += lineSubtotal;
+      const taxes = l.productId ? (productTaxes[l.productId] ?? []) : [];
+      for (const tax of taxes) {
+        const taxAmount = lineSubtotal * tax.rate;
+        if (!taxMap[tax.name]) taxMap[tax.name] = { name: tax.name, amount: 0 };
+        taxMap[tax.name].amount += taxAmount;
+      }
+    }
+
+    const taxEntries = Object.values(taxMap);
+    const totalTax = taxEntries.reduce((s, t) => s + t.amount, 0);
+    return { subtotal, taxEntries, totalTax, total: subtotal + totalTax };
+  })();
 
   const submit = async () => {
     setFormError(null);
@@ -197,6 +236,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
       setSupplierId("");
       setReference("");
       setNotes("");
+      setProductTaxes({});
       await loadPurchases();
     } catch (err: any) {
       setFormError(err.response?.data?.message || "No se pudo registrar la compra.");
@@ -319,6 +359,13 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                       </option>
                     ))}
                   </select>
+                  {l.productId && productTaxes[l.productId] !== undefined && (
+                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>
+                      {productTaxes[l.productId].length > 0
+                        ? productTaxes[l.productId].map((t) => `${t.name} ${(t.rate * 100).toFixed(0)}%`).join(" · ")
+                        : "Sin impuestos"}
+                    </div>
+                  )}
                 </td>
                 <td style={ui.td}>
                   <input
@@ -364,14 +411,23 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
           <button style={ui.ghostBtn} className="active-tap" onClick={addLine}>
             <Plus size={15} /> Agregar producto
           </button>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#334155" }}>
-            Subtotal estimado:{" "}
-            <span style={{ color: "#1e3a8a", fontWeight: 800, marginLeft: 6 }}>
-              {money(totalEstimado)}
-            </span>
-            <span style={{ color: "#64748b", fontSize: 12, fontWeight: 500, marginLeft: 8 }}>
-              + IVA 16% = {money(totalEstimado * 1.16)}
-            </span>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+            <div style={{ fontSize: 13, color: "#475569" }}>
+              Subtotal: <strong style={{ color: "#0f172a" }}>{money(computedTotals.subtotal)}</strong>
+            </div>
+            {computedTotals.taxEntries.map((t) => (
+              <div key={t.name} style={{ fontSize: 12, color: "#64748b" }}>
+                {t.name}: <span>{money(t.amount)}</span>
+              </div>
+            ))}
+            {computedTotals.taxEntries.length === 0 && computedTotals.subtotal > 0 && (
+              <div style={{ fontSize: 12, color: "#94a3b8", fontStyle: "italic" }}>
+                Sin impuestos asignados
+              </div>
+            )}
+            <div style={{ fontSize: 15, fontWeight: 800, color: "#1e3a8a", borderTop: "1px solid #e2e8f0", paddingTop: 4, marginTop: 2 }}>
+              Total estimado: {money(computedTotals.total)}
+            </div>
           </div>
         </div>
 

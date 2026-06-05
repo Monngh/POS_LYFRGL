@@ -178,6 +178,29 @@ export const listInventory = async (req: Request, res: Response): Promise<void> 
 // ===========================================================================
 // CLIENTES
 // ===========================================================================
+// ---------------------------------------------------------------------------
+// RFC helpers
+// ---------------------------------------------------------------------------
+const validateRFC = (rfc: string): { valid: boolean; message: string } => {
+  const cleaned = rfc.toUpperCase().replace(/\s+/g, "");
+  const rfcRegex = /^([A-ZÑ&]{3,4})\d{6}([A-Z\d]{3})$/;
+  if (!rfcRegex.test(cleaned)) {
+    return { valid: false, message: "RFC debe tener 12 (moral) o 13 (física) caracteres alfanuméricos, sin espacios." };
+  }
+  return { valid: true, message: "" };
+};
+
+const checkRFCUnique = async (rfc: string, excludeId?: number): Promise<boolean> => {
+  const cleaned = rfc.toUpperCase().replace(/\s+/g, "");
+  const existing = await prisma.customer.findFirst({
+    where: {
+      taxId: cleaned,
+      ...(excludeId ? { NOT: { id: excludeId } } : {}),
+    },
+  });
+  return !existing;
+};
+
 export const listCustomers = async (req: Request, res: Response): Promise<void> => {
   try {
     const search = trimQuery(req.query.search);
@@ -209,6 +232,9 @@ export const listCustomers = async (req: Request, res: Response): Promise<void> 
       creditLimit: Number(c.creditLimit),
       balance: Number(c.balance),
       salesCount: c._count.sales,
+      zipCode: c.zipCode,
+      taxRegime: c.taxRegime,
+      cfdiUse: c.cfdiUse,
       createdAt: c.createdAt,
     }));
 
@@ -220,7 +246,7 @@ export const listCustomers = async (req: Request, res: Response): Promise<void> 
 
 export const createCustomer = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, email, phone, taxId, address, creditLimit } = req.body;
+    const { name, email, phone, taxId, address, creditLimit, zipCode, taxRegime, cfdiUse } = req.body;
 
     if (!name || typeof name !== "string" || !name.trim()) {
       res.status(400).json({ message: "El nombre del cliente es obligatorio." });
@@ -231,14 +257,36 @@ export const createCustomer = async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    const cleanRFC = taxId ? String(taxId).toUpperCase().replace(/\s+/g, "") : null;
+    if (cleanRFC) {
+      const rfcCheck = validateRFC(cleanRFC);
+      if (!rfcCheck.valid) {
+        res.status(400).json({ message: rfcCheck.message });
+        return;
+      }
+      const isUnique = await checkRFCUnique(cleanRFC);
+      if (!isUnique) {
+        res.status(409).json({ message: "El RFC ya existe en el catálogo de clientes." });
+        return;
+      }
+    }
+
+    if (zipCode && !/^\d{5}$/.test(String(zipCode).trim())) {
+      res.status(400).json({ message: "El Código Postal debe ser exactamente 5 dígitos." });
+      return;
+    }
+
     const customer = await prisma.customer.create({
       data: {
         name: name.trim(),
         email: trimQuery(email) ?? null,
         phone: trimQuery(phone) ?? null,
-        taxId: trimQuery(taxId) ?? null,
+        taxId: cleanRFC,
         address: trimQuery(address) ?? null,
         creditLimit: creditLimit ? Number(creditLimit) : 0,
+        zipCode: zipCode ? String(zipCode).trim() : null,
+        taxRegime: taxRegime ? String(taxRegime).trim() : null,
+        cfdiUse: cfdiUse ? String(cfdiUse).trim() : null,
       },
     });
 
@@ -254,11 +302,88 @@ export const createCustomer = async (req: Request, res: Response): Promise<void>
         creditLimit: Number(customer.creditLimit),
         balance: Number(customer.balance),
         salesCount: 0,
+        zipCode: customer.zipCode,
+        taxRegime: customer.taxRegime,
+        cfdiUse: customer.cfdiUse,
         createdAt: customer.createdAt,
       },
     });
   } catch (error: any) {
     res.status(500).json({ message: "Error al registrar el cliente.", error: error.message });
+  }
+};
+
+export const updateCustomer = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const customerId = Number(req.params.id);
+    if (isNaN(customerId)) {
+      res.status(400).json({ message: "ID de cliente inválido." });
+      return;
+    }
+
+    const { name, email, phone, taxId, address, creditLimit, zipCode, taxRegime, cfdiUse } = req.body;
+
+    const existing = await prisma.customer.findUnique({ where: { id: customerId } });
+    if (!existing) {
+      res.status(404).json({ message: "Cliente no encontrado." });
+      return;
+    }
+
+    const cleanRFC = taxId ? String(taxId).toUpperCase().replace(/\s+/g, "") : null;
+    if (cleanRFC && cleanRFC !== existing.taxId) {
+      const rfcCheck = validateRFC(cleanRFC);
+      if (!rfcCheck.valid) {
+        res.status(400).json({ message: rfcCheck.message });
+        return;
+      }
+      const isUnique = await checkRFCUnique(cleanRFC, customerId);
+      if (!isUnique) {
+        res.status(409).json({ message: "El RFC ya está registrado en otro cliente." });
+        return;
+      }
+    }
+
+    if (zipCode && !/^\d{5}$/.test(String(zipCode).trim())) {
+      res.status(400).json({ message: "El Código Postal debe ser exactamente 5 dígitos." });
+      return;
+    }
+
+    const customer = await prisma.customer.update({
+      where: { id: customerId },
+      data: {
+        ...(name && { name: name.trim() }),
+        ...(email !== undefined && { email: trimQuery(email) ?? null }),
+        ...(phone !== undefined && { phone: trimQuery(phone) ?? null }),
+        ...(taxId !== undefined && { taxId: cleanRFC }),
+        ...(address !== undefined && { address: trimQuery(address) ?? null }),
+        ...(creditLimit !== undefined && creditLimit !== "" && { creditLimit: Number(creditLimit) }),
+        ...(zipCode !== undefined && { zipCode: zipCode ? String(zipCode).trim() : null }),
+        ...(taxRegime !== undefined && { taxRegime: taxRegime ? String(taxRegime).trim() : null }),
+        ...(cfdiUse !== undefined && { cfdiUse: cfdiUse ? String(cfdiUse).trim() : null }),
+      },
+      include: { _count: { select: { sales: true } } },
+    });
+
+    res.status(200).json({
+      message: "Cliente actualizado exitosamente.",
+      customer: {
+        id: customer.id,
+        name: customer.name,
+        email: customer.email,
+        phone: customer.phone,
+        taxId: customer.taxId,
+        address: customer.address,
+        creditLimit: Number(customer.creditLimit),
+        balance: Number(customer.balance),
+        salesCount: customer._count.sales,
+        zipCode: customer.zipCode,
+        taxRegime: customer.taxRegime,
+        cfdiUse: customer.cfdiUse,
+        createdAt: customer.createdAt,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al actualizar el cliente.", error: error.message });
   }
 };
 
@@ -344,7 +469,11 @@ export const listEmployees = async (req: Request, res: Response): Promise<void> 
         email: true,
         role: true,
         active: true,
+        phone: true,
+        baseSalary: true,
+        commissionRate: true,
         createdAt: true,
+        branchId: true,
         branch: { select: { name: true } },
       },
     });
@@ -355,6 +484,10 @@ export const listEmployees = async (req: Request, res: Response): Promise<void> 
       email: u.email,
       role: u.role,
       active: u.active,
+      phone: u.phone,
+      baseSalary: u.baseSalary !== null ? Number(u.baseSalary) : null,
+      commissionRate: u.commissionRate !== null ? Number(u.commissionRate) : null,
+      branchId: u.branchId,
       branch: u.branch.name,
       createdAt: u.createdAt,
     }));
@@ -418,6 +551,10 @@ export const createBranch = async (req: Request, res: Response): Promise<void> =
 
     res.status(201).json({ message: "Sucursal registrada exitosamente.", branch });
   } catch (error: any) {
+    if (error.code === "P2002") {
+      res.status(409).json({ message: "Ya existe una sucursal con ese nombre." });
+      return;
+    }
     res.status(500).json({ message: "Error al registrar la sucursal.", error: error.message });
   }
 };
@@ -436,6 +573,20 @@ export const updateBranch = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    // Validar: no desactivar sucursal si tiene empleados activos
+    if (active === false) {
+      const existing = await prisma.branch.findUnique({ where: { id }, select: { active: true } });
+      if (existing?.active === true) {
+        const activeUsers = await prisma.user.count({ where: { branchId: id, active: true } });
+        if (activeUsers > 0) {
+          res.status(400).json({
+            message: `No se puede desactivar la sucursal. Hay ${activeUsers} empleado(s) activo(s) asignado(s). Reasígnalos o desactívalos primero.`,
+          });
+          return;
+        }
+      }
+    }
+
     const branch = await prisma.branch.update({
       where: { id },
       data: {
@@ -448,6 +599,10 @@ export const updateBranch = async (req: Request, res: Response): Promise<void> =
 
     res.status(200).json({ message: "Sucursal actualizada exitosamente.", branch });
   } catch (error: any) {
+    if (error.code === "P2002") {
+      res.status(409).json({ message: "Ya existe otra sucursal con ese nombre." });
+      return;
+    }
     // P2025: registro no encontrado para actualizar
     if (error.code === "P2025") {
       res.status(404).json({ message: "Sucursal no encontrada." });
@@ -699,12 +854,22 @@ export const getReports = async (req: Request, res: Response): Promise<void> => 
 // ===========================================================================
 // ALTA DE EMPLEADO (reutiliza la tabla User; cifra password y PIN)
 // ===========================================================================
+
+const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email.trim());
+};
+
 export const createEmployee = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, email, password, role, branchId, pinCode } = req.body;
+    const { name, email, password, role, branchId, pinCode, phone, baseSalary, commissionRate } = req.body;
 
     if (!name?.trim() || !email?.trim() || !password || !role || !branchId) {
       res.status(400).json({ message: "Nombre, correo, contraseña, rol y sucursal son obligatorios." });
+      return;
+    }
+    if (!validateEmail(String(email))) {
+      res.status(400).json({ message: "Formato de correo electrónico inválido (ej: usuario@empresa.com)." });
       return;
     }
     if (String(password).length < 6) {
@@ -737,13 +902,16 @@ export const createEmployee = async (req: Request, res: Response): Promise<void>
 
     const user = await prisma.user.create({
       data: {
-        name: name.trim(),
-        email: email.trim(),
+        name: name.trim().toUpperCase(),
+        email: email.trim().toLowerCase(),
         passwordHash,
         pinCode: pinHash,
-        role,
+        role: role.toUpperCase(),
         active: true,
         branchId: Number(branchId),
+        phone: phone ? String(phone).trim() : null,
+        baseSalary: baseSalary ? parseFloat(String(baseSalary)) : null,
+        commissionRate: commissionRate ? parseFloat(String(commissionRate)) : null,
       },
     });
 
@@ -768,6 +936,91 @@ export const createEmployee = async (req: Request, res: Response): Promise<void>
   }
 };
 
+export const updateEmployee = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = Number(req.params.id);
+    if (isNaN(userId)) {
+      res.status(400).json({ message: "Identificador de empleado inválido." });
+      return;
+    }
+
+    const { name, email, phone, baseSalary, commissionRate, role, branchId, active, newPin } = req.body;
+
+    const existing = await prisma.user.findUnique({ where: { id: userId } });
+    if (!existing) {
+      res.status(404).json({ message: "Empleado no encontrado." });
+      return;
+    }
+
+    if (email && String(email).trim() !== "" && String(email).trim().toLowerCase() !== existing.email) {
+      if (!validateEmail(String(email))) {
+        res.status(400).json({ message: "Formato de correo electrónico inválido." });
+        return;
+      }
+      const emailExists = await prisma.user.findUnique({ where: { email: String(email).trim().toLowerCase() } });
+      if (emailExists) {
+        res.status(409).json({ message: "El correo ya está registrado en otro empleado." });
+        return;
+      }
+    }
+
+    if (role && role.trim() !== "") {
+      const validRoles = ["ADMIN", "GERENTE", "CAJERO"];
+      if (!validRoles.includes(String(role).toUpperCase())) {
+        res.status(400).json({ message: "Rol inválido. Use ADMIN, GERENTE o CAJERO." });
+        return;
+      }
+    }
+
+    const updateData: any = {};
+    if (name && String(name).trim() !== "") updateData.name = String(name).trim().toUpperCase();
+    if (email && String(email).trim() !== "") updateData.email = String(email).trim().toLowerCase();
+    if (phone !== undefined) updateData.phone = phone ? String(phone).trim() : null;
+    if (baseSalary !== undefined) updateData.baseSalary = baseSalary !== "" && baseSalary !== null ? parseFloat(String(baseSalary)) : null;
+    if (commissionRate !== undefined) updateData.commissionRate = commissionRate !== "" && commissionRate !== null ? parseFloat(String(commissionRate)) : null;
+    if (role && String(role).trim() !== "") updateData.role = String(role).toUpperCase();
+    if (branchId) updateData.branchId = Number(branchId);
+    if (active !== undefined) updateData.active = Boolean(active);
+
+    if (newPin && String(newPin).trim() !== "") {
+      if (!/^\d{4}$/.test(String(newPin))) {
+        res.status(400).json({ message: "El PIN debe ser exactamente 4 dígitos numéricos." });
+        return;
+      }
+      updateData.pinCode = await bcrypt.hash(String(newPin), 10);
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      include: { branch: { select: { name: true } } },
+    });
+
+    const { passwordHash, pinCode, ...userSafe } = updated as any;
+    res.status(200).json({
+      message: "Empleado actualizado exitosamente.",
+      employee: {
+        id: userSafe.id,
+        name: userSafe.name,
+        email: userSafe.email,
+        phone: userSafe.phone,
+        role: userSafe.role,
+        active: userSafe.active,
+        baseSalary: userSafe.baseSalary !== null ? Number(userSafe.baseSalary) : null,
+        commissionRate: userSafe.commissionRate !== null ? Number(userSafe.commissionRate) : null,
+        branch: userSafe.branch.name,
+        createdAt: userSafe.createdAt,
+      },
+    });
+  } catch (error: any) {
+    if (error.code === "P2025") {
+      res.status(404).json({ message: "Empleado no encontrado." });
+      return;
+    }
+    res.status(500).json({ message: "Error al actualizar el empleado.", error: error.message });
+  }
+};
+
 // ===========================================================================
 // OPERACIONES DEL VENDEDOR (actividad consolidada de un empleado)
 // ===========================================================================
@@ -781,7 +1034,7 @@ export const getEmployeeOperations = async (req: Request, res: Response): Promis
 
     const user = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, name: true, email: true, role: true, active: true, branch: { select: { name: true } } },
+      select: { id: true, name: true, email: true, role: true, active: true, commissionRate: true, branch: { select: { name: true } } },
     });
     if (!user) {
       res.status(404).json({ message: "Empleado no encontrado." });
@@ -813,17 +1066,25 @@ export const getEmployeeOperations = async (req: Request, res: Response): Promis
         : { _sum: { amount: null }, _count: { _all: 0 } };
 
     const openSessions = sessions.filter((s) => s.status === "ABIERTA").length;
+    const totalSales = salesAgg._count._all;
+    const totalSalesAmount = Number(salesAgg._sum.totalAmount ?? 0);
+    const avgPerTicket = totalSales > 0 ? Math.round((totalSalesAmount / totalSales) * 100) / 100 : 0;
+    const estimatedCommission = user.commissionRate
+      ? Math.round(totalSalesAmount * Number(user.commissionRate) / 100 * 100) / 100
+      : 0;
 
     res.status(200).json({
       employee: { id: user.id, name: user.name, email: user.email, role: user.role, active: user.active, branch: user.branch.name },
       summary: {
-        salesCount: salesAgg._count._all,
-        salesTotal: Number(salesAgg._sum.totalAmount ?? 0),
+        salesCount: totalSales,
+        salesTotal: totalSalesAmount,
         cancelledCount,
         sessionsCount: sessions.length,
         openSessions,
         depositsCount: depositsAgg._count._all,
         depositsTotal: Number(depositsAgg._sum.amount ?? 0),
+        avgPerTicket,
+        estimatedCommission,
       },
       recentSales: recentSales.map((s) => ({
         id: s.id,
@@ -1203,7 +1464,26 @@ export const createPurchase = async (req: Request, res: Response): Promise<void>
       (sum: number, d: any) => sum + Number(d.quantity) * Number(d.unitCost || 0),
       0
     );
-    const taxNum = Math.round(subtotalNum * 0.16 * 100) / 100;
+
+    let taxNum = 0;
+    for (const detail of validDetails) {
+      const detailSubtotal = Number(detail.quantity) * Number(detail.unitCost || 0);
+      const productTaxes = await prisma.productTax.findMany({
+        where: { productId: Number(detail.productId) },
+        include: { taxType: true },
+      });
+
+      if (productTaxes.length > 0) {
+        for (const pt of productTaxes) {
+          taxNum += Math.round(detailSubtotal * Number((pt as any).taxType.rate) * 100) / 100;
+        }
+      } else {
+        taxNum += Math.round(detailSubtotal * 0.16 * 100) / 100;
+        console.warn(`⚠️ Producto ${detail.productId} sin impuestos en BD, usando 16% default`);
+      }
+    }
+    taxNum = Math.round(taxNum * 100) / 100;
+
     const totalNum = Math.round((subtotalNum + taxNum) * 100) / 100;
 
     const purchase = await prisma.purchaseOrder.create({

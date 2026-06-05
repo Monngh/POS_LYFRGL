@@ -34,6 +34,16 @@ const typeTone = (t: string): "green" | "red" | "amber" | "blue" | "slate" => {
   return "slate";
 };
 
+const movementLabel: Record<string, string> = {
+  VENTA: "Venta",
+  COMPRA: "Compra",
+  DEVOLUCION: "Devolución",
+  AJUSTE_INVENTARIO: "Ajuste inventario",
+  AJUSTE_MERMA: "Merma",
+  TRASPASO_ENTRADA: "Traspaso entrada",
+  TRASPASO_SALIDA: "Traspaso salida",
+};
+
 const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [rows, setRows] = useState<KardexRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,41 +133,48 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               <th style={ui.th}>Fecha</th>
               <th style={ui.th}>Producto</th>
               <th style={ui.th}>Sucursal</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Movimiento</th>
+              <th style={{ ...ui.th, textAlign: "center" }}>Tipo</th>
               <th style={{ ...ui.th, textAlign: "center" }}>Cambio</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Saldo</th>
+              <th style={{ ...ui.th, textAlign: "center" }}>Antes</th>
+              <th style={{ ...ui.th, textAlign: "center" }}>Después</th>
               <th style={ui.th}>Usuario</th>
               <th style={ui.th}>Motivo</th>
             </tr>
           </thead>
           <tbody>
-            <TableState colSpan={8} loading={loading} error={error} empty={!loading && rows.length === 0} />
+            <TableState colSpan={9} loading={loading} error={error} empty={!loading && rows.length === 0} />
             {!loading &&
               !error &&
-              rows.map((k) => (
-                <tr key={k.id}>
-                  <td style={ui.td}>
-                    {fmtDate(k.createdAt)} <span style={{ color: "#94a3b8" }}>{fmtTime(k.createdAt)}</span>
-                  </td>
-                  <td style={{ ...ui.td, whiteSpace: "normal" }}>
-                    <div style={{ fontWeight: 600, color: "#0f172a" }}>{k.product}</div>
-                    <div style={{ fontSize: 11, color: "#94a3b8" }}>{k.sku}</div>
-                  </td>
-                  <td style={ui.td}>{k.branch}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <Badge tone={typeTone(k.movementType)}>{k.movementType.replace("_", " ")}</Badge>
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center", fontWeight: 800, color: k.quantityChange >= 0 ? "#15803d" : "#b91c1c" }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
-                      {k.quantityChange >= 0 ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
-                      {Math.abs(k.quantityChange)}
-                    </span>
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{k.balanceAfter}</td>
-                  <td style={{ ...ui.td, color: "#475569" }}>{k.user}</td>
-                  <td style={{ ...ui.td, whiteSpace: "normal", color: "#64748b", fontSize: 12, maxWidth: 280 }}>{k.reason || "—"}</td>
-                </tr>
-              ))}
+              rows.map((k) => {
+                const balanceBefore = k.balanceAfter - k.quantityChange;
+                return (
+                  <tr key={k.id}>
+                    <td style={ui.td}>
+                      {fmtDate(k.createdAt)} <span style={{ color: "#94a3b8" }}>{fmtTime(k.createdAt)}</span>
+                    </td>
+                    <td style={{ ...ui.td, whiteSpace: "normal" }}>
+                      <div style={{ fontWeight: 600, color: "#0f172a" }}>{k.product}</div>
+                      <div style={{ fontSize: 11, color: "#94a3b8" }}>{k.sku}</div>
+                    </td>
+                    <td style={ui.td}>{k.branch}</td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <Badge tone={typeTone(k.movementType)}>
+                        {movementLabel[k.movementType] ?? k.movementType.replace(/_/g, " ")}
+                      </Badge>
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "center", fontWeight: 800, color: k.quantityChange >= 0 ? "#15803d" : "#b91c1c" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+                        {k.quantityChange >= 0 ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
+                        {Math.abs(k.quantityChange)}
+                      </span>
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "center", color: "#64748b" }}>{balanceBefore}</td>
+                    <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{k.balanceAfter}</td>
+                    <td style={{ ...ui.td, color: "#475569" }}>{k.user}</td>
+                    <td style={{ ...ui.td, whiteSpace: "normal", color: "#64748b", fontSize: 12, maxWidth: 260 }}>{k.reason || "—"}</td>
+                  </tr>
+                );
+              })}
           </tbody>
         </table>
       </div>
