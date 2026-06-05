@@ -156,7 +156,9 @@ export const listInventory = async (req: Request, res: Response): Promise<void> 
       return {
         id: p.id,
         sku: p.sku,
+        barcode: p.barcode,
         name: p.name,
+        description: p.description,
         active: p.active,
         sellPrice: Number(p.sellPrice),
         costPrice: Number(p.costPrice),
@@ -1488,7 +1490,7 @@ export const forceCloseCashSession = async (req: Request, res: Response): Promis
     const expected =
       Number(session.initialAmount) + Number(session.cashIn) - Number(session.cashOut);
 
-    const updateData: any = {
+    const updateData = {
       status: "CERRADA",
       closedAt: new Date(),
       expectedAmount: expected,
@@ -1519,50 +1521,111 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
     const { sku, barcode, name, description, costPrice, sellPrice, trackingType, isReturnable, returnWindowDays } = req.body;
 
     if (!sku || typeof sku !== "string" || !sku.trim()) {
-      res.status(400).json({ message: "El SKU es requerido." });
+      res.status(400).json({ message: "El SKU del producto es obligatorio." });
       return;
     }
     if (!name || typeof name !== "string" || !name.trim()) {
-      res.status(400).json({ message: "El nombre del producto es requerido." });
-      return;
-    }
-    if (sellPrice === undefined || isNaN(Number(sellPrice)) || Number(sellPrice) < 0) {
-      res.status(400).json({ message: "El precio de venta es requerido y debe ser un número no negativo." });
+      res.status(400).json({ message: "El nombre del producto es obligatorio." });
       return;
     }
 
-    const existing = await prisma.product.findUnique({ where: { sku: sku.trim() } });
-    if (existing) {
-      res.status(400).json({ message: `El SKU '${sku.trim()}' ya está registrado.` });
+    const cost = Number(costPrice);
+    const sell = Number(sellPrice);
+
+    if (isNaN(cost) || cost < 0) {
+      res.status(400).json({ message: "El precio de costo debe ser un número no negativo." });
+      return;
+    }
+    if (isNaN(sell) || sell < 0) {
+      res.status(400).json({ message: "El precio de venta debe ser un número no negativo." });
       return;
     }
 
-    if (barcode && String(barcode).trim()) {
-      const existingBarcode = await prisma.product.findUnique({ where: { barcode: String(barcode).trim() } });
-      if (existingBarcode) {
-        res.status(400).json({ message: `El código de barras '${barcode}' ya está registrado.` });
-        return;
+    const skuClean = sku.trim();
+    const barcodeClean = barcode && typeof barcode === "string" && barcode.trim() ? barcode.trim() : null;
+
+    // Usar una transacción para verificar unicidad y crear producto + inventarios
+    const newProduct = await prisma.$transaction(async (tx) => {
+      // Validar SKU único
+      const existingSku = await tx.product.findUnique({
+        where: { sku: skuClean }
+      });
+      if (existingSku) {
+        throw new Error("EXISTS_SKU");
       }
-    }
 
-    const product = await prisma.product.create({
-      data: {
-        sku: sku.trim(),
-        barcode: barcode && String(barcode).trim() ? String(barcode).trim() : null,
-        name: name.trim(),
-        description: description && String(description).trim() ? String(description).trim() : null,
-        costPrice: Number(costPrice) || 0,
-        sellPrice: Number(sellPrice),
-        active: true,
-        isReturnable: isReturnable !== undefined ? Boolean(isReturnable) : true,
-        returnWindowDays: returnWindowDays !== undefined ? Number(returnWindowDays) : 30,
-        trackingType: trackingType && String(trackingType).trim() ? String(trackingType).trim() : "NONE",
-      },
+      // Validar barcode único si existe
+      if (barcodeClean) {
+        const existingBarcode = await tx.product.findUnique({
+          where: { barcode: barcodeClean }
+        });
+        if (existingBarcode) {
+          throw new Error("EXISTS_BARCODE");
+        }
+      }
+
+      // Crear producto
+      const product = await tx.product.create({
+        data: {
+          sku: skuClean,
+          barcode: barcodeClean,
+          name: name.trim(),
+          description: description && typeof description === "string" ? description.trim() : null,
+          costPrice: cost,
+          sellPrice: sell,
+          active: true,
+          isReturnable: isReturnable !== undefined ? Boolean(isReturnable) : true,
+          returnWindowDays: returnWindowDays !== undefined ? Number(returnWindowDays) : 30,
+          trackingType: trackingType && String(trackingType).trim() ? String(trackingType).trim() : "NONE",
+        }
+      });
+
+      // Obtener todas las sucursales
+      const branches = await tx.branch.findMany({ select: { id: true } });
+
+      // Crear registro de inventario con stock 0 para cada sucursal
+      for (const branch of branches) {
+        await tx.inventory.create({
+          data: {
+            productId: product.id,
+            branchId: branch.id,
+            quantity: 0,
+            minStock: 10,
+            maxStock: 400
+          }
+        });
+      }
+
+      return product;
     });
 
-    res.status(201).json({ message: "Producto creado exitosamente.", product });
+    res.status(201).json({
+      message: "Producto registrado exitosamente.",
+      product: {
+        id: newProduct.id,
+        sku: newProduct.sku,
+        barcode: newProduct.barcode,
+        name: newProduct.name,
+        description: newProduct.description,
+        costPrice: Number(newProduct.costPrice),
+        sellPrice: Number(newProduct.sellPrice),
+        active: newProduct.active,
+        isReturnable: newProduct.isReturnable,
+        returnWindowDays: newProduct.returnWindowDays,
+        trackingType: newProduct.trackingType,
+      }
+    });
+
   } catch (error: any) {
-    res.status(500).json({ message: "Error al crear el producto.", error: error.message });
+    if (error.message === "EXISTS_SKU") {
+      res.status(409).json({ message: "El SKU ingresado ya está registrado." });
+      return;
+    }
+    if (error.message === "EXISTS_BARCODE") {
+      res.status(409).json({ message: "El código de barras ingresado ya está registrado." });
+      return;
+    }
+    res.status(500).json({ message: "Error al registrar el producto.", error: error.message });
   }
 };
 
@@ -1686,41 +1749,79 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const { name, description, costPrice, sellPrice, active, isReturnable, returnWindowDays, trackingType } = req.body;
+    const { name, description, barcode, costPrice, sellPrice, active, isReturnable, returnWindowDays, trackingType } = req.body;
 
-    const existing = await prisma.product.findUnique({ where: { id } });
-    if (!existing) {
+    if (!name || typeof name !== "string" || !name.trim()) {
+      res.status(400).json({ message: "El nombre del producto es obligatorio." });
+      return;
+    }
+
+    const cost = Number(costPrice);
+    const sell = Number(sellPrice);
+
+    if (isNaN(cost) || cost < 0) {
+      res.status(400).json({ message: "El precio de costo debe ser un número no negativo." });
+      return;
+    }
+    if (isNaN(sell) || sell < 0) {
+      res.status(400).json({ message: "El precio de venta debe ser un número no negativo." });
+      return;
+    }
+
+    const barcodeClean = barcode && typeof barcode === "string" && barcode.trim() ? barcode.trim() : null;
+
+    const existingProduct = await prisma.product.findUnique({
+      where: { id }
+    });
+
+    if (!existingProduct) {
       res.status(404).json({ message: "Producto no encontrado." });
       return;
     }
 
-    const data: any = {};
-    if (name !== undefined && String(name).trim()) data.name = String(name).trim();
-    if (description !== undefined) data.description = description ? String(description).trim() : null;
-    if (costPrice !== undefined && !isNaN(Number(costPrice))) data.costPrice = Number(costPrice);
-    if (sellPrice !== undefined && !isNaN(Number(sellPrice))) data.sellPrice = Number(sellPrice);
-    if (active !== undefined) data.active = Boolean(active);
-    if (isReturnable !== undefined) data.isReturnable = Boolean(isReturnable);
-    if (returnWindowDays !== undefined && !isNaN(Number(returnWindowDays))) data.returnWindowDays = Number(returnWindowDays);
-    if (trackingType !== undefined && String(trackingType).trim()) data.trackingType = String(trackingType).trim();
-
-    if (Object.keys(data).length === 0) {
-      res.status(400).json({ message: "No se proporcionaron campos para actualizar." });
-      return;
+    if (barcodeClean) {
+      const duplicateBarcode = await prisma.product.findFirst({
+        where: {
+          barcode: barcodeClean,
+          id: { not: id }
+        }
+      });
+      if (duplicateBarcode) {
+        res.status(409).json({ message: "El código de barras ingresado ya está asignado a otro producto." });
+        return;
+      }
     }
 
-    const product = await prisma.product.update({
+    const updated = await prisma.product.update({
       where: { id },
-      data,
+      data: {
+        name: name.trim(),
+        description: description && typeof description === "string" ? description.trim() : null,
+        barcode: barcodeClean,
+        costPrice: cost,
+        sellPrice: sell,
+        active: typeof active === "boolean" ? active : existingProduct.active,
+        isReturnable: isReturnable !== undefined ? Boolean(isReturnable) : existingProduct.isReturnable,
+        returnWindowDays: returnWindowDays !== undefined ? Number(returnWindowDays) : existingProduct.returnWindowDays,
+        trackingType: trackingType !== undefined ? String(trackingType).trim() : existingProduct.trackingType,
+      }
     });
 
     res.status(200).json({
       message: "Producto actualizado exitosamente.",
       product: {
-        ...product,
-        costPrice: Number(product.costPrice),
-        sellPrice: Number(product.sellPrice),
-      },
+        id: updated.id,
+        sku: updated.sku,
+        barcode: updated.barcode,
+        name: updated.name,
+        description: updated.description,
+        costPrice: Number(updated.costPrice),
+        sellPrice: Number(updated.sellPrice),
+        active: updated.active,
+        isReturnable: updated.isReturnable,
+        returnWindowDays: updated.returnWindowDays,
+        trackingType: updated.trackingType,
+      }
     });
   } catch (error: any) {
     res.status(500).json({ message: "Error al actualizar el producto.", error: error.message });
@@ -1953,5 +2054,44 @@ export const getProductSuppliers = async (req: Request, res: Response): Promise<
     res.status(200).json(records.map((sp) => sp.supplier));
   } catch (error: any) {
     res.status(500).json({ message: "Error al obtener proveedores del producto.", error: error.message });
+  }
+};
+
+// ===========================================================================
+// DESACTIVACIÓN DE PRODUCTO (Soft Delete)
+// ===========================================================================
+export const deleteProduct = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) {
+      res.status(400).json({ message: "Identificador de producto inválido." });
+      return;
+    }
+
+    const existingProduct = await prisma.product.findUnique({
+      where: { id }
+    });
+
+    if (!existingProduct) {
+      res.status(404).json({ message: "Producto no encontrado." });
+      return;
+    }
+
+    const updated = await prisma.product.update({
+      where: { id },
+      data: { active: false }
+    });
+
+    res.status(200).json({
+      message: "Producto desactivado exitosamente.",
+      product: {
+        id: updated.id,
+        sku: updated.sku,
+        active: updated.active
+      }
+    });
+
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al desactivar el producto.", error: error.message });
   }
 };
