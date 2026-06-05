@@ -472,14 +472,9 @@ const Dashboard: React.FC = () => {
       try {
         const res = await api.get(`/api/products/search?query=${query}`);
         const list: Product[] = res.data.products;
-        if (list.length === 1) {
-          addProductToCart(list[0]);
-          setBarcodeSearch("");
-          setSearchResults([]);
-          lastSearchQueryRef.current = "";
-        } else {
-          setSearchResults(list);
-        }
+        // En búsqueda predictiva (escribiendo) NO auto-agregamos para no interrumpir la escritura del cajero.
+        // El auto-agregar se reserva para la acción explícita onSubmit (Enter del teclado o lector de barras).
+        setSearchResults(list);
       } catch (err) {
         console.error("Error al buscar producto automáticamente:", err);
       }
