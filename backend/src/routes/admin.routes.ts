@@ -37,6 +37,12 @@ import {
   getProductSuppliers,
   deleteProduct,
 } from "../controllers/admin.controller";
+import {
+  reportSales,
+  reportProductsSold,
+  reportBySeller,
+  reportReceivables,
+} from "../controllers/reports.controller";
 import { authenticateJWT, authorizeRoles } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -104,5 +110,9 @@ router.put("/branches/:id", updateBranch);
 
 // Reportes
 router.get("/reports", getReports);
+router.get("/reports/sales", reportSales);
+router.get("/reports/products-sold", reportProductsSold);
+router.get("/reports/by-seller", reportBySeller);
+router.get("/reports/receivables", reportReceivables);
 
 export default router;
