@@ -61,6 +61,8 @@ model Product {
   isReturnable      Boolean            @default(true)
   returnWindowDays  Int                @default(30)
   trackingType      String             @default("NONE")
+  satProductKey     String             @default("01010101")
+  satUnitKey        String             @default("H87")
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   inventories       Inventory[]
