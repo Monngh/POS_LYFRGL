@@ -159,6 +159,27 @@ body {
   background: var(--text-muted);
 }
 
+/* Scrollbar del menú lateral del panel admin:
+   fino y con track transparente para que combine con el fondo navy
+   (evita la franja vertical clara que rompía la simetría). */
+.admin-sidebar-nav {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+.admin-sidebar-nav::-webkit-scrollbar {
+  width: 6px;
+}
+.admin-sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+.admin-sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 3px;
+}
+.admin-sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
 /* Efectos de Hover para Autocomplete Dropdown */
 .autocomplete-item-hover:hover {
   background-color: #f1f5f9 !important;

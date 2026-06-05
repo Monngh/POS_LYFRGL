@@ -14,6 +14,7 @@ import {
   Building2,
   BarChart3,
   Menu,
+  ArrowLeft,
   LogOut,
   RefreshCw,
   Store,
@@ -77,6 +78,22 @@ const AdminDashboard: React.FC = () => {
   const [branchId, setBranchId] = useState<string>("all");
   const [branches, setBranches] = useState<BranchOption[]>([]);
   const [refreshToken, setRefreshToken] = useState(0);
+  const [navHistory, setNavHistory] = useState<string[]>([]);
+
+  // Navega a una pestaña guardando la actual en el historial
+  const navigateTo = (key: string) => {
+    if (key === activeNav) return;
+    setNavHistory((h) => [...h, activeNav]);
+    setActiveNav(key);
+  };
+
+  // Regresa a la pestaña anterior
+  const goBack = () => {
+    if (navHistory.length === 0) return;
+    const prev = navHistory[navHistory.length - 1];
+    setNavHistory((h) => h.slice(0, -1));
+    setActiveNav(prev);
+  };
 
   // Cargar el catálogo de sucursales para el filtro global (una sola vez)
   useEffect(() => {
@@ -100,7 +117,7 @@ const AdminDashboard: React.FC = () => {
           {!collapsed && <span style={styles.brandText}>LYFRGL POS</span>}
         </div>
 
-        <nav style={styles.nav}>
+        <nav style={styles.nav} className="admin-sidebar-nav">
           {NAV_SECTIONS.map((section) => (
             <React.Fragment key={section.label}>
               {!collapsed && (
@@ -113,7 +130,7 @@ const AdminDashboard: React.FC = () => {
                 return (
                   <button
                     key={item.key}
-                    onClick={() => setActiveNav(item.key)}
+                    onClick={() => navigateTo(item.key)}
                     title={item.label}
                     className="active-tap"
                     style={{
@@ -159,6 +176,19 @@ const AdminDashboard: React.FC = () => {
               style={styles.iconBtn}
             >
               <Menu size={18} color="#1e3a8a" />
+            </button>
+            <button
+              onClick={goBack}
+              disabled={navHistory.length === 0}
+              title="Regresar a la pestaña anterior"
+              className="active-tap"
+              style={{
+                ...styles.iconBtn,
+                opacity: navHistory.length === 0 ? 0.4 : 1,
+                cursor: navHistory.length === 0 ? "default" : "pointer",
+              }}
+            >
+              <ArrowLeft size={18} color="#1e3a8a" />
             </button>
             <span style={styles.appLabel}>Panel Administrativo Central</span>
           </div>
