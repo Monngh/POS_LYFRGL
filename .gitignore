@@ -23,6 +23,7 @@ out/
 logs/
 *.log
 npm-debug.log*
+*.sql
 
 # IDEs y Editores
 .vscode/
