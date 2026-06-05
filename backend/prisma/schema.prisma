@@ -32,6 +32,9 @@ model User {
   name                   String
   role                   String
   active                 Boolean         @default(true)
+  phone                  String?
+  baseSalary             Decimal?        @db.Decimal(18, 2)
+  commissionRate         Decimal?        @db.Decimal(18, 4)
   branchId               Int
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
@@ -133,10 +136,15 @@ model Customer {
   creditLimit  Decimal       @default(0) @db.Decimal(18, 2)
   balance      Decimal       @default(0) @db.Decimal(18, 2)
   points       Int           @default(0)
+  zipCode      String?
+  taxRegime    String?
+  cfdiUse      String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   sales        Sale[]
   storeCredits StoreCredit[]
+
+  @@index([taxId])
 }
 
 model Sale {

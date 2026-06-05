@@ -5,6 +5,103 @@ import { executeRefund, createMercadoPagoCashPayment, syncDepositStatus as mpSyn
 import { PromotionService } from "../services/promotion.service";
 
 /**
+ * Simular una venta: calcula promociones e impuestos dinámicos sin registrar nada en BD
+ */
+export const simulateSale = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { items } = req.body;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ error: "Items requeridos" });
+      return;
+    }
+
+    const cartItems: any[] = [];
+    const productMap = new Map<number, any>();
+
+    for (const item of items) {
+      const product = await prisma.product.findUnique({
+        where: { id: Number(item.productId) },
+        include: {
+          productTaxes: { include: { taxType: true } },
+        },
+      });
+
+      if (!product || !product.active) continue;
+
+      productMap.set(product.id, product);
+      cartItems.push({
+        id: product.id,
+        productId: product.id,
+        name: product.name,
+        sellPrice: Number(product.sellPrice),
+        quantity: item.quantity,
+      });
+    }
+
+    const promoCalc = await PromotionService.calculatePromotions(cartItems);
+
+    const simulation = {
+      items: [] as any[],
+      subtotal: 0,
+      totalDiscount: 0,
+      totalTax: 0,
+      total: 0,
+      taxBreakdown: {} as Record<string, number>,
+    };
+
+    for (let i = 0; i < cartItems.length; i++) {
+      const cartItem = cartItems[i];
+      const calcLine = promoCalc.lines[i];
+      const product = productMap.get(cartItem.id)!;
+
+      const subtotalItem = cartItem.sellPrice * cartItem.quantity;
+      const discount = calcLine.discountAmount;
+      const subtotalNet = subtotalItem - discount;
+
+      const applicableTaxes = (product.productTaxes as any[]).filter((pt) => pt.taxType.active);
+
+      let taxTotal = 0;
+      const taxesBreakdown: Record<string, number> = {};
+
+      for (const pt of applicableTaxes) {
+        const taxAmount = Math.round(subtotalNet * Number(pt.taxType.rate) * 100) / 100;
+        taxTotal += taxAmount;
+        taxesBreakdown[pt.taxType.name] = (taxesBreakdown[pt.taxType.name] || 0) + taxAmount;
+      }
+
+      simulation.items.push({
+        productId: cartItem.id,
+        productName: product.name,
+        quantity: cartItem.quantity,
+        unitPrice: cartItem.sellPrice,
+        subtotal: subtotalItem,
+        discount,
+        promotionLabel: calcLine.appliedPromotion?.name || "",
+        subtotalNet,
+        taxes: taxesBreakdown,
+        taxTotal,
+        total: subtotalNet + taxTotal,
+      });
+
+      simulation.subtotal += subtotalItem;
+      simulation.totalDiscount += discount;
+      simulation.totalTax += taxTotal;
+
+      for (const [taxName, taxAmount] of Object.entries(taxesBreakdown)) {
+        simulation.taxBreakdown[taxName] = (simulation.taxBreakdown[taxName] || 0) + taxAmount;
+      }
+    }
+
+    simulation.total = simulation.subtotal - simulation.totalDiscount + simulation.totalTax;
+
+    res.json(simulation);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+/**
  * Registrar una nueva venta en el sistema (Corte Transaccional ACID)
  */
 export const createSale = async (req: Request, res: Response): Promise<void> => {

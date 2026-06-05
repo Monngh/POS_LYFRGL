@@ -119,6 +119,10 @@ const Dashboard: React.FC = () => {
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" | "info" } | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
+  // Simulación de venta: impuestos y promociones dinámicos desde backend
+  const [simulationData, setSimulationData] = useState<any>(null);
+  const [loadingSimulation, setLoadingSimulation] = useState(false);
+
   const showToast = (message: string, type: "error" | "success" | "info" = "error") => {
     setToast({ message, type });
   };
@@ -404,6 +408,31 @@ const Dashboard: React.FC = () => {
     return () => clearTimeout(timer);
   }, [customerSearch, view]);
 
+  const loadSaleSimulation = async () => {
+    if (cart.length === 0) {
+      setSimulationData(null);
+      return;
+    }
+    try {
+      setLoadingSimulation(true);
+      const { data } = await api.post("/api/sales/simulate", {
+        items: cart.map(item => ({
+          productId: item.product.id,
+          quantity: item.quantity
+        }))
+      });
+      setSimulationData(data);
+    } catch (err) {
+      console.error("Error simulating sale:", err);
+    } finally {
+      setLoadingSimulation(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSaleSimulation();
+  }, [cart]);
+
   const handleRegisterCustomerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const { name, phone, email } = newCustomerForm;
@@ -655,22 +684,12 @@ const Dashboard: React.FC = () => {
     };
   };
 
-  const cartCalculations = cart.reduce((summary, item) => {
-    const { finalPrice, discountAmount } = calculateItemPromotion(item);
-    const subtotalOriginal = item.product.sellPrice * item.quantity;
-    const subtotalFinal = finalPrice * item.quantity;
-
-    summary.subtotalOriginal += subtotalOriginal;
-    summary.discountTotal += discountAmount;
-    summary.subtotalFinal += subtotalFinal;
-    return summary;
-  }, { subtotalOriginal: 0, discountTotal: 0, subtotalFinal: 0 });
-
-  const cartSubtotal = cartCalculations.subtotalFinal; // El subtotal final con descuentos para aplicar IVA
-  const cartDiscount = cartCalculations.discountTotal;
-  const cartSubtotalOriginal = cartCalculations.subtotalOriginal;
-  const cartTax = cartSubtotal * 0.16; // 16% IVA
-  const cartTotal = cartSubtotal + cartTax;
+  const cartSubtotalOriginal: number = simulationData?.subtotal ?? 0;
+  const cartDiscount: number = simulationData?.totalDiscount ?? 0;
+  const cartSubtotal: number = cartSubtotalOriginal - cartDiscount;
+  const cartTax: number = simulationData?.totalTax ?? 0;
+  const cartTotal: number = simulationData?.total ?? 0;
+  const taxBreakdown: Record<string, number> = simulationData?.taxBreakdown ?? {};
 
   // ---------------------------------------------------------------------------
   // 5. MODAL COBRO (Mockup 4)
@@ -1984,10 +2003,19 @@ const Dashboard: React.FC = () => {
                   <span>Subtotal Neto:</span>
                   <span style={{ fontWeight: "600" }}>${cartSubtotal.toFixed(2)}</span>
                 </div>
-                <div style={styles.summaryRow}>
-                  <span>IVA (16%):</span>
-                  <span style={{ fontWeight: "600" }}>${cartTax.toFixed(2)}</span>
-                </div>
+                {Object.keys(taxBreakdown).length > 0 ? (
+                  Object.entries(taxBreakdown).map(([taxName, taxAmount]) => (
+                    <div key={taxName} style={styles.summaryRow}>
+                      <span>{taxName}:</span>
+                      <span style={{ fontWeight: "600" }}>${(taxAmount as number).toFixed(2)}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div style={styles.summaryRow}>
+                    <span>Impuestos:</span>
+                    <span style={{ fontWeight: "600" }}>${cartTax.toFixed(2)}</span>
+                  </div>
+                )}
                 <div style={{ ...styles.summaryRow, ...styles.summaryTotal }}>
                   <span>Total:</span>
                   <span style={{ color: "#dc2626", fontWeight: "800" }}>${cartTotal.toFixed(2)}</span>
