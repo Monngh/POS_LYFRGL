@@ -381,6 +381,9 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       }
 
       return sale;
+    }, {
+      maxWait: 15000,
+      timeout: 35000
     });
 
     // Obtener los datos actualizados del cliente
@@ -678,6 +681,9 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
           });
         }
       }
+    }, {
+      maxWait: 15000,
+      timeout: 35000
     });
 
     res.status(200).json({
