@@ -286,7 +286,7 @@ const Dashboard: React.FC = () => {
       const query = lookupQuery.trim();
       const delayDebounce = setTimeout(() => {
         handleLookupSearch(query);
-      }, 50);
+      }, 300);
       return () => clearTimeout(delayDebounce);
     } else {
       lastLookupQueryRef.current = "___RESET___";
@@ -376,7 +376,7 @@ const Dashboard: React.FC = () => {
       } catch (err) {
         console.error("Error al buscar tickets:", err);
       }
-    }, 200);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [ticketSearch, ticketCustomer, ticketPhone, ticketDateFrom, ticketDateTo, activeModal]);
@@ -399,7 +399,7 @@ const Dashboard: React.FC = () => {
       } catch (err) {
         console.error("Error al buscar clientes:", err);
       }
-    }, 150);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [customerSearch, view]);
@@ -483,7 +483,7 @@ const Dashboard: React.FC = () => {
       } catch (err) {
         console.error("Error al buscar producto automáticamente:", err);
       }
-    }, 50);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [barcodeSearch, view]);
