@@ -286,7 +286,7 @@ const Dashboard: React.FC = () => {
       const query = lookupQuery.trim();
       const delayDebounce = setTimeout(() => {
         handleLookupSearch(query);
-      }, 50);
+      }, 300);
       return () => clearTimeout(delayDebounce);
     } else {
       lastLookupQueryRef.current = "___RESET___";
@@ -376,7 +376,7 @@ const Dashboard: React.FC = () => {
       } catch (err) {
         console.error("Error al buscar tickets:", err);
       }
-    }, 200);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [ticketSearch, ticketCustomer, ticketPhone, ticketDateFrom, ticketDateTo, activeModal]);
@@ -399,7 +399,7 @@ const Dashboard: React.FC = () => {
       } catch (err) {
         console.error("Error al buscar clientes:", err);
       }
-    }, 150);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [customerSearch, view]);
@@ -472,18 +472,13 @@ const Dashboard: React.FC = () => {
       try {
         const res = await api.get(`/api/products/search?query=${query}`);
         const list: Product[] = res.data.products;
-        if (list.length === 1) {
-          addProductToCart(list[0]);
-          setBarcodeSearch("");
-          setSearchResults([]);
-          lastSearchQueryRef.current = "";
-        } else {
-          setSearchResults(list);
-        }
+        // En búsqueda predictiva (escribiendo) NO auto-agregamos para no interrumpir la escritura del cajero.
+        // El auto-agregar se reserva para la acción explícita onSubmit (Enter del teclado o lector de barras).
+        setSearchResults(list);
       } catch (err) {
         console.error("Error al buscar producto automáticamente:", err);
       }
-    }, 50);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [barcodeSearch, view]);
@@ -1092,25 +1087,35 @@ const Dashboard: React.FC = () => {
   const [depComments, setDepComments] = useState("");
   const [depLoading, setDepLoading] = useState(false);
   const [lastDeposit, setLastDeposit] = useState<any>(null);
+  const [depType, setDepType] = useState("EFECTIVO");
 
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (depAccount.length !== 16 || isNaN(Number(depAccount))) {
-      showToast("El número de cuenta debe tener exactamente 16 dígitos.");
-      return;
+    const isMercadoPago = depType.startsWith("MERCADOPAGO_");
+    
+    if (!isMercadoPago) {
+      if (depAccount.length !== 16 || isNaN(Number(depAccount))) {
+        showToast("El número de cuenta debe tener exactamente 16 dígitos.");
+        return;
+      }
+      if (!depName) {
+        showToast("Por favor especifique el nombre del beneficiario.");
+        return;
+      }
     }
-    if (!depName || !depAmount || isNaN(Number(depAmount))) {
-      showToast("Por favor complete los campos obligatorios.");
+    
+    if (!depAmount || isNaN(Number(depAmount)) || Number(depAmount) <= 0) {
+      showToast("Por favor ingrese un monto válido mayor a cero.");
       return;
     }
 
     setDepLoading(true);
     try {
       const res = await api.post("/api/sales/bank-deposit", {
-        accountNumber: depAccount,
-        targetName: depName,
+        accountNumber: isMercadoPago ? "" : depAccount,
+        targetName: isMercadoPago ? "" : depName,
         amount: Number(depAmount),
-        paymentType: "EFECTIVO", // Forzamos EFECTIVO
+        paymentType: depType,
         comments: depComments
       });
       
@@ -1119,6 +1124,7 @@ const Dashboard: React.FC = () => {
       setDepName("");
       setDepAmount("");
       setDepComments("");
+      setDepType("EFECTIVO");
       
       await loadDashboardData();
       setActiveModal("deposit-receipt");
@@ -1126,6 +1132,20 @@ const Dashboard: React.FC = () => {
       showToast(err.response?.data?.message || "Error al procesar el depósito.");
     } finally {
       setDepLoading(false);
+    }
+  };
+
+  const handleSyncDeposit = async (id: number) => {
+    try {
+      const res = await api.post(`/api/sales/deposits/${id}/sync`);
+      showToast(res.data.message || "Depósito sincronizado.");
+      if (lastDeposit && lastDeposit.id === id) {
+        setLastDeposit(res.data.deposit);
+      }
+      await handleSearchDeposits();
+      await loadDashboardData();
+    } catch (err: any) {
+      showToast(err.response?.data?.message || "Error al sincronizar el depósito.");
     }
   };
   // ---------------------------------------------------------------------------
@@ -2264,7 +2284,28 @@ const Dashboard: React.FC = () => {
               <div style={{ textAlign: "center", padding: "20px 0" }}>
                  <p style={{marginBottom: "10px", fontSize: "14px", color: "#475569"}}>Escanea el siguiente código para pagar <strong>${cartTotal.toFixed(2)}</strong></p>
                  {qrUrl ? (
-                   <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" width="200" height="200" />
+                   <>
+                     <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" width="200" height="200" />
+                     <div style={{ marginTop: "12px" }}>
+                       <a 
+                         href={qrUrl} 
+                         target="_blank" 
+                         rel="noopener noreferrer" 
+                         style={{ 
+                           fontSize: "12px", 
+                           color: "#2563eb", 
+                           textDecoration: "underline", 
+                           fontWeight: "600", 
+                           display: "inline-block", 
+                           padding: "6px 12px", 
+                           backgroundColor: "#f1f5f9", 
+                           borderRadius: "6px" 
+                         }}
+                       >
+                         🔗 Abrir enlace de pago / Sandbox
+                       </a>
+                     </div>
+                   </>
                  ) : (
                    <p>Generando QR...</p>
                  )}
@@ -2754,10 +2795,15 @@ const Dashboard: React.FC = () => {
                   )}
                 </div>
 
-                <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "12px", paddingTop: "8px", fontSize: "9px", textAlign: "center", color: "#64748b", lineHeight: "1.4" }}>
+                <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "12px", paddingTop: "8px", fontSize: "9px", textAlign: "center", color: "#64748b", lineHeight: "1.4", display: "flex", flexDirection: "column", alignItems: "center" }}>
                   <p>Portal de Autofacturación:</p>
-                  <p style={{ fontWeight: "700" }}>http://localhost:5173/autofacturacion</p>
-                  <p>Factura con tu folio de compra</p>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.origin + "/autofacturacion")}`}
+                    alt="QR Facturación"
+                    style={{ width: "100px", height: "100px", marginTop: "6px", marginBottom: "6px" }}
+                  />
+                  <p style={{ fontWeight: "700", wordBreak: "break-all" }}>{window.location.origin + "/autofacturacion"}</p>
+                  <p>Escanea el código QR para facturar tu compra</p>
                 </div>
 
                 <div style={{ textAlign: "center", marginTop: "20px", fontSize: "10px", color: "#64748b" }}>
@@ -3713,10 +3759,15 @@ const Dashboard: React.FC = () => {
                 )}
               </div>
 
-              <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "12px", paddingTop: "8px", fontSize: "9px", textAlign: "center", color: "#64748b", lineHeight: "1.4" }}>
+              <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "12px", paddingTop: "8px", fontSize: "9px", textAlign: "center", color: "#64748b", lineHeight: "1.4", display: "flex", flexDirection: "column", alignItems: "center" }}>
                 <p>Portal de Autofacturación:</p>
-                <p style={{ fontWeight: "700" }}>http://localhost:5173/autofacturacion</p>
-                <p>Factura con tu folio de compra</p>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.origin + "/autofacturacion")}`}
+                  alt="QR Facturación"
+                  style={{ width: "100px", height: "100px", marginTop: "6px", marginBottom: "6px" }}
+                />
+                <p style={{ fontWeight: "700", wordBreak: "break-all" }}>{window.location.origin + "/autofacturacion"}</p>
+                <p>Escanea el código QR para facturar tu compra</p>
               </div>
 
               <div style={{ textAlign: "center", marginTop: "20px", fontSize: "10px", color: "#64748b" }}>
@@ -4197,7 +4248,9 @@ const Dashboard: React.FC = () => {
                         </div>
                         <div>
                           <span style={{ color: "#64748b" }}>Estado del Registro:</span>
-                          <strong style={{ display: "block", color: "#059669", marginTop: "2px" }}>COMPLETED (Salida Física)</strong>
+                          <strong style={{ display: "block", color: depType.startsWith("MERCADOPAGO_") ? "#d97706" : "#059669", marginTop: "2px" }}>
+                            {depType.startsWith("MERCADOPAGO_") ? "PENDING (Espera de Pago)" : "COMPLETED (Salida Física)"}
+                          </strong>
                         </div>
                         <div>
                           <span style={{ color: "#64748b" }}>Fecha de Registro:</span>
@@ -4205,35 +4258,63 @@ const Dashboard: React.FC = () => {
                         </div>
                         <div>
                           <span style={{ color: "#64748b" }}>Método de Retiro:</span>
-                          <strong style={{ display: "block", color: "#0f172a", marginTop: "2px" }}>Efectivo en Caja Chica</strong>
+                          <strong style={{ display: "block", color: "#0f172a", marginTop: "2px" }}>
+                            {depType === "EFECTIVO" ? "Efectivo en Caja Chica" : `Mercado Pago (${depType.replace("MERCADOPAGO_", "")})`}
+                          </strong>
                         </div>
                       </div>
                     </div>
 
                     <div style={styles.inputGroup}>
-                      <label style={styles.label}>Número de Cuenta Target (16 dígitos):</label>
-                      <input
-                        type="text"
-                        maxLength={16}
-                        required
-                        className="input-corporate"
-                        placeholder="Ej. 1234567890123456"
-                        value={depAccount}
-                        onChange={(e) => setDepAccount(e.target.value)}
-                      />
+                      <label style={styles.label}>Método de Retiro / Depósito:</label>
+                      <select
+                        value={depType}
+                        onChange={(e) => {
+                          setDepType(e.target.value);
+                          if (e.target.value.startsWith("MERCADOPAGO_")) {
+                            setDepAccount("");
+                            setDepName("");
+                          }
+                        }}
+                        style={styles.select}
+                      >
+                        <option value="EFECTIVO">Efectivo en Caja Chica (Manual)</option>
+                        <option value="MERCADOPAGO_OXXO">Mercado Pago - OXXO (Establecimiento)</option>
+                        <option value="MERCADOPAGO_BBVA">Mercado Pago - BBVA Bancomer (Establecimiento)</option>
+                        <option value="MERCADOPAGO_SANTANDER">Mercado Pago - Santander (Establecimiento)</option>
+                        <option value="MERCADOPAGO_CITIBANAMEX">Mercado Pago - Citibanamex (Establecimiento)</option>
+                        <option value="MERCADOPAGO_7ELEVEN">Mercado Pago - 7-Eleven (Establecimiento)</option>
+                      </select>
                     </div>
 
-                    <div style={styles.inputGroup}>
-                      <label style={styles.label}>Nombre del Beneficiario:</label>
-                      <input
-                        type="text"
-                        required
-                        className="input-corporate"
-                        placeholder="Nombre de la persona o banco"
-                        value={depName}
-                        onChange={(e) => setDepName(e.target.value)}
-                      />
-                    </div>
+                    {!depType.startsWith("MERCADOPAGO_") && (
+                      <>
+                        <div style={styles.inputGroup}>
+                          <label style={styles.label}>Número de Cuenta Target (16 dígitos):</label>
+                          <input
+                            type="text"
+                            maxLength={16}
+                            required
+                            className="input-corporate"
+                            placeholder="Ej. 1234567890123456"
+                            value={depAccount}
+                            onChange={(e) => setDepAccount(e.target.value)}
+                          />
+                        </div>
+
+                        <div style={styles.inputGroup}>
+                          <label style={styles.label}>Nombre del Beneficiario:</label>
+                          <input
+                            type="text"
+                            required
+                            className="input-corporate"
+                            placeholder="Nombre de la persona o banco"
+                            value={depName}
+                            onChange={(e) => setDepName(e.target.value)}
+                          />
+                        </div>
+                      </>
+                    )}
 
                     <div style={styles.inputGroup}>
                       <label style={styles.label}>Monto a Retirar y Depositar ($):</label>
@@ -4241,7 +4322,7 @@ const Dashboard: React.FC = () => {
                         type="text"
                         required
                         className="input-corporate"
-                        placeholder="Monto a retirar en efectivo"
+                        placeholder={depType.startsWith("MERCADOPAGO_") ? "Monto a depositar en MP" : "Monto a retirar en efectivo"}
                         value={depAmount}
                         onChange={(e) => setDepAmount(e.target.value)}
                       />
@@ -4372,7 +4453,11 @@ const Dashboard: React.FC = () => {
                                   <div style={{ fontSize: "10px", color: "#64748b" }}>{new Date(dep.createdAt).toLocaleDateString()}</div>
                                 </td>
                                 <td style={{ ...styles.td, padding: "8px", fontSize: "12px" }}>
-                                  <div>****{dep.accountNumber.slice(-4)}</div>
+                                  {dep.paymentType?.startsWith("MERCADOPAGO_") ? (
+                                    <div>Ref: {dep.accountNumber}</div>
+                                  ) : (
+                                    <div>****{dep.accountNumber.slice(-4)}</div>
+                                  )}
                                   <div style={{ fontSize: "10px", color: "#64748b" }}>{dep.targetName}</div>
                                 </td>
                                 <td style={{ ...styles.td, padding: "8px", fontSize: "12px", fontWeight: "700", color: dep.status === "CANCELLED" ? "#b91c1c" : "#0f172a" }}>
@@ -4410,6 +4495,24 @@ const Dashboard: React.FC = () => {
                                     >
                                       Ver
                                     </button>
+                                    {dep.status === "PENDING" && dep.paymentType?.startsWith("MERCADOPAGO_") && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSyncDeposit(dep.id)}
+                                        style={{
+                                          padding: "4px 6px",
+                                          borderRadius: "4px",
+                                          backgroundColor: "#d1fae5",
+                                          color: "#065f46",
+                                          border: "1px solid #a7f3d0",
+                                          fontSize: "10px",
+                                          fontWeight: "700",
+                                          cursor: "pointer"
+                                        }}
+                                      >
+                                        Sincronizar
+                                      </button>
+                                    )}
                                     {dep.status !== "CANCELLED" && (
                                       <button
                                         type="button"
@@ -4455,139 +4558,213 @@ const Dashboard: React.FC = () => {
       )}
 
       {/* MODAL: COMPROBANTE DE RETIRO/DEPÓSITO BANCARIO (Fase 3.0) */}
-      {activeModal === "deposit-receipt" && lastDeposit && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.ticketModal}>
-            <h3 style={styles.modalTitle}>Comprobante de Retiro</h3>
-            <p style={{ fontSize: "11px", color: "#64748b", margin: "4px 0 16px 0", textAlign: "center" }}>
-              Depósito bancario registrado exitosamente en base de datos.
-            </p>
-            
-            <div style={styles.ticketContainer} id="deposit-thermal-receipt">
-              <div style={{ textAlign: "center", borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px", marginBottom: "10px" }}>
-                <strong style={{ fontSize: "14px" }}>LYFRGL POS</strong>
-                <p style={{ fontSize: "11px", margin: "2px 0 0 0" }}>{user?.branch.name}</p>
-                <p style={{ fontSize: "9px", margin: "2px 0 0 0", color: "#64748b" }}>
-                  {new Date(lastDeposit.createdAt).toLocaleString()}
-                </p>
-              </div>
+      {activeModal === "deposit-receipt" && lastDeposit && (() => {
+        let mpMeta: any = null;
+        if (lastDeposit.paymentType?.startsWith("MERCADOPAGO_")) {
+          try {
+            mpMeta = JSON.parse(lastDeposit.comments);
+          } catch (e) {}
+        }
+        return (
+          <div style={styles.modalOverlay}>
+            <div style={styles.ticketModal}>
+              <h3 style={styles.modalTitle}>Comprobante de Retiro</h3>
+              <p style={{ fontSize: "11px", color: "#64748b", margin: "4px 0 16px 0", textAlign: "center" }}>
+                Depósito bancario registrado exitosamente en base de datos.
+              </p>
+              
+              <div style={styles.ticketContainer} id="deposit-thermal-receipt">
+                <div style={{ textAlign: "center", borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px", marginBottom: "10px" }}>
+                  <strong style={{ fontSize: "14px" }}>LYFRGL POS</strong>
+                  <p style={{ fontSize: "11px", margin: "2px 0 0 0" }}>{user?.branch.name}</p>
+                  <p style={{ fontSize: "9px", margin: "2px 0 0 0", color: "#64748b" }}>
+                    {new Date(lastDeposit.createdAt).toLocaleString()}
+                  </p>
+                </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "11px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>TIPO MOV:</span>
-                  <strong>RETIRO DE CAJA (DEPÓSITO)</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>ID RETIRO:</span>
-                  <strong>#{lastDeposit.id}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>CUENTA DESTINO:</span>
-                  <strong>**** **** **** {lastDeposit.accountNumber.slice(-4)}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>BENEFICIARIO:</span>
-                  <strong style={{ textAlign: "right" }}>{lastDeposit.targetName}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>MÉTODO DE RETIRO:</span>
-                  <strong>{lastDeposit.paymentType}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>SESIÓN DE CAJA:</span>
-                  <strong>#{lastDeposit.sessionId}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>CAJERO:</span>
-                  <strong>{lastDeposit.userName || user?.name}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>REFERENCIA:</span>
-                  <strong>{lastDeposit.reference || "N/A"}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>ESTADO:</span>
-                  <strong style={{ color: lastDeposit.status === "CANCELLED" ? "#b91c1c" : "inherit" }}>
-                    {lastDeposit.status === "CANCELLED" ? "CANCELADO" : (lastDeposit.status || "PENDING")}
-                  </strong>
-                </div>
-                {lastDeposit.status === "CANCELLED" && lastDeposit.cancelledAt && (
-                  <>
-                    <div style={{ display: "flex", justifyContent: "space-between", color: "#b91c1c" }}>
-                      <span>CANCELADO EL:</span>
-                      <strong>{new Date(lastDeposit.cancelledAt).toLocaleString()}</strong>
-                    </div>
-                    {lastDeposit.cancelReason && (
-                      <div style={{ borderTop: "1px dashed #fca5a5", paddingTop: "4px", marginTop: "2px", color: "#b91c1c" }}>
-                        <span>MOTIVO CANCELACIÓN:</span>
-                        <p style={{ margin: "2px 0 0 0", fontSize: "10px", fontStyle: "italic" }}>
-                          {lastDeposit.cancelReason}
-                        </p>
-                      </div>
-                    )}
-                  </>
-                )}
-                {lastDeposit.comments && (
-                  <div style={{ borderTop: "1px dashed #cbd5e1", paddingTop: "6px", marginTop: "4px" }}>
-                    <span>REF/COMENTARIOS:</span>
-                    <p style={{ margin: "2px 0 0 0", fontSize: "10px", fontStyle: "italic", color: "#475569" }}>
-                      {lastDeposit.comments}
-                    </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "11px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>TIPO MOV:</span>
+                    <strong>RETIRO DE CAJA (DEPÓSITO)</strong>
                   </div>
-                )}
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>ID RETIRO:</span>
+                    <strong>#{lastDeposit.id}</strong>
+                  </div>
+                  
+                  {lastDeposit.paymentType?.startsWith("MERCADOPAGO_") ? (
+                    <>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>MÉTODO RETIRO:</span>
+                        <strong>{lastDeposit.paymentType.replace("MERCADOPAGO_", "")} (Mercado Pago)</strong>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>REFERENCIA MP:</span>
+                        <strong>{lastDeposit.accountNumber}</strong>
+                      </div>
+                      {mpMeta && mpMeta.convenio && mpMeta.convenio !== "N/A" && (
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span>CONVENIO:</span>
+                          <strong>{mpMeta.convenio}</strong>
+                        </div>
+                      )}
+                      {mpMeta && mpMeta.expirationDate && (
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span>EXPIRA:</span>
+                          <strong>{new Date(mpMeta.expirationDate).toLocaleDateString()}</strong>
+                        </div>
+                      )}
+                      {mpMeta && mpMeta.barcode && mpMeta.barcode !== "N/A" && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "2px", borderTop: "1px dashed #cbd5e1", paddingTop: "4px", marginTop: "2px" }}>
+                          <span style={{ color: "#64748b" }}>CÓDIGO DE BARRAS:</span>
+                          <strong style={{ fontSize: "10px", wordBreak: "break-all" }}>{mpMeta.barcode}</strong>
+                        </div>
+                      )}
+                      {mpMeta && mpMeta.ticketUrl && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "2px", borderTop: "1px dashed #cbd5e1", paddingTop: "4px", marginTop: "2px" }} className="no-print">
+                          <span style={{ color: "#64748b" }}>TICKET DIGITAL:</span>
+                          <a 
+                            href={mpMeta.ticketUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            style={{ color: "#2563eb", textDecoration: "underline", wordBreak: "break-all", fontSize: "10px", fontWeight: "bold" }}
+                          >
+                            Ver Instrucciones de Pago
+                          </a>
+                        </div>
+                      )}
+                      {mpMeta && mpMeta.userComments && (
+                        <div style={{ borderTop: "1px dashed #cbd5e1", paddingTop: "6px", marginTop: "4px" }}>
+                          <span>REF/COMENTARIOS:</span>
+                          <p style={{ margin: "2px 0 0 0", fontSize: "10px", fontStyle: "italic", color: "#475569" }}>
+                            {mpMeta.userComments}
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>CUENTA DESTINO:</span>
+                        <strong>**** **** **** {lastDeposit.accountNumber.slice(-4)}</strong>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>BENEFICIARIO:</span>
+                        <strong style={{ textAlign: "right" }}>{lastDeposit.targetName}</strong>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>MÉTODO DE RETIRO:</span>
+                        <strong>{lastDeposit.paymentType}</strong>
+                      </div>
+                      {lastDeposit.comments && (
+                        <div style={{ borderTop: "1px dashed #cbd5e1", paddingTop: "6px", marginTop: "4px" }}>
+                          <span>REF/COMENTARIOS:</span>
+                          <p style={{ margin: "2px 0 0 0", fontSize: "10px", fontStyle: "italic", color: "#475569" }}>
+                            {lastDeposit.comments}
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>SESIÓN DE CAJA:</span>
+                    <strong>#{lastDeposit.sessionId || lastDeposit.cashSessionId}</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>CAJERO:</span>
+                    <strong>{lastDeposit.userName || user?.name}</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>REFERENCIA:</span>
+                    <strong>{lastDeposit.reference || "N/A"}</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>ESTADO:</span>
+                    <strong style={{ color: lastDeposit.status === "CANCELLED" ? "#b91c1c" : lastDeposit.status === "PENDING" ? "#d97706" : "inherit" }}>
+                      {lastDeposit.status === "CANCELLED" ? "CANCELADO" : lastDeposit.status === "PENDING" ? "PENDIENTE" : (lastDeposit.status || "COMPLETED")}
+                    </strong>
+                  </div>
+                  {lastDeposit.status === "CANCELLED" && lastDeposit.cancelledAt && (
+                    <>
+                      <div style={{ display: "flex", justifyContent: "space-between", color: "#b91c1c" }}>
+                        <span>CANCELADO EL:</span>
+                        <strong>{new Date(lastDeposit.cancelledAt).toLocaleString()}</strong>
+                      </div>
+                      {lastDeposit.cancelReason && (
+                        <div style={{ borderTop: "1px dashed #fca5a5", paddingTop: "4px", marginTop: "2px", color: "#b91c1c" }}>
+                          <span>MOTIVO CANCELACIÓN:</span>
+                          <p style={{ margin: "2px 0 0 0", fontSize: "10px", fontStyle: "italic" }}>
+                            {lastDeposit.cancelReason}
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                <div style={{ marginTop: "14px", paddingTop: "8px", borderTop: "2px solid #0f172a", display: "flex", justifyContent: "space-between", fontSize: "14px" }}>
+                  <strong>TOTAL RETIRADO:</strong>
+                  <strong>${Number(lastDeposit.amount).toFixed(2)} MXN</strong>
+                </div>
+
+                <div style={{ textAlign: "center", marginTop: "20px", fontSize: "9px", color: "#64748b", borderTop: "1px dashed #cbd5e1", paddingTop: "8px" }}>
+                  <span>*** COMPROBANTE DE MOVIMIENTO INTERNO ***</span>
+                </div>
               </div>
 
-              <div style={{ marginTop: "14px", paddingTop: "8px", borderTop: "2px solid #0f172a", display: "flex", justifyContent: "space-between", fontSize: "14px" }}>
-                <strong>TOTAL RETIRADO:</strong>
-                <strong>${Number(lastDeposit.amount).toFixed(2)} MXN</strong>
-              </div>
-
-              <div style={{ textAlign: "center", marginTop: "20px", fontSize: "9px", color: "#64748b", borderTop: "1px dashed #cbd5e1", paddingTop: "8px" }}>
-                <span>*** COMPROBANTE DE MOVIMIENTO INTERNO ***</span>
-              </div>
-            </div>
-
-            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
-              <button 
-                onClick={() => {
-                  const printContents = document.getElementById("deposit-thermal-receipt")?.innerHTML;
-                  if (printContents) {
-                    const printWindow = window.open("", "_blank");
-                    if (printWindow) {
-                      printWindow.document.write(`
-                        <html>
-                          <head>
-                            <title>Comprobante de Retiro #${lastDeposit.id}</title>
-                            <style>
-                              body { font-family: monospace; padding: 20px; width: 300px; margin: 0 auto; }
-                              table { width: 100%; border-collapse: collapse; }
-                              th, td { text-align: left; padding: 4px; }
-                              .dashed { border-top: 1px dashed #000; margin: 10px 0; }
-                              .total { font-weight: bold; font-size: 14px; border-top: 2px solid #000; padding-top: 5px; }
-                              .center { text-align: center; }
-                            </style>
-                          </head>
-                          <body>
-                            ${printContents}
-                            <script>window.print(); window.close();</script>
-                          </body>
-                        </html>
-                      `);
-                      printWindow.document.close();
+              <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+                <button 
+                  onClick={() => {
+                    const printContents = document.getElementById("deposit-thermal-receipt")?.innerHTML;
+                    if (printContents) {
+                      const printWindow = window.open("", "_blank");
+                      if (printWindow) {
+                        printWindow.document.write(`
+                          <html>
+                            <head>
+                              <title>Comprobante de Retiro #${lastDeposit.id}</title>
+                              <style>
+                                body { font-family: monospace; padding: 20px; width: 300px; margin: 0 auto; }
+                                table { width: 100%; border-collapse: collapse; }
+                                th, td { text-align: left; padding: 4px; }
+                                .dashed { border-top: 1px dashed #000; margin: 10px 0; }
+                                .total { font-weight: bold; font-size: 14px; border-top: 2px solid #000; padding-top: 5px; }
+                                .center { text-align: center; }
+                                .no-print { display: none !important; }
+                              </style>
+                            </head>
+                            <body>
+                              ${printContents}
+                              <script>window.print(); window.close();</script>
+                            </body>
+                          </html>
+                        `);
+                        printWindow.document.close();
+                      }
                     }
-                  }
-                }} 
-                style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
-              >
-                IMPRIMIR
-              </button>
-              <button onClick={handleCloseModal_bankDeposit} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
-                CERRAR
-              </button>
+                  }} 
+                  style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
+                >
+                  IMPRIMIR
+                </button>
+                {lastDeposit.status === "PENDING" && lastDeposit.paymentType?.startsWith("MERCADOPAGO_") && (
+                  <button
+                    type="button"
+                    onClick={() => handleSyncDeposit(lastDeposit.id)}
+                    style={{ ...styles.modalBtn, backgroundColor: "#2563eb", color: "white" }}
+                  >
+                    VERIFICAR PAGO
+                  </button>
+                )}
+                <button onClick={handleCloseModal_bankDeposit} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
+                  CERRAR
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* MODAL: VER QR DE PAGO PENDIENTE Y CONTROL DE CANCELACIÓN */}
       {viewingPendingQrSale && (

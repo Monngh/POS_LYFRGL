@@ -17,6 +17,8 @@ import {
   LogOut,
   RefreshCw,
   Store,
+  BadgePercent,
+  Tags,
   type LucideIcon,
 } from "lucide-react";
 
@@ -32,6 +34,8 @@ import KardexView from "./admin/KardexView";
 import ComprasView from "./admin/ComprasView";
 import DepositosView from "./admin/DepositosView";
 import ProveedoresView from "./admin/ProveedoresView";
+import ImpuestosView from "./admin/ImpuestosView";
+import PromocionesView from "./admin/PromocionesView";
 import type { ViewProps } from "./admin/shared";
 
 interface BranchOption {
@@ -51,6 +55,8 @@ const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<
   { key: "empleados", label: "Empleados", icon: UserCog, view: EmpleadosView, branchScoped: true },
   { key: "sucursales", label: "Sucursales", icon: Building2, view: SucursalesView, branchScoped: false },
   { key: "proveedores", label: "Proveedores", icon: Building2, view: ProveedoresView, branchScoped: false },
+  { key: "impuestos", label: "Impuestos", icon: BadgePercent, view: ImpuestosView, branchScoped: false },
+  { key: "promociones", label: "Promociones", icon: Tags, view: PromocionesView, branchScoped: false },
   { key: "reportes", label: "Reportes", icon: BarChart3, view: ReportesView, branchScoped: true },
 ];
 
@@ -59,7 +65,7 @@ const NAV_SECTIONS: { label: string; items: string[] }[] = [
   { label: "Operación", items: ["ventas", "compras"] },
   { label: "Caja y finanzas", items: ["cajas", "depositos"] },
   { label: "Inventario", items: ["inventario"] },
-  { label: "Catálogos", items: ["clientes", "empleados", "sucursales", "proveedores"] },
+  { label: "Catálogos", items: ["clientes", "empleados", "sucursales", "proveedores", "impuestos", "promociones"] },
   { label: "Reportes", items: ["reportes"] },
 ];
 
@@ -229,7 +235,7 @@ const styles: { [k: string]: React.CSSProperties } = {
     flexShrink: 0,
   },
   brandText: { color: "#ffffff", fontWeight: 800, fontSize: 16, letterSpacing: "-0.3px", whiteSpace: "nowrap" },
-  nav: { display: "flex", flexDirection: "column", gap: 4, padding: "16px 12px", flex: 1, overflowY: "auto" },
+  nav: { display: "flex", flexDirection: "column", gap: 4, padding: "16px 12px", flex: 1, minHeight: 0, overflowY: "auto" },
   navSectionLabel: {
     fontSize: 10,
     fontWeight: 700,
