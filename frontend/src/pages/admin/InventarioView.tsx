@@ -164,10 +164,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [transferError, setTransferError] = useState<string | null>(null);
 
 
-
   // Suppliers catalog (shared between create + detail modals)
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
-  const [selectedSuppliers, setSelectedSuppliers] = useState<number[]>([]);
+
   const [productSuppliers, setProductSuppliers] = useState<number[]>([]);
   const [editingSuppliersMode, setEditingSuppliersMode] = useState(false);
   const [suppliersError, setSuppliersError] = useState<string | null>(null);
@@ -285,8 +284,6 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       alert(getErrorMessage(err, "No se pudo cambiar el estado del producto."));
     }
   };
-
-
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -556,8 +553,6 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     }
   };
 
-
-
   const saveSuppliersChanges = async () => {
     if (!selectedProduct) return;
     setSuppliersError(null);
@@ -604,7 +599,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       />
 
       <div style={{ display: "flex", gap: 0, marginBottom: 18, borderBottom: "1px solid #e2e8f0" }}>
-        {([`existencias`, `kardex`] as const).map((tab) => {
+        {(["existencias", "kardex"] as const).map((tab) => {
           const isActive = activeTab === tab;
           return (
             <button
@@ -830,16 +825,20 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
                     {!selectedProduct.active && <Badge tone="red">Inactivo</Badge>}
                     {selectedProduct.isReturnable && (
-                      <Badge tone="blue">Devoluciones permitidas ({selectedProduct.returnWindowDays} días)</Badge>
+                      <Badge tone="green">Retornable ({selectedProduct.returnWindowDays}d)</Badge>
                     )}
-                    {selectedProduct.trackingType === "SERIE" && <Badge tone="amber">Rastreo por Serie</Badge>}
-                    {selectedProduct.trackingType === "LOTE" && <Badge tone="amber">Rastreo por Lote</Badge>}
+                    {selectedProduct.trackingType !== "NONE" && (
+                      <Badge tone="blue">Tracking: {selectedProduct.trackingType}</Badge>
+                    )}
+                    {selectedProduct.description && (
+                      <span style={{ fontSize: 12, color: "#64748b" }}>{selectedProduct.description}</span>
+                    )}
                   </div>
 
-                  {/* ── Existencias por sucursal ── */}
-                  <div style={{ marginBottom: 20 }}>
+                  {/* ── Stock por sucursal ── */}
+                  <div style={{ marginBottom: 16 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#1e3a8a", marginBottom: 10 }}>
-                      Existencias por Sucursal
+                      Stock por sucursal
                     </div>
                     <div style={{ ...ui.tableWrap, boxShadow: "none" }}>
                       <table style={ui.table}>
@@ -847,12 +846,19 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           <tr style={ui.theadRow}>
                             <th style={ui.th}>Sucursal</th>
                             <th style={{ ...ui.th, textAlign: "center" }}>Stock</th>
-                            <th style={{ ...ui.th, textAlign: "center" }}>Min</th>
-                            <th style={{ ...ui.th, textAlign: "center" }}>Max</th>
-                            <th style={{ ...ui.th, textAlign: "center" }}>Alerta</th>
+                            <th style={{ ...ui.th, textAlign: "center" }}>Mín</th>
+                            <th style={{ ...ui.th, textAlign: "center" }}>Máx</th>
+                            <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
                           </tr>
                         </thead>
                         <tbody>
+                          {selectedProduct.inventories.length === 0 && (
+                            <tr>
+                              <td colSpan={5} style={{ ...ui.td, textAlign: "center", color: "#94a3b8" }}>
+                                Sin inventario registrado
+                              </td>
+                            </tr>
+                          )}
                           {selectedProduct.inventories.map((inv) => (
                             <tr key={inv.id}>
                               <td style={ui.td}>{inv.branch}</td>
@@ -1060,27 +1066,23 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
       {/* =================== SUB-MODAL: AJUSTAR STOCK =================== */}
       {adjustOpen && selectedProduct && (
-        <div style={ui.overlay} onClick={() => setAdjustOpen(false)}>
+        <div style={subModalStyle} onClick={() => setAdjustOpen(false)}>
           <div style={{ ...ui.modal, maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
             <div style={ui.modalHeader}>
-              <div style={ui.modalTitle}>Ajustar Stock Manual</div>
+              <div style={ui.modalTitle}>⚙️ Ajustar stock — {selectedProduct.name}</div>
               <button onClick={() => setAdjustOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }}>
                 <X size={16} />
               </button>
             </div>
             <div style={ui.modalBody}>
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Producto</label>
-                <div style={{ fontWeight: 600, color: "#0f172a" }}>{selectedProduct.name}</div>
-              </div>
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Sucursal de ajuste *</label>
+              <div style={{ marginBottom: 16 }}>
+                <label style={ui.fieldLabel}>Sucursal</label>
                 <select
-                  value={adjustBranch}
-                  onChange={(e) => setAdjustBranch(parseInt(e.target.value) || 0)}
-                  style={ui.input}
+                  value={adjustBranch || ""}
+                  onChange={(e) => setAdjustBranch(Number(e.target.value))}
+                  style={{ ...ui.input, cursor: "pointer" }}
                 >
-                  <option value={0}>-- Selecciona sucursal --</option>
+                  <option value="">Selecciona sucursal</option>
                   {selectedProduct.inventories.map((inv) => (
                     <option key={inv.branchId} value={inv.branchId}>
                       {inv.branch} (Stock actual: {inv.quantity})
@@ -1088,48 +1090,49 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   ))}
                 </select>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-                <div>
-                  <label style={ui.fieldLabel}>Tipo de ajuste *</label>
-                  <select
-                    value={adjustType}
-                    onChange={(e) => setAdjustType(e.target.value)}
-                    style={ui.input}
-                  >
-                    <option value="">-- Selecciona --</option>
-                    <option value="AJUSTE_ENTRADA">Entrada (+)</option>
-                    <option value="AJUSTE_SALIDA">Salida (-)</option>
-                    <option value="MERMA">Merma (-)</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={ui.fieldLabel}>Cantidad *</label>
-                  <input
-                    type="number"
-                    value={adjustQuantity || ""}
-                    onChange={(e) => setAdjustQuantity(parseInt(e.target.value) || 0)}
-                    placeholder="Cantidad"
-                    style={ui.input}
-                  />
-                </div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={ui.fieldLabel}>Tipo de movimiento</label>
+                <select
+                  value={adjustType}
+                  onChange={(e) => setAdjustType(e.target.value)}
+                  style={{ ...ui.input, cursor: "pointer" }}
+                >
+                  <option value="">Selecciona tipo</option>
+                  <option value="AJUSTE_INVENTARIO">Entrada / Ajuste positivo</option>
+                  <option value="AJUSTE_MERMA">Salida / Merma o pérdida</option>
+                </select>
               </div>
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Motivo del ajuste *</label>
+              <div style={{ marginBottom: 16 }}>
+                <label style={ui.fieldLabel}>Cantidad</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={adjustQuantity || ""}
+                  onChange={(e) => setAdjustQuantity(parseInt(e.target.value) || 0)}
+                  style={ui.input}
+                />
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={ui.fieldLabel}>Motivo</label>
                 <textarea
                   value={adjustReason}
                   onChange={(e) => setAdjustReason(e.target.value)}
-                  placeholder="Justifica el movimiento de inventario"
-                  style={{ ...ui.input, minHeight: 60, resize: "vertical", fontFamily: "inherit" }}
+                  placeholder="Describe el motivo del ajuste"
+                  style={{
+                    ...ui.input,
+                    minHeight: 80,
+                    resize: "vertical",
+                    fontFamily: "inherit",
+                  }}
                 />
               </div>
-
               {adjustError && (
                 <p style={{ fontSize: 13, color: "#b91c1c", marginBottom: 12 }}>{adjustError}</p>
               )}
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid #e2e8f0" }}>
               <button onClick={() => setAdjustOpen(false)} style={ui.ghostBtn}>Cancelar</button>
-              <button onClick={submitAdjustment} style={ui.primaryBtn}>✓ Aplicar Ajuste</button>
+              <button onClick={submitAdjustment} style={ui.primaryBtn}>✓ Aplicar ajuste</button>
             </div>
           </div>
         </div>
@@ -1137,62 +1140,57 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
       {/* =================== SUB-MODAL: TRASLADAR STOCK =================== */}
       {transferOpen && selectedProduct && (
-        <div style={ui.overlay} onClick={() => setTransferOpen(false)}>
+        <div style={subModalStyle} onClick={() => setTransferOpen(false)}>
           <div style={{ ...ui.modal, maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
             <div style={ui.modalHeader}>
-              <div style={ui.modalTitle}>Trasladar Stock entre Sucursales</div>
+              <div style={ui.modalTitle}>🔄 Trasladar stock — {selectedProduct.name}</div>
               <button onClick={() => setTransferOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }}>
                 <X size={16} />
               </button>
             </div>
             <div style={ui.modalBody}>
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Producto</label>
-                <div style={{ fontWeight: 600, color: "#0f172a" }}>{selectedProduct.name}</div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={ui.fieldLabel}>Desde (sucursal origen)</label>
+                <select
+                  value={transferFrom || ""}
+                  onChange={(e) => setTransferFrom(Number(e.target.value))}
+                  style={{ ...ui.input, cursor: "pointer" }}
+                >
+                  <option value="">Selecciona origen</option>
+                  {selectedProduct.inventories.map((inv) => (
+                    <option key={inv.branchId} value={inv.branchId}>
+                      {inv.branch} (Stock: {inv.quantity})
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-                <div>
-                  <label style={ui.fieldLabel}>Origen *</label>
-                  <select
-                    value={transferFrom}
-                    onChange={(e) => setTransferFrom(parseInt(e.target.value) || 0)}
-                    style={ui.input}
-                  >
-                    <option value={0}>-- Selecciona --</option>
-                    {selectedProduct.inventories.map((inv) => (
+              <div style={{ marginBottom: 16 }}>
+                <label style={ui.fieldLabel}>Hacia (sucursal destino)</label>
+                <select
+                  value={transferTo || ""}
+                  onChange={(e) => setTransferTo(Number(e.target.value))}
+                  style={{ ...ui.input, cursor: "pointer" }}
+                >
+                  <option value="">Selecciona destino</option>
+                  {selectedProduct.inventories
+                    .filter((inv) => inv.branchId !== transferFrom)
+                    .map((inv) => (
                       <option key={inv.branchId} value={inv.branchId}>
-                        {inv.branch} ({inv.quantity} pzs)
+                        {inv.branch}
                       </option>
                     ))}
-                  </select>
-                </div>
-                <div>
-                  <label style={ui.fieldLabel}>Destino *</label>
-                  <select
-                    value={transferTo}
-                    onChange={(e) => setTransferTo(parseInt(e.target.value) || 0)}
-                    style={ui.input}
-                  >
-                    <option value={0}>-- Selecciona --</option>
-                    {selectedProduct.inventories.map((inv) => (
-                      <option key={inv.branchId} value={inv.branchId}>
-                        {inv.branch} ({inv.quantity} pzs)
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                </select>
               </div>
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Cantidad a trasladar *</label>
+              <div style={{ marginBottom: 16 }}>
+                <label style={ui.fieldLabel}>Cantidad a trasladar</label>
                 <input
                   type="number"
+                  min={1}
                   value={transferQty || ""}
                   onChange={(e) => setTransferQty(parseInt(e.target.value) || 0)}
-                  placeholder="Cantidad"
                   style={ui.input}
                 />
               </div>
-
               {transferError && (
                 <p style={{ fontSize: 13, color: "#b91c1c", marginBottom: 12 }}>{transferError}</p>
               )}
@@ -1204,8 +1202,6 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           </div>
         </div>
       )}
-
-      {/* =================== MODAL: ALTA Y EDICIÓN (IMPUESTOS) =================== */}
       {showForm && (
         <div style={ui.overlay} onClick={closeForm}>
           <form style={{ ...ui.modal, maxWidth: 600 }} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
@@ -1337,7 +1333,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               </div>
             </div>
           </form>
-: { [key: string]: React.CSSProperties } = {
+        </div>
+      )}
+    </div>
+  );
+};
+
+const styles: { [key: string]: React.CSSProperties } = {
   taxSection: {
     border: "1px solid #e2e8f0",
     borderRadius: 10,
