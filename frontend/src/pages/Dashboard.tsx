@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
+import "../pos-cashier-responsive.css";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
+import { ticketPdfFilename } from "../utils/ticketEmailDocument.util";
+import { generateTicketPdfBase64 } from "../utils/ticketPdf.util";
 import AdminDashboard from "./AdminDashboard";
 import { 
   LogOut, 
@@ -17,7 +20,8 @@ import {
   KeyRound,
   AlertTriangle,
   FileText,
-  RotateCcw
+  RotateCcw,
+  Mail
 } from "lucide-react";
 
 interface Product {
@@ -330,6 +334,7 @@ const Dashboard: React.FC = () => {
   const [cartPin, setCartPin] = useState("");
   const [cartPinError, setCartPinError] = useState("");
   const [cartPinLoading, setCartPinLoading] = useState(false);
+  const [cartQtyDraft, setCartQtyDraft] = useState<Record<number, string>>({});
 
   // Interfaces y Estados para Clientes y Lealtad (Fase 3.6/3.7)
   interface Customer {
@@ -360,6 +365,15 @@ const Dashboard: React.FC = () => {
   const [ticketDateFrom, setTicketDateFrom] = useState("");
   const [ticketDateTo, setTicketDateTo] = useState("");
   const [filteredSales, setFilteredSales] = useState<any[]>([]);
+
+  // Envío de ticket por correo
+  const [ticketEmailModalOpen, setTicketEmailModalOpen] = useState(false);
+  const [ticketEmailInput, setTicketEmailInput] = useState("");
+  const [ticketEmailError, setTicketEmailError] = useState("");
+  const [ticketEmailLoading, setTicketEmailLoading] = useState(false);
+  const [ticketEmailSubject, setTicketEmailSubject] = useState("");
+  const [ticketEmailElementId, setTicketEmailElementId] = useState<string | null>(null);
+  const [ticketEmailHtml, setTicketEmailHtml] = useState<string | null>(null);
 
 
   // Efecto para buscar y filtrar tickets de venta para reimpresión
@@ -565,6 +579,27 @@ const Dashboard: React.FC = () => {
           return item;
         })
         .filter((item): item is { product: Product; quantity: number } => item !== null)
+    );
+  };
+
+  const applyCartQty = (prodId: number, targetQty: number) => {
+    const item = cart.find((i) => i.product.id === prodId);
+    if (!item) return;
+
+    const qty = Math.min(Math.max(1, Math.floor(targetQty)), item.product.stock);
+    const currentQty = item.quantity;
+    if (qty === currentQty) return;
+
+    if (qty < currentQty) {
+      setCartPin("");
+      setCartPinError("");
+      setPendingCartAction({ type: "update", prodId, change: qty - currentQty });
+      setActiveModal("cart-pin-auth");
+      return;
+    }
+
+    setCart((prev) =>
+      prev.map((i) => (i.product.id === prodId ? { ...i, quantity: qty } : i))
     );
   };
 
@@ -878,6 +913,7 @@ const Dashboard: React.FC = () => {
           pointsDiscount: res.data.pointsDiscount || 0,
           customerPoints: res.data.customerPoints || 0,
           customerName: res.data.customerName || null,
+          customerEmail: selectedCustomer?.email || null,
         });
       }
 
@@ -906,6 +942,187 @@ const Dashboard: React.FC = () => {
   const handlePrintTicket = () => {
     window.print();
   };
+
+  const isValidTicketEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
+  const openTicketEmailModal = (config: {
+    subject: string;
+    elementId?: string;
+    htmlContent?: string;
+    defaultEmail?: string | null;
+  }) => {
+    setTicketEmailSubject(config.subject);
+    setTicketEmailElementId(config.elementId || null);
+    setTicketEmailHtml(config.htmlContent || null);
+    setTicketEmailInput(config.defaultEmail?.trim() || "");
+    setTicketEmailError("");
+    setTicketEmailModalOpen(true);
+  };
+
+  const buildReturnReceiptHtml = () => {
+    if (!returnReceipt) return "";
+    const rows = [
+      `<p><strong>Folio Devolución:</strong> ${returnReceipt.returnNumber}</p>`,
+      `<p><strong>Total Reembolsado:</strong> $${Number(returnReceipt.totalRefunded).toFixed(2)}</p>`,
+    ];
+    if (returnReceipt.storeCreditCode) {
+      rows.push(`<p><strong>Código de Vale:</strong> ${returnReceipt.storeCreditCode}</p>`);
+    }
+    if (returnReceipt.cfdiUuid) {
+      rows.push(`<p><strong>Nota de Crédito SAT:</strong> ${returnReceipt.cfdiUuid}</p>`);
+    }
+    if (returnReceipt.exchangeSaleInvoice) {
+      rows.push(`<p><strong>Cambio de Producto:</strong> ${returnReceipt.exchangeSaleInvoice}</p>`);
+    }
+    return `
+      <div style="font-family: monospace; font-size: 12px; color: #0f172a;">
+        <div style="text-align: center; margin-bottom: 12px;">
+          <strong style="font-size: 14px;">LYFRGL POS</strong>
+          <p style="margin: 4px 0 0 0; font-size: 11px;">COMPROBANTE DE DEVOLUCIÓN</p>
+        </div>
+        ${rows.join("")}
+        <p style="margin-top: 12px; font-size: 10px; color: #64748b; text-align: center;">Devolución procesada correctamente.</p>
+      </div>
+    `;
+  };
+
+  const handleSendTicketEmail = async () => {
+    const email = ticketEmailInput.trim();
+    if (!email) {
+      setTicketEmailError("Ingrese un correo electrónico.");
+      return;
+    }
+    if (!isValidTicketEmail(email)) {
+      setTicketEmailError("Formato de correo electrónico inválido (ej: usuario@empresa.com).");
+      return;
+    }
+
+    setTicketEmailLoading(true);
+    setTicketEmailError("");
+    try {
+      const pdfBase64 = await generateTicketPdfBase64({
+        elementId: ticketEmailElementId || undefined,
+        innerHtml: ticketEmailHtml || undefined,
+      });
+
+      const res = await api.post("/api/sales/send-ticket-email", {
+        email,
+        subject: ticketEmailSubject,
+        pdfBase64,
+        pdfFilename: ticketPdfFilename(ticketEmailSubject),
+      });
+      showToast(res.data.message, "success");
+      setTicketEmailModalOpen(false);
+    } catch (err: any) {
+      const msg =
+        (err.response?.status === 413
+          ? "El comprobante es demasiado grande para enviar. Intente de nuevo o contacte al administrador."
+          : null) ||
+        err.response?.data?.message ||
+        err.message ||
+        "Error al enviar el ticket por correo.";
+      setTicketEmailError(msg);
+      showToast(msg, "error");
+    } finally {
+      setTicketEmailLoading(false);
+    }
+  };
+
+  const renderTicketEmailModal = () => {
+    if (!ticketEmailModalOpen) return null;
+    return (
+      <div style={{ ...styles.modalOverlay, zIndex: 100000 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+        <div
+          style={{ ...styles.cancelModal, width: "420px" }}
+          className="pos-cashier-modal"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h3 style={styles.modalTitle}>Enviar ticket por correo</h3>
+          <p style={{ fontSize: "13px", color: "#475569", margin: "12px 0 16px 0", lineHeight: 1.5 }}>
+            Ingrese o confirme el correo electrónico del destinatario. El ticket se enviará como PDF adjunto con el mismo diseño de impresión.
+          </p>
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Correo electrónico *</label>
+            <input
+              type="email"
+              className="input-corporate"
+              placeholder="cliente@correo.com"
+              value={ticketEmailInput}
+              onChange={(e) => {
+                setTicketEmailInput(e.target.value);
+                if (ticketEmailError) setTicketEmailError("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !ticketEmailLoading) handleSendTicketEmail();
+              }}
+              autoFocus
+            />
+          </div>
+          {ticketEmailError && (
+            <p style={{ fontSize: "12px", color: "#dc2626", fontWeight: 600, marginBottom: "12px" }}>
+              {ticketEmailError}
+            </p>
+          )}
+          <div style={{ display: "flex", gap: "10px" }} className="pos-cashier-modal-actions">
+            <button
+              onClick={() => {
+                setTicketEmailModalOpen(false);
+                setTicketEmailError("");
+              }}
+              style={{ ...styles.modalBtn, backgroundColor: "#64748b", color: "white" }}
+              disabled={ticketEmailLoading}
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSendTicketEmail}
+              style={{ ...styles.modalBtn, backgroundColor: "#2563eb", color: "white" }}
+              disabled={ticketEmailLoading}
+            >
+              {ticketEmailLoading ? "Enviando..." : "Enviar correo"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderTicketEmailButton = (emailConfig: {
+    subject: string;
+    elementId?: string;
+    htmlContent?: string;
+    defaultEmail?: string | null;
+  }) => (
+    <button
+      onClick={() => openTicketEmailModal(emailConfig)}
+      style={{ ...styles.modalBtn, backgroundColor: "#2563eb", color: "white" }}
+    >
+      <Mail size={16} /> ENVIAR
+    </button>
+  );
+
+  const renderTicketActionButtons = (options: {
+    onClose: () => void;
+    closeLabel?: string;
+    onPrint: () => void;
+    printLabel?: string;
+    emailConfig: {
+      subject: string;
+      elementId?: string;
+      htmlContent?: string;
+      defaultEmail?: string | null;
+    };
+  }) => (
+    <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions">
+      <button onClick={options.onClose} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
+        {options.closeLabel || "CERRAR"}
+      </button>
+      {renderTicketEmailButton(options.emailConfig)}
+      <button onClick={options.onPrint} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
+        <Printer size={16} /> {options.printLabel || "IMPRIMIR"}
+      </button>
+    </div>
+  );
 
   const handleCloseTicket = () => {
     const wasNewSale = selectedSale?.isNewSale;
@@ -1552,22 +1769,22 @@ const Dashboard: React.FC = () => {
   // ===========================================================================
   if (view === "apertura") {
     return (
-      <div style={styles.appContainer}>
+      <div style={styles.appContainer} className="pos-cashier-app">
         {/* Navbar */}
-        <header style={styles.navbar}>
+        <header style={styles.navbar} className="pos-cashier-navbar">
           <div style={styles.navBrand}>
             <Store size={22} color="#ffffff" />
-            <span style={styles.brandText}>LYFRGL POS</span>
+            <span style={styles.brandText} className="pos-cashier-brand-text">LYFRGL POS</span>
           </div>
-          <button onClick={handleLogoutClick} style={styles.logoutBtn} className="active-tap">
+          <button onClick={handleLogoutClick} style={styles.logoutBtn} className="active-tap pos-cashier-logout-btn">
             <LogOut size={16} /> Salir
           </button>
         </header>
 
-        <div style={styles.mainLayout}>
+        <div style={styles.mainLayout} className="pos-cashier-main-layout">
           {/* Sidebar */}
-          <aside style={styles.sidebar}>
-            <div style={styles.sidebarProfile}>
+          <aside style={styles.sidebar} className="pos-cashier-sidebar">
+            <div style={styles.sidebarProfile} className="pos-cashier-sidebar-profile">
               <div style={styles.avatarIcon}>
                 <Users size={24} color="#475569" />
               </div>
@@ -1577,8 +1794,8 @@ const Dashboard: React.FC = () => {
           </aside>
 
           {/* Formulario Apertura Caja */}
-          <div style={styles.contentArea}>
-            <div style={styles.aperturaCard}>
+          <div style={styles.contentArea} className="pos-cashier-content">
+            <div style={styles.aperturaCard} className="pos-cashier-apertura-card">
               <h3 style={styles.cardMainTitle}>APERTURA DE CAJA</h3>
               <p style={{ fontSize: "14px", color: "#64748b", marginBottom: "20px" }}>Establezca el fondo de caja inicial para comenzar el turno.</p>
               
@@ -1614,9 +1831,9 @@ const Dashboard: React.FC = () => {
   // ===========================================================================
   if (view === "sales-terminal") {
     return (
-      <div style={styles.appContainer}>
+      <div style={styles.appContainer} className="pos-cashier-app">
         {/* Header Venta */}
-        <header style={styles.terminalHeader}>
+        <header style={styles.terminalHeader} className="pos-cashier-terminal-header">
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <Store size={22} color="#1e3a8a" />
             <h2 style={{ fontSize: "18px", fontWeight: "800", color: "#0f172a" }}>
@@ -1629,13 +1846,13 @@ const Dashboard: React.FC = () => {
         </header>
 
         {/* Cuerpo Venta */}
-        <div style={styles.terminalBody}>
+        <div style={styles.terminalBody} className="pos-cashier-terminal-body">
           {/* Búsqueda de Productos */}
           {/* Búsqueda de Productos y Clientes */}
           <div className="card-premium" style={styles.terminalSearchArea}>
-            <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }} className="pos-cashier-search-row">
               {/* Buscador de Productos */}
-              <form onSubmit={handleProductBarcodeSearch} style={{ flex: "1 1 50%", display: "flex", gap: "10px", margin: 0 }}>
+              <form onSubmit={handleProductBarcodeSearch} style={{ flex: "1 1 50%", display: "flex", gap: "10px", margin: 0 }} className="pos-cashier-search-form">
                 <div style={{ flex: 1, position: "relative" }}>
                   <Search size={18} color="#94a3b8" style={{ position: "absolute", left: "12px", top: "12px" }} />
                   <input
@@ -1653,7 +1870,7 @@ const Dashboard: React.FC = () => {
               </form>
 
               {/* Buscador y Lealtad de Clientes */}
-              <div style={{ flex: "1 1 40%", display: "flex", gap: "10px", position: "relative" }}>
+              <div style={{ flex: "1 1 40%", display: "flex", gap: "10px", position: "relative" }} className="pos-cashier-customer-search">
                 {selectedCustomer ? (
                   <div style={{
                     display: "flex",
@@ -1665,7 +1882,7 @@ const Dashboard: React.FC = () => {
                     padding: "8px 12px",
                     width: "100%",
                     fontSize: "13px"
-                  }}>
+                  }} className="pos-cashier-customer-selected">
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <span style={{ fontWeight: "700", color: "#166534" }}>👤 {selectedCustomer.name}</span>
                       <span style={{ color: "#475569" }}>({selectedCustomer.phone})</span>
@@ -1830,8 +2047,8 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Carrito de Productos */}
-          <div className="card-premium" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "20px" }}>
-            <div style={{ flex: 1, overflowY: "auto" }}>
+          <div className="card-premium pos-cashier-cart-card" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "20px" }}>
+            <div style={{ flex: 1, overflowY: "auto" }} className="pos-cashier-cart-scroll">
               <table style={styles.table}>
                 <thead>
                   <tr style={styles.tableHeaderRow}>
@@ -1887,7 +2104,75 @@ const Dashboard: React.FC = () => {
                             <button onClick={() => updateCartQty(item.product.id, -1)} style={styles.qtyBtn}>
                               <Minus size={12} />
                             </button>
-                            <span style={styles.qtyText}>{item.quantity}</span>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              style={styles.qtyInput}
+                              value={cartQtyDraft[item.product.id] ?? String(item.quantity)}
+                              onFocus={() =>
+                                setCartQtyDraft((prev) => ({
+                                  ...prev,
+                                  [item.product.id]: String(item.quantity),
+                                }))
+                              }
+                              onChange={(e) => {
+                                const digits = e.target.value.replace(/\D/g, "");
+                                if (digits === "") {
+                                  setCartQtyDraft((prev) => ({
+                                    ...prev,
+                                    [item.product.id]: digits,
+                                  }));
+                                  return;
+                                }
+                                const parsed = parseInt(digits, 10);
+                                const maxStock = item.product.stock;
+                                if (parsed > maxStock) {
+                                  showToast(`Solo hay ${maxStock} piezas en stock.`);
+                                  setCartQtyDraft((prev) => ({
+                                    ...prev,
+                                    [item.product.id]: String(maxStock),
+                                  }));
+                                  return;
+                                }
+                                setCartQtyDraft((prev) => ({
+                                  ...prev,
+                                  [item.product.id]: digits,
+                                }));
+                              }}
+                              onBlur={() => {
+                                const raw = cartQtyDraft[item.product.id] ?? String(item.quantity);
+                                const parsed = parseInt(raw, 10);
+                                const minQty = Number.isFinite(parsed) && parsed >= 1 ? parsed : 1;
+                                const finalQty = Math.min(minQty, item.product.stock);
+                                setCartQtyDraft((prev) => {
+                                  const next = { ...prev };
+                                  delete next[item.product.id];
+                                  return next;
+                                });
+                                applyCartQty(item.product.id, finalQty);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "ArrowUp") {
+                                  e.preventDefault();
+                                  setCartQtyDraft((prev) => {
+                                    const next = { ...prev };
+                                    delete next[item.product.id];
+                                    return next;
+                                  });
+                                  updateCartQty(item.product.id, 1);
+                                } else if (e.key === "ArrowDown") {
+                                  e.preventDefault();
+                                  setCartQtyDraft((prev) => {
+                                    const next = { ...prev };
+                                    delete next[item.product.id];
+                                    return next;
+                                  });
+                                  updateCartQty(item.product.id, -1);
+                                } else if (e.key === "Enter") {
+                                  e.currentTarget.blur();
+                                }
+                              }}
+                            />
                             <button onClick={() => updateCartQty(item.product.id, 1)} style={styles.qtyBtn}>
                               <Plus size={12} />
                             </button>
@@ -1937,10 +2222,10 @@ const Dashboard: React.FC = () => {
             </div>
  
             {/* Totales y Controles Cobro — layout 2 columnas */}
-            <div style={{ ...styles.terminalSummary, display: "flex", gap: "24px", alignItems: "flex-start" }}>
+            <div style={{ ...styles.terminalSummary, display: "flex", gap: "24px", alignItems: "flex-start" }} className="pos-cashier-terminal-summary">
 
               {/* COLUMNA IZQUIERDA: Pagos QR Pendientes (máx 3, sin scroll) */}
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1 }} className="pos-cashier-terminal-summary-col">
                 {pendingQrSales.length > 0 && (
                   <>
                     <div style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
@@ -1988,7 +2273,7 @@ const Dashboard: React.FC = () => {
               </div>
 
               {/* COLUMNA DERECHA: Resumen de totales + botones debajo */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", minWidth: "260px", flexShrink: 0 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px", minWidth: "260px", flexShrink: 0 }} className="pos-cashier-terminal-summary-col">
                 <div style={styles.summaryRow}>
                   <span>Subtotal Original:</span>
                   <span style={{ fontWeight: "600" }}>${cartSubtotalOriginal.toFixed(2)}</span>
@@ -2020,7 +2305,7 @@ const Dashboard: React.FC = () => {
                   <span>Total:</span>
                   <span style={{ color: "#dc2626", fontWeight: "800" }}>${cartTotal.toFixed(2)}</span>
                 </div>
-                <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                <div style={{ display: "flex", gap: "10px", marginTop: "10px" }} className="pos-cashier-modal-actions">
                   <button
                     onClick={() => {
                       if (cart.length === 0) { setView("dashboard"); }
@@ -2049,10 +2334,10 @@ const Dashboard: React.FC = () => {
 
         {/* COBRO MODAL (Mockup 4) */}
         {checkoutModalOpen && (
-          <div style={styles.modalOverlay}>
-            <div style={styles.checkoutModal}>
+          <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+            <div style={styles.checkoutModal} className="pos-cashier-modal">
               <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>COBRO</h3>
-              <div style={styles.checkoutTotalBox}>
+              <div style={styles.checkoutTotalBox} className="pos-cashier-checkout-total">
                 $ {(cartTotal - pointsDiscount).toFixed(2)}
               </div>
 
@@ -2072,7 +2357,7 @@ const Dashboard: React.FC = () => {
               )}
 
               {/* Selector Métodos Pago */}
-              <div style={styles.payMethodsRow}>
+              <div style={styles.payMethodsRow} className="pos-cashier-pay-methods">
                 <button
                   onClick={() => {
                     setPaymentMethod("EFECTIVO");
@@ -2285,7 +2570,7 @@ const Dashboard: React.FC = () => {
               )}
 
               {/* Botones de Cobro */}
-              <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
+              <div style={{ display: "flex", gap: "10px", marginTop: "24px" }} className="pos-cashier-modal-actions">
                 <button
                   onClick={() => setCheckoutModalOpen(false)}
                   style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
@@ -2306,8 +2591,8 @@ const Dashboard: React.FC = () => {
 
         {/* MODAL QR MERCADO PAGO */}
         {qrModalOpen && (
-          <div style={styles.modalOverlay}>
-            <div style={styles.checkoutModal}>
+          <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+            <div style={styles.checkoutModal} className="pos-cashier-modal">
               <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
               <div style={{ textAlign: "center", padding: "20px 0" }}>
                  <p style={{marginBottom: "10px", fontSize: "14px", color: "#475569"}}>Escanea el siguiente código para pagar <strong>${cartTotal.toFixed(2)}</strong></p>
@@ -2339,7 +2624,7 @@ const Dashboard: React.FC = () => {
                  )}
                  <p style={{ marginTop: "12px", fontSize: "12px", color: "#64748b" }}>Ref: {qrReference}</p>
               </div>
-              <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
+              <div style={{ display: "flex", gap: "10px", marginTop: "24px" }} className="pos-cashier-modal-actions">
                 <button
                   onClick={addPendingQrSale}
                   style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
@@ -2360,8 +2645,8 @@ const Dashboard: React.FC = () => {
 
         {/* MODAL: REGISTRO RÁPIDO DE CLIENTE (Fase 3.6) */}
         {isNewCustomerModalOpen && (
-          <div style={styles.modalOverlay}>
-            <div style={styles.checkoutModal}>
+          <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+            <div style={styles.checkoutModal} className="pos-cashier-modal">
               <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>
                 REGISTRO RÁPIDO DE CLIENTE
               </h3>
@@ -2417,7 +2702,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 )}
 
-                <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+                <div style={{ display: "flex", gap: "10px", marginTop: "16px" }} className="pos-cashier-modal-actions">
                   <button
                     type="button"
                     onClick={() => setIsNewCustomerModalOpen(false)}
@@ -2440,8 +2725,8 @@ const Dashboard: React.FC = () => {
 
         {/* MODAL: AUTORIZACIÓN PIN GERENTE/ADMIN PARA CARRITO (Fase 3.0) */}
         {activeModal === "cart-pin-auth" && (
-          <div style={styles.modalOverlay}>
-            <div style={{ ...styles.cancelModal, width: "360px" }}>
+          <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+            <div style={{ ...styles.cancelModal, width: "360px" }} className="pos-cashier-modal">
               <h3 style={styles.modalTitle}>Autorización de Gerente/Admin</h3>
               <p style={{ fontSize: "12px", color: "#64748b", margin: "8px 0 16px 0", textAlign: "center" }}>
                 Esta operación requiere la autorización de un Administrador o Gerente. Por favor, introduzca su PIN.
@@ -2608,8 +2893,8 @@ const Dashboard: React.FC = () => {
 
         {/* MODAL 3: TICKET IMPRESO/PDF (Mockup 3) */}
         {activeModal === "ticket-view" && selectedSale && (
-          <div style={styles.modalOverlay}>
-            <div style={styles.ticketModal}>
+          <div style={{ ...styles.modalOverlay, zIndex: ticketEmailModalOpen ? 9998 : 100 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+            <div style={styles.ticketModal} className="pos-cashier-modal">
               <div id="print-area" style={styles.ticketContainer}>
                 {selectedSale.status === "CANCELADA" && (
                   <div style={{
@@ -2843,22 +3128,24 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
-                <button onClick={handleCloseTicket} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
-                  CERRAR TICKET
-                </button>
-                <button onClick={handlePrintTicket} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
-                  <Printer size={16} /> IMPRIMIR
-                </button>
-              </div>
+              {renderTicketActionButtons({
+                onClose: handleCloseTicket,
+                closeLabel: "CERRAR TICKET",
+                onPrint: handlePrintTicket,
+                emailConfig: {
+                  subject: `Ticket de venta ${selectedSale.invoiceNumber}`,
+                  elementId: "print-area",
+                  defaultEmail: selectedSale.customerEmail || null,
+                },
+              })}
             </div>
           </div>
         )}
 
         {/* MODAL: VER QR DE PAGO PENDIENTE (también disponible en terminal de ventas) */}
         {viewingPendingQrSale && (
-          <div style={{ ...styles.modalOverlay, zIndex: 9999 }}>
-            <div style={styles.checkoutModal}>
+          <div style={{ ...styles.modalOverlay, zIndex: 9999 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+            <div style={styles.checkoutModal} className="pos-cashier-modal">
               <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
 
               <div style={{ textAlign: "center", padding: "12px 0" }}>
@@ -3010,6 +3297,8 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         )}
+
+        {renderTicketEmailModal()}
       </div>
     );
   }
@@ -3018,7 +3307,7 @@ const Dashboard: React.FC = () => {
   // RENDER D: DASHBOARD PRINCIPAL DEL CAJERO (Mockup 7)
   // ===========================================================================
   return (
-    <div style={styles.appContainer}>
+    <div style={styles.appContainer} className="pos-cashier-app">
       <style>{`
         @media print {
           #print-area {
@@ -3028,20 +3317,20 @@ const Dashboard: React.FC = () => {
         }
       `}</style>
       {/* Navbar */}
-      <header style={styles.navbar}>
+      <header style={styles.navbar} className="pos-cashier-navbar">
         <div style={styles.navBrand}>
           <Store size={22} color="#ffffff" />
-          <span style={styles.brandText}>POS - PUNTO DE VENTA</span>
+          <span style={styles.brandText} className="pos-cashier-brand-text">POS - PUNTO DE VENTA</span>
         </div>
-        <button onClick={handleLogoutClick} style={styles.logoutBtn} className="active-tap">
+        <button onClick={handleLogoutClick} style={styles.logoutBtn} className="active-tap pos-cashier-logout-btn">
           <LogOut size={16} /> Cerrar Sesión
         </button>
       </header>
 
-      <div style={styles.mainLayout}>
+      <div style={styles.mainLayout} className="pos-cashier-main-layout">
         {/* Sidebar */}
-        <aside style={styles.sidebar}>
-          <div style={styles.sidebarProfile}>
+        <aside style={styles.sidebar} className="pos-cashier-sidebar">
+          <div style={styles.sidebarProfile} className="pos-cashier-sidebar-profile">
             <div style={styles.avatarCircle}>
               <Users size={22} color="#ffffff" />
             </div>
@@ -3053,7 +3342,7 @@ const Dashboard: React.FC = () => {
         </aside>
 
         {/* Content Area */}
-        <div style={styles.contentArea}>
+        <div style={styles.contentArea} className="pos-cashier-content">
           {/* Alerta de Límite de Efectivo en Caja Chica (Fase 3.0) */}
           {sessionStats && sessionStats.expectedAmount > 5000 && (
             <div style={{
@@ -3066,7 +3355,7 @@ const Dashboard: React.FC = () => {
               padding: "12px 16px",
               marginBottom: "16px",
               color: "#b45309"
-            }}>
+            }} className="pos-cashier-cash-alert">
               <AlertTriangle size={20} color="#d97706" />
               <div style={{ flex: 1 }}>
                 <strong style={{ fontSize: "14px", fontWeight: "700" }}>⚠️ Alerta de Efectivo en Caja Chica</strong>
@@ -3088,7 +3377,7 @@ const Dashboard: React.FC = () => {
                   cursor: "pointer",
                   transition: "background-color 0.15s ease"
                 }}
-                className="active-tap"
+                className="active-tap pos-cashier-cash-alert-btn"
               >
                 DEPOSITAR AHORA
               </button>
@@ -3096,7 +3385,7 @@ const Dashboard: React.FC = () => {
           )}
 
           {/* Tarjetas Superiores Estatus (Mockup 7) */}
-          <div style={styles.statsGrid}>
+          <div style={styles.statsGrid} className="pos-cashier-stats-grid">
             <div style={styles.statusCard}>
               <span style={styles.cardHeaderLabel}>CAJA ESTATUS</span>
               <h3 style={{ fontSize: "20px", fontWeight: "800", color: "#059669", marginTop: "4px" }}>ABIERTA</h3>
@@ -3136,36 +3425,36 @@ const Dashboard: React.FC = () => {
           {/* ACCIONES RÁPIDAS (Mockup 7) */}
           <div style={{ marginTop: "24px" }}>
             <h4 style={styles.sectionSubtitle}>ACCIONES RÁPIDAS</h4>
-            <div style={styles.actionsGrid}>
-              <button onClick={handleNuevaVenta} style={styles.actionBtn} className="active-tap">
+            <div style={styles.actionsGrid} className="pos-cashier-actions-grid">
+              <button onClick={handleNuevaVenta} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
                 <BadgePercent size={28} color="#1e3a8a" />
                 <span>Nueva Venta</span>
               </button>
-              <button onClick={() => setActiveModal("price-lookup")} style={styles.actionBtn} className="active-tap">
+              <button onClick={() => setActiveModal("price-lookup")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
                 <Search size={28} color="#1e3a8a" />
                 <span>Consultar precio</span>
               </button>
-              <button onClick={() => setActiveModal("ticket-history")} style={styles.actionBtn} className="active-tap">
+              <button onClick={() => setActiveModal("ticket-history")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
                 <Printer size={28} color="#1e3a8a" />
                 <span>Reimprimir ticket</span>
               </button>
-              <button onClick={() => setActiveModal("cancel-sale")} style={styles.actionBtn} className="active-tap">
+              <button onClick={() => setActiveModal("cancel-sale")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
                 <XCircle size={28} color="#1e3a8a" />
                 <span>Solicitar Cancelación</span>
               </button>
-              <button onClick={() => setActiveModal("close-options")} style={styles.actionBtn} className="active-tap">
+              <button onClick={() => setActiveModal("close-options")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
                 <Store size={28} color="#dc2626" />
                 <span>Cerrar Caja</span>
               </button>
-              <button onClick={() => setActiveModal("bank-deposit")} style={styles.actionBtn} className="active-tap">
+              <button onClick={() => setActiveModal("bank-deposit")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
                 <PiggyBank size={28} color="#0d9488" />
                 <span>Depósito Banco</span>
               </button>
-              <button onClick={() => setActiveModal("returns")} style={styles.actionBtn} className="active-tap">
+              <button onClick={() => setActiveModal("returns")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
                 <RotateCcw size={28} color="#dc2626" />
                 <span>Devoluciones</span>
               </button>
-              <button onClick={() => window.open("/autofacturacion", "_blank")} style={styles.actionBtn} className="active-tap">
+              <button onClick={() => window.open("/autofacturacion", "_blank")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
                 <FileText size={28} color="#0d9488" />
                 <span>Autofacturación</span>
               </button>
@@ -3173,11 +3462,11 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Tablas Inferiores (Mockup 7) */}
-          <div style={styles.tablesGrid}>
+          <div style={styles.tablesGrid} className="pos-cashier-tables-grid">
             {/* Últimas Ventas */}
-            <div className="card-premium" style={styles.tableCard}>
+            <div className="card-premium pos-cashier-table-card" style={styles.tableCard}>
               <h4 style={styles.tableCardTitle}>ÚLTIMAS VENTAS</h4>
-              <div style={{ overflowY: "auto", flex: 1, marginTop: "12px" }}>
+              <div style={{ overflowY: "auto", flex: 1, marginTop: "12px" }} className="pos-cashier-table-scroll">
                 <table style={styles.table}>
                   <thead>
                     <tr style={styles.tableHeaderRow}>
@@ -3237,9 +3526,9 @@ const Dashboard: React.FC = () => {
             </div>
 
             {/* Solicitudes de Cancelación / Historial de depósitos */}
-            <div className="card-premium" style={styles.tableCard}>
+            <div className="card-premium pos-cashier-table-card" style={styles.tableCard}>
               <h4 style={styles.tableCardTitle}>HISTORIAL DE DEPÓSITOS BANCARIOS</h4>
-              <div style={{ overflowY: "auto", flex: 1, marginTop: "12px" }}>
+              <div style={{ overflowY: "auto", flex: 1, marginTop: "12px" }} className="pos-cashier-table-scroll pos-cashier-table-scroll--deposits">
                 <table style={styles.table}>
                   <thead>
                     <tr style={styles.tableHeaderRow}>
@@ -3281,8 +3570,8 @@ const Dashboard: React.FC = () => {
 
       {/* MODAL 1: CONSULTAR PRECIO / LOOKUP (Mockup 6) */}
       {activeModal === "price-lookup" && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.lookupModal}>
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+          <div style={styles.lookupModal} className="pos-cashier-modal">
             <h3 style={styles.modalTitle}>Búsqueda de productos:</h3>
             <div style={styles.inputGroup}>
               <label style={styles.label}>Buscar:</label>
@@ -3317,7 +3606,7 @@ const Dashboard: React.FC = () => {
               </table>
             </div>
 
-            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions">
               <button onClick={handleCloseLookup} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
                 CANCELAR
               </button>
@@ -3331,8 +3620,8 @@ const Dashboard: React.FC = () => {
 
       {/* MODAL: AUTORIZACIÓN PIN GERENTE/ADMIN PARA CARRITO (Fase 3.0) */}
       {activeModal === "cart-pin-auth" && (
-        <div style={styles.modalOverlay}>
-          <div style={{ ...styles.cancelModal, width: "360px" }}>
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+          <div style={{ ...styles.cancelModal, width: "360px" }} className="pos-cashier-modal">
             <h3 style={styles.modalTitle}>Autorización de Gerente/Admin</h3>
             <p style={{ fontSize: "12px", color: "#64748b", margin: "8px 0 16px 0", textAlign: "center" }}>
               Esta operación requiere la autorización de un Administrador o Gerente. Por favor, introduzca su PIN.
@@ -3472,8 +3761,8 @@ const Dashboard: React.FC = () => {
 
       {/* MODAL 2: SOLICITAR CANCELACIÓN CON PIN DE ADMIN (Mockup 1) */}
       {activeModal === "cancel-sale" && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.cancelModal}>
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+          <div style={styles.cancelModal} className="pos-cashier-modal">
             <h3 style={styles.modalTitle}>Cancelación Producto / Venta:</h3>
             <form onSubmit={handleCancelSaleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "14px" }}>
               <div style={styles.inputGroup}>
@@ -3538,7 +3827,7 @@ const Dashboard: React.FC = () => {
                 />
               </div>
 
-              <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+              <div style={{ display: "flex", gap: "10px", marginTop: "10px" }} className="pos-cashier-modal-actions">
                 <button
                   type="button"
                   onClick={handleCloseModal_cancelSale}
@@ -3561,8 +3850,8 @@ const Dashboard: React.FC = () => {
 
       {/* MODAL 3: TICKET IMPRESO/PDF (Mockup 3) */}
       {activeModal === "ticket-view" && selectedSale && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.ticketModal}>
+        <div style={{ ...styles.modalOverlay, zIndex: ticketEmailModalOpen ? 9998 : 100 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+          <div style={styles.ticketModal} className="pos-cashier-modal">
             <div id="print-area" style={styles.ticketContainer}>
               {selectedSale.status === "CANCELADA" && (
                 <div style={{
@@ -3807,22 +4096,24 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
-              <button onClick={handleCloseTicket} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
-                CERRAR TICKET
-              </button>
-              <button onClick={handlePrintTicket} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
-                <Printer size={16} /> IMPRIMIR
-              </button>
-            </div>
+            {renderTicketActionButtons({
+              onClose: handleCloseTicket,
+              closeLabel: "CERRAR TICKET",
+              onPrint: handlePrintTicket,
+              emailConfig: {
+                subject: `Ticket de venta ${selectedSale.invoiceNumber}`,
+                elementId: "print-area",
+                defaultEmail: selectedSale.customerEmail || null,
+              },
+            })}
           </div>
         </div>
       )}
 
       {/* MODAL: OPCIONES DE CIERRE DE CAJA */}
       {activeModal === "close-options" && (
-        <div style={styles.modalOverlay}>
-          <div style={{ ...styles.closeModal, width: "400px" }}>
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+          <div style={{ ...styles.closeModal, width: "400px" }} className="pos-cashier-modal">
             <h3 style={styles.modalTitle}>Cierre de Caja</h3>
             <p style={{ fontSize: "13px", color: "#64748b", margin: "8px 0 20px 0", textAlign: "center", lineHeight: "1.5" }}>
               Seleccione la operación de caja que desea realizar:
@@ -3888,8 +4179,8 @@ const Dashboard: React.FC = () => {
 
       {/* MODAL: CORTE PARCIAL (Resumen) */}
       {activeModal === "partial-cut-summary" && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.closeModal}>
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+          <div style={styles.closeModal} className="pos-cashier-modal">
             <h3 style={styles.modalTitle}>Resumen de Corte Parcial:</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "14px" }}>
               <div style={styles.summaryRow}>
@@ -3927,7 +4218,7 @@ const Dashboard: React.FC = () => {
                 </span>
               </div>
 
-              <div style={{ display: "flex", gap: "10px", marginTop: "14px" }}>
+              <div style={{ display: "flex", gap: "10px", marginTop: "14px" }} className="pos-cashier-modal-actions">
                 <button 
                   onClick={() => setActiveModal("close-options")} 
                   style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
@@ -3950,8 +4241,8 @@ const Dashboard: React.FC = () => {
 
       {/* MODAL: COMPROBANTE DE CORTE PARCIAL */}
       {activeModal === "partial-cut-receipt" && partialCutData && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.ticketModal}>
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+          <div style={styles.ticketModal} className="pos-cashier-modal">
             <h3 style={styles.modalTitle}>Comprobante de Corte Parcial</h3>
             <p style={{ fontSize: "11px", color: "#64748b", margin: "4px 0 16px 0", textAlign: "center" }}>
               Corte parcial registrado exitosamente en base de datos.
@@ -4014,7 +4305,7 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions">
               <button 
                 onClick={() => {
                   const printContents = document.getElementById("partial-cut-thermal-receipt")?.innerHTML;
@@ -4048,6 +4339,10 @@ const Dashboard: React.FC = () => {
               >
                 IMPRIMIR
               </button>
+              {renderTicketEmailButton({
+                subject: `Corte parcial #${partialCutData.cutNumber}`,
+                elementId: "partial-cut-thermal-receipt",
+              })}
               <button onClick={handleCloseModal_partialCut} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
                 CERRAR
               </button>
@@ -4058,8 +4353,8 @@ const Dashboard: React.FC = () => {
 
       {/* MODAL 4: CIERRE DE CAJA / ARQUEO (Mockup 2) */}
       {activeModal === "close-cash" && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.closeModal}>
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+          <div style={styles.closeModal} className="pos-cashier-modal">
             <h3 style={styles.modalTitle}>Cierre de caja:</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "14px" }}>
               <div style={styles.summaryRow}>
@@ -4130,7 +4425,7 @@ const Dashboard: React.FC = () => {
                 </span>
               </div>
 
-              <div style={{ display: "flex", gap: "10px", marginTop: "14px" }}>
+              <div style={{ display: "flex", gap: "10px", marginTop: "14px" }} className="pos-cashier-modal-actions">
                 <button onClick={handleCloseModal_closeCash} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
                   CANCELAR
                 </button>
@@ -4149,9 +4444,9 @@ const Dashboard: React.FC = () => {
 
       {/* MODAL 5: DEPOSITO BANCARIO (Resguardo de Efectivo) */}
       {activeModal === "bank-deposit" && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.depositModal}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #cbd5e1", paddingBottom: "8px", marginBottom: "14px" }}>
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+          <div style={styles.depositModal} className="pos-cashier-modal">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #cbd5e1", paddingBottom: "8px", marginBottom: "14px" }} className="pos-cashier-modal-header-row">
               <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "#0f172a" }}>
                 Resguardo de Efectivo (Cash Deposit)
               </h3>
@@ -4163,7 +4458,7 @@ const Dashboard: React.FC = () => {
               </button>
             </div>
             
-            <div style={{ backgroundColor: "#e0f2fe", border: "1px solid #bae6fd", borderRadius: "8px", padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "13px", color: "#0369a1", fontWeight: "600", marginTop: "12px", marginBottom: "14px" }}>
+            <div style={{ backgroundColor: "#e0f2fe", border: "1px solid #bae6fd", borderRadius: "8px", padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "13px", color: "#0369a1", fontWeight: "600", marginTop: "12px", marginBottom: "14px" }} className="pos-cashier-deposit-info">
               <span>Efectivo disponible en caja:</span>
               <span style={{ fontSize: "15px", fontWeight: "800" }}>${sessionStats?.expectedAmount?.toFixed(2) || "0.00"}</span>
             </div>
@@ -4201,7 +4496,7 @@ const Dashboard: React.FC = () => {
                       onChange={(e) => setDepCancelReason(e.target.value)}
                     />
                   </div>
-                  <div style={{ display: "flex", gap: "10px", marginTop: "6px" }}>
+                  <div style={{ display: "flex", gap: "10px", marginTop: "6px" }} className="pos-cashier-modal-actions">
                     <button
                       type="button"
                       onClick={() => {
@@ -4226,7 +4521,7 @@ const Dashboard: React.FC = () => {
             ) : (
               <>
                 {/* Selector de pestañas */}
-                <div style={{ display: "flex", borderBottom: "2px solid #e2e8f0", marginBottom: "16px" }}>
+                <div style={{ display: "flex", borderBottom: "2px solid #e2e8f0", marginBottom: "16px" }} className="pos-cashier-dep-tabs">
                   <button
                     type="button"
                     onClick={() => setDepTab("registrar")}
@@ -4269,7 +4564,7 @@ const Dashboard: React.FC = () => {
                       <h4 style={{ fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "8px", borderBottom: "1px solid #e2e8f0", paddingBottom: "4px" }}>
                         Información Operativa
                       </h4>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", fontSize: "11px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", fontSize: "11px" }} className="pos-cashier-grid-2">
                         <div>
                           <span style={{ color: "#64748b" }}>Referencia Estimada:</span>
                           <strong style={{ display: "block", color: "#0f172a", marginTop: "2px" }}>DEP-{new Date().toISOString().slice(0, 10).replace(/-/g, "")}-[SIG]</strong>
@@ -4367,7 +4662,7 @@ const Dashboard: React.FC = () => {
                       />
                     </div>
 
-                    <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                    <div style={{ display: "flex", gap: "10px", marginTop: "10px" }} className="pos-cashier-modal-actions">
                       <button
                         type="button"
                         onClick={() => setActiveModal(null)}
@@ -4387,7 +4682,7 @@ const Dashboard: React.FC = () => {
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column" }}>
                     {/* Filtros de Búsqueda */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "10px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "10px" }} className="pos-cashier-grid-3">
                       <div style={styles.inputGroup}>
                         <label style={styles.label}>Referencia:</label>
                         <input
@@ -4426,7 +4721,7 @@ const Dashboard: React.FC = () => {
                       </div>
                     </div>
                     
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "14px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "14px" }} className="pos-cashier-grid-2">
                       <div style={styles.inputGroup}>
                         <label style={styles.label}>Desde:</label>
                         <input
@@ -4594,8 +4889,8 @@ const Dashboard: React.FC = () => {
           } catch (e) {}
         }
         return (
-          <div style={styles.modalOverlay}>
-            <div style={styles.ticketModal}>
+          <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+            <div style={styles.ticketModal} className="pos-cashier-modal">
               <h3 style={styles.modalTitle}>Comprobante de Retiro</h3>
               <p style={{ fontSize: "11px", color: "#64748b", margin: "4px 0 16px 0", textAlign: "center" }}>
                 Depósito bancario registrado exitosamente en base de datos.
@@ -4741,7 +5036,7 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+              <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions">
                 <button 
                   onClick={() => {
                     const printContents = document.getElementById("deposit-thermal-receipt")?.innerHTML;
@@ -4776,6 +5071,10 @@ const Dashboard: React.FC = () => {
                 >
                   IMPRIMIR
                 </button>
+                {renderTicketEmailButton({
+                  subject: `Comprobante de retiro #${lastDeposit.id}`,
+                  elementId: "deposit-thermal-receipt",
+                })}
                 {lastDeposit.status === "PENDING" && lastDeposit.paymentType?.startsWith("MERCADOPAGO_") && (
                   <button
                     type="button"
@@ -4796,8 +5095,8 @@ const Dashboard: React.FC = () => {
 
       {/* MODAL: VER QR DE PAGO PENDIENTE Y CONTROL DE CANCELACIÓN */}
       {viewingPendingQrSale && (
-        <div style={{ ...styles.modalOverlay, zIndex: 9999 }}>
-          <div style={styles.checkoutModal}>
+        <div style={{ ...styles.modalOverlay, zIndex: 9999 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+          <div style={styles.checkoutModal} className="pos-cashier-modal">
             <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
             
             <div style={{ textAlign: "center", padding: "12px 0" }}>
@@ -4951,8 +5250,8 @@ const Dashboard: React.FC = () => {
 
       {/* MODAL: COMPROBANTE DE CIERRE DE CAJA / Z-CUT */}
       {activeModal === "close-receipt" && lastClosedStats && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.ticketModal}>
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+          <div style={styles.ticketModal} className="pos-cashier-modal">
             <h3 style={styles.modalTitle}>Cierre de Turno</h3>
             <p style={{ fontSize: "11px", color: "#64748b", margin: "4px 0 16px 0", textAlign: "center" }}>
               Corte Z generado exitosamente.
@@ -5057,7 +5356,7 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions">
               <button 
                 onClick={() => {
                   const printContents = document.getElementById("close-thermal-receipt")?.innerHTML;
@@ -5091,6 +5390,10 @@ const Dashboard: React.FC = () => {
               >
                 IMPRIMIR
               </button>
+              {renderTicketEmailButton({
+                subject: `Corte Z - Sesión #${lastClosedStats.session?.id}`,
+                elementId: "close-thermal-receipt",
+              })}
               <button onClick={handleCloseModal_closeCash} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
                 SALIR
               </button>
@@ -5101,13 +5404,13 @@ const Dashboard: React.FC = () => {
 
       {/* REIMPRIMIR TICKET MODAL */}
       {activeModal === "ticket-history" && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.historyModal}>
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+          <div style={styles.historyModal} className="pos-cashier-modal">
             <h3 style={styles.modalTitle}>Reimprimir Ticket de Venta:</h3>
             <p style={{ fontSize: "12px", color: "#64748b", marginBottom: "14px" }}>Seleccione la venta de la sucursal para reimprimir su comprobante.</p>
             
             {/* Grid de Filtros */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }} className="pos-cashier-grid-2">
               <div style={{ ...styles.inputGroup, gridColumn: "span 2" }}>
                 <label style={styles.label}>Folio de Venta:</label>
                 <input
@@ -5158,7 +5461,7 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ maxHeight: "240px", overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
+            <div style={{ maxHeight: "240px", overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: "6px" }} className="pos-cashier-table-scroll pos-cashier-table-scroll--history">
               <table style={styles.table}>
                 <thead>
                   <tr style={styles.tableHeaderRow}>
@@ -5233,8 +5536,8 @@ const Dashboard: React.FC = () => {
       {/* MODAL: MÓDULO DE DEVOLUCIONES                                    */}
       {/* ================================================================= */}
       {activeModal === "returns" && (
-        <div style={styles.modalOverlay}>
-          <div style={{ ...styles.cancelModal, width: returnStep === "receipt" ? "460px" : "640px", maxWidth: "95vw", maxHeight: "90vh", overflowY: "auto" }}>
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+          <div style={{ ...styles.cancelModal, width: returnStep === "receipt" ? "460px" : "640px", maxWidth: "95vw", maxHeight: "90vh", overflowY: "auto" }} className="pos-cashier-modal">
 
             {/* HEADER */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
@@ -5309,7 +5612,7 @@ const Dashboard: React.FC = () => {
                   padding: "12px",
                   marginBottom: "14px",
                   fontSize: "12px"
-                }}>
+                }} className="pos-cashier-grid-2">
                   <div><strong>Folio:</strong> {returnSaleData.invoiceNumber}</div>
                   <div><strong>Fecha:</strong> {new Date(returnSaleData.createdAt).toLocaleDateString()}</div>
                   <div><strong>Cliente:</strong> {returnSaleData.customerName}</div>
@@ -5340,7 +5643,7 @@ const Dashboard: React.FC = () => {
                         transition: "background-color 0.2s",
                       }}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }} className="pos-cashier-return-item">
                         <input
                           type="checkbox"
                           checked={item.selected}
@@ -5428,7 +5731,7 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 {/* Motivo y método de pago */}
-                <div style={{ marginTop: "14px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <div style={{ marginTop: "14px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }} className="pos-cashier-grid-2">
                   <div style={styles.inputGroup}>
                     <label style={styles.label}>Motivo de devolución:</label>
                     <input
@@ -5514,7 +5817,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "14px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "14px" }} className="pos-cashier-grid-2">
                   <div style={styles.inputGroup}>
                     <label style={styles.label}>Motivo:</label>
                     <div style={{ fontSize: "12px", fontWeight: "600", color: "#0f172a", padding: "6px 0" }}>{returnReason}</div>
@@ -5621,13 +5924,20 @@ const Dashboard: React.FC = () => {
                   )}
                 </div>
 
-                <button
-                  onClick={() => { handleReturnReset(); setActiveModal(null); }}
-                  className="btn-primary"
-                  style={{ ...styles.submitBtn, width: "100%", backgroundColor: "#1e3a8a" }}
-                >
-                  Cerrar
-                </button>
+                <div style={{ display: "flex", gap: "10px" }} className="pos-cashier-modal-actions">
+                  {renderTicketEmailButton({
+                    subject: `Comprobante de devolución ${returnReceipt.returnNumber}`,
+                    htmlContent: buildReturnReceiptHtml(),
+                    defaultEmail: returnSaleData?.customerEmail || null,
+                  })}
+                  <button
+                    onClick={() => { handleReturnReset(); setActiveModal(null); }}
+                    className="btn-primary"
+                    style={{ ...styles.submitBtn, flex: 1, backgroundColor: "#1e3a8a" }}
+                  >
+                    Cerrar
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -5636,8 +5946,8 @@ const Dashboard: React.FC = () => {
 
       {/* MODAL: CONFIRMACIÓN DE BORRADOR DE VENTA */}
       {showDraftConfirm && (
-        <div style={styles.modalOverlay}>
-          <div style={{ ...styles.cancelModal, width: "400px" }}>
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+          <div style={{ ...styles.cancelModal, width: "400px" }} className="pos-cashier-modal">
             <h3 style={styles.modalTitle}>Venta en borrador encontrada</h3>
             <p style={{ fontSize: "13px", color: "#475569", margin: "12px 0 20px 0", textAlign: "center", lineHeight: "1.5" }}>
               Existe una venta en borrador con <strong>{cart.length > 0 ? cart.length : loadDraft().length} producto(s)</strong> en el carrito.
@@ -5674,6 +5984,7 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
+      {renderTicketEmailModal()}
       {renderToast()}
     </div>
   );
@@ -6020,6 +6331,16 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: "0 12px",
     fontSize: "13px",
     fontWeight: "700",
+  },
+  qtyInput: {
+    padding: "0 12px",
+    fontSize: "13px",
+    fontWeight: "700",
+    width: "40px",
+    textAlign: "center",
+    border: "none",
+    outline: "none",
+    backgroundColor: "transparent",
   },
   terminalSummary: {
     borderTop: "2px solid #e2e8f0",
