@@ -68,6 +68,123 @@ const emptyForm = {
   cfdiUse: "",
 };
 
+type FormState = typeof emptyForm;
+type FieldErrors = Partial<Record<keyof FormState, string>>;
+
+type CustomerPayload = {
+  name: string;
+  taxId?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  creditLimit: number;
+  zipCode?: string;
+  taxRegime?: string;
+  cfdiUse?: string;
+};
+
+const CUSTOMER_NAME_PATTERN = /^[A-Za-z0-9\u00C0-\u017F\s.,'&-]+$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_PATTERN = /^[0-9\s()+-]+$/;
+const RFC_PATTERN = /^([A-Z\u00D1&]{3,4})\d{6}([A-Z0-9]{3})$/;
+const ADDRESS_PATTERN = /^[A-Za-z0-9\u00C0-\u017F\s.,#\-\/]+$/;
+const ZIP_CODE_PATTERN = /^\d{5}$/;
+
+const fieldErrorStyle: React.CSSProperties = {
+  color: "#b91c1c",
+  fontSize: 12,
+  fontWeight: 600,
+  marginTop: 5,
+};
+
+const normalizeSpaces = (value: string) => value.trim().replace(/\s+/g, " ");
+
+const validateCustomerForm = (form: FormState): { errors: FieldErrors; payload: CustomerPayload | null } => {
+  const errors: FieldErrors = {};
+
+  const name = normalizeSpaces(form.name);
+  if (!name) {
+    errors.name = "El nombre del cliente es requerido.";
+  } else if (name.length < 2) {
+    errors.name = "El nombre debe tener al menos 2 caracteres.";
+  } else if (name.length > 100) {
+    errors.name = "El nombre no puede superar 100 caracteres.";
+  } else if (!CUSTOMER_NAME_PATTERN.test(name)) {
+    errors.name = "El nombre contiene caracteres no permitidos.";
+  }
+
+  const taxId = form.taxId.trim().toUpperCase().replace(/\s+/g, "");
+  if (taxId && !RFC_PATTERN.test(taxId)) {
+    errors.taxId = "El RFC debe tener formato valido de 12 o 13 caracteres.";
+  }
+
+  const email = form.email.trim().toLowerCase();
+  if (email && (!EMAIL_PATTERN.test(email) || /\s/.test(email))) {
+    errors.email = "El correo no tiene un formato valido.";
+  }
+
+  const phone = normalizeSpaces(form.phone);
+  if (phone) {
+    const digits = phone.replace(/\D/g, "");
+    if (!PHONE_PATTERN.test(phone)) {
+      errors.phone = "El telefono solo puede contener numeros, espacios, +, - y parentesis.";
+    } else if (digits.length < 10 || digits.length > 15) {
+      errors.phone = "El telefono debe tener entre 10 y 15 digitos.";
+    }
+  }
+
+  const address = normalizeSpaces(form.address);
+  if (address) {
+    if (address.length > 200) {
+      errors.address = "La direccion no puede superar 200 caracteres.";
+    } else if (!ADDRESS_PATTERN.test(address)) {
+      errors.address = "La direccion contiene caracteres no permitidos.";
+    }
+  }
+
+  const creditLimitText = form.creditLimit.trim();
+  const creditLimit = creditLimitText ? Number(creditLimitText) : 0;
+  if (!Number.isFinite(creditLimit)) {
+    errors.creditLimit = "El limite de credito debe ser numerico.";
+  } else if (creditLimit < 0) {
+    errors.creditLimit = "El limite de credito no puede ser negativo.";
+  }
+
+  const zipCode = form.zipCode.trim();
+  if (zipCode && !ZIP_CODE_PATTERN.test(zipCode)) {
+    errors.zipCode = "El codigo postal debe tener exactamente 5 digitos.";
+  }
+
+  const taxRegime = form.taxRegime.trim();
+  if (taxRegime && !TAX_REGIMES.some((r) => r.value === taxRegime)) {
+    errors.taxRegime = "Seleccione un regimen fiscal valido.";
+  }
+
+  const cfdiUse = form.cfdiUse.trim();
+  if (cfdiUse && !CFDI_USES.some((u) => u.value === cfdiUse)) {
+    errors.cfdiUse = "Seleccione un uso de CFDI valido.";
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return { errors, payload: null };
+  }
+
+  return {
+    errors,
+    payload: {
+      name,
+      taxId: taxId || undefined,
+      email: email || undefined,
+      phone: phone || undefined,
+      address: address || undefined,
+      creditLimit,
+      zipCode: zipCode || undefined,
+      taxRegime: taxRegime || undefined,
+      cfdiUse: cfdiUse || undefined,
+    },
+  };
+};
+
 const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [rows, setRows] = useState<CustomerRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,6 +196,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [form, setForm] = useState({ ...emptyForm });
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -104,6 +222,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     setForm({ ...emptyForm });
     setEditingId(null);
     setFormError(null);
+    setFieldErrors({});
     setShowForm(true);
   };
 
@@ -121,6 +240,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     });
     setEditingId(c.id);
     setFormError(null);
+    setFieldErrors({});
     setShowForm(true);
   };
 
@@ -129,33 +249,43 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     setShowForm(false);
     setEditingId(null);
     setFormError(null);
+    setFieldErrors({});
   };
 
   const set =
     (k: keyof typeof emptyForm) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-      setForm((f) => ({ ...f, [k]: e.target.value }));
+      {
+        const value = k === "taxId" ? e.target.value.toUpperCase().replace(/\s+/g, "") : e.target.value;
+        setForm((f) => ({ ...f, [k]: value }));
+        setFormError(null);
+        setFieldErrors((prev) => {
+          if (!prev[k]) return prev;
+          const next = { ...prev };
+          delete next[k];
+          return next;
+        });
+      };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
+
+    const validation = validateCustomerForm(form);
+    if (!validation.payload) {
+      setFieldErrors(validation.errors);
+      setFormError("Revisa los campos marcados antes de guardar.");
+      return;
+    }
     if (!form.name.trim()) {
       setFormError("El nombre / razón social es obligatorio.");
       return;
     }
     setSaving(true);
     setFormError(null);
+    setFieldErrors({});
     try {
-      const payload = {
-        name: form.name,
-        taxId: form.taxId || undefined,
-        email: form.email || undefined,
-        phone: form.phone || undefined,
-        address: form.address || undefined,
-        creditLimit: form.creditLimit || undefined,
-        zipCode: form.zipCode || undefined,
-        taxRegime: form.taxRegime || undefined,
-        cfdiUse: form.cfdiUse || undefined,
-      };
+      const payload = validation.payload;
 
       if (editingId !== null) {
         await api.put(`/api/admin/customers/${editingId}`, payload);
@@ -166,6 +296,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
       setShowForm(false);
       setForm({ ...emptyForm });
       setEditingId(null);
+      setFieldErrors({});
       await load();
     } catch (err: any) {
       setFormError(err.response?.data?.message || "No se pudo guardar el cliente.");
@@ -258,7 +389,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
           <form style={{ ...ui.modal, maxWidth: 560 }} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
             <div style={ui.modalHeader}>
               <span style={ui.modalTitle}>{editingId !== null ? "Editar cliente" : "Registrar nuevo cliente"}</span>
-              <button type="button" style={ui.linkBtn} onClick={closeForm}>
+              <button type="button" style={{ ...ui.linkBtn, opacity: saving ? 0.6 : 1 }} onClick={closeForm} disabled={saving}>
                 <X size={18} color="#64748b" />
               </button>
             </div>
@@ -268,6 +399,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
               <div style={{ marginBottom: 14 }}>
                 <label style={ui.fieldLabel}>Nombre / Razón Social *</label>
                 <input style={ui.input} value={form.name} onChange={set("name")} placeholder="Nombre del cliente" autoFocus />
+                {fieldErrors.name && <p style={fieldErrorStyle}>{fieldErrors.name}</p>}
               </div>
 
               {/* RFC + Teléfono */}
@@ -281,38 +413,45 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     placeholder="XAXX010101000"
                     maxLength={13}
                   />
+                  {fieldErrors.taxId && <p style={fieldErrorStyle}>{fieldErrors.taxId}</p>}
                 </div>
                 <div>
                   <label style={ui.fieldLabel}>Teléfono</label>
                   <input style={ui.input} value={form.phone} onChange={set("phone")} placeholder="771 000 0000" />
+                  {fieldErrors.phone && <p style={fieldErrorStyle}>{fieldErrors.phone}</p>}
                 </div>
               </div>
 
               {/* Email + Dirección */}
               <div style={{ marginBottom: 14 }}>
                 <label style={ui.fieldLabel}>Correo electrónico</label>
-                <input style={ui.input} value={form.email} onChange={set("email")} placeholder="correo@dominio.com" />
+                <input type="email" style={ui.input} value={form.email} onChange={set("email")} placeholder="correo@dominio.com" />
+                {fieldErrors.email && <p style={fieldErrorStyle}>{fieldErrors.email}</p>}
               </div>
               <div style={{ marginBottom: 14 }}>
                 <label style={ui.fieldLabel}>Dirección</label>
                 <input style={ui.input} value={form.address} onChange={set("address")} placeholder="Calle, número, colonia" />
+                {fieldErrors.address && <p style={fieldErrorStyle}>{fieldErrors.address}</p>}
               </div>
 
               {/* Límite crédito + CP */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
                 <div>
                   <label style={ui.fieldLabel}>Límite de crédito ($)</label>
-                  <input style={ui.input} value={form.creditLimit} onChange={set("creditLimit")} placeholder="0.00" />
+                  <input inputMode="decimal" style={ui.input} value={form.creditLimit} onChange={set("creditLimit")} placeholder="0.00" />
+                  {fieldErrors.creditLimit && <p style={fieldErrorStyle}>{fieldErrors.creditLimit}</p>}
                 </div>
                 <div>
                   <label style={ui.fieldLabel}>Código Postal fiscal</label>
                   <input
+                    inputMode="numeric"
                     style={ui.input}
                     value={form.zipCode}
                     onChange={set("zipCode")}
                     placeholder="12345"
                     maxLength={5}
                   />
+                  {fieldErrors.zipCode && <p style={fieldErrorStyle}>{fieldErrors.zipCode}</p>}
                 </div>
               </div>
 
@@ -330,6 +469,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                         <option key={r.value} value={r.value}>{r.label}</option>
                       ))}
                     </select>
+                    {fieldErrors.taxRegime && <p style={fieldErrorStyle}>{fieldErrors.taxRegime}</p>}
                   </div>
                   <div>
                     <label style={ui.fieldLabel}>Uso de CFDI</label>
@@ -339,6 +479,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                         <option key={u.value} value={u.value}>{u.label}</option>
                       ))}
                     </select>
+                    {fieldErrors.cfdiUse && <p style={fieldErrorStyle}>{fieldErrors.cfdiUse}</p>}
                   </div>
                 </div>
               </div>
@@ -348,7 +489,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
               )}
 
               <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-                <button type="button" style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={closeForm}>
+                <button type="button" disabled={saving} style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={closeForm}>
                   Cancelar
                 </button>
                 <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
