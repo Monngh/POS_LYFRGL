@@ -535,16 +535,48 @@ export const createBranch = async (req: Request, res: Response): Promise<void> =
   try {
     const { name, address, phone, active } = req.body;
 
-    if (!name || typeof name !== "string" || !name.trim()) {
+    // ---- Nombre: obligatorio, 3–80 caracteres, solo letras/nums/acentos/puntos/guiones ----
+    const cleanName = typeof name === "string" ? name.trim() : "";
+    if (!cleanName) {
       res.status(400).json({ message: "El nombre de la sucursal es obligatorio." });
+      return;
+    }
+    if (cleanName.length < 3) {
+      res.status(400).json({ message: "El nombre debe tener al menos 3 caracteres." });
+      return;
+    }
+    if (cleanName.length > 80) {
+      res.status(400).json({ message: "El nombre no puede exceder 80 caracteres." });
+      return;
+    }
+    if (!/^[a-zA-ZÀ-ÿ0-9 .\-]+$/.test(cleanName)) {
+      res.status(400).json({ message: "El nombre solo permite letras, números, espacios, acentos, puntos y guiones." });
+      return;
+    }
+
+    // ---- Dirección: obligatoria, máximo 150 caracteres ----
+    const cleanAddress = typeof address === "string" ? address.trim() : "";
+    if (!cleanAddress) {
+      res.status(400).json({ message: "La dirección es obligatoria." });
+      return;
+    }
+    if (cleanAddress.length > 150) {
+      res.status(400).json({ message: "La dirección no puede exceder 150 caracteres." });
+      return;
+    }
+
+    // ---- Teléfono: obligatorio, exactamente 10 dígitos ----
+    const cleanPhone = typeof phone === "string" ? phone.trim() : "";
+    if (!/^\d{10}$/.test(cleanPhone)) {
+      res.status(400).json({ message: "El teléfono debe contener exactamente 10 dígitos." });
       return;
     }
 
     const branch = await prisma.branch.create({
       data: {
-        name: name.trim(),
-        address: trimQuery(address) ?? null,
-        phone: trimQuery(phone) ?? null,
+        name: cleanName,
+        address: cleanAddress,
+        phone: cleanPhone,
         active: typeof active === "boolean" ? active : true,
       },
     });
@@ -568,12 +600,45 @@ export const updateBranch = async (req: Request, res: Response): Promise<void> =
     }
 
     const { name, address, phone, active } = req.body;
-    if (!name || typeof name !== "string" || !name.trim()) {
+
+    // ---- Nombre: obligatorio, 3–80 caracteres, solo letras/nums/acentos/puntos/guiones ----
+    const cleanName = typeof name === "string" ? name.trim() : "";
+    if (!cleanName) {
       res.status(400).json({ message: "El nombre de la sucursal es obligatorio." });
       return;
     }
+    if (cleanName.length < 3) {
+      res.status(400).json({ message: "El nombre debe tener al menos 3 caracteres." });
+      return;
+    }
+    if (cleanName.length > 80) {
+      res.status(400).json({ message: "El nombre no puede exceder 80 caracteres." });
+      return;
+    }
+    if (!/^[a-zA-ZÀ-ÿ0-9 .\-]+$/.test(cleanName)) {
+      res.status(400).json({ message: "El nombre solo permite letras, números, espacios, acentos, puntos y guiones." });
+      return;
+    }
 
-    // Validar: no desactivar sucursal si tiene empleados activos
+    // ---- Dirección: obligatoria, máximo 150 caracteres ----
+    const cleanAddress = typeof address === "string" ? address.trim() : "";
+    if (!cleanAddress) {
+      res.status(400).json({ message: "La dirección es obligatoria." });
+      return;
+    }
+    if (cleanAddress.length > 150) {
+      res.status(400).json({ message: "La dirección no puede exceder 150 caracteres." });
+      return;
+    }
+
+    // ---- Teléfono: obligatorio, exactamente 10 dígitos ----
+    const cleanPhone = typeof phone === "string" ? phone.trim() : "";
+    if (!/^\d{10}$/.test(cleanPhone)) {
+      res.status(400).json({ message: "El teléfono debe contener exactamente 10 dígitos." });
+      return;
+    }
+
+    // ---- No desactivar sucursal con empleados activos ----
     if (active === false) {
       const existing = await prisma.branch.findUnique({ where: { id }, select: { active: true } });
       if (existing?.active === true) {
@@ -590,9 +655,9 @@ export const updateBranch = async (req: Request, res: Response): Promise<void> =
     const branch = await prisma.branch.update({
       where: { id },
       data: {
-        name: name.trim(),
-        address: trimQuery(address) ?? null,
-        phone: trimQuery(phone) ?? null,
+        name: cleanName,
+        address: cleanAddress,
+        phone: cleanPhone,
         active: typeof active === "boolean" ? active : true,
       },
     });
