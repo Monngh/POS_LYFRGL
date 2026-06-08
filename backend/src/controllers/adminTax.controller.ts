@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { Prisma } from "@prisma/client";
 import {
     getAllTaxes,
     postTax,
@@ -8,6 +9,10 @@ import {
     deleteTaxFromProduct,
     getTaxesByProduct,
     syncTaxesForProduct,
+    getTaxById,
+    getTaxByName,
+    getProductForTaxAssignment,
+    getProductTaxRelation,
 } from "../services/adminTax.service";
 
 const parsePositiveInt = (value: unknown): number | null => {
@@ -32,6 +37,64 @@ const parseTaxIds = (value: unknown): number[] | null => {
     }
 
     return taxIds;
+};
+
+const parseRequiredName = (value: unknown): { value?: string; message?: string } => {
+    if (value === undefined || value === null) {
+        return { message: "El nombre del impuesto es requerido" };
+    }
+
+    if (typeof value !== "string") {
+        return { message: "El nombre del impuesto debe ser texto" };
+    }
+
+    const name = value.trim();
+    if (!name) {
+        return { message: "El nombre del impuesto es requerido" };
+    }
+
+    return { value: name };
+};
+
+const parseRequiredRate = (value: unknown): { value?: number; message?: string } => {
+    if (value === undefined || value === null || value === "") {
+        return { message: "La tasa es requerida" };
+    }
+
+    if (typeof value === "boolean") {
+        return { message: "La tasa debe ser un número válido" };
+    }
+
+    const rate = Number(value);
+    if (!Number.isFinite(rate)) {
+        return { message: "La tasa debe ser un número válido" };
+    }
+
+    if (rate < 0) {
+        return { message: "La tasa no puede ser negativa" };
+    }
+
+    return { value: rate };
+};
+
+const parseOptionalBoolean = (value: unknown, defaultValue: boolean): { value?: boolean; message?: string } => {
+    if (value === undefined) {
+        return { value: defaultValue };
+    }
+
+    if (typeof value !== "boolean") {
+        return { message: "El estado debe ser true o false" };
+    }
+
+    return { value };
+};
+
+const normalizeDescription = (value: unknown): string | null => {
+    return typeof value === "string" && value.trim() ? value.trim() : null;
+};
+
+const isUniqueConstraintError = (error: any) => {
+    return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 };
 
 const mapProductTaxResponse = (productTaxes: Awaited<ReturnType<typeof getTaxesByProduct>>) => {
@@ -91,29 +154,48 @@ export const createTax = async (req: Request, res: Response): Promise<void> => {
 
     try {
         const { name, description, rate, active } = req.body;
-
-        if (!name) {
-            res.status(400).json({ message: "El nombre es requerido" })
-            return;
-        }
-        if (!rate) {
-            res.status(400).json({ message: "El porcentaje es requerido" })
-            return;
-        }
-        if (!active) {
-            res.status(400).json({ message: "El estado es requerido" })
+        const parsedName = parseRequiredName(name);
+        if (parsedName.message) {
+            res.status(400).json({ message: parsedName.message });
             return;
         }
 
-        const tax = await postTax(name, description, rate, active);
+        const parsedRate = parseRequiredRate(rate);
+        if (parsedRate.message) {
+            res.status(400).json({ message: parsedRate.message });
+            return;
+        }
+
+        const parsedActive = parseOptionalBoolean(active, true);
+        if (parsedActive.message) {
+            res.status(400).json({ message: parsedActive.message });
+            return;
+        }
+
+        const existingTax = await getTaxByName(parsedName.value!);
+        if (existingTax) {
+            res.status(409).json({ message: "Ya existe un impuesto con ese nombre" });
+            return;
+        }
+
+        const tax = await postTax(
+            parsedName.value!,
+            normalizeDescription(description),
+            parsedRate.value!,
+            parsedActive.value!,
+        );
 
         res.status(201).json({
             success: true,
             message: "Impuesto creado exitosamente",
             data: tax,
         });
-    }
-    catch (error: any) {
+    } catch (error: any) {
+        if (isUniqueConstraintError(error)) {
+            res.status(409).json({ message: "Ya existe un impuesto con ese nombre" });
+            return;
+        }
+
         console.log("Error al crear el impuesto", error.message);
 
         res.status(500).json({
@@ -121,12 +203,11 @@ export const createTax = async (req: Request, res: Response): Promise<void> => {
             error: error.message,
         });
     }
-}
+};
 
 /**
  * Editar impuesto
  */
-
 export const updateTax = async (req: Request, res: Response): Promise<void> => {
     if (!req.user) {
         res.status(401).json({ message: "No autenticado." });
@@ -135,33 +216,62 @@ export const updateTax = async (req: Request, res: Response): Promise<void> => {
 
     try {
         const { id, name, description, rate, active } = req.body;
+        const taxId = parsePositiveInt(id);
 
-        if (!id) {
-            res.status(400).json({ message: "El id es requerido" })
-            return;
-        }
-        if (!name) {
-            res.status(400).json({ message: "El nombre es requerido" })
-            return;
-        }
-        if (!rate) {
-            res.status(400).json({ message: "El porcentaje es requerido" })
-            return;
-        }
-        if (!active) {
-            res.status(400).json({ message: "El estado es requerido" })
+        if (taxId === null) {
+            res.status(400).json({ message: "El id es requerido y debe ser numérico" });
             return;
         }
 
-        const tax = await editTax(id, name, description, rate, active);
+        const existingTax = await getTaxById(taxId);
+        if (!existingTax) {
+            res.status(404).json({ message: "Impuesto no encontrado" });
+            return;
+        }
+
+        const parsedName = parseRequiredName(name);
+        if (parsedName.message) {
+            res.status(400).json({ message: parsedName.message });
+            return;
+        }
+
+        const parsedRate = parseRequiredRate(rate);
+        if (parsedRate.message) {
+            res.status(400).json({ message: parsedRate.message });
+            return;
+        }
+
+        const parsedActive = parseOptionalBoolean(active, existingTax.active);
+        if (parsedActive.message) {
+            res.status(400).json({ message: parsedActive.message });
+            return;
+        }
+
+        const duplicateTax = await getTaxByName(parsedName.value!);
+        if (duplicateTax && duplicateTax.id !== taxId) {
+            res.status(409).json({ message: "Ya existe un impuesto con ese nombre" });
+            return;
+        }
+
+        const tax = await editTax(
+            taxId,
+            parsedName.value!,
+            normalizeDescription(description),
+            parsedRate.value!,
+            parsedActive.value!,
+        );
 
         res.status(201).json({
             success: true,
             message: "Impuesto editado exitosamente",
             data: tax,
         });
-    }
-    catch (error: any) {
+    } catch (error: any) {
+        if (isUniqueConstraintError(error)) {
+            res.status(409).json({ message: "Ya existe un impuesto con ese nombre" });
+            return;
+        }
+
         console.log("Error al editar el impuesto", error.message);
 
         res.status(500).json({
@@ -169,13 +279,11 @@ export const updateTax = async (req: Request, res: Response): Promise<void> => {
             error: error.message,
         });
     }
-}
-
+};
 
 /**
  * Cambiar estado de impuesto
  */
-
 export const updateTaxStatus = async (req: Request, res: Response): Promise<void> => {
     if (!req.user) {
         res.status(401).json({ message: "No autenticado." });
@@ -184,27 +292,32 @@ export const updateTaxStatus = async (req: Request, res: Response): Promise<void
 
     try {
         const { id, status } = req.body;
+        const taxId = parsePositiveInt(id);
 
-
-
-        if (!id) {
-            res.status(400).json({ message: "El id es requerido" })
+        if (taxId === null) {
+            res.status(400).json({ message: "El id es requerido y debe ser numérico" });
             return;
         }
+
         if (typeof status !== "boolean") {
             res.status(400).json({ message: "El estado debe ser true o false" });
             return;
         }
 
-        const tax = await editTaxStatus(Number(id), status);
+        const existingTax = await getTaxById(taxId);
+        if (!existingTax) {
+            res.status(404).json({ message: "Impuesto no encontrado" });
+            return;
+        }
+
+        const tax = await editTaxStatus(taxId, status);
 
         res.status(201).json({
             success: true,
             message: "Estado del impuesto actualizado exitosamente",
             data: tax,
         });
-    }
-    catch (error: any) {
+    } catch (error: any) {
         console.log("Error al actualizar el estado del impuesto", error.message);
 
         res.status(500).json({
@@ -212,12 +325,11 @@ export const updateTaxStatus = async (req: Request, res: Response): Promise<void
             error: error.message,
         });
     }
-}
+};
 
 /**
  * Asignar impuesto a un producto // se accede desde el de productos
  */
-
 export const createProductTax = async (req: Request, res: Response): Promise<void> => {
     if (!req.user) {
         res.status(401).json({ message: "No autenticado." });
@@ -225,26 +337,60 @@ export const createProductTax = async (req: Request, res: Response): Promise<voi
     }
 
     try {
-        const { productId, taxTypeId } = req.body;
+        const productId = parsePositiveInt(req.body.productId);
+        const taxTypeId = parsePositiveInt(req.body.taxTypeId);
 
-        if (!productId) {
-            res.status(400).json({ message: "El id del producto es requerido" })
-            return;
-        }
-        if (!taxTypeId) {
-            res.status(400).json({ message: "El id del impuesto es requerido" })
+        if (productId === null) {
+            res.status(400).json({ message: "El id del producto es requerido y debe ser numérico" });
             return;
         }
 
-        const tax = await assignTaxToProduct(productId, taxTypeId);
+        if (taxTypeId === null) {
+            res.status(400).json({ message: "El id del impuesto es requerido y debe ser numérico" });
+            return;
+        }
+
+        const product = await getProductForTaxAssignment(productId);
+        if (!product) {
+            res.status(404).json({ message: "Producto no encontrado" });
+            return;
+        }
+
+        if (!product.active) {
+            res.status(400).json({ message: "No se puede asignar impuesto a un producto inactivo" });
+            return;
+        }
+
+        const tax = await getTaxById(taxTypeId);
+        if (!tax) {
+            res.status(404).json({ message: "Impuesto no encontrado" });
+            return;
+        }
+
+        if (!tax.active) {
+            res.status(400).json({ message: "No se puede asignar un impuesto inactivo" });
+            return;
+        }
+
+        const existingRelation = await getProductTaxRelation(productId, taxTypeId);
+        if (existingRelation) {
+            res.status(409).json({ message: "Ese impuesto ya está asignado al producto" });
+            return;
+        }
+
+        const productTax = await assignTaxToProduct(productId, taxTypeId);
 
         res.status(201).json({
             success: true,
             message: "Impuesto asignado exitosamente",
-            data: tax,
+            data: productTax,
         });
-    }
-    catch (error: any) {
+    } catch (error: any) {
+        if (isUniqueConstraintError(error)) {
+            res.status(409).json({ message: "Ese impuesto ya está asignado al producto" });
+            return;
+        }
+
         console.log("Error al asignar el impuesto", error.message);
 
         res.status(500).json({
@@ -252,12 +398,11 @@ export const createProductTax = async (req: Request, res: Response): Promise<voi
             error: error.message,
         });
     }
-}
+};
 
 /**
  * Eliminar impuesto
  */
-
 export const deleteProductTax = async (req: Request, res: Response): Promise<void> => {
     if (!req.user) {
         res.status(401).json({ message: "No autenticado." });
@@ -265,24 +410,36 @@ export const deleteProductTax = async (req: Request, res: Response): Promise<voi
     }
 
     try {
-        const { productId, taxTypeId } = req.body;
+        const productId = parsePositiveInt(req.body.productId);
+        const taxTypeId = parsePositiveInt(req.body.taxTypeId);
 
-        if (!productId) {
-            res.status(400).json({ message: "El id del producto es requerido" });
+        if (productId === null) {
+            res.status(400).json({ message: "El id del producto es requerido y debe ser numérico" });
             return;
         }
 
-        if (!taxTypeId) {
-            res.status(400).json({ message: "El id del impuesto es requerido" });
+        if (taxTypeId === null) {
+            res.status(400).json({ message: "El id del impuesto es requerido y debe ser numérico" });
             return;
         }
 
-        const tax = await deleteTaxFromProduct(Number(productId), Number(taxTypeId));
+        const existingRelation = await getProductTaxRelation(productId, taxTypeId);
+        if (!existingRelation) {
+            res.status(404).json({ message: "Ese impuesto no está asignado al producto" });
+            return;
+        }
+
+        const result = await deleteTaxFromProduct(productId, taxTypeId);
+
+        if (result.count === 0) {
+            res.status(404).json({ message: "Ese impuesto no está asignado al producto" });
+            return;
+        }
 
         res.status(200).json({
             success: true,
             message: "Impuesto desvinculado del producto exitosamente",
-            data: tax,
+            data: result,
         });
     } catch (error: any) {
         console.log("Error al desvincular el impuesto del producto", error.message);
@@ -375,8 +532,18 @@ export const syncProductTaxes = async (req: Request, res: Response): Promise<voi
             return;
         }
 
+        if (error.message === "PRODUCT_INACTIVE") {
+            res.status(400).json({ message: "No se puede asignar impuesto a un producto inactivo" });
+            return;
+        }
+
         if (error.message === "TAX_NOT_FOUND") {
             res.status(400).json({ message: "Uno o más impuestos seleccionados no existen" });
+            return;
+        }
+
+        if (error.message === "TAX_INACTIVE") {
+            res.status(400).json({ message: "No se puede asignar un impuesto inactivo" });
             return;
         }
 
