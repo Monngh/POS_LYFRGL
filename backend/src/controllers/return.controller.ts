@@ -70,7 +70,7 @@ export const getReturnEligibility = async (req: Request, res: Response): Promise
     // Mapear cada detalle para determinar su cantidad elegible y políticas
     const eligibleItems = sale.saleDetails.map((detail) => {
       const product = detail.product;
-      
+
       // Calcular cantidad devuelta anteriormente para este detalle específico
       let alreadyReturnedQty = 0;
       sale.returns.forEach((ret) => {
@@ -82,7 +82,7 @@ export const getReturnEligibility = async (req: Request, res: Response): Promise
       });
 
       const maxReturnableQty = Math.max(0, detail.quantity - alreadyReturnedQty);
-      
+
       // Validar si el producto acepta devolución y si está dentro de la ventana
       const isReturnable = product.isReturnable;
       const returnWindowDays = product.returnWindowDays;
@@ -367,7 +367,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
 
       // Calcular promociones para los artículos de cambio
       promoCalc = await PromotionService.calculatePromotions(cartItems);
-      
+
       let calcSubtotal = 0;
       for (let i = 0; i < cartItems.length; i++) {
         const item = cartItems[i];
@@ -585,7 +585,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       // h. Procesar cambio de producto e impactar caja/inventarios de intercambio
       if (exchangeItems && exchangeItems.length > 0) {
         const exchangeInvoiceNumber = `V-${timestamp}EX`;
-        
+
         // Crear registro de Venta del intercambio
         const newSale = await tx.sale.create({
           data: {
@@ -782,5 +782,313 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
   } catch (error: any) {
     console.error("Error al procesar devolución:", error);
     res.status(500).json({ message: error.message || "Error al procesar la devolución.", error: error.message });
+  }
+};
+
+/**
+ * [ADMIN] Listado paginado de devoluciones con filtros opcionales
+ */
+export const getAdminReturns = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const { startDate, endDate, branchId, paymentMethod } = req.query;
+
+    const where: any = {};
+
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = new Date(startDate as string);
+      if (endDate) {
+        const end = new Date(endDate as string);
+        end.setHours(23, 59, 59, 999);
+        where.createdAt.lte = end;
+      }
+    }
+
+    if (branchId && branchId !== "all") {
+      where.sale = { branchId: parseInt(branchId as string) };
+    }
+
+    if (paymentMethod) {
+      where.paymentMethod = paymentMethod as string;
+    }
+
+    const [returns, total] = await Promise.all([
+      prisma.return.findMany({
+        where,
+        include: {
+          sale: {
+            select: {
+              invoiceNumber: true,
+              customer: { select: { name: true, id: true } },
+              branchId: true,
+              branch: { select: { name: true } },
+            },
+          },
+          authorizedBy: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.return.count({ where }),
+    ]);
+
+    const data = returns.map((r) => ({
+      id: r.id,
+      returnNumber: r.returnNumber,
+      saleId: r.saleId,
+      saleNumber: r.sale.invoiceNumber,
+      clientName: r.sale.customer?.name || "Público General",
+      date: r.createdAt,
+      totalRefunded: Number(r.totalRefunded),
+      paymentMethod: r.paymentMethod,
+      branchId: r.sale.branchId,
+      branchName: r.sale.branch.name,
+      authorizedBy: r.authorizedBy ? { id: r.authorizedBy.id, name: r.authorizedBy.name } : null,
+      status: "COMPLETED",
+    }));
+
+    res.status(200).json({
+      success: true,
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: "Error al obtener las devoluciones.", error: error.message });
+  }
+};
+
+/**
+ * [ADMIN] Detalle completo de una devolución por ID
+ */
+export const getAdminReturnDetail = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  try {
+    const returnId = parseInt(req.params.id);
+    if (isNaN(returnId)) {
+      res.status(400).json({ message: "ID de devolución inválido." });
+      return;
+    }
+
+    const returnData = await prisma.return.findUnique({
+      where: { id: returnId },
+      include: {
+        sale: {
+          include: {
+            customer: { select: { id: true, name: true, taxId: true } },
+            branch: { select: { id: true, name: true } },
+          },
+        },
+        returnDetails: {
+          include: {
+            product: { select: { id: true, name: true, sku: true } },
+            saleDetail: { select: { taxAmount: true } },
+          },
+        },
+        authorizedBy: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!returnData) {
+      res.status(404).json({ message: "Devolución no encontrada." });
+      return;
+    }
+
+    let exchangeSaleData = null;
+    if (returnData.exchangeSaleId) {
+      exchangeSaleData = await prisma.sale.findUnique({
+        where: { id: returnData.exchangeSaleId },
+        include: {
+          saleDetails: {
+            include: { product: { select: { name: true } } },
+          },
+        },
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        id: returnData.id,
+        returnNumber: returnData.returnNumber,
+        saleId: returnData.saleId,
+        saleNumber: returnData.sale.invoiceNumber,
+        date: returnData.createdAt,
+        reason: returnData.reason,
+        type: returnData.type,
+        clientId: returnData.sale.customer?.id || null,
+        clientName: returnData.sale.customer?.name || "Público General",
+        clientRFC: returnData.sale.customer?.taxId || null,
+        totalRefunded: Number(returnData.totalRefunded),
+        paymentMethod: returnData.paymentMethod,
+        authorizedById: returnData.authorizedBy?.id || null,
+        authorizedByName: returnData.authorizedBy?.name || null,
+        cashSessionId: returnData.cashSessionId,
+        cfdiUuid: returnData.cfdiUuid,
+        status: "COMPLETED",
+        createdAt: returnData.createdAt,
+        updatedAt: returnData.updatedAt,
+        details: returnData.returnDetails.map((d) => ({
+          id: d.id,
+          productId: d.productId,
+          productName: d.product.name,
+          sku: d.product.sku,
+          quantity: d.quantity,
+          unitPrice: Number(d.unitPrice),
+          taxAmount: Number(d.taxAmount),
+          discountAmount: Number(d.discountAmount),
+          destination: d.destination,
+          serialNumber: d.serialNumber,
+          batchNumber: d.batchNumber,
+        })),
+        exchangeSale: exchangeSaleData
+          ? {
+            id: exchangeSaleData.id,
+            saleNumber: exchangeSaleData.invoiceNumber,
+            date: exchangeSaleData.createdAt,
+            total: Number(exchangeSaleData.totalAmount),
+            items: exchangeSaleData.saleDetails.map((sd) => ({
+              productName: sd.product.name,
+              quantity: sd.quantity,
+              unitPrice: Number(sd.unitPrice),
+            })),
+          }
+          : null,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: "Error al obtener el detalle.", error: error.message });
+  }
+};
+
+/**
+ * [ADMIN] Reintentar reembolso a Mercado Pago de una devolución
+ */
+export const retryReturnRefund = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  try {
+    const returnId = parseInt(req.params.id);
+    if (isNaN(returnId)) {
+      res.status(400).json({ message: "ID inválido." });
+      return;
+    }
+
+    const returnData = await prisma.return.findUnique({
+      where: { id: returnId },
+      include: { sale: { select: { mercadoPagoPaymentId: true } } },
+    });
+
+    if (!returnData) {
+      res.status(404).json({ message: "Devolución no encontrada." });
+      return;
+    }
+
+    if (returnData.paymentMethod !== "QR_MERCADOPAGO") {
+      res.status(400).json({ message: "Esta devolución no usa Mercado Pago." });
+      return;
+    }
+
+    if (!returnData.sale.mercadoPagoPaymentId) {
+      res.status(400).json({ message: "La venta original no tiene ID de pago de Mercado Pago." });
+      return;
+    }
+
+    const result = await executeRefund(returnData.sale.mercadoPagoPaymentId, Number(returnData.totalRefunded));
+
+    if (!result.success) {
+      res.status(400).json({ message: "El reembolso falló: " + result.message });
+      return;
+    }
+
+    res.status(200).json({ success: true, message: "Reembolso procesado exitosamente." });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al reintentar el reembolso.", error: error.message });
+  }
+};
+
+/**
+ * [ADMIN] Timbrar nota de crédito CFDI para una devolución
+ */
+export const createReturnCfdi = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  try {
+    const returnId = parseInt(req.params.id);
+    if (isNaN(returnId)) {
+      res.status(400).json({ message: "ID inválido." });
+      return;
+    }
+
+    const returnData = await prisma.return.findUnique({
+      where: { id: returnId },
+      include: {
+        returnDetails: {
+          include: { product: { select: { name: true } } },
+        },
+      },
+    });
+
+    if (!returnData) {
+      res.status(404).json({ message: "Devolución no encontrada." });
+      return;
+    }
+
+    if (returnData.cfdiUuid) {
+      res.status(400).json({ message: "Esta devolución ya tiene un CFDI timbrado." });
+      return;
+    }
+
+    const returnedItems = returnData.returnDetails.map((d) => ({
+      name: d.product.name,
+      quantity: d.quantity,
+      unitPrice: Number(d.unitPrice),
+      discountAmount: Number(d.discountAmount),
+    }));
+
+    const billingInfo = await BillingService.createCreditNote(returnData.saleId, returnedItems, returnData.id);
+
+    if (billingInfo?.uuid) {
+      await prisma.return.update({
+        where: { id: returnId },
+        data: { cfdiUuid: billingInfo.uuid },
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "CFDI timbrado exitosamente.",
+      cfdiUuid: billingInfo?.uuid || null,
+      pdfUrl: billingInfo?.pdfUrl || null,
+    });
+  } catch (error) {
+    console.error('❌ Error al timbrar CFDI:', error);
+    res.status(500).json({
+      success: false,
+      message: "Error al timbrar el CFDI.",
+      error: error instanceof Error ? error.message : 'Error desconocido'
+    });
   }
 };

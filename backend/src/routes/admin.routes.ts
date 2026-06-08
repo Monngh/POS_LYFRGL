@@ -43,6 +43,12 @@ import {
   reportBySeller,
   reportReceivables,
 } from "../controllers/reports.controller";
+import {
+  getAdminReturns,
+  getAdminReturnDetail,
+  retryReturnRefund,
+  createReturnCfdi,
+} from "../controllers/return.controller";
 import { authenticateJWT, authorizeRoles } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -114,5 +120,11 @@ router.get("/reports/sales", reportSales);
 router.get("/reports/products-sold", reportProductsSold);
 router.get("/reports/by-seller", reportBySeller);
 router.get("/reports/receivables", reportReceivables);
+
+// Devoluciones (admin)
+router.get("/returns", getAdminReturns);
+router.get("/returns/:id", getAdminReturnDetail);
+router.post("/returns/:id/retry-refund", retryReturnRefund);
+router.post("/returns/:id/create-cfdi", createReturnCfdi);
 
 export default router;
