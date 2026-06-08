@@ -39,11 +39,13 @@ export const listSales = async (req: Request, res: Response): Promise<void> => {
     if (branchId) where.branchId = branchId;
     if (status && status !== "all") where.status = status;
     if (search) where.invoiceNumber = { contains: search };
-    if (from && to) {
-      const fromDate = new Date(from);
-      const toDate = new Date(to);
-      toDate.setDate(toDate.getDate() + 1);
-      where.createdAt = { gte: fromDate, lt: toDate };
+    // Filtro por rango de fechas: admite solo "desde", solo "hasta" o ambos.
+    // Se interpreta en hora local con el día completo incluido (00:00:00 a 23:59:59.999).
+    if (from || to) {
+      const createdAt: any = {};
+      if (from) createdAt.gte = new Date(`${from}T00:00:00`);
+      if (to) createdAt.lte = new Date(`${to}T23:59:59.999`);
+      where.createdAt = createdAt;
     }
 
     const sales = await prisma.sale.findMany({

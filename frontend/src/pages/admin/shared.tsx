@@ -342,7 +342,7 @@ export const ui: { [k: string]: React.CSSProperties } = {
   // Mini-tarjetas de KPI (reportes)
   kpiGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
+    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
     gap: 16,
   },
   kpiCard: {
