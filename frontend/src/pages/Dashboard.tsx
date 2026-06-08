@@ -20,8 +20,8 @@ import {
   KeyRound,
   AlertTriangle,
   FileText,
-  RotateCcw,
-  Mail
+  Mail,
+  ArrowLeft
 } from "lucide-react";
 
 interface Product {
@@ -56,6 +56,20 @@ interface Sale {
   cajero: string;
   refundStatus?: string | null;
 }
+
+type CartEntry = { product: Product; quantity: number };
+
+const getProductId = (product: Product | Record<string, any> | null | undefined): number => {
+  const runtimeProduct = product as Record<string, any> | null | undefined;
+  return Number(runtimeProduct?.id ?? runtimeProduct?.productId);
+};
+
+const getCheckoutErrorMessage = (err: any, fallback: string): string => {
+  const data = err?.response?.data;
+  const message = typeof data?.message === "string" ? data.message : "";
+  const detail = typeof data?.error === "string" && data.error !== message ? data.error : "";
+  return [message, detail].filter(Boolean).join(" Detalle: ") || err?.message || fallback;
+};
 
 interface CashSession {
   id: number;
@@ -306,18 +320,36 @@ const Dashboard: React.FC = () => {
   // ---------------------------------------------------------------------------
   // Restaurar borrador de venta desde localStorage al montar
   const DRAFT_KEY = "pos_sale_draft";
-  const loadDraft = (): { product: Product; quantity: number }[] => {
+  const loadDraft = (): CartEntry[] => {
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const validItems = parsed
+            .map((item: any) => {
+              const product = item?.product;
+              const productId = getProductId(product);
+              const quantity = Math.floor(Number(item?.quantity));
+              if (!Number.isInteger(productId) || productId <= 0 || !Number.isInteger(quantity) || quantity <= 0) {
+                return null;
+              }
+              return { product: { ...product, id: productId }, quantity };
+            })
+            .filter((item): item is CartEntry => item !== null);
+
+          if (validItems.length !== parsed.length) {
+            localStorage.removeItem(DRAFT_KEY);
+          }
+
+          return validItems;
+        }
       }
     } catch { /* ignore */ }
     return [];
   };
 
-  const [cart, setCart] = useState<{ product: Product; quantity: number }[]>(loadDraft);
+  const [cart, setCart] = useState<CartEntry[]>(loadDraft);
   const [barcodeSearch, setBarcodeSearch] = useState("");
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
@@ -612,6 +644,50 @@ const Dashboard: React.FC = () => {
     setActiveModal("cart-pin-auth");
   };
 
+  function resetCurrentSaleAndReturnToDashboard() {
+    setCart([]);
+    localStorage.removeItem(DRAFT_KEY);
+    setBarcodeSearch("");
+    setSearchResults([]);
+    lastSearchQueryRef.current = "";
+    setSimulationData(null);
+    setCheckoutError(null);
+    setCheckoutModalOpen(false);
+    setSelectedCustomer(null);
+    setCustomerSearch("");
+    setCustomerSearchResults([]);
+    setIsCustomerDropdownOpen(false);
+    setIsNewCustomerModalOpen(false);
+    setNewCustomerError(null);
+    setUsePoints(false);
+    setPointsToRedeem(0);
+    setPaymentMethod("EFECTIVO");
+    setCashReceived("");
+    setMixtoCash("");
+    setMixtoCard("");
+    setCardType("DEBITO");
+    setQrModalOpen(false);
+    setQrUrl("");
+    setQrReference("");
+    setCartPin("");
+    setCartPinError("");
+    setPendingCartAction(null);
+    setActiveModal(null);
+    setView("dashboard");
+  }
+
+  const handleCancelCurrentPurchase = () => {
+    if (cart.length === 0) {
+      resetCurrentSaleAndReturnToDashboard();
+      return;
+    }
+
+    setCartPin("");
+    setCartPinError("");
+    setPendingCartAction({ type: "cancel" });
+    setActiveModal("cart-pin-auth");
+  };
+
   const applyAuthorizedCartAction = () => {
     if (!pendingCartAction) return;
     const { type, prodId, change } = pendingCartAction;
@@ -631,9 +707,7 @@ const Dashboard: React.FC = () => {
     } else if (type === "remove" && prodId !== undefined) {
       setCart((prev) => prev.filter((item) => item.product.id !== prodId));
     } else if (type === "cancel") {
-      setCart([]);
-      localStorage.removeItem(DRAFT_KEY);
-      setView("dashboard");
+      resetCurrentSaleAndReturnToDashboard();
     }
     setPendingCartAction(null);
     setActiveModal(null);
@@ -793,7 +867,43 @@ const Dashboard: React.FC = () => {
     ? (Number(mixtoCard) <= netTotalToPay && Number(mixtoCash) >= (netTotalToPay - Number(mixtoCard)) ? Number(mixtoCash) - (netTotalToPay - Number(mixtoCard)) : 0)
     : 0;
 
+  const buildCheckoutItemsPayload = () => {
+    if (cart.length === 0) {
+      throw new Error("El carrito de ventas no puede estar vacío.");
+    }
+
+    return cart.map((item, index) => {
+      const productId = getProductId(item.product);
+      const quantity = Math.floor(Number(item.quantity));
+
+      if (!Number.isInteger(productId) || productId <= 0) {
+        throw new Error(`El producto en la posición ${index + 1} no tiene un identificador válido.`);
+      }
+
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        throw new Error(`La cantidad de ${item.product.name || `producto #${productId}`} debe ser mayor a cero.`);
+      }
+
+      return {
+        id: productId,
+        productId,
+        name: item.product.name,
+        quantity,
+      };
+    });
+  };
+
   const handleCheckoutSubmit = async () => {
+    setCheckoutError(null);
+
+    let itemsPayload: ReturnType<typeof buildCheckoutItemsPayload>;
+    try {
+      itemsPayload = buildCheckoutItemsPayload();
+    } catch (err: any) {
+      setCheckoutError(err.message || "El carrito no tiene datos válidos para cobrar.");
+      return;
+    }
+
     if (paymentMethod === "EFECTIVO" && parsedReceived < netTotalToPay) {
       setCheckoutError("El efectivo recibido es menor al total a pagar.");
       return;
@@ -818,12 +928,6 @@ const Dashboard: React.FC = () => {
     if (paymentMethod === "QR_MERCADOPAGO") {
       setCheckoutLoading(true);
       try {
-        const itemsPayload = cart.map((c) => ({
-          id: c.product.id,
-          name: c.product.name,
-          quantity: c.quantity,
-        }));
-
         const res = await api.post("/api/sales", {
           items: itemsPayload,
           paymentMethod: "QR_MERCADOPAGO",
@@ -858,7 +962,7 @@ const Dashboard: React.FC = () => {
         setCheckoutModalOpen(false);
         setQrModalOpen(true);
       } catch(err: any) {
-        alert(err.response?.data?.message || "Error al procesar pago QR");
+        alert(getCheckoutErrorMessage(err, "Error al procesar pago QR"));
       } finally {
         setCheckoutLoading(false);
       }
@@ -867,17 +971,12 @@ const Dashboard: React.FC = () => {
 
     setCheckoutLoading(true);
     try {
-      const itemsPayload = cart.map((c) => ({
-        id: c.product.id,
-        name: c.product.name,
-        quantity: c.quantity,
-      }));
-
       const res = await api.post("/api/sales", {
         items: itemsPayload,
         paymentMethod,
         cardType: (paymentMethod === "TARJETA" || paymentMethod === "MIXTO") ? cardType : undefined,
         cashReceived: paymentMethod === "EFECTIVO" ? parsedReceived : paymentMethod === "MIXTO" ? Number(mixtoCash) : 0,
+        cardAmount: paymentMethod === "MIXTO" ? Number(mixtoCard) : undefined,
         changeGiven: calculatedChange,
         discountAmount: cartDiscount,
         customerId: selectedCustomer ? selectedCustomer.id : undefined,
@@ -933,7 +1032,7 @@ const Dashboard: React.FC = () => {
       setMixtoCard("");
       setActiveModal("ticket-view"); // Mostrar el ticket inmediatamente
     } catch (err: any) {
-      setCheckoutError(err.response?.data?.message || "Error al completar el cobro.");
+      setCheckoutError(getCheckoutErrorMessage(err, "Error al completar el cobro."));
     } finally {
       setCheckoutLoading(false);
     }
@@ -1848,6 +1947,16 @@ const Dashboard: React.FC = () => {
         {/* Header Venta */}
         <header style={styles.terminalHeader} className="pos-cashier-terminal-header">
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <button
+              type="button"
+              onClick={handleCancelCurrentPurchase}
+              className="active-tap"
+              style={styles.terminalBackBtn}
+              title="Regresar al menu principal"
+              aria-label="Regresar al menu principal del cajero"
+            >
+              <ArrowLeft size={20} />
+            </button>
             <Store size={22} color="#1e3a8a" />
             <h2 style={{ fontSize: "18px", fontWeight: "800", color: "#0f172a" }}>
               Venta - Ticket #{(sessionStats?.salesCount !== undefined) ? sessionStats.salesCount + 1 : 1}
@@ -2324,10 +2433,7 @@ const Dashboard: React.FC = () => {
                 </div>
                 <div style={{ display: "flex", gap: "10px", marginTop: "10px" }} className="pos-cashier-modal-actions">
                   <button
-                    onClick={() => {
-                      if (cart.length === 0) { setView("dashboard"); }
-                      else { setCartPin(""); setCartPinError(""); setPendingCartAction({ type: "cancel" }); setActiveModal("cart-pin-auth"); }
-                    }}
+                    onClick={handleCancelCurrentPurchase}
                     className="active-tap"
                     style={{ ...styles.terminalBtn, flex: 1, backgroundColor: "#dc2626", color: "white" }}
                   >
@@ -6321,6 +6427,19 @@ const styles: { [key: string]: React.CSSProperties } = {
     justifyContent: "space-between",
     alignItems: "center",
     padding: "0 24px",
+  },
+  terminalBackBtn: {
+    width: "38px",
+    height: "38px",
+    borderRadius: "6px",
+    border: "1px solid #cbd5e1",
+    backgroundColor: "#ffffff",
+    color: "#1e3a8a",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 1px 2px rgba(15,23,42,0.06)",
   },
   terminalBody: {
     flex: 1,
