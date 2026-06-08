@@ -288,6 +288,11 @@
     flex-wrap: wrap !important;
     gap: 8px !important;
   }
+
+  /* Reducir tamaño de textos de métricas en móvil */
+  .pos-cashier-stats-grid h3 {
+    font-size: 14px !important;
+  }
 }
 
 /* --- Móvil pequeño (≤480px) --- */
@@ -299,5 +304,42 @@
   .pos-cashier-checkout-total {
     font-size: 28px !important;
     padding: 12px !important;
+  }
+
+  /* Stats grid vertical en móvil muy pequeño */
+  .pos-cashier-stats-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .pos-cashier-stats-grid h3 {
+    font-size: 15px !important;
+  }
+
+  /* Acciones rápidas en formato horizontal de lista */
+  .pos-cashier-actions-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .pos-cashier-action-btn {
+    flex-direction: row !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    height: auto !important;
+  }
+  .pos-cashier-action-btn svg {
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  /* Teclado NIP de autorización compacto en móvil */
+  .pos-cashier-pin-grid {
+    gap: 6px !important;
+  }
+  .pos-cashier-pin-grid button {
+    height: 40px !important;
+    font-size: 14px !important;
   }
 }
