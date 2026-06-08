@@ -20,6 +20,7 @@ import {
   KeyRound,
   AlertTriangle,
   FileText,
+  RotateCcw,
   Mail,
   ArrowLeft
 } from "lucide-react";
@@ -1900,8 +1901,10 @@ const Dashboard: React.FC = () => {
               <div style={styles.avatarIcon}>
                 <Users size={24} color="#475569" />
               </div>
-              <h4 style={styles.profileName}>{user?.name}</h4>
-              <p style={styles.profileBranch}>{user?.branch.name}</p>
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <h4 style={styles.profileName}>{user?.name}</h4>
+                <p style={styles.profileBranch}>{user?.branch.name}</p>
+              </div>
             </div>
           </aside>
 
@@ -2934,7 +2937,7 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 {/* PIN Pad */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }} className="pos-cashier-pin-grid">
                   {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
                     <button
                       key={num}
@@ -3485,11 +3488,11 @@ const Dashboard: React.FC = () => {
             <div style={styles.avatarCircle}>
               <Users size={22} color="#ffffff" />
             </div>
-            <h4 style={styles.profileName}>{user?.name}</h4>
-            <p style={styles.profileBranch}>{user?.branch.name}</p>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <h4 style={styles.profileName}>{user?.name}</h4>
+              <p style={styles.profileBranch}>{user?.branch.name}</p>
+            </div>
           </div>
-
-
         </aside>
 
         {/* Content Area */}
@@ -3802,7 +3805,7 @@ const Dashboard: React.FC = () => {
               </div>
 
               {/* PIN Pad */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }} className="pos-cashier-pin-grid">
                 {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
                   <button
                     key={num}

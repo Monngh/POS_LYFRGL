@@ -1096,13 +1096,6 @@ export const createReturnCfdi = async (req: Request, res: Response): Promise<voi
 
     const billingInfo = await BillingService.createCreditNote(returnData.saleId, returnedItems, returnData.id);
 
-    if (billingInfo?.uuid) {
-      await prisma.return.update({
-        where: { id: returnId },
-        data: { cfdiUuid: billingInfo.uuid },
-      });
-    }
-
     res.status(200).json({
       success: true,
       message: "CFDI timbrado exitosamente.",
