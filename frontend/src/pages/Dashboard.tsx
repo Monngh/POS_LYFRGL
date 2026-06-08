@@ -352,6 +352,7 @@ const Dashboard: React.FC = () => {
   // Puntos a redimir en el cobro
   const [pointsToRedeem, setPointsToRedeem] = useState<number>(0);
   const [usePoints, setUsePoints] = useState<boolean>(false);
+  const [invoiceRequested, setInvoiceRequested] = useState<boolean>(false);
 
   // Estados para búsqueda de tickets en reimpresión (Fase 3.8)
   const [ticketSearch, setTicketSearch] = useState("");
@@ -846,6 +847,7 @@ const Dashboard: React.FC = () => {
         discountAmount: cartDiscount,
         customerId: selectedCustomer ? selectedCustomer.id : undefined,
         pointsRedeemed: (usePoints && selectedCustomer) ? pointsToRedeem : undefined,
+        invoiceRequested: selectedCustomer ? invoiceRequested : false,
       });
 
       // Guardar info para imprimir ticket
@@ -887,6 +889,7 @@ const Dashboard: React.FC = () => {
       setSelectedCustomer(null);
       setUsePoints(false);
       setPointsToRedeem(0);
+      setInvoiceRequested(false);
       setCheckoutModalOpen(false);
       setPaymentMethod("EFECTIVO");
       setCashReceived("");
@@ -1205,6 +1208,7 @@ const Dashboard: React.FC = () => {
     setSelectedCustomer(null);
     setUsePoints(false);
     setPointsToRedeem(0);
+    setInvoiceRequested(false);
     setCashReceived("");
     setPaymentMethod("EFECTIVO");
     setQrModalOpen(false);
@@ -1311,6 +1315,15 @@ const Dashboard: React.FC = () => {
     } finally {
       setDepSearchLoading(false);
     }
+  };
+
+  const handleCancelSale = () => {
+    setCart([]);
+    setSelectedCustomer(null);
+    setUsePoints(false);
+    setPointsToRedeem(0);
+    setInvoiceRequested(false);
+    setCheckoutModalOpen(false);
   };
 
   const handleCancelDepositSubmit = async (e: React.FormEvent) => {
@@ -1682,9 +1695,13 @@ const Dashboard: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => {
+                        setCart([]);
                         setSelectedCustomer(null);
                         setUsePoints(false);
                         setPointsToRedeem(0);
+                        setInvoiceRequested(false);
+                        localStorage.removeItem(DRAFT_KEY);
+                        showToast("Carrito vaciado correctamente.", "info");
                       }}
                       style={{
                         border: "none",
@@ -2262,6 +2279,34 @@ const Dashboard: React.FC = () => {
                       </span>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Sección de Facturación CFDI */}
+              {selectedCustomer && (
+                <div style={{
+                  borderTop: "1px solid #e2e8f0",
+                  paddingTop: "14px",
+                  marginTop: "10px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px"
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", margin: 0 }}>
+                      <input
+                        type="checkbox"
+                        checked={invoiceRequested}
+                        onChange={(e) => {
+                          setInvoiceRequested(e.target.checked);
+                        }}
+                      />
+                      <span>¿Solicitar Factura CFDI?</span>
+                    </label>
+                    <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "600" }}>
+                      Se enviará al correo registrado
+                    </span>
+                  </div>
                 </div>
               )}
 
