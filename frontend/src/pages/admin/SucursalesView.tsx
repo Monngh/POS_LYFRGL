@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { X, Plus, Pencil } from "lucide-react";
 import api from "../../services/api";
 import {
@@ -12,6 +12,14 @@ import {
   fmtDate,
 } from "./shared";
 
+// ---------------------------------------------------------------------------
+// Regex para nombre de sucursal: letras, números, espacios, acentos, puntos y guiones
+// ---------------------------------------------------------------------------
+const NAME_REGEX = /^[a-zA-ZÀ-ÿ0-9 .\-]+$/;
+
+// ---------------------------------------------------------------------------
+// Interfaces
+// ---------------------------------------------------------------------------
 interface BranchRow {
   id: number;
   name: string;
@@ -30,8 +38,44 @@ interface FormState {
   active: boolean;
 }
 
-const emptyForm: FormState = { name: "", address: "", phone: "", active: true };
+interface FieldErrors {
+  name?: string;
+  address?: string;
+  phone?: string;
+}
 
+const emptyForm: FormState = { name: "", address: "", phone: "", active: true };
+const emptyErrors: FieldErrors = {};
+
+// ---------------------------------------------------------------------------
+// Validadores por campo (puros — reutilizables)
+// ---------------------------------------------------------------------------
+const validateName = (value: string): string | undefined => {
+  const v = value.trim();
+  if (!v) return "El nombre de la sucursal es obligatorio.";
+  if (v.length < 3) return "El nombre debe tener al menos 3 caracteres.";
+  if (v.length > 80) return "El nombre no puede exceder 80 caracteres.";
+  if (!NAME_REGEX.test(v))
+    return "Solo se permiten letras, números, espacios, acentos, puntos y guiones.";
+  return undefined;
+};
+
+const validateAddress = (value: string): string | undefined => {
+  const v = value.trim();
+  if (!v) return "La dirección es obligatoria.";
+  if (v.length > 150) return "La dirección no puede exceder 150 caracteres.";
+  return undefined;
+};
+
+const validatePhone = (value: string): string | undefined => {
+  if (!value) return "El teléfono es obligatorio.";
+  if (!/^\d{10}$/.test(value)) return "El teléfono debe tener exactamente 10 dígitos.";
+  return undefined;
+};
+
+// ---------------------------------------------------------------------------
+// Componente
+// ---------------------------------------------------------------------------
 const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [rows, setRows] = useState<BranchRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +87,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
   // Modal crear / editar sucursal
   const [editing, setEditing] = useState<"create" | number | null>(null);
   const [form, setForm] = useState<FormState>({ ...emptyForm });
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({ ...emptyErrors });
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -52,7 +97,22 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [allEmployees, setAllEmployees] = useState<any[]>([]);
   const [reassignId, setReassignId] = useState<number | null>(null);
   const [reassignTarget, setReassignTarget] = useState<string>("");
+  const [reassigning, setReassigning] = useState(false);
 
+  // ---------------------------------------------------------------------------
+  // Validez global reactiva — se recalcula cada vez que el formulario cambia
+  // ---------------------------------------------------------------------------
+  const isFormValid = useMemo(() => {
+    return (
+      !validateName(form.name) &&
+      !validateAddress(form.address) &&
+      !validatePhone(form.phone)
+    );
+  }, [form.name, form.address, form.phone]);
+
+  // ---------------------------------------------------------------------------
+  // Carga de datos
+  // ---------------------------------------------------------------------------
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -84,6 +144,9 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   useEffect(() => { loadEmployees(); }, [loadEmployees]);
 
+  // ---------------------------------------------------------------------------
+  // Apertura de modales
+  // ---------------------------------------------------------------------------
   const openEmployeesModal = (b: BranchRow) => {
     setSelectedBranch(b);
     setReassignId(null);
@@ -91,49 +154,75 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
     setShowEmployeesModal(true);
   };
 
-  const handleReassign = async () => {
-    if (!reassignId || !reassignTarget) {
-      alert("Selecciona un empleado y una sucursal destino.");
-      return;
-    }
-    try {
-      await api.put(`/api/admin/employees/${reassignId}`, { branchId: parseInt(reassignTarget) });
-      await Promise.all([load(), loadEmployees()]);
-      setReassignId(null);
-      setReassignTarget("");
-      // Actualizar conteo en el modal
-      setSelectedBranch((prev) =>
-        prev ? { ...prev, employees: prev.employees - 1 } : prev
-      );
-    } catch (err: any) {
-      alert(err.response?.data?.message || "Error al reasignar empleado.");
-    }
-  };
-
   const openCreate = () => {
     setForm({ ...emptyForm });
+    setFieldErrors({ ...emptyErrors });
     setFormError(null);
     setEditing("create");
   };
 
   const openEdit = (b: BranchRow) => {
-    setForm({ name: b.name, address: b.address || "", phone: b.phone || "", active: b.active });
+    const loadedForm: FormState = {
+      name: b.name,
+      address: b.address || "",
+      phone: b.phone || "",
+      active: b.active,
+    };
+    setForm(loadedForm);
+    // Mostrar errores de campo solo si los datos actuales ya son inválidos
+    setFieldErrors({
+      name: validateName(loadedForm.name),
+      address: validateAddress(loadedForm.address),
+      phone: validatePhone(loadedForm.phone),
+    });
     setFormError(null);
     setEditing(b.id);
   };
 
+  const closeModal = () => {
+    if (saving) return;
+    setEditing(null);
+    setFieldErrors({ ...emptyErrors });
+    setFormError(null);
+  };
+
+  // ---------------------------------------------------------------------------
+  // Handlers de cambio de campo con validación en tiempo real
+  // ---------------------------------------------------------------------------
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setForm((f) => ({ ...f, name: val }));
+    setFieldErrors((fe) => ({ ...fe, name: validateName(val) }));
+  };
+
+  const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setForm((f) => ({ ...f, address: val }));
+    setFieldErrors((fe) => ({ ...fe, address: validateAddress(val) }));
+  };
+
+  // Solo dígitos — bloquea letras mientras el usuario escribe
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+    setForm((f) => ({ ...f, phone: val }));
+    setFieldErrors((fe) => ({ ...fe, phone: validatePhone(val) }));
+  };
+
+  // ---------------------------------------------------------------------------
+  // Envío del formulario
+  // ---------------------------------------------------------------------------
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) {
-      setFormError("El nombre de la sucursal es obligatorio.");
-      return;
-    }
+
+    // Doble-guardia: si el formulario no es válido o ya se está guardando, no hacer nada
+    if (!isFormValid || saving) return;
+
     setSaving(true);
     setFormError(null);
     try {
       const payload = {
-        name: form.name,
-        address: form.address,
+        name: form.name.trim(),
+        address: form.address.trim(),
         phone: form.phone,
         active: form.active,
       };
@@ -143,6 +232,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
         await api.put(`/api/admin/branches/${editing}`, payload);
       }
       setEditing(null);
+      setFieldErrors({ ...emptyErrors });
       await load();
     } catch (err: any) {
       setFormError(err.response?.data?.message || "No se pudo guardar la sucursal.");
@@ -151,11 +241,39 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
     }
   };
 
-  const set =
-    (k: keyof FormState) =>
-    (e: React.ChangeEvent<HTMLInputElement>) =>
-      setForm((f) => ({ ...f, [k]: e.target.value }));
+  // ---------------------------------------------------------------------------
+  // Reasignación de empleados
+  // ---------------------------------------------------------------------------
+  const handleReassign = async () => {
+    if (!reassignId || !reassignTarget || reassigning) {
+      return;
+    }
+    setReassigning(true);
+    try {
+      await api.put(`/api/admin/employees/${reassignId}`, {
+        branchId: parseInt(reassignTarget),
+      });
+      await Promise.all([
+        load(),
+        loadEmployees()
+      ]);
+      setReassignId(null);
+      setReassignTarget("");
+      setSelectedBranch((prev) =>
+        prev
+          ? { ...prev, employees: prev.employees - 1 }
+          : prev
+      );
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Error al reasignar empleado.");
+    } finally {
+      setReassigning(false);
+    }
+  };
 
+  // ---------------------------------------------------------------------------
+  // Filtros de tabla
+  // ---------------------------------------------------------------------------
   const activeCount = rows.filter((r) => r.active).length;
   const inactiveCount = rows.length - activeCount;
 
@@ -163,6 +281,32 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
     if (statusFilter === "active") return r.active;
     if (statusFilter === "inactive") return !r.active;
     return true;
+  });
+
+  // ---------------------------------------------------------------------------
+  // Estilo del botón Guardar según estado
+  // ---------------------------------------------------------------------------
+  const saveButtonStyle: React.CSSProperties = {
+    ...ui.primaryBtn,
+    flex: 1,
+    justifyContent: "center",
+    opacity: saving || !isFormValid ? 0.55 : 1,
+    cursor: saving || !isFormValid ? "not-allowed" : "pointer",
+  };
+
+  // Estilo inline para mensajes de error de campo (mismo color rojo del sistema)
+  const fieldErrStyle: React.CSSProperties = {
+    color: "#b91c1c",
+    fontSize: 12,
+    fontWeight: 600,
+    marginTop: 4,
+    display: "block",
+  };
+
+  // Borde rojo en input inválido (solo si hay error)
+  const inputWithError = (hasError: boolean): React.CSSProperties => ({
+    ...ui.input,
+    borderColor: hasError ? "#fca5a5" : undefined,
   });
 
   return (
@@ -241,32 +385,76 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
         </table>
       </div>
 
-      {/* Modal crear / editar */}
+      {/* ------------------------------------------------------------------- */}
+      {/* Modal crear / editar                                                  */}
+      {/* ------------------------------------------------------------------- */}
       {editing !== null && (
-        <div style={ui.overlay} onClick={() => !saving && setEditing(null)}>
-          <form style={ui.modal} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+        <div
+          style={ui.overlay}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <form
+            style={ui.modal}
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={submit}
+          >
             <div style={ui.modalHeader}>
               <span style={ui.modalTitle}>
                 {editing === "create" ? "Registrar nueva sucursal" : "Editar sucursal"}
               </span>
-              <button type="button" style={ui.linkBtn} onClick={() => setEditing(null)}>
+              <button type="button" style={ui.linkBtn} onClick={closeModal}>
                 <X size={18} color="#64748b" />
               </button>
             </div>
             <div style={ui.modalBody}>
+
+              {/* Nombre */}
               <div style={{ marginBottom: 14 }}>
                 <label style={ui.fieldLabel}>Nombre de la sucursal *</label>
-                <input style={ui.input} value={form.name} onChange={set("name")} placeholder="Ej. Sucursal Centro LYFRGL" autoFocus />
-              </div>
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Dirección</label>
-                <input style={ui.input} value={form.address} onChange={set("address")} placeholder="Calle, número, colonia, ciudad" />
-              </div>
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Teléfono</label>
-                <input style={ui.input} value={form.phone} onChange={set("phone")} placeholder="771 000 0000" />
+                <input
+                  style={inputWithError(!!fieldErrors.name)}
+                  value={form.name}
+                  onChange={handleNameChange}
+                  placeholder="Ej. Sucursal Centro LYFRGL"
+                  autoFocus
+                  maxLength={80}
+                />
+                {fieldErrors.name && (
+                  <span style={fieldErrStyle}>{fieldErrors.name}</span>
+                )}
               </div>
 
+              {/* Dirección */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={ui.fieldLabel}>Dirección *</label>
+                <input
+                  style={inputWithError(!!fieldErrors.address)}
+                  value={form.address}
+                  onChange={handleAddressChange}
+                  placeholder="Calle, número, colonia, ciudad"
+                  maxLength={150}
+                />
+                {fieldErrors.address && (
+                  <span style={fieldErrStyle}>{fieldErrors.address}</span>
+                )}
+              </div>
+
+              {/* Teléfono — solo acepta dígitos */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={ui.fieldLabel}>Teléfono * (10 dígitos)</label>
+                <input
+                  style={inputWithError(!!fieldErrors.phone)}
+                  value={form.phone}
+                  onChange={handlePhoneChange}
+                  placeholder="7710000000"
+                  inputMode="numeric"
+                />
+                {fieldErrors.phone && (
+                  <span style={fieldErrStyle}>{fieldErrors.phone}</span>
+                )}
+              </div>
+
+              {/* Sucursal activa */}
               <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", marginTop: 4 }}>
                 <input
                   type="checkbox"
@@ -277,16 +465,30 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Sucursal activa</span>
               </label>
 
+              {/* Error general del servidor */}
               {formError && (
                 <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 14 }}>{formError}</p>
               )}
 
+              {/* Botones */}
               <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
-                <button type="button" style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={() => setEditing(null)}>
+                <button
+                  type="button"
+                  style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }}
+                  onClick={closeModal}
+                >
                   Cancelar
                 </button>
-                <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
-                  {saving ? "Guardando..." : editing === "create" ? "Guardar sucursal" : "Guardar cambios"}
+                <button
+                  type="submit"
+                  disabled={saving || !isFormValid}
+                  style={saveButtonStyle}
+                >
+                  {saving
+                    ? "Guardando..."
+                    : editing === "create"
+                      ? "Guardar sucursal"
+                      : "Guardar cambios"}
                 </button>
               </div>
             </div>
@@ -294,7 +496,9 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
         </div>
       )}
 
-      {/* Modal de empleados y reasignación */}
+      {/* ------------------------------------------------------------------- */}
+      {/* Modal de empleados y reasignación                                     */}
+      {/* ------------------------------------------------------------------- */}
       {showEmployeesModal && selectedBranch && (
         <div style={ui.overlay} onClick={() => setShowEmployeesModal(false)}>
           <div
@@ -338,8 +542,8 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                                   emp.role === "ADMIN"
                                     ? "red"
                                     : emp.role === "GERENTE"
-                                    ? "amber"
-                                    : "blue"
+                                      ? "amber"
+                                      : "blue"
                                 }
                               >
                                 {emp.role}
@@ -403,8 +607,18 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           >
                             Cancelar
                           </button>
-                          <button style={ui.primaryBtn} onClick={handleReassign}>
-                            Confirmar reasignación
+                          <button
+                            style={{
+                              ...ui.primaryBtn,
+                              opacity: reassigning ? 0.6 : 1,
+                              cursor: reassigning ? "not-allowed" : "pointer",
+                            }}
+                            disabled={reassigning}
+                            onClick={handleReassign}
+                          >
+                            {reassigning
+                              ? "Reasignando..."
+                              : "Confirmar reasignación"}
                           </button>
                         </div>
                       </div>
