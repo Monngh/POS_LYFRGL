@@ -3,6 +3,7 @@ import { prisma } from "../app";
 import bcrypt from "bcryptjs";
 import { executeRefund, createMercadoPagoCashPayment, syncDepositStatus as mpSyncDepositStatus } from "./mercadopago.controller";
 import { PromotionService } from "../services/promotion.service";
+import { BillingService } from "../services/billing.service";
 
 /**
  * Simular una venta: calcula promociones e impuestos dinámicos sin registrar nada en BD
@@ -110,7 +111,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     return;
   }
 
-  const { items, paymentMethod, cardType, cashReceived, changeGiven, customerId, pointsRedeemed } = req.body;
+  const { items, paymentMethod, cardType, cashReceived, changeGiven, customerId, pointsRedeemed, invoiceRequested } = req.body;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     res.status(400).json({ message: "El carrito de ventas no puede estar vacío." });
@@ -118,6 +119,24 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
   }
 
   try {
+    if (invoiceRequested) {
+      if (!customerId) {
+        res.status(400).json({ message: "Debe seleccionar un cliente del directorio para poder facturar en caja." });
+        return;
+      }
+      const customer = await prisma.customer.findUnique({
+        where: { id: Number(customerId) }
+      });
+      if (!customer) {
+        res.status(404).json({ message: "El cliente seleccionado no existe." });
+        return;
+      }
+      if (!customer.taxId || !customer.name || !customer.taxRegime || !customer.zipCode || !customer.email || !customer.cfdiUse) {
+        res.status(400).json({ message: "El cliente no cuenta con datos fiscales completos para facturación (SAT 4.0)." });
+        return;
+      }
+    }
+
     // 1. Verificar sesión de caja abierta
     const activeSession = await prisma.cashSession.findFirst({
       where: {
@@ -399,8 +418,32 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       }
     }
 
+    let cfdiUuid = null;
+    let pdfUrl = null;
+    if (invoiceRequested && customerId) {
+      try {
+        const customer = await prisma.customer.findUnique({
+          where: { id: Number(customerId) }
+        });
+        if (customer) {
+          const billingInfo = await BillingService.createInvoice(newSale.id, {
+            rfc: customer.taxId!.toUpperCase(),
+            legalName: customer.name.toUpperCase(),
+            taxSystem: customer.taxRegime!,
+            zip: customer.zipCode!,
+            email: customer.email || "facturacion@fmb.com",
+            cfdiUse: customer.cfdiUse!
+          });
+          cfdiUuid = billingInfo.uuid;
+          pdfUrl = billingInfo.pdfUrl;
+        }
+      } catch (billingErr: any) {
+        console.error("Error al timbrar factura al checkout:", billingErr);
+      }
+    }
+
     res.status(201).json({
-      message: "Venta registrada exitosamente.",
+      message: "Venta registrada exitosamente." + (cfdiUuid ? " Factura timbrada y enviada." : ""),
       invoiceNumber: newSale.invoiceNumber,
       saleId: newSale.id,
       pointsEarned,
@@ -408,6 +451,8 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       pointsDiscount,
       customerPoints,
       customerName,
+      cfdiUuid,
+      pdfUrl,
     });
   } catch (error: any) {
     res.status(500).json({ message: "Error al procesar la venta.", error: error.message });
@@ -579,6 +624,24 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
         return;
       }
       refundInfo = refundResult;
+    }
+
+    // Cancelación de Factura (CFDI) asociada si existe y no es global
+    if (sale.cfdiUuid && !sale.cfdiUuid.startsWith("GLOBAL")) {
+      try {
+        const parts = sale.cfdiUuid.split(":");
+        const facturapiId = parts[1] || parts[0];
+        if (facturapiId) {
+          await BillingService.cancelInvoice(facturapiId, "02");
+        }
+      } catch (billingErr: any) {
+        console.error("Fallo al cancelar factura en Facturapi:", billingErr);
+        res.status(500).json({
+          message: "No se pudo cancelar la factura en el SAT. La venta no ha sido cancelada.",
+          error: billingErr.message
+        });
+        return;
+      }
     }
 
     // 3. Bloque transaccional ACID para revertir inventario, registrar Kardex y actualizar venta

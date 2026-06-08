@@ -754,6 +754,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
 
     // 7. Facturación SAT de Devolución (Nota de Crédito)
     let billingInfo = null;
+    let exchangeBillingInfo = null;
     if (sale.cfdiUuid) {
       try {
         const returnedItemsPayload = validatedItems.map((item) => ({
@@ -767,6 +768,28 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       } catch (billingErr: any) {
         console.error("Fallo al timbrar nota de crédito en Facturapi:", billingErr);
       }
+
+      // Facturar automáticamente la venta de intercambio si existió cambio
+      if (result.exchangeSaleInvoice) {
+        try {
+          const exSale = await prisma.sale.findUnique({
+            where: { invoiceNumber: result.exchangeSaleInvoice },
+            include: { customer: true }
+          });
+          if (exSale && exSale.customer && exSale.customer.taxId) {
+            exchangeBillingInfo = await BillingService.createInvoice(exSale.id, {
+              rfc: exSale.customer.taxId.toUpperCase(),
+              legalName: exSale.customer.name.toUpperCase(),
+              taxSystem: exSale.customer.taxRegime || "616",
+              zip: exSale.customer.zipCode || "42080",
+              email: exSale.cfdiEmail || exSale.customer.email || "facturacion@fmb.com",
+              cfdiUse: exSale.customer.cfdiUse || "G03"
+            });
+          }
+        } catch (exBillingErr) {
+          console.error("Fallo al timbrar factura de intercambio:", exBillingErr);
+        }
+      }
     }
 
     res.status(201).json({
@@ -778,6 +801,8 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       balanceDifference: result.balanceDifference,
       cfdiUuid: billingInfo?.uuid || null,
       pdfUrl: billingInfo?.pdfUrl || null,
+      exchangeCfdiUuid: exchangeBillingInfo?.uuid || null,
+      exchangePdfUrl: exchangeBillingInfo?.pdfUrl || null,
     });
   } catch (error: any) {
     console.error("Error al procesar devolución:", error);
