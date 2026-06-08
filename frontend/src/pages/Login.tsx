@@ -14,9 +14,27 @@ interface Cashier {
   name: string;
 }
 
+// Hook de responsividad: reacciona al ancho del viewport en vivo
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(query).matches
+  );
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
+    setMatches(m.matches);
+    m.addEventListener("change", handler);
+    return () => m.removeEventListener("change", handler);
+  }, [query]);
+  return matches;
+}
+
 const Login: React.FC = () => {
   const { loginAsAdmin, loginAsCashier } = useAuth();
-  
+
+  const isMobile = useMediaQuery("(max-width: 860px)");
+  const shortScreen = useMediaQuery("(max-height: 860px)");
+
   // Estados de control
   const [activeTab, setActiveTab] = useState<"admin" | "cashier">("cashier"); // Por defecto cajero según maquetas
   const [error, setError] = useState<string | null>(null);
@@ -178,253 +196,313 @@ const Login: React.FC = () => {
   // Obtener nombre de la sucursal seleccionada para el título
   const currentBranchName = branches.find(b => b.id.toString() === selectedBranchId)?.name || "Pachuca - Centro";
 
-  return (
-    <div style={styles.splitWrapper}>
-      {/* PANEL IZQUIERDO: Estilo Maqueta 9 (Bienvenida Azul) */}
-      <div style={styles.leftPanel}>
-        <div style={styles.leftContent}>
-          <div style={styles.badgeLabel}>LYFRGL SOLUTIONS POS</div>
-          <h1 style={styles.leftTitle}>LOGIN</h1>
-          <p style={styles.leftSubtitle}>
-            Bienvenido, acceda a su cuenta para continuar
-          </p>
-          <div style={styles.systemFooter}>
-            Sistema de Punto de Venta Empresarial v1.2.0 • 2026
-          </div>
+  // ─────────────────────────────────────────────────────────────
+  // Modo compacto: cuando la pantalla es baja, el formulario se
+  // ajusta (menos espaciado/tamaño) en vez de generar scroll.
+  // ─────────────────────────────────────────────────────────────
+  const compact = shortScreen;
+  const cardStyle: React.CSSProperties = { ...styles.loginCard, ...(compact ? { padding: "22px 28px", gap: "12px" } : {}) };
+  const avatarWrapStyle: React.CSSProperties = { ...styles.avatarContainer, ...(compact ? { gap: "4px" } : {}) };
+  const avatarBoxStyle: React.CSSProperties = { ...styles.avatarIcon, ...(compact ? { width: "50px", height: "50px", marginBottom: "0px" } : {}) };
+  const formStyle: React.CSSProperties = { ...styles.form, ...(compact ? { gap: "10px" } : {}) };
+  const cashierFormStyle: React.CSSProperties = { ...styles.cashierForm, ...(compact ? { gap: "10px" } : {}) };
+  const pinDisplayStyle: React.CSSProperties = { ...styles.pinDisplay, ...(compact ? { padding: "8px 14px" } : {}) };
+  const pinPadStyle: React.CSSProperties = { ...styles.pinPad, ...(compact ? { gap: "6px" } : {}) };
+  const pinBtnStyle: React.CSSProperties = { ...styles.pinBtn, ...(compact ? { height: "42px" } : {}) };
+
+  // ─────────────────────────────────────────────────────────────
+  // Bloque de marca (panel azul de bienvenida)
+  // ─────────────────────────────────────────────────────────────
+  const brand = (
+    <div style={styles.brandInner}>
+      <div style={styles.badgeLabel}>LYFRGL SOLUTIONS POS</div>
+      <h1 style={styles.leftTitle}>LOGIN</h1>
+      <p style={styles.leftSubtitle}>Bienvenido, acceda a su cuenta para continuar</p>
+      <div style={styles.systemFooter}>Sistema de Punto de Venta Empresarial v1.2.0 • 2026</div>
+    </div>
+  );
+
+  // ─────────────────────────────────────────────────────────────
+  // Tarjeta de autenticación (idéntica en escritorio y móvil)
+  // ─────────────────────────────────────────────────────────────
+  const card = (
+    <div style={cardStyle}>
+      {/* Avatar e Identificación de Sucursal */}
+      <div style={avatarWrapStyle}>
+        <div style={avatarBoxStyle}>
+          <KeyRound size={compact ? 24 : 28} color="#1e3a8a" />
         </div>
+        <h3 style={styles.branchTitle}>{activeTab === "cashier" ? currentBranchName : "Administración Central"}</h3>
+        <p style={styles.promptText}>Identifíquese para iniciar su turno</p>
       </div>
 
-      {/* PANEL DERECHO: Tarjeta de Autenticación */}
-      <div style={styles.rightPanel}>
-        <div style={styles.loginCard}>
-          {/* Avatar e Identificación de Sucursal */}
-          <div style={styles.avatarContainer}>
-            <div style={styles.avatarIcon}>
-              <KeyRound size={28} color="#1e3a8a" />
-            </div>
-            <h3 style={styles.branchTitle}>{activeTab === "cashier" ? currentBranchName : "Administración Central"}</h3>
-            <p style={styles.promptText}>Identifíquese para iniciar su turno</p>
+      {/* Toggle de Roles */}
+      <div style={styles.tabContainer}>
+        <button
+          style={{
+            ...styles.tabButton,
+            ...(activeTab === "cashier" ? styles.tabActive : {}),
+          }}
+          onClick={() => {
+            setActiveTab("cashier");
+            setError(null);
+          }}
+        >
+          <UserCheck size={16} />
+          Caja Rápida
+        </button>
+        <button
+          style={{
+            ...styles.tabButton,
+            ...(activeTab === "admin" ? styles.tabActive : {}),
+          }}
+          onClick={() => {
+            setActiveTab("admin");
+            setError(null);
+          }}
+        >
+          <ShieldCheck size={16} />
+          Administración
+        </button>
+      </div>
+
+      {/* Alerta de Error */}
+      {error && (
+        <div style={styles.errorAlert}>
+          <AlertCircle size={18} color="#b91c1c" />
+          <span style={styles.errorText}>{error}</span>
+        </div>
+      )}
+
+      {/* Formulario Administradores */}
+      {activeTab === "admin" && (
+        <form onSubmit={handleAdminSubmit} style={formStyle}>
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Usuario / Correo</label>
+            <input
+              type="email"
+              required
+              className="input-corporate"
+              placeholder="admin@fmb.com"
+              value={adminEmail}
+              onChange={(e) => setAdminEmail(e.target.value)}
+            />
           </div>
-
-          {/* Toggle de Roles */}
-          <div style={styles.tabContainer}>
-            <button
-              style={{
-                ...styles.tabButton,
-                ...(activeTab === "cashier" ? styles.tabActive : {}),
-              }}
-              onClick={() => {
-                setActiveTab("cashier");
-                setError(null);
-              }}
-            >
-              <UserCheck size={16} />
-              Caja Rápida
-            </button>
-            <button
-              style={{
-                ...styles.tabButton,
-                ...(activeTab === "admin" ? styles.tabActive : {}),
-              }}
-              onClick={() => {
-                setActiveTab("admin");
-                setError(null);
-              }}
-            >
-              <ShieldCheck size={16} />
-              Administración
-            </button>
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Contraseña</label>
+            <input
+              type="password"
+              required
+              className="input-corporate"
+              placeholder="••••••••"
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+            />
           </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn-primary active-tap"
+            style={styles.submitBtn}
+          >
+            {loading ? "Iniciando..." : "ACEPTAR ➜"}
+          </button>
+        </form>
+      )}
 
-          {/* Alerta de Error */}
-          {error && (
-            <div style={styles.errorAlert}>
-              <AlertCircle size={18} color="#b91c1c" />
-              <span style={styles.errorText}>{error}</span>
-            </div>
-          )}
-
-          {/* Formulario Administradores */}
-          {activeTab === "admin" && (
-            <form onSubmit={handleAdminSubmit} style={styles.form}>
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Usuario / Correo</label>
-                <input
-                  type="email"
-                  required
-                  className="input-corporate"
-                  placeholder="admin@fmb.com"
-                  value={adminEmail}
-                  onChange={(e) => setAdminEmail(e.target.value)}
-                />
+      {/* Formulario Cajeros (PIN Pad) */}
+      {activeTab === "cashier" && (
+        <div style={cashierFormStyle}>
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>1. Seleccionar Sucursal</label>
+            {loadingBranches ? (
+              <div style={styles.loadingBox}>
+                <RefreshCw size={14} className="spin-slow" /> Cargando...
               </div>
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Contraseña</label>
-                <input
-                  type="password"
-                  required
-                  className="input-corporate"
-                  placeholder="••••••••"
-                  value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn-primary active-tap"
-                style={styles.submitBtn}
+            ) : (
+              <select
+                value={selectedBranchId}
+                onChange={(e) => setSelectedBranchId(e.target.value)}
+                style={styles.select}
               >
-                {loading ? "Iniciando..." : "ACEPTAR ➜"}
-              </button>
-            </form>
-          )}
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
 
-          {/* Formulario Cajeros (PIN Pad) */}
-          {activeTab === "cashier" && (
-            <div style={styles.cashierForm}>
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>1. Seleccionar Sucursal</label>
-                {loadingBranches ? (
-                  <div style={styles.loadingBox}>
-                    <RefreshCw size={14} className="spin-slow" /> Cargando...
-                  </div>
-                ) : (
-                  <select
-                    value={selectedBranchId}
-                    onChange={(e) => setSelectedBranchId(e.target.value)}
-                    style={styles.select}
-                  >
-                    {branches.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>2. Seleccionar Cajero</label>
+            {loadingCashiers ? (
+              <div style={styles.loadingBox}>
+                <RefreshCw size={14} className="spin-slow" /> Cargando...
               </div>
-
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>2. Seleccionar Cajero</label>
-                {loadingCashiers ? (
-                  <div style={styles.loadingBox}>
-                    <RefreshCw size={14} className="spin-slow" /> Cargando...
-                  </div>
-                ) : cashiers.length === 0 ? (
-                  <div style={styles.emptyBox}>No hay cajeros en esta sucursal</div>
-                ) : (
-                  <div style={{ position: "relative" }}>
-                    <input
-                      type="text"
-                      placeholder="Buscar o seleccionar cajero..."
-                      className="input-corporate"
-                      value={cashierSearch}
-                      onChange={(e) => {
-                        setCashierSearch(e.target.value);
-                        setShowCashierDropdown(true);
-                        setCashierEmail("");
-                      }}
-                      onFocus={() => setShowCashierDropdown(true)}
-                      onBlur={() => setTimeout(() => setShowCashierDropdown(false), 200)}
-                      style={{ width: "100%", padding: "10px 14px", fontSize: "14px", borderRadius: "6px", border: "1px solid #cbd5e1" }}
-                    />
-                    {showCashierDropdown && (
-                      <div style={styles.autocompleteDropdown}>
-                        {filteredCashiers.map((c) => (
-                          <div
-                            key={c.id}
-                            style={{
-                              padding: "10px 14px",
-                              cursor: "pointer",
-                              fontSize: "14px",
-                              backgroundColor: cashierEmail === c.email ? "#eff6ff" : "#ffffff",
-                              color: cashierEmail === c.email ? "#1e3a8a" : "#0f172a",
-                              fontWeight: cashierEmail === c.email ? "600" : "500",
-                              transition: "background-color 0.15s ease",
-                            }}
-                            onMouseDown={() => {
-                              setCashierEmail(c.email);
-                              setCashierSearch(c.name);
-                              setShowCashierDropdown(false);
-                            }}
-                            className="autocomplete-item-hover"
-                          >
-                            {c.name}
-                          </div>
-                        ))}
-                        {filteredCashiers.length === 0 && (
-                          <div style={{ padding: "10px 14px", color: "#64748b", fontSize: "13px" }}>
-                            No se encontraron resultados
-                          </div>
-                        )}
+            ) : cashiers.length === 0 ? (
+              <div style={styles.emptyBox}>No hay cajeros en esta sucursal</div>
+            ) : (
+              <div style={{ position: "relative" }}>
+                <input
+                  type="text"
+                  placeholder="Buscar o seleccionar cajero..."
+                  className="input-corporate"
+                  value={cashierSearch}
+                  onChange={(e) => {
+                    setCashierSearch(e.target.value);
+                    setShowCashierDropdown(true);
+                    setCashierEmail("");
+                  }}
+                  onFocus={() => setShowCashierDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowCashierDropdown(false), 200)}
+                  style={{ width: "100%", padding: "10px 14px", fontSize: "14px", borderRadius: "6px", border: "1px solid #cbd5e1" }}
+                />
+                {showCashierDropdown && (
+                  <div style={styles.autocompleteDropdown}>
+                    {filteredCashiers.map((c) => (
+                      <div
+                        key={c.id}
+                        style={{
+                          padding: "10px 14px",
+                          cursor: "pointer",
+                          fontSize: "14px",
+                          backgroundColor: cashierEmail === c.email ? "#eff6ff" : "#ffffff",
+                          color: cashierEmail === c.email ? "#1e3a8a" : "#0f172a",
+                          fontWeight: cashierEmail === c.email ? "600" : "500",
+                          transition: "background-color 0.15s ease",
+                        }}
+                        onMouseDown={() => {
+                          setCashierEmail(c.email);
+                          setCashierSearch(c.name);
+                          setShowCashierDropdown(false);
+                        }}
+                        className="autocomplete-item-hover"
+                      >
+                        {c.name}
+                      </div>
+                    ))}
+                    {filteredCashiers.length === 0 && (
+                      <div style={{ padding: "10px 14px", color: "#64748b", fontSize: "13px" }}>
+                        No se encontraron resultados
                       </div>
                     )}
                   </div>
                 )}
               </div>
+            )}
+          </div>
 
-              {/* Display de PIN */}
-              <div style={styles.pinDisplay}>
-                <span style={styles.pinLabel}>Contraseña / PIN</span>
-                <div style={styles.pinCircles}>
-                  {[0, 1, 2, 3].map((index) => (
-                    <div
-                      key={index}
-                      style={{
-                        ...styles.pinDot,
-                        ...(pinCode.length > index ? styles.pinDotFilled : {}),
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* PIN Pad */}
-              <div style={styles.pinPad}>
-                {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
-                  <button
-                    key={num}
-                    type="button"
-                    style={styles.pinBtn}
-                    onClick={() => handleCashierPinPress(num)}
-                    className="active-tap"
-                  >
-                    {num}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  style={{ ...styles.pinBtn, ...styles.pinBtnAction }}
-                  onClick={handleClearPin}
-                  className="active-tap"
-                >
-                  <Delete size={20} />
-                </button>
-                <button
-                  type="button"
-                  style={styles.pinBtn}
-                  onClick={() => handleCashierPinPress("0")}
-                  className="active-tap"
-                >
-                  0
-                </button>
-                <button
-                  type="button"
-                  disabled={loading || pinCode.length < 4 || !cashierEmail}
+          {/* Display de PIN */}
+          <div style={pinDisplayStyle}>
+            <span style={styles.pinLabel}>Contraseña / PIN</span>
+            <div style={styles.pinCircles}>
+              {[0, 1, 2, 3].map((index) => (
+                <div
+                  key={index}
                   style={{
-                    ...styles.pinBtn,
-                    ...styles.pinBtnOK,
-                    ...(pinCode.length === 4 && cashierEmail ? styles.pinBtnOKReady : {}),
+                    ...styles.pinDot,
+                    ...(pinCode.length > index ? styles.pinDotFilled : {}),
                   }}
-                  onClick={handleCashierSubmit}
-                  className="active-tap"
-                >
-                  <KeyRound size={20} />
-                </button>
-              </div>
+                />
+              ))}
             </div>
-          )}
+          </div>
+
+          {/* PIN Pad */}
+          <div style={pinPadStyle}>
+            {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
+              <button
+                key={num}
+                type="button"
+                style={pinBtnStyle}
+                onClick={() => handleCashierPinPress(num)}
+                className="active-tap"
+              >
+                {num}
+              </button>
+            ))}
+            <button
+              type="button"
+              style={{ ...pinBtnStyle, ...styles.pinBtnAction }}
+              onClick={handleClearPin}
+              className="active-tap"
+            >
+              <Delete size={20} />
+            </button>
+            <button
+              type="button"
+              style={pinBtnStyle}
+              onClick={() => handleCashierPinPress("0")}
+              className="active-tap"
+            >
+              0
+            </button>
+            <button
+              type="button"
+              disabled={loading || pinCode.length < 4 || !cashierEmail}
+              style={{
+                ...pinBtnStyle,
+                ...styles.pinBtnOK,
+                ...(pinCode.length === 4 && cashierEmail ? styles.pinBtnOKReady : {}),
+              }}
+              onClick={handleCashierSubmit}
+              className="active-tap"
+            >
+              <KeyRound size={20} />
+            </button>
+          </div>
         </div>
+      )}
+    </div>
+  );
+
+  // ─────────────────────────────────────────────────────────────
+  // Disposición MÓVIL: una sola columna, sin desbordes
+  // ─────────────────────────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <div style={styles.mobileWrapper}>
+        <div style={styles.mobileBrand}>
+          <div style={{ ...styles.badgeLabel, color: "#bfdbfe" }}>LYFRGL SOLUTIONS POS</div>
+          <h1 style={styles.mobileTitle}>Bienvenido</h1>
+        </div>
+        {card}
+        <div style={styles.mobileFooter}>Sistema de Punto de Venta Empresarial v1.2.0 • 2026</div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Disposición ESCRITORIO: split con animación de intercambio de lado
+  //   · Administración → marca a la izquierda, formulario a la derecha
+  //   · Caja Rápida    → se deslizan e intercambian de lado
+  // ─────────────────────────────────────────────────────────────
+  const formOnRight = activeTab === "admin";
+  return (
+    <div style={styles.splitWrapper}>
+      {/* Panel de marca (se desliza) */}
+      <div
+        style={{
+          ...styles.panelBase,
+          ...styles.brandPanel,
+          padding: compact ? "16px" : "32px",
+          transform: `translateX(${formOnRight ? "0%" : "100%"})`,
+        }}
+      >
+        {brand}
+      </div>
+
+      {/* Panel del formulario (se desliza al lado opuesto) */}
+      <div
+        style={{
+          ...styles.panelBase,
+          ...styles.formPanel,
+          padding: compact ? "16px" : "32px",
+          transform: `translateX(${formOnRight ? "100%" : "0%"})`,
+        }}
+      >
+        {card}
       </div>
     </div>
   );
@@ -432,27 +510,76 @@ const Login: React.FC = () => {
 
 // Estilos premium que calcan la estética y colorimetría de la maqueta 9
 const styles: { [key: string]: React.CSSProperties } = {
+  // ── Escritorio: contenedor con paneles deslizables ──
   splitWrapper: {
-    display: "flex",
+    position: "relative",
     minHeight: "100vh",
     width: "100%",
-    backgroundColor: "#2563eb", // Fondo azul que resalta el mockup
+    overflow: "hidden",
+    backgroundColor: "#1d4ed8",
   },
-  leftPanel: {
-    flex: 1.1,
-    backgroundColor: "#1d4ed8", // Azul oscuro de la maqueta
+  panelBase: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: "50%",
+    height: "100%",
     display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "48px",
+    overflowY: "auto",
+    boxSizing: "border-box",
+    padding: "32px",
+    transition: "transform 0.6s cubic-bezier(0.65, 0, 0.35, 1)",
+    willChange: "transform",
+  },
+  brandPanel: {
+    background: "linear-gradient(160deg, #1e3a8a 0%, #1d4ed8 100%)",
     color: "#ffffff",
   },
-  leftContent: {
+  formPanel: {
+    backgroundColor: "#38bdf8",
+  },
+  brandInner: {
+    margin: "auto",
     maxWidth: "460px",
+    width: "100%",
     display: "flex",
     flexDirection: "column",
     gap: "16px",
   },
+
+  // ── Móvil: una sola columna apilada ──
+  mobileWrapper: {
+    minHeight: "100vh",
+    width: "100%",
+    background: "linear-gradient(160deg, #1e3a8a 0%, #38bdf8 100%)",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    padding: "28px 18px 32px",
+    overflowX: "hidden",
+    boxSizing: "border-box",
+  },
+  mobileBrand: {
+    width: "100%",
+    maxWidth: "440px",
+    textAlign: "center",
+    color: "#ffffff",
+    marginBottom: "20px",
+  },
+  mobileTitle: {
+    fontSize: "30px",
+    fontWeight: "900",
+    letterSpacing: "-1px",
+    marginTop: "4px",
+  },
+  mobileFooter: {
+    fontSize: "11px",
+    color: "rgba(255,255,255,0.75)",
+    marginTop: "20px",
+    textAlign: "center",
+  },
+
+  // ── Marca (texto del panel azul) ──
   badgeLabel: {
     fontSize: "12px",
     fontWeight: "800",
@@ -477,17 +604,12 @@ const styles: { [key: string]: React.CSSProperties } = {
     opacity: 0.6,
     marginTop: "80px",
   },
-  rightPanel: {
-    flex: 1.3,
-    backgroundColor: "#38bdf8", // Fondo celeste brillante de la maqueta
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "32px",
-  },
+
+  // ── Tarjeta de autenticación ──
   loginCard: {
     width: "100%",
     maxWidth: "440px",
+    margin: "auto",
     backgroundColor: "#ffffff",
     borderRadius: "16px",
     boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",

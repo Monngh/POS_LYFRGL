@@ -180,6 +180,14 @@ body {
   background: rgba(255, 255, 255, 0.4);
 }
 
+/* Encabezado fijo en tablas con scroll vertical */
+.table-sticky-head thead th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  z-index: 2;
+}
+
 /* Efectos de Hover para Autocomplete Dropdown */
 .autocomplete-item-hover:hover {
   background-color: #f1f5f9 !important;
