@@ -44,6 +44,21 @@ interface BranchOption {
   name: string;
 }
 
+// Hook de responsividad: reacciona a cambios de viewport sin recargar
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(query).matches
+  );
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
+    setMatches(m.matches);
+    m.addEventListener("change", handler);
+    return () => m.removeEventListener("change", handler);
+  }, [query]);
+  return matches;
+}
+
 const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<ViewProps>; branchScoped: boolean }[] = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, view: DashboardView, branchScoped: true },
   { key: "ventas", label: "Ventas", icon: ShoppingCart, view: VentasView, branchScoped: true },
@@ -73,15 +88,28 @@ const NAV_SECTIONS: { label: string; items: string[] }[] = [
 const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
 
+  const isMobile = useMediaQuery("(max-width: 1024px)");
+
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [activeNav, setActiveNav] = useState<string>("dashboard");
   const [branchId, setBranchId] = useState<string>("all");
   const [branches, setBranches] = useState<BranchOption[]>([]);
   const [refreshToken, setRefreshToken] = useState(0);
   const [navHistory, setNavHistory] = useState<string[]>([]);
 
+  // En móvil el menú nunca usa el rail colapsado; siempre cajón completo
+  const effectiveCollapsed = isMobile ? false : collapsed;
+
+  // El hamburguesa: en móvil abre/cierra el cajón; en escritorio colapsa el rail
+  const toggleMenu = () => {
+    if (isMobile) setMobileOpen((o) => !o);
+    else setCollapsed((c) => !c);
+  };
+
   // Navega a una pestaña guardando la actual en el historial
   const navigateTo = (key: string) => {
+    setMobileOpen(false); // cerrar el cajón al elegir módulo en móvil
     if (key === activeNav) return;
     setNavHistory((h) => [...h, activeNav]);
     setActiveNav(key);
@@ -106,21 +134,41 @@ const AdminDashboard: React.FC = () => {
   const active = NAV_ITEMS.find((n) => n.key === activeNav) ?? NAV_ITEMS[0];
   const ActiveView = active.view;
 
+  // Estilo del sidebar: cajón fijo deslizable en móvil, acoplado en escritorio
+  const sidebarStyle: React.CSSProperties = isMobile
+    ? {
+        ...styles.sidebar,
+        position: "fixed",
+        left: 0,
+        top: 0,
+        width: 264,
+        transform: mobileOpen ? "translateX(0)" : "translateX(-100%)",
+        transition: "transform 0.25s ease",
+        zIndex: 300,
+        boxShadow: mobileOpen ? "0 10px 40px rgba(0,0,0,0.35)" : "none",
+      }
+    : { ...styles.sidebar, width: collapsed ? 72 : 248 };
+
   return (
     <div style={styles.shell}>
-      {/* ===================== SIDEBAR RETRÁCTIL ===================== */}
-      <aside style={{ ...styles.sidebar, width: collapsed ? 72 : 248 }}>
+      {/* Backdrop del cajón en móvil */}
+      {isMobile && mobileOpen && (
+        <div onClick={() => setMobileOpen(false)} style={styles.backdrop} />
+      )}
+
+      {/* ===================== SIDEBAR RETRÁCTIL / CAJÓN ===================== */}
+      <aside style={sidebarStyle}>
         <div style={styles.brandRow}>
           <div style={styles.brandLogo}>
             <Store size={20} color="#ffffff" />
           </div>
-          {!collapsed && <span style={styles.brandText}>LYFRGL POS</span>}
+          {!effectiveCollapsed && <span style={styles.brandText}>LYFRGL POS</span>}
         </div>
 
         <nav style={styles.nav} className="admin-sidebar-nav">
           {NAV_SECTIONS.map((section) => (
             <React.Fragment key={section.label}>
-              {!collapsed && (
+              {!effectiveCollapsed && (
                 <span style={styles.navSectionLabel}>{section.label}</span>
               )}
               {section.items.map((key) => {
@@ -135,14 +183,14 @@ const AdminDashboard: React.FC = () => {
                     className="active-tap"
                     style={{
                       ...styles.navItem,
-                      justifyContent: collapsed ? "center" : "flex-start",
+                      justifyContent: effectiveCollapsed ? "center" : "flex-start",
                       backgroundColor: isActive ? "#3b82f6" : "transparent",
                       color: isActive ? "#ffffff" : "#bfdbfe",
                       fontWeight: isActive ? 700 : 500,
                     }}
                   >
                     <Icon size={19} />
-                    {!collapsed && <span>{item.label}</span>}
+                    {!effectiveCollapsed && <span>{item.label}</span>}
                   </button>
                 );
               })}
@@ -155,7 +203,7 @@ const AdminDashboard: React.FC = () => {
             <div style={styles.userAvatar}>
               <UserCog size={16} color="#1e3a8a" />
             </div>
-            {!collapsed && (
+            {!effectiveCollapsed && (
               <div style={{ overflow: "hidden" }}>
                 <p style={styles.userName}>{user?.name || "Administrador"}</p>
                 <p style={styles.userRole}>{user?.role || "ADMIN"}</p>
@@ -167,11 +215,11 @@ const AdminDashboard: React.FC = () => {
 
       {/* ===================== ÁREA PRINCIPAL ===================== */}
       <div style={styles.main}>
-        <header style={styles.topbar}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <header style={{ ...styles.topbar, padding: isMobile ? "0 12px" : "0 24px", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 6 : 14, minWidth: 0 }}>
             <button
-              onClick={() => setCollapsed((c) => !c)}
-              title={collapsed ? "Expandir menú" : "Contraer menú"}
+              onClick={toggleMenu}
+              title={isMobile ? "Abrir menú" : collapsed ? "Expandir menú" : "Contraer menú"}
               className="active-tap"
               style={styles.iconBtn}
             >
@@ -190,20 +238,27 @@ const AdminDashboard: React.FC = () => {
             >
               <ArrowLeft size={18} color="#1e3a8a" />
             </button>
-            <span style={styles.appLabel}>Panel Administrativo Central</span>
+            <span style={{ ...styles.appLabel, ...(isMobile ? { fontSize: 14 } : {}) }}>
+              {isMobile ? active.label : "Panel Administrativo Central"}
+            </span>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 6 : 10, flexShrink: 0 }}>
             <div
               style={{
                 ...styles.selectWrap,
                 opacity: active.branchScoped ? 1 : 0.45,
                 pointerEvents: active.branchScoped ? "auto" : "none",
+                ...(isMobile ? { maxWidth: 150, padding: "0 8px", gap: 5 } : {}),
               }}
               title={active.branchScoped ? "Filtrar por sucursal" : "Esta sección no se filtra por sucursal"}
             >
-              <Store size={15} color="#64748b" />
-              <select value={branchId} onChange={(e) => setBranchId(e.target.value)} style={styles.select}>
+              <Store size={15} color="#64748b" style={{ flexShrink: 0 }} />
+              <select
+                value={branchId}
+                onChange={(e) => setBranchId(e.target.value)}
+                style={{ ...styles.select, ...(isMobile ? { textOverflow: "ellipsis", maxWidth: 110 } : {}) }}
+              >
                 <option value="all">Todas las sucursales</option>
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>
@@ -220,13 +275,18 @@ const AdminDashboard: React.FC = () => {
             >
               <RefreshCw size={16} color="#1e3a8a" />
             </button>
-            <button onClick={logout} className="active-tap" style={styles.logoutBtn}>
-              <LogOut size={15} /> Salir
+            <button
+              onClick={logout}
+              className="active-tap"
+              style={{ ...styles.logoutBtn, ...(isMobile ? { padding: 0, width: 38, justifyContent: "center" } : {}) }}
+              title="Cerrar sesión"
+            >
+              <LogOut size={15} /> {!isMobile && "Salir"}
             </button>
           </div>
         </header>
 
-        <div style={styles.content}>
+        <div style={{ ...styles.content, padding: isMobile ? 14 : 24 }}>
           <ActiveView branchId={branchId} refreshToken={refreshToken} />
         </div>
       </div>
@@ -236,6 +296,13 @@ const AdminDashboard: React.FC = () => {
 
 const styles: { [k: string]: React.CSSProperties } = {
   shell: { display: "flex", minHeight: "100vh", backgroundColor: "#f1f5f9" },
+
+  backdrop: {
+    position: "fixed",
+    inset: 0,
+    backgroundColor: "rgba(15,23,42,0.5)",
+    zIndex: 290,
+  },
 
   sidebar: {
     backgroundColor: "#1e3a8a",
@@ -368,7 +435,7 @@ const styles: { [k: string]: React.CSSProperties } = {
     cursor: "pointer",
     height: 38,
   },
-  content: { padding: 24, overflowY: "auto" },
+  content: { padding: 24, overflowY: "auto", overflowX: "hidden", minWidth: 0, flex: 1 },
 };
 
 export default AdminDashboard;

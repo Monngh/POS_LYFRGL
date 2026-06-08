@@ -373,7 +373,7 @@ const EmptyState: React.FC = () => (
 );
 
 const s: { [k: string]: React.CSSProperties } = {
-  metricsGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 },
+  metricsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 },
   metricCard: {
     backgroundColor: "#ffffff",
     border: "1px solid #e2e8f0",
@@ -416,7 +416,7 @@ const s: { [k: string]: React.CSSProperties } = {
   chartValue: { fontSize: 10, fontWeight: 700, color: "#64748b", height: 12 },
   bar: { width: "60%", maxWidth: 46, borderRadius: "6px 6px 0 0", transition: "height 0.3s ease" },
   chartLabel: { fontSize: 12, fontWeight: 600, color: "#94a3b8" },
-  bottomGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginTop: 20 },
+  bottomGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20, marginTop: 20 },
   track: { height: 9, backgroundColor: "#eef2f7", borderRadius: 999, overflow: "hidden" },
   trackFill: { height: "100%", backgroundColor: "#3b82f6", borderRadius: 999, transition: "width 0.3s ease" },
   productRow: {
