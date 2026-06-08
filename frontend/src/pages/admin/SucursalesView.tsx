@@ -52,6 +52,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [allEmployees, setAllEmployees] = useState<any[]>([]);
   const [reassignId, setReassignId] = useState<number | null>(null);
   const [reassignTarget, setReassignTarget] = useState<string>("");
+  const [reassigningEmployeeId, setReassigningEmployeeId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -96,8 +97,11 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
       alert("Selecciona un empleado y una sucursal destino.");
       return;
     }
+    if (reassigningEmployeeId === reassignId) return;
+    const employeeId = reassignId;
+    setReassigningEmployeeId(employeeId);
     try {
-      await api.put(`/api/admin/employees/${reassignId}`, { branchId: parseInt(reassignTarget) });
+      await api.put(`/api/admin/employees/${employeeId}`, { branchId: parseInt(reassignTarget) });
       await Promise.all([load(), loadEmployees()]);
       setReassignId(null);
       setReassignTarget("");
@@ -107,6 +111,8 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
       );
     } catch (err: any) {
       alert(err.response?.data?.message || "Error al reasignar empleado.");
+    } finally {
+      setReassigningEmployeeId(null);
     }
   };
 
@@ -403,8 +409,12 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           >
                             Cancelar
                           </button>
-                          <button style={ui.primaryBtn} onClick={handleReassign}>
-                            Confirmar reasignación
+                          <button
+                            style={ui.primaryBtn}
+                            onClick={handleReassign}
+                            disabled={reassigningEmployeeId === reassignId}
+                          >
+                            {reassigningEmployeeId === reassignId ? "Reasignando..." : "Confirmar reasignación"}
                           </button>
                         </div>
                       </div>
