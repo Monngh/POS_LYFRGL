@@ -143,12 +143,14 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [selectedProduct, setSelectedProduct] = useState<ProductDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
 
   // Feature 1: edit prices
   const [editMode, setEditMode] = useState(false);
   const [editCost, setEditCost] = useState(0);
   const [editPrice, setEditPrice] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [productSaving, setProductSaving] = useState(false);
 
   // Feature 2: adjust stock
   const [adjustOpen, setAdjustOpen] = useState(false);
@@ -158,6 +160,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [adjustReason, setAdjustReason] = useState("");
   const [adjustObservations, setAdjustObservations] = useState("");
   const [adjustError, setAdjustError] = useState<string | null>(null);
+  const [adjustmentSaving, setAdjustmentSaving] = useState(false);
 
   // Feature 3: transfer
   const [transferOpen, setTransferOpen] = useState(false);
@@ -166,6 +169,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [transferQty, setTransferQty] = useState(0);
   const [transferConfirm, setTransferConfirm] = useState(false);
   const [transferError, setTransferError] = useState<string | null>(null);
+  const [transferSaving, setTransferSaving] = useState(false);
 
 
   // Suppliers catalog (shared between create + detail modals)
@@ -174,6 +178,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [productSuppliers, setProductSuppliers] = useState<number[]>([]);
   const [editingSuppliersMode, setEditingSuppliersMode] = useState(false);
   const [suppliersError, setSuppliersError] = useState<string | null>(null);
+  const [suppliersSaving, setSuppliersSaving] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
@@ -290,6 +295,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   };
 
   const handleToggleActive = async (p: ProductRow | ProductDetail) => {
+    if (statusUpdatingId === p.id) return;
+    setStatusUpdatingId(p.id);
     try {
       if (p.active) {
         // Soft delete (desactivar)
@@ -311,6 +318,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       await load();
     } catch (err: unknown) {
       alert(getErrorMessage(err, "No se pudo cambiar el estado del producto."));
+    } finally {
+      setStatusUpdatingId(null);
     }
   };
 
@@ -521,7 +530,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   // Feature 1: save price/cost edits
   const saveProductChanges = async () => {
-    if (!selectedProduct) return;
+    if (productSaving || !selectedProduct) return;
+    setProductSaving(true);
     setSaveError(null);
     try {
       await api.put(`/api/admin/products/${selectedProduct.id}`, {
@@ -530,15 +540,17 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       });
       await fetchDetail(selectedProduct.id);
       setEditMode(false);
-      load();
+      await load();
     } catch (err: any) {
       setSaveError(err.response?.data?.message || "Error al guardar.");
+    } finally {
+      setProductSaving(false);
     }
   };
 
   // Feature 2: submit stock adjustment
   const submitAdjustment = async () => {
-    if (!selectedProduct) return;
+    if (adjustmentSaving || !selectedProduct) return;
     setAdjustError(null);
     if (!adjustBranch || !adjustType || !adjustReason.trim()) {
       setAdjustError("Completa todos los campos obligatorios.");
@@ -576,6 +588,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       ? `${adjustReason} — ${adjustObservations.trim()}`
       : adjustReason;
 
+    setAdjustmentSaving(true);
     try {
       await api.post("/api/admin/inventory/adjust", {
         productId: selectedProduct.id,
@@ -585,7 +598,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         reason: fullReason,
       });
       await fetchDetail(selectedProduct.id);
-      load();
+      await load();
       setAdjustOpen(false);
       setAdjustBranch(0);
       setAdjustType("");
@@ -594,17 +607,20 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setAdjustObservations("");
     } catch (err: any) {
       setAdjustError(err.response?.data?.message || "Error al aplicar ajuste.");
+    } finally {
+      setAdjustmentSaving(false);
     }
   };
 
   // Feature 3: submit transfer
   const submitTransfer = async () => {
-    if (!selectedProduct) return;
+    if (transferSaving || !selectedProduct) return;
     setTransferError(null);
     if (!transferFrom || !transferTo || !transferQty) {
       setTransferError("Completa todos los campos.");
       return;
     }
+    setTransferSaving(true);
     try {
       await api.post("/api/admin/inventory/transfer", {
         productId: selectedProduct.id,
@@ -613,7 +629,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         quantity: transferQty,
       });
       await fetchDetail(selectedProduct.id);
-      load();
+      await load();
       setTransferOpen(false);
       setTransferFrom(0);
       setTransferTo(0);
@@ -622,11 +638,14 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     } catch (err: any) {
       setTransferConfirm(false);
       setTransferError(err.response?.data?.message || "Error al trasladar.");
+    } finally {
+      setTransferSaving(false);
     }
   };
 
   const saveSuppliersChanges = async () => {
-    if (!selectedProduct) return;
+    if (suppliersSaving || !selectedProduct) return;
+    setSuppliersSaving(true);
     setSuppliersError(null);
     try {
       const res = await api.get<SupplierOption[]>(`/api/admin/products/${selectedProduct.id}/suppliers`);
@@ -645,6 +664,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setEditingSuppliersMode(false);
     } catch (err: any) {
       setSuppliersError(err.response?.data?.message || "Error al guardar proveedores.");
+    } finally {
+      setSuppliersSaving(false);
     }
   };
 
@@ -886,7 +907,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           <p style={{ fontSize: 12, color: "#b91c1c", marginBottom: 10 }}>{saveError}</p>
                         )}
                         <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={saveProductChanges} style={ui.primaryBtn}>✓ Guardar</button>
+                          <button onClick={saveProductChanges} disabled={productSaving} style={ui.primaryBtn}>
+                            {productSaving ? "Guardando..." : "✓ Guardar"}
+                          </button>
                           <button onClick={() => { setEditMode(false); setSaveError(null); }} style={ui.ghostBtn}>✕ Cancelar</button>
                         </div>
                       </>
@@ -1041,7 +1064,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           <p style={{ fontSize: 12, color: "#b91c1c", marginBottom: 10 }}>{suppliersError}</p>
                         )}
                         <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={saveSuppliersChanges} style={ui.primaryBtn}>✓ Guardar</button>
+                          <button onClick={saveSuppliersChanges} disabled={suppliersSaving} style={ui.primaryBtn}>
+                            {suppliersSaving ? "Guardando..." : "✓ Guardar"}
+                          </button>
                           <button onClick={() => { setEditingSuppliersMode(false); setSuppliersError(null); }} style={ui.ghostBtn}>✕ Cancelar</button>
                         </div>
                       </div>
@@ -1107,6 +1132,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <>
                   <button
                     onClick={() => handleToggleActive(selectedProduct)}
+                    disabled={statusUpdatingId === selectedProduct.id}
                     style={{
                       ...ui.ghostBtn,
                       color: selectedProduct.active ? "#b91c1c" : "#15803d",
@@ -1114,7 +1140,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       marginRight: "auto"
                     }}
                   >
-                    {selectedProduct.active ? "Desactivar" : "Activar"}
+                    {statusUpdatingId === selectedProduct.id
+                      ? "Actualizando..."
+                      : selectedProduct.active ? "Desactivar" : "Activar"}
                   </button>
                   <button
                     onClick={() => handleEdit(selectedProduct)}
@@ -1293,8 +1321,12 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid #e2e8f0" }}>
                 <button onClick={() => setAdjustOpen(false)} style={ui.ghostBtn}>Cancelar</button>
-                <button onClick={submitAdjustment} style={ui.primaryBtn} disabled={!adjustBranch || !adjustType || !adjustReason}>
-                  ✓ Aplicar ajuste
+                <button
+                  onClick={submitAdjustment}
+                  style={ui.primaryBtn}
+                  disabled={adjustmentSaving || !adjustBranch || !adjustType || !adjustReason}
+                >
+                  {adjustmentSaving ? "Procesando..." : "✓ Aplicar ajuste"}
                 </button>
               </div>
             </div>
@@ -1335,8 +1367,12 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <button onClick={() => setTransferConfirm(false)} style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }}>
                       Volver
                     </button>
-                    <button onClick={submitTransfer} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
-                      ✓ Confirmar traslado
+                    <button
+                      onClick={submitTransfer}
+                      disabled={transferSaving}
+                      style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}
+                    >
+                      {transferSaving ? "Procesando..." : "✓ Confirmar traslado"}
                     </button>
                   </div>
                 </div>
