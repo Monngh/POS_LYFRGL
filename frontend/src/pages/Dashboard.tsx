@@ -53,6 +53,20 @@ interface Sale {
   refundStatus?: string | null;
 }
 
+type CartEntry = { product: Product; quantity: number };
+
+const getProductId = (product: Product | Record<string, any> | null | undefined): number => {
+  const runtimeProduct = product as Record<string, any> | null | undefined;
+  return Number(runtimeProduct?.id ?? runtimeProduct?.productId);
+};
+
+const getCheckoutErrorMessage = (err: any, fallback: string): string => {
+  const data = err?.response?.data;
+  const message = typeof data?.message === "string" ? data.message : "";
+  const detail = typeof data?.error === "string" && data.error !== message ? data.error : "";
+  return [message, detail].filter(Boolean).join(" Detalle: ") || err?.message || fallback;
+};
+
 interface CashSession {
   id: number;
   branchId: number;
@@ -302,18 +316,36 @@ const Dashboard: React.FC = () => {
   // ---------------------------------------------------------------------------
   // Restaurar borrador de venta desde localStorage al montar
   const DRAFT_KEY = "pos_sale_draft";
-  const loadDraft = (): { product: Product; quantity: number }[] => {
+  const loadDraft = (): CartEntry[] => {
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const validItems = parsed
+            .map((item: any) => {
+              const product = item?.product;
+              const productId = getProductId(product);
+              const quantity = Math.floor(Number(item?.quantity));
+              if (!Number.isInteger(productId) || productId <= 0 || !Number.isInteger(quantity) || quantity <= 0) {
+                return null;
+              }
+              return { product: { ...product, id: productId }, quantity };
+            })
+            .filter((item): item is CartEntry => item !== null);
+
+          if (validItems.length !== parsed.length) {
+            localStorage.removeItem(DRAFT_KEY);
+          }
+
+          return validItems;
+        }
       }
     } catch { /* ignore */ }
     return [];
   };
 
-  const [cart, setCart] = useState<{ product: Product; quantity: number }[]>(loadDraft);
+  const [cart, setCart] = useState<CartEntry[]>(loadDraft);
   const [barcodeSearch, setBarcodeSearch] = useState("");
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
@@ -757,7 +789,43 @@ const Dashboard: React.FC = () => {
     ? (Number(mixtoCard) <= netTotalToPay && Number(mixtoCash) >= (netTotalToPay - Number(mixtoCard)) ? Number(mixtoCash) - (netTotalToPay - Number(mixtoCard)) : 0)
     : 0;
 
+  const buildCheckoutItemsPayload = () => {
+    if (cart.length === 0) {
+      throw new Error("El carrito de ventas no puede estar vacío.");
+    }
+
+    return cart.map((item, index) => {
+      const productId = getProductId(item.product);
+      const quantity = Math.floor(Number(item.quantity));
+
+      if (!Number.isInteger(productId) || productId <= 0) {
+        throw new Error(`El producto en la posición ${index + 1} no tiene un identificador válido.`);
+      }
+
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        throw new Error(`La cantidad de ${item.product.name || `producto #${productId}`} debe ser mayor a cero.`);
+      }
+
+      return {
+        id: productId,
+        productId,
+        name: item.product.name,
+        quantity,
+      };
+    });
+  };
+
   const handleCheckoutSubmit = async () => {
+    setCheckoutError(null);
+
+    let itemsPayload: ReturnType<typeof buildCheckoutItemsPayload>;
+    try {
+      itemsPayload = buildCheckoutItemsPayload();
+    } catch (err: any) {
+      setCheckoutError(err.message || "El carrito no tiene datos válidos para cobrar.");
+      return;
+    }
+
     if (paymentMethod === "EFECTIVO" && parsedReceived < netTotalToPay) {
       setCheckoutError("El efectivo recibido es menor al total a pagar.");
       return;
@@ -782,12 +850,6 @@ const Dashboard: React.FC = () => {
     if (paymentMethod === "QR_MERCADOPAGO") {
       setCheckoutLoading(true);
       try {
-        const itemsPayload = cart.map((c) => ({
-          id: c.product.id,
-          name: c.product.name,
-          quantity: c.quantity,
-        }));
-
         const res = await api.post("/api/sales", {
           items: itemsPayload,
           paymentMethod: "QR_MERCADOPAGO",
@@ -822,7 +884,7 @@ const Dashboard: React.FC = () => {
         setCheckoutModalOpen(false);
         setQrModalOpen(true);
       } catch(err: any) {
-        alert(err.response?.data?.message || "Error al procesar pago QR");
+        alert(getCheckoutErrorMessage(err, "Error al procesar pago QR"));
       } finally {
         setCheckoutLoading(false);
       }
@@ -831,17 +893,12 @@ const Dashboard: React.FC = () => {
 
     setCheckoutLoading(true);
     try {
-      const itemsPayload = cart.map((c) => ({
-        id: c.product.id,
-        name: c.product.name,
-        quantity: c.quantity,
-      }));
-
       const res = await api.post("/api/sales", {
         items: itemsPayload,
         paymentMethod,
         cardType: (paymentMethod === "TARJETA" || paymentMethod === "MIXTO") ? cardType : undefined,
         cashReceived: paymentMethod === "EFECTIVO" ? parsedReceived : paymentMethod === "MIXTO" ? Number(mixtoCash) : 0,
+        cardAmount: paymentMethod === "MIXTO" ? Number(mixtoCard) : undefined,
         changeGiven: calculatedChange,
         discountAmount: cartDiscount,
         customerId: selectedCustomer ? selectedCustomer.id : undefined,
@@ -894,7 +951,7 @@ const Dashboard: React.FC = () => {
       setMixtoCard("");
       setActiveModal("ticket-view"); // Mostrar el ticket inmediatamente
     } catch (err: any) {
-      setCheckoutError(err.response?.data?.message || "Error al completar el cobro.");
+      setCheckoutError(getCheckoutErrorMessage(err, "Error al completar el cobro."));
     } finally {
       setCheckoutLoading(false);
     }
