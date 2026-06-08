@@ -201,6 +201,112 @@ const checkRFCUnique = async (rfc: string, excludeId?: number): Promise<boolean>
   return !existing;
 };
 
+type CustomerInput = {
+  name?: string;
+  email?: string | null;
+  phone?: string | null;
+  taxId?: string | null;
+  address?: string | null;
+  creditLimit?: number;
+  zipCode?: string | null;
+  taxRegime?: string | null;
+  cfdiUse?: string | null;
+};
+
+const CUSTOMER_NAME_PATTERN = /^[A-Za-z0-9\u00C0-\u017F\s.,'&-]+$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_PATTERN = /^[0-9\s()+-]+$/;
+const ADDRESS_PATTERN = /^[A-Za-z0-9\u00C0-\u017F\s.,#\-\/]+$/;
+const ZIP_CODE_PATTERN = /^\d{5}$/;
+const TAX_REGIME_PATTERN = /^\d{3}$/;
+const CFDI_USE_PATTERN = /^[A-Z0-9]{3,4}$/;
+
+const readString = (value: unknown): string => {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string" || typeof value === "number") return String(value).trim();
+  return "";
+};
+
+const normalizeSpaces = (value: string): string => value.trim().replace(/\s+/g, " ");
+
+const validateCustomerInput = (
+  body: Record<string, unknown>,
+  options: { requireName: boolean }
+): { valid: true; data: CustomerInput } | { valid: false; message: string } => {
+  const data: CustomerInput = {};
+
+  if (options.requireName || body.name !== undefined) {
+    const name = normalizeSpaces(readString(body.name));
+    if (!name) return { valid: false, message: "El nombre del cliente es requerido." };
+    if (name.length < 2) return { valid: false, message: "El nombre debe tener al menos 2 caracteres." };
+    if (name.length > 100) return { valid: false, message: "El nombre no puede superar 100 caracteres." };
+    if (!CUSTOMER_NAME_PATTERN.test(name)) return { valid: false, message: "El nombre contiene caracteres no permitidos." };
+    data.name = name;
+  }
+
+  if (body.email !== undefined) {
+    const email = readString(body.email).toLowerCase();
+    if (email && (!EMAIL_PATTERN.test(email) || /\s/.test(email))) return { valid: false, message: "El correo no tiene un formato valido." };
+    data.email = email || null;
+  }
+
+  if (body.phone !== undefined) {
+    const phone = normalizeSpaces(readString(body.phone));
+    if (phone) {
+      const digits = phone.replace(/\D/g, "");
+      if (!PHONE_PATTERN.test(phone)) return { valid: false, message: "El telefono solo puede contener numeros, espacios, +, - y parentesis." };
+      if (digits.length < 10 || digits.length > 15) return { valid: false, message: "El telefono debe tener entre 10 y 15 digitos." };
+    }
+    data.phone = phone || null;
+  }
+
+  if (body.taxId !== undefined) {
+    const taxId = readString(body.taxId).toUpperCase().replace(/\s+/g, "");
+    if (taxId) {
+      const rfcCheck = validateRFC(taxId);
+      if (!rfcCheck.valid) return { valid: false, message: rfcCheck.message };
+    }
+    data.taxId = taxId || null;
+  }
+
+  if (body.address !== undefined) {
+    const address = normalizeSpaces(readString(body.address));
+    if (address) {
+      if (address.length > 200) return { valid: false, message: "La direccion no puede superar 200 caracteres." };
+      if (!ADDRESS_PATTERN.test(address)) return { valid: false, message: "La direccion contiene caracteres no permitidos." };
+    }
+    data.address = address || null;
+  }
+
+  if (options.requireName || body.creditLimit !== undefined) {
+    const rawCreditLimit = readString(body.creditLimit);
+    const creditLimit = rawCreditLimit ? Number(rawCreditLimit) : 0;
+    if (!Number.isFinite(creditLimit)) return { valid: false, message: "El limite de credito debe ser numerico." };
+    if (creditLimit < 0) return { valid: false, message: "El limite de credito no puede ser negativo." };
+    data.creditLimit = creditLimit;
+  }
+
+  if (body.zipCode !== undefined) {
+    const zipCode = readString(body.zipCode);
+    if (zipCode && !ZIP_CODE_PATTERN.test(zipCode)) return { valid: false, message: "El Codigo Postal debe ser exactamente 5 digitos." };
+    data.zipCode = zipCode || null;
+  }
+
+  if (body.taxRegime !== undefined) {
+    const taxRegime = readString(body.taxRegime);
+    if (taxRegime && !TAX_REGIME_PATTERN.test(taxRegime)) return { valid: false, message: "El regimen fiscal no es valido." };
+    data.taxRegime = taxRegime || null;
+  }
+
+  if (body.cfdiUse !== undefined) {
+    const cfdiUse = readString(body.cfdiUse).toUpperCase();
+    if (cfdiUse && !CFDI_USE_PATTERN.test(cfdiUse)) return { valid: false, message: "El uso de CFDI no es valido." };
+    data.cfdiUse = cfdiUse || null;
+  }
+
+  return { valid: true, data };
+};
+
 export const listCustomers = async (req: Request, res: Response): Promise<void> => {
   try {
     const search = trimQuery(req.query.search);
@@ -247,6 +353,11 @@ export const listCustomers = async (req: Request, res: Response): Promise<void> 
 export const createCustomer = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name, email, phone, taxId, address, creditLimit, zipCode, taxRegime, cfdiUse } = req.body;
+    const validation = validateCustomerInput(req.body, { requireName: true });
+    if (!validation.valid) {
+      res.status(400).json({ message: validation.message });
+      return;
+    }
 
     if (!name || typeof name !== "string" || !name.trim()) {
       res.status(400).json({ message: "El nombre del cliente es obligatorio." });
@@ -322,6 +433,11 @@ export const updateCustomer = async (req: Request, res: Response): Promise<void>
     }
 
     const { name, email, phone, taxId, address, creditLimit, zipCode, taxRegime, cfdiUse } = req.body;
+    const validation = validateCustomerInput(req.body, { requireName: false });
+    if (!validation.valid) {
+      res.status(400).json({ message: validation.message });
+      return;
+    }
 
     const existing = await prisma.customer.findUnique({ where: { id: customerId } });
     if (!existing) {
