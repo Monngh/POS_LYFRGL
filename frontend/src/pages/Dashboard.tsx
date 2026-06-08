@@ -114,6 +114,7 @@ const Dashboard: React.FC = () => {
   const [depCancelReason, setDepCancelReason] = useState("");
   const [depCancelPin, setDepCancelPin] = useState("");
   const [depCancelLoading, setDepCancelLoading] = useState(false);
+  const [syncingDepositId, setSyncingDepositId] = useState<number | null>(null);
 
   // ---------------------------------------------------------------------------
   // ESTADOS PARA MÓDULO DE DEVOLUCIONES
@@ -1255,6 +1256,8 @@ const Dashboard: React.FC = () => {
   };
 
   const handleSyncDeposit = async (id: number) => {
+    if (syncingDepositId === id) return;
+    setSyncingDepositId(id);
     try {
       const res = await api.post(`/api/sales/deposits/${id}/sync`);
       showToast(res.data.message || "Depósito sincronizado.");
@@ -1265,6 +1268,8 @@ const Dashboard: React.FC = () => {
       await loadDashboardData();
     } catch (err: any) {
       showToast(err.response?.data?.message || "Error al sincronizar el depósito.");
+    } finally {
+      setSyncingDepositId(null);
     }
   };
   // ---------------------------------------------------------------------------
@@ -1566,6 +1571,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleReturnProcess = async () => {
+    if (returnProcessing) return;
     if (returnPinAttempts >= 3) {
       showToast("Se ha superado el máximo de 3 intentos de PIN. El módulo se cerrará.", "error");
       setTimeout(() => {
@@ -4634,6 +4640,7 @@ const Dashboard: React.FC = () => {
                                       <button
                                         type="button"
                                         onClick={() => handleSyncDeposit(dep.id)}
+                                        disabled={syncingDepositId === dep.id}
                                         style={{
                                           padding: "4px 6px",
                                           borderRadius: "4px",
@@ -4642,10 +4649,11 @@ const Dashboard: React.FC = () => {
                                           border: "1px solid #a7f3d0",
                                           fontSize: "10px",
                                           fontWeight: "700",
-                                          cursor: "pointer"
+                                          cursor: syncingDepositId === dep.id ? "not-allowed" : "pointer",
+                                          opacity: syncingDepositId === dep.id ? 0.7 : 1
                                         }}
                                       >
-                                        Sincronizar
+                                        {syncingDepositId === dep.id ? "Sincronizando..." : "Sincronizar"}
                                       </button>
                                     )}
                                     {dep.status !== "CANCELLED" && (
@@ -4887,9 +4895,16 @@ const Dashboard: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleSyncDeposit(lastDeposit.id)}
-                    style={{ ...styles.modalBtn, backgroundColor: "#2563eb", color: "white" }}
+                    disabled={syncingDepositId === lastDeposit.id}
+                    style={{
+                      ...styles.modalBtn,
+                      backgroundColor: "#2563eb",
+                      color: "white",
+                      opacity: syncingDepositId === lastDeposit.id ? 0.7 : 1,
+                      cursor: syncingDepositId === lastDeposit.id ? "not-allowed" : "pointer",
+                    }}
                   >
-                    VERIFICAR PAGO
+                    {syncingDepositId === lastDeposit.id ? "SINCRONIZANDO..." : "VERIFICAR PAGO"}
                   </button>
                 )}
                 <button onClick={handleCloseModal_bankDeposit} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
