@@ -20,6 +20,7 @@ import {
   Store,
   BadgePercent,
   Tags,
+  RotateCcw,
   type LucideIcon,
 } from "lucide-react";
 
@@ -37,6 +38,8 @@ import DepositosView from "./admin/DepositosView";
 import ProveedoresView from "./admin/ProveedoresView";
 import ImpuestosView from "./admin/ImpuestosView";
 import PromocionesView from "./admin/PromocionesView";
+import DevolucionesView from "./admin/DevolucionesView";
+import FacturacionGlobalView from "./admin/FacturacionGlobalView";
 import type { ViewProps } from "./admin/shared";
 
 interface BranchOption {
@@ -62,6 +65,7 @@ function useMediaQuery(query: string): boolean {
 const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<ViewProps>; branchScoped: boolean }[] = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, view: DashboardView, branchScoped: true },
   { key: "ventas", label: "Ventas", icon: ShoppingCart, view: VentasView, branchScoped: true },
+  { key: "devoluciones", label: "Devoluciones", icon: RotateCcw, view: DevolucionesView, branchScoped: true },
   { key: "inventario", label: "Inventario", icon: Package, view: InventarioView, branchScoped: true },
   { key: "compras", label: "Compras", icon: Truck, view: ComprasView, branchScoped: false },
   { key: "kardex", label: "Kardex", icon: ClipboardList, view: KardexView, branchScoped: true },
@@ -74,12 +78,13 @@ const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<
   { key: "impuestos", label: "Impuestos", icon: BadgePercent, view: ImpuestosView, branchScoped: false },
   { key: "promociones", label: "Promociones", icon: Tags, view: PromocionesView, branchScoped: false },
   { key: "reportes", label: "Reportes", icon: BarChart3, view: ReportesView, branchScoped: true },
+  { key: "facturacion-global", label: "Factura Global", icon: BadgePercent, view: FacturacionGlobalView, branchScoped: true },
 ];
 
 const NAV_SECTIONS: { label: string; items: string[] }[] = [
   { label: "Inicio", items: ["dashboard"] },
-  { label: "Operación", items: ["ventas", "compras"] },
-  { label: "Caja y finanzas", items: ["cajas", "depositos"] },
+  { label: "Operación", items: ["ventas", "devoluciones", "compras"] },
+  { label: "Caja y finanzas", items: ["cajas", "depositos", "facturacion-global"] },
   { label: "Inventario", items: ["inventario"] },
   { label: "Catálogos", items: ["clientes", "empleados", "sucursales", "proveedores", "impuestos", "promociones"] },
   { label: "Reportes", items: ["reportes"] },
