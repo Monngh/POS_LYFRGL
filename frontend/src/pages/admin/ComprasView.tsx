@@ -273,7 +273,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
       {/* Formulario nueva orden */}
       <Panel style={{ padding: 20, marginBottom: 22 }}>
         <div
-          style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}
+          style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 16 }}
         >
           <div>
             <label style={ui.fieldLabel}>Sucursal de destino *</label>
@@ -500,7 +500,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
         </Toolbar>
       </div>
 
-      <div style={ui.tableWrap}>
+      <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
         <table style={ui.table}>
           <thead>
             <tr style={ui.theadRow}>

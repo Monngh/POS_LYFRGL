@@ -100,18 +100,27 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
 
+  // Validación del rango de fechas (YYYY-MM-DD se compara lexicográficamente)
+  const dateError =
+    dateFrom && dateTo && dateFrom > dateTo
+      ? "La fecha «Desde» no puede ser posterior a «Hasta»."
+      : null;
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get<{ sales: SaleRow[] }>("/api/admin/sales", {
-        params: {
-          ...(branchId !== "all" ? { branchId } : {}),
-          ...(status !== "all" ? { status } : {}),
-          ...(search.trim() ? { search: search.trim() } : {}),
-          ...(dateFrom && dateTo ? { from: dateFrom, to: dateTo } : {}),
-        },
-      });
+      const params: Record<string, string> = {};
+      if (branchId !== "all") params.branchId = branchId;
+      if (status !== "all") params.status = status;
+      if (search.trim()) params.search = search.trim();
+      // Aplica el rango solo si es válido; admite un solo extremo (Desde o Hasta)
+      const invalidRange = Boolean(dateFrom && dateTo && dateFrom > dateTo);
+      if (!invalidRange) {
+        if (dateFrom) params.from = dateFrom;
+        if (dateTo) params.to = dateTo;
+      }
+      const res = await api.get<{ sales: SaleRow[] }>("/api/admin/sales", { params });
       setRows(res.data.sales);
     } catch (err: any) {
       setError(err.response?.data?.message || "No se pudieron cargar las ventas.");
@@ -195,19 +204,23 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             { value: "CANCELADA", label: "Canceladas" },
           ]}
         />
+        <label style={inlineLabel}>Desde</label>
         <input
           type="date"
           value={dateFrom}
+          max={dateTo || undefined}
           onChange={(e) => setDateFrom(e.target.value)}
-          style={dateInputStyle}
-          title="Desde"
+          style={{ ...dateInputStyle, ...(dateError ? { borderColor: "#fca5a5" } : {}) }}
+          title="Fecha inicial"
         />
+        <label style={inlineLabel}>Hasta</label>
         <input
           type="date"
           value={dateTo}
+          min={dateFrom || undefined}
           onChange={(e) => setDateTo(e.target.value)}
-          style={dateInputStyle}
-          title="Hasta"
+          style={{ ...dateInputStyle, ...(dateError ? { borderColor: "#fca5a5" } : {}) }}
+          title="Fecha final"
         />
         {(dateFrom || dateTo) && (
           <button
@@ -217,13 +230,16 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             Limpiar fechas
           </button>
         )}
+        {dateError && (
+          <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 600 }}>{dateError}</span>
+        )}
         <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b", fontWeight: 600 }}>
           {rows.length} registro{rows.length === 1 ? "" : "s"}
         </span>
       </Toolbar>
 
-      <div style={ui.tableWrap}>
-        <table style={ui.table}>
+      <div style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
+        <table className="table-sticky-head" style={{ ...ui.table, minWidth: 1040 }}>
           <thead>
             <tr style={ui.theadRow}>
               <th style={ui.th}>Folio</th>
@@ -413,6 +429,12 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       )}
     </div>
   );
+};
+
+const inlineLabel: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: "#64748b",
 };
 
 const dateInputStyle: React.CSSProperties = {

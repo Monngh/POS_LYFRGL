@@ -561,7 +561,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
         </div>
       )}
 
-      <div style={ui.tableWrap}>
+      <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
         <table style={ui.table}>
           <thead>
             <tr style={ui.theadRow}>

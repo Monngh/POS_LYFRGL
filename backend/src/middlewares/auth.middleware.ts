@@ -21,12 +21,13 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
     return;
   }
 
-  // Inyectar el usuario autenticado en la petición
+  // Inyectar el usuario/cliente autenticado en la petición
   req.user = {
-    userId: decoded.userId,
+    userId: decoded.userId as number,
+    customerId: decoded.customerId,
     email: decoded.email,
     role: decoded.role,
-    branchId: decoded.branchId,
+    branchId: decoded.branchId as number,
   };
 
   next();

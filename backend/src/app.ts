@@ -14,6 +14,7 @@ import adminRouter from "./routes/admin.routes";
 import returnRouter from "./routes/return.routes";
 import adminTaxRouter from "./routes/adminTax.routes";
 import adminPromotionRouter from "./routes/adminPromotion.routes";
+import customerRouter from "./routes/customer.routes";
 
 // Inicializar cliente de Prisma como Singleton
 export const prisma = new PrismaClient();
@@ -36,7 +37,7 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
-app.use(express.json());
+app.use(express.json({ limit: "15mb" }));
 
 // Registro de rutas de API
 app.use("/api/auth", authRouter);
@@ -51,6 +52,7 @@ app.use("/api/admin", adminRouter);
 app.use("/api/returns", returnRouter);
 app.use("/api/admin-tax", adminTaxRouter);
 app.use("/api/admin-promotions", adminPromotionRouter);
+app.use("/api/customers", customerRouter);
 
 // Ruta de healthcheck
 app.get("/health", async (_req: Request, res: Response) => {

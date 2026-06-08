@@ -17,12 +17,31 @@ import {
 type PromotionRule = "percentage" | "fixedAmount" | "buyXPayY" | "specialPrice";
 
 const parsePositiveInt = (value: unknown): number | null => {
+  if (typeof value === "boolean") {
+    return null;
+  }
+  if (typeof value === "string" && !value.trim()) {
+    return null;
+  }
+  if (typeof value !== "number" && typeof value !== "string") {
+    return null;
+  }
+
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
 const parseNullableNumber = (value: unknown): number | null => {
   if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  if (typeof value === "boolean") {
+    return null;
+  }
+  if (typeof value === "string" && !value.trim()) {
+    return null;
+  }
+  if (typeof value !== "number" && typeof value !== "string") {
     return null;
   }
 
@@ -32,6 +51,15 @@ const parseNullableNumber = (value: unknown): number | null => {
 
 const parseNullablePositiveInt = (value: unknown): number | null => {
   if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  if (typeof value === "boolean") {
+    return null;
+  }
+  if (typeof value === "string" && !value.trim()) {
+    return null;
+  }
+  if (typeof value !== "number" && typeof value !== "string") {
     return null;
   }
 
@@ -52,23 +80,57 @@ const parseDate = (value: unknown, endOfDay = false): Date | null => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const parseProductIds = (value: unknown): number[] | null => {
+type ProductIdsParseResult =
+  | { success: true; productIds: number[] }
+  | { success: false; message: string };
+
+const parseProductIds = (value: unknown): ProductIdsParseResult => {
+  if (value === undefined) {
+    return { success: false, message: "productIds es requerido." };
+  }
+
   if (!Array.isArray(value)) {
-    return null;
+    return { success: false, message: "productIds debe ser un arreglo." };
+  }
+
+  if (value.length === 0) {
+    return { success: false, message: "productIds no puede estar vac\u00edo." };
   }
 
   const productIds: number[] = [];
   for (const raw of value) {
     const id = parsePositiveInt(raw);
     if (id === null) {
-      return null;
+      return { success: false, message: "productIds debe contener ids num\u00e9ricos v\u00e1lidos." };
     }
     if (!productIds.includes(id)) {
       productIds.push(id);
     }
   }
 
-  return productIds;
+  return { success: true, productIds };
+};
+
+type BooleanParseResult =
+  | { success: true; value: boolean }
+  | { success: false; message: string };
+
+const parseOptionalBoolean = (
+  value: unknown,
+  defaultValue: boolean,
+  requireValue = false,
+): BooleanParseResult => {
+  if (value === undefined) {
+    return requireValue
+      ? { success: false, message: "El estado de la promocion debe ser true o false." }
+      : { success: true, value: defaultValue };
+  }
+
+  if (typeof value !== "boolean") {
+    return { success: false, message: "El estado de la promocion debe ser true o false." };
+  }
+
+  return { success: true, value };
 };
 
 const getRule = (typeName: string): PromotionRule | null => {
@@ -95,11 +157,27 @@ const getRule = (typeName: string): PromotionRule | null => {
   return null;
 };
 
-const badRequest = (res: Response, message: string) => {
-  res.status(400).json({ message });
+const sendError = (res: Response, status: number, message: string, error?: string) => {
+  res.status(status).json({
+    success: false,
+    message,
+    ...(error ? { error } : {}),
+  });
 };
 
-const buildPromotionPayload = async (body: Record<string, unknown>): Promise<PromotionPayload | string> => {
+const badRequest = (res: Response, message: string) => {
+  sendError(res, 400, message);
+};
+
+interface BuildPromotionPayloadOptions {
+  defaultIsActive?: boolean;
+  requireIsActive?: boolean;
+}
+
+const buildPromotionPayload = async (
+  body: Record<string, unknown>,
+  options: BuildPromotionPayloadOptions = {},
+): Promise<PromotionPayload | string> => {
   const name = typeof body.name === "string" ? body.name.trim() : "";
   if (!name) {
     return "El nombre de la promocion es obligatorio.";
@@ -124,13 +202,18 @@ const buildPromotionPayload = async (body: Record<string, unknown>): Promise<Pro
     return "La fecha final debe ser mayor que la fecha inicial.";
   }
 
-  if (typeof body.isActive !== "boolean") {
-    return "El estado de la promocion debe ser true o false.";
+  const parsedIsActive = parseOptionalBoolean(
+    body.isActive,
+    options.defaultIsActive ?? true,
+    options.requireIsActive ?? false,
+  );
+  if (!parsedIsActive.success) {
+    return parsedIsActive.message;
   }
 
-  const productIds = parseProductIds(body.productIds);
-  if (productIds === null || productIds.length === 0) {
-    return "Debe seleccionar al menos un producto activo.";
+  const parsedProductIds = parseProductIds(body.productIds);
+  if (!parsedProductIds.success) {
+    return parsedProductIds.message;
   }
 
   const rule = getRule(type.name);
@@ -192,12 +275,12 @@ const buildPromotionPayload = async (body: Record<string, unknown>): Promise<Pro
     promotionTypeId,
     startDate,
     endDate,
-    isActive: body.isActive,
+    isActive: parsedIsActive.value,
     value,
     minQuantity,
     payQuantity,
     specialPrice,
-    productIds,
+    productIds: parsedProductIds.productIds,
   };
 };
 
@@ -205,21 +288,36 @@ const handlePromotionError = (res: Response, error: unknown, fallback: string) =
   const err = error as { message?: string; code?: string };
 
   if (err.message === "PROMOTION_NOT_FOUND" || err.code === "P2025") {
-    res.status(404).json({ message: "Promocion no encontrada." });
+    sendError(res, 404, "Promocion no encontrada.");
     return;
   }
 
   if (err.message === "PRODUCT_NOT_FOUND") {
-    res.status(400).json({ message: "Uno o mas productos seleccionados no existen o estan inactivos." });
+    sendError(res, 404, "Producto no encontrado.");
+    return;
+  }
+
+  if (err.message === "PRODUCT_INACTIVE") {
+    sendError(res, 400, "Producto inactivo.");
+    return;
+  }
+
+  if (err.message === "PROMOTION_PRODUCT_NOT_FOUND") {
+    sendError(res, 404, "El producto no est\u00e1 asignado a esta promoci\u00f3n");
+    return;
+  }
+
+  if (err.message === "PROMOTION_OVERLAP") {
+    sendError(res, 409, "Uno o m\u00e1s productos ya tienen una promoci\u00f3n activa en el rango de fechas seleccionado");
     return;
   }
 
   if (err.code === "P2002") {
-    res.status(409).json({ message: "La relacion de promocion y producto ya existe." });
+    sendError(res, 409, "La relacion de promocion y producto ya existe.");
     return;
   }
 
-  res.status(500).json({ message: fallback, error: err.message });
+  sendError(res, 500, fallback, err.message);
 };
 
 export const listPromotionTypes = async (_req: Request, res: Response): Promise<void> => {
@@ -261,7 +359,7 @@ export const getPromotionDetail = async (req: Request, res: Response): Promise<v
 
     const promotion = await getPromotionById(id);
     if (!promotion) {
-      res.status(404).json({ message: "Promocion no encontrada." });
+      sendError(res, 404, "Promocion no encontrada.");
       return;
     }
 
@@ -273,7 +371,7 @@ export const getPromotionDetail = async (req: Request, res: Response): Promise<v
 
 export const postPromotion = async (req: Request, res: Response): Promise<void> => {
   try {
-    const payload = await buildPromotionPayload(req.body);
+    const payload = await buildPromotionPayload(req.body, { defaultIsActive: true });
     if (typeof payload === "string") {
       badRequest(res, payload);
       return;
@@ -294,7 +392,7 @@ export const putPromotion = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const payload = await buildPromotionPayload(req.body);
+    const payload = await buildPromotionPayload(req.body, { requireIsActive: true });
     if (typeof payload === "string") {
       badRequest(res, payload);
       return;
@@ -336,14 +434,13 @@ export const postPromotionProducts = async (req: Request, res: Response): Promis
       return;
     }
 
-    const rawProductIds = req.body.productIds ?? (req.body.productId !== undefined ? [req.body.productId] : undefined);
-    const productIds = parseProductIds(rawProductIds);
-    if (productIds === null || productIds.length === 0) {
-      badRequest(res, "Debe enviar productIds con al menos un producto valido.");
+    const parsedProductIds = parseProductIds(req.body.productIds);
+    if (!parsedProductIds.success) {
+      badRequest(res, parsedProductIds.message);
       return;
     }
 
-    const promotion = await addProductsToPromotion(id, productIds);
+    const promotion = await addProductsToPromotion(id, parsedProductIds.productIds);
     res.status(200).json({ message: "Productos asignados exitosamente.", promotion });
   } catch (error: unknown) {
     handlePromotionError(res, error, "Error al asignar productos a la promocion.");
@@ -358,13 +455,13 @@ export const putPromotionProducts = async (req: Request, res: Response): Promise
       return;
     }
 
-    const productIds = parseProductIds(req.body.productIds);
-    if (productIds === null || productIds.length === 0) {
-      badRequest(res, "Debe enviar productIds con al menos un producto valido.");
+    const parsedProductIds = parseProductIds(req.body.productIds);
+    if (!parsedProductIds.success) {
+      badRequest(res, parsedProductIds.message);
       return;
     }
 
-    const promotion = await syncPromotionProducts(id, productIds);
+    const promotion = await syncPromotionProducts(id, parsedProductIds.productIds);
     res.status(200).json({ message: "Productos de la promocion sincronizados exitosamente.", promotion });
   } catch (error: unknown) {
     handlePromotionError(res, error, "Error al sincronizar productos de la promocion.");

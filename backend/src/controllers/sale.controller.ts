@@ -1,8 +1,110 @@
 import { Request, Response } from "express";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../app";
 import bcrypt from "bcryptjs";
 import { executeRefund, createMercadoPagoCashPayment, syncDepositStatus as mpSyncDepositStatus } from "./mercadopago.controller";
 import { PromotionService } from "../services/promotion.service";
+import { BillingService } from "../services/billing.service";
+
+const SALE_PAYMENT_METHODS = ["EFECTIVO", "TARJETA", "MIXTO", "QR_MERCADOPAGO"] as const;
+type SalePaymentMethod = typeof SALE_PAYMENT_METHODS[number];
+const CARD_TYPES = ["CREDITO", "DEBITO"] as const;
+
+type NormalizedSaleItem = {
+  productId: number;
+  quantity: number;
+  name?: string;
+};
+
+const isSalePaymentMethod = (value: unknown): value is SalePaymentMethod =>
+  typeof value === "string" && SALE_PAYMENT_METHODS.includes(value as SalePaymentMethod);
+
+const isCardType = (value: unknown): value is typeof CARD_TYPES[number] =>
+  typeof value === "string" && CARD_TYPES.includes(value as typeof CARD_TYPES[number]);
+
+const normalizeSaleItems = (items: unknown): { items: NormalizedSaleItem[]; error?: string } => {
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return { items: [], error: "El carrito de ventas no puede estar vacío." };
+  }
+
+  const normalized: NormalizedSaleItem[] = [];
+
+  for (const [index, rawItem] of items.entries()) {
+    const item = rawItem as Record<string, unknown>;
+    const productId = Number(item.id ?? item.productId);
+    const quantity = Number(item.quantity);
+
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return { items: [], error: `El producto en la posición ${index + 1} no tiene un identificador válido.` };
+    }
+
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      return { items: [], error: `La cantidad del producto ${item.name || productId} debe ser mayor a cero.` };
+    }
+
+    normalized.push({
+      productId,
+      quantity,
+      name: typeof item.name === "string" ? item.name : undefined,
+    });
+  }
+
+  return { items: normalized };
+};
+
+const numberOrZero = (value: unknown): number => {
+  if (value === undefined || value === null || value === "") return 0;
+  return Number(value);
+};
+
+const saleProcessingError = (error: any): { status: number; message: string; detail: string } => {
+  const detail = error?.message || "Error desconocido.";
+
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === "P2021" || error.code === "P2022") {
+      return {
+        status: 500,
+        message: "La base de datos no coincide con el schema Prisma usado por el cobro.",
+        detail,
+      };
+    }
+    if (error.code === "P2002") {
+      return {
+        status: 409,
+        message: "No se pudo generar un folio único para la venta. Intente cobrar nuevamente.",
+        detail,
+      };
+    }
+    if (error.code === "P2025") {
+      return {
+        status: 400,
+        message: "No se encontró un registro requerido para procesar la venta.",
+        detail,
+      };
+    }
+    if (error.code === "P2028") {
+      return {
+        status: 500,
+        message: "La transacción de cobro tardó demasiado o fue cerrada por Prisma antes de completarse.",
+        detail,
+      };
+    }
+  }
+
+  if (error instanceof Prisma.PrismaClientValidationError) {
+    return {
+      status: 400,
+      message: "El payload de la venta no coincide con los campos esperados por Prisma.",
+      detail,
+    };
+  }
+
+  return {
+    status: 500,
+    message: `Error al procesar la venta: ${detail}`,
+    detail,
+  };
+};
 
 /**
  * Simular una venta: calcula promociones e impuestos dinámicos sin registrar nada en BD
@@ -110,14 +212,78 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     return;
   }
 
-  const { items, paymentMethod, cardType, cashReceived, changeGiven, customerId, pointsRedeemed } = req.body;
+  const { items, paymentMethod, cardType, cashReceived, changeGiven, customerId, pointsRedeemed, invoiceRequested, cardAmount } = req.body;
 
-  if (!items || !Array.isArray(items) || items.length === 0) {
-    res.status(400).json({ message: "El carrito de ventas no puede estar vacío." });
+  const normalizedResult = normalizeSaleItems(items);
+  if (normalizedResult.error) {
+    res.status(400).json({ message: normalizedResult.error });
+    return;
+  }
+  const normalizedItems = normalizedResult.items;
+
+  if (!isSalePaymentMethod(paymentMethod)) {
+    res.status(400).json({ message: "El método de pago es requerido o no es válido." });
+    return;
+  }
+  const salePaymentMethod = paymentMethod;
+
+  if ((salePaymentMethod === "TARJETA" || salePaymentMethod === "MIXTO") && !isCardType(cardType)) {
+    res.status(400).json({ message: "El tipo de tarjeta debe ser CREDITO o DEBITO." });
+    return;
+  }
+
+  const numericCashReceived = numberOrZero(cashReceived);
+  const numericChangeGiven = numberOrZero(changeGiven);
+  const numericCardAmount = numberOrZero(cardAmount);
+
+  if (!Number.isFinite(numericCashReceived) || numericCashReceived < 0) {
+    res.status(400).json({ message: "El efectivo recibido debe ser un número válido mayor o igual a cero." });
+    return;
+  }
+  if (!Number.isFinite(numericChangeGiven) || numericChangeGiven < 0) {
+    res.status(400).json({ message: "El cambio debe ser un número válido mayor o igual a cero." });
+    return;
+  }
+  if (!Number.isFinite(numericCardAmount) || numericCardAmount < 0) {
+    res.status(400).json({ message: "El monto pagado con tarjeta debe ser un número válido mayor o igual a cero." });
+    return;
+  }
+
+  if (customerId !== undefined && customerId !== null && customerId !== "" && (!Number.isInteger(Number(customerId)) || Number(customerId) <= 0)) {
+    res.status(400).json({ message: "El cliente seleccionado no tiene un identificador válido." });
+    return;
+  }
+
+  const ptsRedeemed = pointsRedeemed === undefined || pointsRedeemed === null || pointsRedeemed === "" ? 0 : Number(pointsRedeemed);
+  if (!Number.isInteger(ptsRedeemed) || ptsRedeemed < 0) {
+    res.status(400).json({ message: "Los puntos a redimir deben ser un entero mayor o igual a cero." });
+    return;
+  }
+
+  if (salePaymentMethod === "MIXTO" && (numericCashReceived <= 0 || numericCardAmount <= 0)) {
+    res.status(400).json({ message: "En pago mixto, el monto en efectivo y el monto en tarjeta deben ser mayores a cero." });
     return;
   }
 
   try {
+    if (invoiceRequested) {
+      if (!customerId) {
+        res.status(400).json({ message: "Debe seleccionar un cliente del directorio para poder facturar en caja." });
+        return;
+      }
+      const customer = await prisma.customer.findUnique({
+        where: { id: Number(customerId) }
+      });
+      if (!customer) {
+        res.status(404).json({ message: "El cliente seleccionado no existe." });
+        return;
+      }
+      if (!customer.taxId || !customer.name || !customer.taxRegime || !customer.zipCode || !customer.email || !customer.cfdiUse) {
+        res.status(400).json({ message: "El cliente no cuenta con datos fiscales completos para facturación (SAT 4.0)." });
+        return;
+      }
+    }
+
     // 1. Verificar sesión de caja abierta
     const activeSession = await prisma.cashSession.findFirst({
       where: {
@@ -139,9 +305,9 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     const dbProducts = [];
     const cartItems = [];
 
-    for (const item of items) {
+    for (const item of normalizedItems) {
       const dbProduct = await prisma.product.findUnique({
-        where: { id: Number(item.id) },
+        where: { id: item.productId },
         include: {
           inventories: {
             where: { branchId: req.user.branchId },
@@ -155,11 +321,15 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       });
 
       if (!dbProduct || !dbProduct.active) {
-        res.status(404).json({ message: `El producto ${item.name || `con ID ${item.id}`} no existe o está inactivo.` });
+        res.status(404).json({ message: `El producto ${item.name || `con ID ${item.productId}`} no existe o está inactivo.` });
         return;
       }
 
       const branchInventory = dbProduct.inventories[0];
+      if (!branchInventory) {
+        res.status(400).json({ message: `No hay inventario configurado para ${dbProduct.name} en esta sucursal.` });
+        return;
+      }
       const currentStock = branchInventory ? branchInventory.quantity : 0;
 
       if (currentStock < item.quantity) {
@@ -171,7 +341,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
 
       dbProducts.push({
         product: dbProduct,
-        inventoryId: branchInventory ? branchInventory.id : 0,
+        inventoryId: branchInventory.id,
         currentStock,
         quantity: item.quantity,
       });
@@ -244,8 +414,6 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     // Lógica de Lealtad (Puntos FMB)
     let pointsDiscount = 0;
     let pointsEarned = 0;
-    const ptsRedeemed = pointsRedeemed ? Number(pointsRedeemed) : 0;
-
     if (customerId) {
       const customer = await prisma.customer.findUnique({
         where: { id: Number(customerId) }
@@ -270,14 +438,30 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     }
 
     // Generar Folio Único correlativo temporal
+    const finalPaidAmount = Number((finalTotal - pointsDiscount).toFixed(2));
+
+    if (salePaymentMethod === "EFECTIVO" && numericCashReceived < finalPaidAmount) {
+      res.status(400).json({ message: `El efectivo recibido ($${numericCashReceived.toFixed(2)}) es menor al total a pagar ($${finalPaidAmount.toFixed(2)}).` });
+      return;
+    }
+
+    if (salePaymentMethod === "MIXTO") {
+      if (numericCardAmount > finalPaidAmount) {
+        res.status(400).json({ message: "El monto pagado con tarjeta no puede ser mayor al total de la compra." });
+        return;
+      }
+      if (numericCashReceived + numericCardAmount < finalPaidAmount) {
+        res.status(400).json({ message: "La suma de efectivo y tarjeta es menor al total a pagar." });
+        return;
+      }
+    }
+
     const timestamp = Date.now().toString().slice(-6);
     const randomSuffix = Math.floor(100 + Math.random() * 900);
     const invoiceNumber = `V-${timestamp}${randomSuffix}`;
 
     // 3. Bloque de Transacción Transaccional ACID en Prisma
     const newSale = await prisma.$transaction(async (tx) => {
-      const finalPaidAmount = finalTotal - pointsDiscount;
-
       // a. Crear registro de venta principal
       const sale = await tx.sale.create({
         data: {
@@ -289,11 +473,11 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
           totalAmount: finalPaidAmount,
           taxAmount: finalTax,
           discountAmount: discount,
-          paymentMethod,
-          cardType: cardType || null,
-          cashReceived: cashReceived ? Number(cashReceived) : null,
-          changeGiven: changeGiven ? Number(changeGiven) : null,
-          status: paymentMethod === "QR_MERCADOPAGO" ? "PENDIENTE" : "COMPLETADA",
+          paymentMethod: salePaymentMethod,
+          cardType: (salePaymentMethod === "TARJETA" || salePaymentMethod === "MIXTO") ? cardType : null,
+          cashReceived: (salePaymentMethod === "EFECTIVO" || salePaymentMethod === "MIXTO") ? numericCashReceived : null,
+          changeGiven: (salePaymentMethod === "EFECTIVO" || salePaymentMethod === "MIXTO") ? numericChangeGiven : null,
+          status: salePaymentMethod === "QR_MERCADOPAGO" ? "PENDIENTE" : "COMPLETADA",
           pointsEarned,
           pointsRedeemed: ptsRedeemed,
           pointsDiscount,
@@ -368,14 +552,18 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       }
 
       // d. Actualizar montos en la sesión de caja activa solo si no está PENDIENTE
-      if (paymentMethod !== "QR_MERCADOPAGO") {
-        const cashToAdd = paymentMethod === "EFECTIVO" ? finalPaidAmount : paymentMethod === "MIXTO" ? (cashReceived ? Number(cashReceived) - (changeGiven ? Number(changeGiven) : 0) : finalPaidAmount) : 0;
+      if (salePaymentMethod !== "QR_MERCADOPAGO") {
+        const cashToAdd = salePaymentMethod === "EFECTIVO"
+          ? finalPaidAmount
+          : salePaymentMethod === "MIXTO"
+          ? Math.max(0, numericCashReceived - numericChangeGiven)
+          : 0;
 
         await tx.cashSession.update({
           where: { id: activeSession.id },
           data: {
             cashIn: { increment: cashToAdd },
-            expectedAmount: { increment: finalPaidAmount },
+            expectedAmount: { increment: cashToAdd },
           },
         });
       }
@@ -383,7 +571,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       return sale;
     }, {
       maxWait: 15000,
-      timeout: 35000
+      timeout: 35000,
     });
 
     // Obtener los datos actualizados del cliente
@@ -399,8 +587,32 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       }
     }
 
+    let cfdiUuid = null;
+    let pdfUrl = null;
+    if (invoiceRequested && customerId) {
+      try {
+        const customer = await prisma.customer.findUnique({
+          where: { id: Number(customerId) }
+        });
+        if (customer) {
+          const billingInfo = await BillingService.createInvoice(newSale.id, {
+            rfc: customer.taxId!.toUpperCase(),
+            legalName: customer.name.toUpperCase(),
+            taxSystem: customer.taxRegime!,
+            zip: customer.zipCode!,
+            email: customer.email || "facturacion@fmb.com",
+            cfdiUse: customer.cfdiUse!
+          });
+          cfdiUuid = billingInfo.uuid;
+          pdfUrl = billingInfo.pdfUrl;
+        }
+      } catch (billingErr: any) {
+        console.error("Error al timbrar factura al checkout:", billingErr);
+      }
+    }
+
     res.status(201).json({
-      message: "Venta registrada exitosamente.",
+      message: "Venta registrada exitosamente." + (cfdiUuid ? " Factura timbrada y enviada." : ""),
       invoiceNumber: newSale.invoiceNumber,
       saleId: newSale.id,
       pointsEarned,
@@ -408,9 +620,27 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       pointsDiscount,
       customerPoints,
       customerName,
+      cfdiUuid,
+      pdfUrl,
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al procesar la venta.", error: error.message });
+    const responseError = saleProcessingError(error);
+    console.error("[SALE_CREATE_ERROR]", {
+      user: req.user,
+      body: {
+        paymentMethod,
+        cardType,
+        items: normalizedItems,
+        customerId,
+        pointsRedeemed: ptsRedeemed,
+      },
+      error: {
+        name: error?.name,
+        code: error?.code,
+        message: error?.message,
+      },
+    });
+    res.status(responseError.status).json({ message: responseError.message, error: responseError.detail });
   }
 };
 
@@ -579,6 +809,24 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
         return;
       }
       refundInfo = refundResult;
+    }
+
+    // Cancelación de Factura (CFDI) asociada si existe y no es global
+    if (sale.cfdiUuid && !sale.cfdiUuid.startsWith("GLOBAL")) {
+      try {
+        const parts = sale.cfdiUuid.split(":");
+        const facturapiId = parts[1] || parts[0];
+        if (facturapiId) {
+          await BillingService.cancelInvoice(facturapiId, "02");
+        }
+      } catch (billingErr: any) {
+        console.error("Fallo al cancelar factura en Facturapi:", billingErr);
+        res.status(500).json({
+          message: "No se pudo cancelar la factura en el SAT. La venta no ha sido cancelada.",
+          error: billingErr.message
+        });
+        return;
+      }
     }
 
     // 3. Bloque transaccional ACID para revertir inventario, registrar Kardex y actualizar venta
@@ -1403,7 +1651,7 @@ export const getSaleDetailForCashier = async (req: Request, res: Response): Prom
       where,
       include: {
         user: { select: { name: true } },
-        customer: { select: { name: true, phone: true, points: true } },
+        customer: { select: { name: true, phone: true, email: true, points: true } },
         saleDetails: {
           include: {
             product: { select: { name: true, sku: true, sellPrice: true } },
@@ -1480,6 +1728,7 @@ export const getSaleDetailForCashier = async (req: Request, res: Response): Prom
       pointsDiscount: Number(sale.pointsDiscount),
       customerName: sale.customer?.name || null,
       customerPhone: sale.customer?.phone || null,
+      customerEmail: sale.customer?.email || sale.cfdiEmail || null,
       customerPoints: sale.customer?.points || 0,
       totalRefunded,
       returns: sale.returns.map((ret) => ({
