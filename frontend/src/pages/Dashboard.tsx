@@ -17,7 +17,8 @@ import {
   KeyRound,
   AlertTriangle,
   FileText,
-  RotateCcw
+  RotateCcw,
+  ArrowLeft
 } from "lucide-react";
 
 interface Product {
@@ -608,6 +609,50 @@ const Dashboard: React.FC = () => {
     setActiveModal("cart-pin-auth");
   };
 
+  function resetCurrentSaleAndReturnToDashboard() {
+    setCart([]);
+    localStorage.removeItem(DRAFT_KEY);
+    setBarcodeSearch("");
+    setSearchResults([]);
+    lastSearchQueryRef.current = "";
+    setSimulationData(null);
+    setCheckoutError(null);
+    setCheckoutModalOpen(false);
+    setSelectedCustomer(null);
+    setCustomerSearch("");
+    setCustomerSearchResults([]);
+    setIsCustomerDropdownOpen(false);
+    setIsNewCustomerModalOpen(false);
+    setNewCustomerError(null);
+    setUsePoints(false);
+    setPointsToRedeem(0);
+    setPaymentMethod("EFECTIVO");
+    setCashReceived("");
+    setMixtoCash("");
+    setMixtoCard("");
+    setCardType("DEBITO");
+    setQrModalOpen(false);
+    setQrUrl("");
+    setQrReference("");
+    setCartPin("");
+    setCartPinError("");
+    setPendingCartAction(null);
+    setActiveModal(null);
+    setView("dashboard");
+  }
+
+  const handleCancelCurrentPurchase = () => {
+    if (cart.length === 0) {
+      resetCurrentSaleAndReturnToDashboard();
+      return;
+    }
+
+    setCartPin("");
+    setCartPinError("");
+    setPendingCartAction({ type: "cancel" });
+    setActiveModal("cart-pin-auth");
+  };
+
   const applyAuthorizedCartAction = () => {
     if (!pendingCartAction) return;
     const { type, prodId, change } = pendingCartAction;
@@ -627,9 +672,7 @@ const Dashboard: React.FC = () => {
     } else if (type === "remove" && prodId !== undefined) {
       setCart((prev) => prev.filter((item) => item.product.id !== prodId));
     } else if (type === "cancel") {
-      setCart([]);
-      localStorage.removeItem(DRAFT_KEY);
-      setView("dashboard");
+      resetCurrentSaleAndReturnToDashboard();
     }
     setPendingCartAction(null);
     setActiveModal(null);
@@ -1675,6 +1718,16 @@ const Dashboard: React.FC = () => {
         {/* Header Venta */}
         <header style={styles.terminalHeader}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <button
+              type="button"
+              onClick={handleCancelCurrentPurchase}
+              className="active-tap"
+              style={styles.terminalBackBtn}
+              title="Regresar al menu principal"
+              aria-label="Regresar al menu principal del cajero"
+            >
+              <ArrowLeft size={20} />
+            </button>
             <Store size={22} color="#1e3a8a" />
             <h2 style={{ fontSize: "18px", fontWeight: "800", color: "#0f172a" }}>
               Venta - Ticket #{(sessionStats?.salesCount !== undefined) ? sessionStats.salesCount + 1 : 1}
@@ -2079,10 +2132,7 @@ const Dashboard: React.FC = () => {
                 </div>
                 <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
                   <button
-                    onClick={() => {
-                      if (cart.length === 0) { setView("dashboard"); }
-                      else { setCartPin(""); setCartPinError(""); setPendingCartAction({ type: "cancel" }); setActiveModal("cart-pin-auth"); }
-                    }}
+                    onClick={handleCancelCurrentPurchase}
                     className="active-tap"
                     style={{ ...styles.terminalBtn, flex: 1, backgroundColor: "#dc2626", color: "white" }}
                   >
@@ -6022,6 +6072,19 @@ const styles: { [key: string]: React.CSSProperties } = {
     justifyContent: "space-between",
     alignItems: "center",
     padding: "0 24px",
+  },
+  terminalBackBtn: {
+    width: "38px",
+    height: "38px",
+    borderRadius: "6px",
+    border: "1px solid #cbd5e1",
+    backgroundColor: "#ffffff",
+    color: "#1e3a8a",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 1px 2px rgba(15,23,42,0.06)",
   },
   terminalBody: {
     flex: 1,
