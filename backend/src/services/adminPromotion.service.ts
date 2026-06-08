@@ -70,15 +70,55 @@ const validateActiveProducts = async (
 ) => {
   const uniqueProductIds = [...new Set(productIds)];
   const products = await tx.product.findMany({
-    where: { id: { in: uniqueProductIds }, active: true },
-    select: { id: true },
+    where: { id: { in: uniqueProductIds } },
+    select: { id: true, active: true },
   });
 
   if (products.length !== uniqueProductIds.length) {
     throw new Error("PRODUCT_NOT_FOUND");
   }
 
+  if (products.some((product) => !product.active)) {
+    throw new Error("PRODUCT_INACTIVE");
+  }
+
   return uniqueProductIds;
+};
+
+const validateNoOverlappingActivePromotions = async (
+  tx: Prisma.TransactionClient,
+  productIds: number[],
+  startDate: Date,
+  endDate: Date,
+  ignoredPromotionId?: number,
+) => {
+  if (productIds.length === 0) {
+    return;
+  }
+
+  const where: Prisma.PromotionWhereInput = {
+    isActive: true,
+    startDate: { lte: endDate },
+    endDate: { gte: startDate },
+    products: {
+      some: {
+        productId: { in: productIds },
+      },
+    },
+  };
+
+  if (ignoredPromotionId !== undefined) {
+    where.id = { not: ignoredPromotionId };
+  }
+
+  const overlappingPromotion = await tx.promotion.findFirst({
+    where,
+    select: { id: true },
+  });
+
+  if (overlappingPromotion) {
+    throw new Error("PROMOTION_OVERLAP");
+  }
 };
 
 export const getPromotionTypes = () =>
@@ -173,6 +213,10 @@ export const createPromotion = async (payload: PromotionPayload) =>
   prisma.$transaction(async (tx) => {
     const productIds = await validateActiveProducts(tx, payload.productIds);
 
+    if (payload.isActive) {
+      await validateNoOverlappingActivePromotions(tx, productIds, payload.startDate, payload.endDate);
+    }
+
     const promotion = await tx.promotion.create({
       data: {
         name: payload.name,
@@ -208,6 +252,10 @@ export const updatePromotion = async (id: number, payload: PromotionPayload) =>
 
     const productIds = await validateActiveProducts(tx, payload.productIds);
 
+    if (payload.isActive) {
+      await validateNoOverlappingActivePromotions(tx, productIds, payload.startDate, payload.endDate, id);
+    }
+
     await tx.promotionProduct.deleteMany({
       where: { promotionId: id },
     });
@@ -233,23 +281,55 @@ export const updatePromotion = async (id: number, payload: PromotionPayload) =>
     });
 
     return mapPromotion(promotion);
-  });
+});
 
-export const updatePromotionStatus = async (id: number, isActive: boolean) => {
-  const promotion = await prisma.promotion.update({
-    where: { id },
-    data: { isActive },
-    include: promotionInclude,
-  });
+export const updatePromotionStatus = async (id: number, isActive: boolean) =>
+  prisma.$transaction(async (tx) => {
+    const existing = await tx.promotion.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        startDate: true,
+        endDate: true,
+        products: {
+          select: { productId: true },
+        },
+      },
+    });
 
-  return mapPromotion(promotion);
-};
+    if (!existing) {
+      throw new Error("PROMOTION_NOT_FOUND");
+    }
+
+    if (isActive) {
+      await validateNoOverlappingActivePromotions(
+        tx,
+        existing.products.map((product) => product.productId),
+        existing.startDate,
+        existing.endDate,
+        id,
+      );
+    }
+
+    const promotion = await tx.promotion.update({
+      where: { id },
+      data: { isActive },
+      include: promotionInclude,
+    });
+
+    return mapPromotion(promotion);
+  });
 
 export const addProductsToPromotion = async (promotionId: number, productIds: number[]) =>
   prisma.$transaction(async (tx) => {
     const promotion = await tx.promotion.findUnique({
       where: { id: promotionId },
-      select: { id: true },
+      select: {
+        id: true,
+        startDate: true,
+        endDate: true,
+        isActive: true,
+      },
     });
 
     if (!promotion) {
@@ -263,6 +343,16 @@ export const addProductsToPromotion = async (promotionId: number, productIds: nu
     });
     const existingIds = new Set(existing.map((row) => row.productId));
     const missingIds = uniqueProductIds.filter((productId) => !existingIds.has(productId));
+
+    if (promotion.isActive && missingIds.length > 0) {
+      await validateNoOverlappingActivePromotions(
+        tx,
+        missingIds,
+        promotion.startDate,
+        promotion.endDate,
+        promotionId,
+      );
+    }
 
     if (missingIds.length > 0) {
       await tx.promotionProduct.createMany({
@@ -292,9 +382,22 @@ export const deleteProductFromPromotion = async (promotionId: number, productId:
       throw new Error("PROMOTION_NOT_FOUND");
     }
 
-    await tx.promotionProduct.deleteMany({
+    const product = await tx.product.findUnique({
+      where: { id: productId },
+      select: { id: true },
+    });
+
+    if (!product) {
+      throw new Error("PRODUCT_NOT_FOUND");
+    }
+
+    const result = await tx.promotionProduct.deleteMany({
       where: { promotionId, productId },
     });
+
+    if (result.count === 0) {
+      throw new Error("PROMOTION_PRODUCT_NOT_FOUND");
+    }
 
     const updated = await tx.promotion.findUniqueOrThrow({
       where: { id: promotionId },
@@ -308,7 +411,12 @@ export const syncPromotionProducts = async (promotionId: number, productIds: num
   prisma.$transaction(async (tx) => {
     const promotion = await tx.promotion.findUnique({
       where: { id: promotionId },
-      select: { id: true },
+      select: {
+        id: true,
+        startDate: true,
+        endDate: true,
+        isActive: true,
+      },
     });
 
     if (!promotion) {
@@ -316,6 +424,16 @@ export const syncPromotionProducts = async (promotionId: number, productIds: num
     }
 
     const uniqueProductIds = await validateActiveProducts(tx, productIds);
+
+    if (promotion.isActive) {
+      await validateNoOverlappingActivePromotions(
+        tx,
+        uniqueProductIds,
+        promotion.startDate,
+        promotion.endDate,
+        promotionId,
+      );
+    }
 
     await tx.promotionProduct.deleteMany({
       where: { promotionId },

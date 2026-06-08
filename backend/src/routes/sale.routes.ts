@@ -16,6 +16,7 @@ import {
   registerCustomer,
   getSaleDetailForCashier
 } from "../controllers/sale.controller";
+import { sendTicketByEmail } from "../controllers/ticketEmail.controller";
 import { authenticateJWT } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -36,6 +37,7 @@ router.post("/deposits/:id/cancel", cancelDeposit);
 router.post("/deposits/:id/sync", syncDepositStatus);
 router.post("/confirm-qr", confirmQrPayment);
 router.get("/detail", getSaleDetailForCashier);
+router.post("/send-ticket-email", sendTicketByEmail);
 
 // Clientes y Lealtad para Cajero
 router.get("/customers/search", searchCustomers);

@@ -133,6 +133,7 @@ model Customer {
   name         String
   email        String?
   phone        String?
+  passwordHash String?
   taxId        String?
   address      String?
   creditLimit  Decimal       @default(0) @db.Decimal(18, 2)

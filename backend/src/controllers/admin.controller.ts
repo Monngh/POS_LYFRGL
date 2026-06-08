@@ -39,11 +39,13 @@ export const listSales = async (req: Request, res: Response): Promise<void> => {
     if (branchId) where.branchId = branchId;
     if (status && status !== "all") where.status = status;
     if (search) where.invoiceNumber = { contains: search };
-    if (from && to) {
-      const fromDate = new Date(from);
-      const toDate = new Date(to);
-      toDate.setDate(toDate.getDate() + 1);
-      where.createdAt = { gte: fromDate, lt: toDate };
+    // Filtro por rango de fechas: admite solo "desde", solo "hasta" o ambos.
+    // Se interpreta en hora local con el día completo incluido (00:00:00 a 23:59:59.999).
+    if (from || to) {
+      const createdAt: any = {};
+      if (from) createdAt.gte = new Date(`${from}T00:00:00`);
+      if (to) createdAt.lte = new Date(`${to}T23:59:59.999`);
+      where.createdAt = createdAt;
     }
 
     const sales = await prisma.sale.findMany({
@@ -201,6 +203,112 @@ const checkRFCUnique = async (rfc: string, excludeId?: number): Promise<boolean>
   return !existing;
 };
 
+type CustomerInput = {
+  name?: string;
+  email?: string | null;
+  phone?: string | null;
+  taxId?: string | null;
+  address?: string | null;
+  creditLimit?: number;
+  zipCode?: string | null;
+  taxRegime?: string | null;
+  cfdiUse?: string | null;
+};
+
+const CUSTOMER_NAME_PATTERN = /^[A-Za-z0-9\u00C0-\u017F\s.,'&-]+$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_PATTERN = /^[0-9\s()+-]+$/;
+const ADDRESS_PATTERN = /^[A-Za-z0-9\u00C0-\u017F\s.,#\-\/]+$/;
+const ZIP_CODE_PATTERN = /^\d{5}$/;
+const TAX_REGIME_PATTERN = /^\d{3}$/;
+const CFDI_USE_PATTERN = /^[A-Z0-9]{3,4}$/;
+
+const readString = (value: unknown): string => {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string" || typeof value === "number") return String(value).trim();
+  return "";
+};
+
+const normalizeSpaces = (value: string): string => value.trim().replace(/\s+/g, " ");
+
+const validateCustomerInput = (
+  body: Record<string, unknown>,
+  options: { requireName: boolean }
+): { valid: true; data: CustomerInput } | { valid: false; message: string } => {
+  const data: CustomerInput = {};
+
+  if (options.requireName || body.name !== undefined) {
+    const name = normalizeSpaces(readString(body.name));
+    if (!name) return { valid: false, message: "El nombre del cliente es requerido." };
+    if (name.length < 2) return { valid: false, message: "El nombre debe tener al menos 2 caracteres." };
+    if (name.length > 100) return { valid: false, message: "El nombre no puede superar 100 caracteres." };
+    if (!CUSTOMER_NAME_PATTERN.test(name)) return { valid: false, message: "El nombre contiene caracteres no permitidos." };
+    data.name = name;
+  }
+
+  if (body.email !== undefined) {
+    const email = readString(body.email).toLowerCase();
+    if (email && (!EMAIL_PATTERN.test(email) || /\s/.test(email))) return { valid: false, message: "El correo no tiene un formato valido." };
+    data.email = email || null;
+  }
+
+  if (body.phone !== undefined) {
+    const phone = normalizeSpaces(readString(body.phone));
+    if (phone) {
+      const digits = phone.replace(/\D/g, "");
+      if (!PHONE_PATTERN.test(phone)) return { valid: false, message: "El telefono solo puede contener numeros, espacios, +, - y parentesis." };
+      if (digits.length < 10 || digits.length > 15) return { valid: false, message: "El telefono debe tener entre 10 y 15 digitos." };
+    }
+    data.phone = phone || null;
+  }
+
+  if (body.taxId !== undefined) {
+    const taxId = readString(body.taxId).toUpperCase().replace(/\s+/g, "");
+    if (taxId) {
+      const rfcCheck = validateRFC(taxId);
+      if (!rfcCheck.valid) return { valid: false, message: rfcCheck.message };
+    }
+    data.taxId = taxId || null;
+  }
+
+  if (body.address !== undefined) {
+    const address = normalizeSpaces(readString(body.address));
+    if (address) {
+      if (address.length > 200) return { valid: false, message: "La direccion no puede superar 200 caracteres." };
+      if (!ADDRESS_PATTERN.test(address)) return { valid: false, message: "La direccion contiene caracteres no permitidos." };
+    }
+    data.address = address || null;
+  }
+
+  if (options.requireName || body.creditLimit !== undefined) {
+    const rawCreditLimit = readString(body.creditLimit);
+    const creditLimit = rawCreditLimit ? Number(rawCreditLimit) : 0;
+    if (!Number.isFinite(creditLimit)) return { valid: false, message: "El limite de credito debe ser numerico." };
+    if (creditLimit < 0) return { valid: false, message: "El limite de credito no puede ser negativo." };
+    data.creditLimit = creditLimit;
+  }
+
+  if (body.zipCode !== undefined) {
+    const zipCode = readString(body.zipCode);
+    if (zipCode && !ZIP_CODE_PATTERN.test(zipCode)) return { valid: false, message: "El Codigo Postal debe ser exactamente 5 digitos." };
+    data.zipCode = zipCode || null;
+  }
+
+  if (body.taxRegime !== undefined) {
+    const taxRegime = readString(body.taxRegime);
+    if (taxRegime && !TAX_REGIME_PATTERN.test(taxRegime)) return { valid: false, message: "El regimen fiscal no es valido." };
+    data.taxRegime = taxRegime || null;
+  }
+
+  if (body.cfdiUse !== undefined) {
+    const cfdiUse = readString(body.cfdiUse).toUpperCase();
+    if (cfdiUse && !CFDI_USE_PATTERN.test(cfdiUse)) return { valid: false, message: "El uso de CFDI no es valido." };
+    data.cfdiUse = cfdiUse || null;
+  }
+
+  return { valid: true, data };
+};
+
 export const listCustomers = async (req: Request, res: Response): Promise<void> => {
   try {
     const search = trimQuery(req.query.search);
@@ -247,6 +355,11 @@ export const listCustomers = async (req: Request, res: Response): Promise<void> 
 export const createCustomer = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name, email, phone, taxId, address, creditLimit, zipCode, taxRegime, cfdiUse } = req.body;
+    const validation = validateCustomerInput(req.body, { requireName: true });
+    if (!validation.valid) {
+      res.status(400).json({ message: validation.message });
+      return;
+    }
 
     if (!name || typeof name !== "string" || !name.trim()) {
       res.status(400).json({ message: "El nombre del cliente es obligatorio." });
@@ -322,6 +435,11 @@ export const updateCustomer = async (req: Request, res: Response): Promise<void>
     }
 
     const { name, email, phone, taxId, address, creditLimit, zipCode, taxRegime, cfdiUse } = req.body;
+    const validation = validateCustomerInput(req.body, { requireName: false });
+    if (!validation.valid) {
+      res.status(400).json({ message: validation.message });
+      return;
+    }
 
     const existing = await prisma.customer.findUnique({ where: { id: customerId } });
     if (!existing) {
@@ -535,16 +653,48 @@ export const createBranch = async (req: Request, res: Response): Promise<void> =
   try {
     const { name, address, phone, active } = req.body;
 
-    if (!name || typeof name !== "string" || !name.trim()) {
+    // ---- Nombre: obligatorio, 3–80 caracteres, solo letras/nums/acentos/puntos/guiones ----
+    const cleanName = typeof name === "string" ? name.trim() : "";
+    if (!cleanName) {
       res.status(400).json({ message: "El nombre de la sucursal es obligatorio." });
+      return;
+    }
+    if (cleanName.length < 3) {
+      res.status(400).json({ message: "El nombre debe tener al menos 3 caracteres." });
+      return;
+    }
+    if (cleanName.length > 80) {
+      res.status(400).json({ message: "El nombre no puede exceder 80 caracteres." });
+      return;
+    }
+    if (!/^[a-zA-ZÀ-ÿ0-9 .\-]+$/.test(cleanName)) {
+      res.status(400).json({ message: "El nombre solo permite letras, números, espacios, acentos, puntos y guiones." });
+      return;
+    }
+
+    // ---- Dirección: obligatoria, máximo 150 caracteres ----
+    const cleanAddress = typeof address === "string" ? address.trim() : "";
+    if (!cleanAddress) {
+      res.status(400).json({ message: "La dirección es obligatoria." });
+      return;
+    }
+    if (cleanAddress.length > 150) {
+      res.status(400).json({ message: "La dirección no puede exceder 150 caracteres." });
+      return;
+    }
+
+    // ---- Teléfono: obligatorio, exactamente 10 dígitos ----
+    const cleanPhone = typeof phone === "string" ? phone.trim() : "";
+    if (!/^\d{10}$/.test(cleanPhone)) {
+      res.status(400).json({ message: "El teléfono debe contener exactamente 10 dígitos." });
       return;
     }
 
     const branch = await prisma.branch.create({
       data: {
-        name: name.trim(),
-        address: trimQuery(address) ?? null,
-        phone: trimQuery(phone) ?? null,
+        name: cleanName,
+        address: cleanAddress,
+        phone: cleanPhone,
         active: typeof active === "boolean" ? active : true,
       },
     });
@@ -568,12 +718,45 @@ export const updateBranch = async (req: Request, res: Response): Promise<void> =
     }
 
     const { name, address, phone, active } = req.body;
-    if (!name || typeof name !== "string" || !name.trim()) {
+
+    // ---- Nombre: obligatorio, 3–80 caracteres, solo letras/nums/acentos/puntos/guiones ----
+    const cleanName = typeof name === "string" ? name.trim() : "";
+    if (!cleanName) {
       res.status(400).json({ message: "El nombre de la sucursal es obligatorio." });
       return;
     }
+    if (cleanName.length < 3) {
+      res.status(400).json({ message: "El nombre debe tener al menos 3 caracteres." });
+      return;
+    }
+    if (cleanName.length > 80) {
+      res.status(400).json({ message: "El nombre no puede exceder 80 caracteres." });
+      return;
+    }
+    if (!/^[a-zA-ZÀ-ÿ0-9 .\-]+$/.test(cleanName)) {
+      res.status(400).json({ message: "El nombre solo permite letras, números, espacios, acentos, puntos y guiones." });
+      return;
+    }
 
-    // Validar: no desactivar sucursal si tiene empleados activos
+    // ---- Dirección: obligatoria, máximo 150 caracteres ----
+    const cleanAddress = typeof address === "string" ? address.trim() : "";
+    if (!cleanAddress) {
+      res.status(400).json({ message: "La dirección es obligatoria." });
+      return;
+    }
+    if (cleanAddress.length > 150) {
+      res.status(400).json({ message: "La dirección no puede exceder 150 caracteres." });
+      return;
+    }
+
+    // ---- Teléfono: obligatorio, exactamente 10 dígitos ----
+    const cleanPhone = typeof phone === "string" ? phone.trim() : "";
+    if (!/^\d{10}$/.test(cleanPhone)) {
+      res.status(400).json({ message: "El teléfono debe contener exactamente 10 dígitos." });
+      return;
+    }
+
+    // ---- No desactivar sucursal con empleados activos ----
     if (active === false) {
       const existing = await prisma.branch.findUnique({ where: { id }, select: { active: true } });
       if (existing?.active === true) {
@@ -590,9 +773,9 @@ export const updateBranch = async (req: Request, res: Response): Promise<void> =
     const branch = await prisma.branch.update({
       where: { id },
       data: {
-        name: name.trim(),
-        address: trimQuery(address) ?? null,
-        phone: trimQuery(phone) ?? null,
+        name: cleanName,
+        address: cleanAddress,
+        phone: cleanPhone,
         active: typeof active === "boolean" ? active : true,
       },
     });
@@ -1308,78 +1491,513 @@ export const registerPurchase = async (req: Request, res: Response): Promise<voi
 // ===========================================================================
 // PROVEEDORES (Suppliers)
 // ===========================================================================
+// =========================
+// REGEX
+// =========================
+const NAME_REGEX = /^[a-zA-ZÀ-ÿÑñ\s]+$/;
+const COMPANY_NAME_REGEX = /^[a-zA-ZÀ-ÿ0-9\s.-]+$/;
+const RFC_REGEX = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_REGEX = /^\d{10}$/;
+const ZIP_REGEX = /^\d{5}$/;
+const CITY_STATE_REGEX = /^[a-zA-ZÀ-ÿÑñ\s]+$/;
 
-export const listSuppliers = async (_req: Request, res: Response): Promise<void> => {
+// =========================
+// INTERFACE
+// =========================
+interface SupplierValidationData {
+  name?: string;
+  rfc?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  contactName?: string;
+}
+
+// =========================
+// VALIDADOR CENTRALIZADO
+// =========================
+const validateSupplierData = (
+  data: SupplierValidationData,
+  isUpdate = false
+): string[] => {
+  const errors: string[] = [];
+
+  // =========================
+  // Nombre
+  // =========================
+  if (!isUpdate || data.name !== undefined) {
+    const name = data.name?.trim();
+
+    if (!name) {
+      errors.push("El nombre del proveedor es requerido.");
+    } else if (name.length < 3) {
+      errors.push("El nombre debe tener al menos 3 caracteres.");
+    } else if (name.length > 100) {
+      errors.push("El nombre no puede exceder 100 caracteres.");
+    } else if (!COMPANY_NAME_REGEX.test(name)) {
+      errors.push(
+        "El nombre solo puede contener letras, números, espacios, puntos y guiones."
+      );
+    }
+  }
+
+  // =========================
+  // RFC
+  // =========================
+  if (!isUpdate || data.rfc !== undefined) {
+    const rfc = data.rfc?.trim().toUpperCase();
+
+    if (!rfc) {
+      errors.push("El RFC es requerido.");
+    } else if (rfc.length !== 12 && rfc.length !== 13) {
+      errors.push("El RFC debe tener 12 o 13 caracteres.");
+    } else if (!RFC_REGEX.test(rfc)) {
+      errors.push("El formato del RFC es inválido.");
+    }
+  }
+
+  // =========================
+  // Email
+  // =========================
+  if (!isUpdate || data.email !== undefined) {
+    const email = data.email?.trim();
+
+    if (!email) {
+      errors.push("El correo electrónico es requerido.");
+    } else if (email.length > 100) {
+      errors.push("El correo no puede exceder 100 caracteres.");
+    } else if (!EMAIL_REGEX.test(email)) {
+      errors.push("El correo electrónico no es válido.");
+    }
+  }
+
+  // =========================
+  // Teléfono
+  // =========================
+  if (!isUpdate || data.phone !== undefined) {
+    const phone = data.phone?.trim();
+
+    if (!phone) {
+      errors.push("El teléfono es requerido.");
+    } else if (!PHONE_REGEX.test(phone)) {
+      errors.push("El teléfono debe contener exactamente 10 dígitos.");
+    }
+  }
+
+  // =========================
+  // Dirección
+  // =========================
+  if (!isUpdate || data.address !== undefined) {
+    const address = data.address?.trim();
+
+    if (!address) {
+      errors.push("La dirección es requerida.");
+    } else if (address.length < 5) {
+      errors.push("La dirección es muy corta.");
+    } else if (address.length > 200) {
+      errors.push("La dirección no puede exceder 200 caracteres.");
+    }
+  }
+
+  // =========================
+  // Ciudad
+  // =========================
+  if (!isUpdate || data.city !== undefined) {
+    const city = data.city?.trim();
+
+    if (!city) {
+      errors.push("La ciudad es requerida.");
+    } else if (city.length < 2) {
+      errors.push("La ciudad es muy corta.");
+    } else if (!CITY_STATE_REGEX.test(city)) {
+      errors.push("La ciudad solo puede contener letras y espacios.");
+    }
+  }
+
+  // =========================
+  // Estado
+  // =========================
+  if (!isUpdate || data.state !== undefined) {
+    const state = data.state?.trim();
+
+    if (!state) {
+      errors.push("El estado es requerido.");
+    } else if (state.length < 2) {
+      errors.push("El estado es muy corto.");
+    } else if (!CITY_STATE_REGEX.test(state)) {
+      errors.push("El estado solo puede contener letras y espacios.");
+    }
+  }
+
+  // =========================
+  // Código Postal
+  // =========================
+  if (!isUpdate || data.zipCode !== undefined) {
+    const zipCode = data.zipCode?.trim();
+
+    if (!zipCode) {
+      errors.push("El código postal es requerido.");
+    } else if (!ZIP_REGEX.test(zipCode)) {
+      errors.push("El código postal debe contener exactamente 5 dígitos.");
+    }
+  }
+
+  // =========================
+  // Contacto
+  // =========================
+  if (!isUpdate || data.contactName !== undefined) {
+    const contact = data.contactName?.trim();
+
+    if (!contact) {
+      errors.push("El nombre del contacto es requerido.");
+    } else if (contact.length < 3) {
+      errors.push("El nombre del contacto debe tener al menos 3 caracteres.");
+    } else if (!NAME_REGEX.test(contact)) {
+      errors.push("El nombre del contacto solo puede contener letras y espacios.");
+    }
+  }
+
+  return errors;
+};
+
+// ===========================================================================
+// LISTAR PROVEEDORES
+// ===========================================================================
+
+export const listSuppliers = async (
+  _req: Request,
+  res: Response
+): Promise<void> => {
   try {
     const suppliers = await prisma.supplier.findMany({
-      orderBy: { name: "asc" },
+      orderBy: {
+        name: "asc",
+      },
     });
+
     res.json(suppliers);
   } catch (error: any) {
-    res.status(500).json({ message: "Error al listar proveedores.", error: error.message });
+    console.error(error);
+
+    res.status(500).json({
+      message: "Error al listar proveedores.",
+      error: error.message,
+    });
   }
 };
+// ===========================================================================
+// CREAR PROVEEDOR
+// ===========================================================================
 
-export const createSupplier = async (req: Request, res: Response): Promise<void> => {
+export const createSupplier = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
-    const { name, rfc, email, phone, address, city, state, zipCode, contactName } = req.body;
-    if (!name || String(name).trim() === "") {
-      res.status(400).json({ message: "El nombre del proveedor es requerido." });
+    const {
+      name,
+      rfc,
+      email,
+      phone,
+      address,
+      city,
+      state,
+      zipCode,
+      contactName,
+      active,
+    } = req.body;
+
+    // =========================
+    // VALIDAR DATOS
+    // =========================
+    const validationErrors = validateSupplierData({
+      name,
+      rfc,
+      email,
+      phone,
+      address,
+      city,
+      state,
+      zipCode,
+      contactName,
+    });
+
+    if (validationErrors.length > 0) {
+      res.status(400).json({
+        message: validationErrors[0],
+        errors: validationErrors,
+      });
       return;
     }
-    const supplier = await prisma.supplier.create({
-      data: {
+
+    // =========================
+    // VALIDAR NOMBRE DUPLICADO
+    // =========================
+    const supplierByName = await prisma.supplier.findFirst({
+      where: {
         name: String(name).trim(),
-        rfc: rfc ? String(rfc).trim() : undefined,
-        email: email ? String(email).trim() : undefined,
-        phone: phone ? String(phone).trim() : undefined,
-        address: address ? String(address).trim() : undefined,
-        city: city ? String(city).trim() : undefined,
-        state: state ? String(state).trim() : undefined,
-        zipCode: zipCode ? String(zipCode).trim() : undefined,
-        contactName: contactName ? String(contactName).trim() : undefined,
       },
     });
+
+    if (supplierByName) {
+      res.status(400).json({
+        message: "Ya existe un proveedor con ese nombre.",
+      });
+      return;
+    }
+
+    // =========================
+    // VALIDAR RFC DUPLICADO
+    // =========================
+    const supplierByRFC = await prisma.supplier.findFirst({
+      where: {
+        rfc: String(rfc).trim().toUpperCase(),
+      },
+    });
+
+    if (supplierByRFC) {
+      res.status(400).json({
+        message: "Ya existe un proveedor con ese RFC.",
+      });
+      return;
+    }
+
+    // =========================
+    // PREPARAR DATOS
+    // =========================
+    const supplierData = {
+      name: String(name).trim(),
+      rfc: String(rfc).trim().toUpperCase(),
+      email: String(email).trim().toLowerCase(),
+      phone: String(phone).trim(),
+      address: String(address).trim(),
+      city: String(city).trim(),
+      state: String(state).trim(),
+      zipCode: String(zipCode).trim(),
+      contactName: String(contactName).trim(),
+      active: active !== undefined ? Boolean(active) : true,
+    };
+
+    // =========================
+    // CREAR
+    // =========================
+    const supplier = await prisma.supplier.create({
+      data: supplierData,
+    });
+
     res.status(201).json(supplier);
   } catch (error: any) {
+    console.error(error);
+
     if (error.code === "P2002") {
-      res.status(400).json({ message: "Ya existe un proveedor con ese nombre." });
+      res.status(400).json({
+        message: "Ya existe un proveedor registrado con esos datos.",
+      });
       return;
     }
-    res.status(500).json({ message: "Error al crear proveedor.", error: error.message });
+
+    res.status(500).json({
+      message: "Error al crear proveedor.",
+      error: error.message,
+    });
   }
 };
+// ===========================================================================
+// ACTUALIZAR PROVEEDOR
+// ===========================================================================
 
-export const updateSupplier = async (req: Request, res: Response): Promise<void> => {
+export const updateSupplier = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
     const id = Number(req.params.id);
-    if (!id || isNaN(id)) {
-      res.status(400).json({ message: "ID de proveedor inválido." });
+
+    if (isNaN(id)) {
+      res.status(400).json({
+        message: "ID de proveedor inválido.",
+      });
       return;
     }
-    const { name, rfc, email, phone, address, city, state, zipCode, contactName, active } = req.body;
+
+    const {
+      name,
+      rfc,
+      email,
+      phone,
+      address,
+      city,
+      state,
+      zipCode,
+      contactName,
+      active,
+    } = req.body;
+
+    // =========================
+    // VALIDAR QUE HAYA DATOS
+    // =========================
+    const hasData = [
+      name,
+      rfc,
+      email,
+      phone,
+      address,
+      city,
+      state,
+      zipCode,
+      contactName,
+      active,
+    ].some((value) => value !== undefined);
+
+    if (!hasData) {
+      res.status(400).json({
+        message: "No se enviaron datos para actualizar.",
+      });
+      return;
+    }
+
+    // =========================
+    // OBJETO PARA VALIDAR
+    // =========================
+    const updateValidation: SupplierValidationData = {};
+
+    if (name !== undefined) updateValidation.name = name;
+    if (rfc !== undefined) updateValidation.rfc = rfc;
+    if (email !== undefined) updateValidation.email = email;
+    if (phone !== undefined) updateValidation.phone = phone;
+    if (address !== undefined) updateValidation.address = address;
+    if (city !== undefined) updateValidation.city = city;
+    if (state !== undefined) updateValidation.state = state;
+    if (zipCode !== undefined) updateValidation.zipCode = zipCode;
+    if (contactName !== undefined)
+      updateValidation.contactName = contactName;
+
+    const validationErrors = validateSupplierData(
+      updateValidation,
+      true
+    );
+
+    if (validationErrors.length > 0) {
+      res.status(400).json({
+        message: validationErrors[0],
+        errors: validationErrors,
+      });
+      return;
+    }
+
+    // =========================
+    // VALIDAR NOMBRE DUPLICADO
+    // =========================
+    if (name !== undefined) {
+      const supplierByName = await prisma.supplier.findFirst({
+        where: {
+          name: String(name).trim(),
+          NOT: {
+            id,
+          },
+        },
+      });
+
+      if (supplierByName) {
+        res.status(400).json({
+          message: "Ya existe otro proveedor con ese nombre.",
+        });
+        return;
+      }
+    }
+
+    // =========================
+    // VALIDAR RFC DUPLICADO
+    // =========================
+    if (rfc !== undefined) {
+      const supplierByRFC = await prisma.supplier.findFirst({
+        where: {
+          rfc: String(rfc).trim().toUpperCase(),
+          NOT: {
+            id,
+          },
+        },
+      });
+
+      if (supplierByRFC) {
+        res.status(400).json({
+          message: "Ya existe otro proveedor con ese RFC.",
+        });
+        return;
+      }
+    }
+
+    // =========================
+    // ARMAR UPDATE DATA
+    // =========================
+    const updateData: any = {};
+
+    if (name !== undefined)
+      updateData.name = String(name).trim();
+
+    if (rfc !== undefined)
+      updateData.rfc = String(rfc).trim().toUpperCase();
+
+    if (email !== undefined)
+      updateData.email = String(email).trim().toLowerCase();
+
+    if (phone !== undefined)
+      updateData.phone = String(phone).trim();
+
+    if (address !== undefined)
+      updateData.address = String(address).trim();
+
+    if (city !== undefined)
+      updateData.city = String(city).trim();
+
+    if (state !== undefined)
+      updateData.state = String(state).trim();
+
+    if (zipCode !== undefined)
+      updateData.zipCode = String(zipCode).trim();
+
+    if (contactName !== undefined)
+      updateData.contactName = String(contactName).trim();
+
+    if (active !== undefined)
+      updateData.active = Boolean(active);
+
+    // =========================
+    // ACTUALIZAR
+    // =========================
     const supplier = await prisma.supplier.update({
-      where: { id },
-      data: {
-        ...(name !== undefined && { name: String(name).trim() }),
-        ...(rfc !== undefined && { rfc: String(rfc).trim() || null }),
-        ...(email !== undefined && { email: String(email).trim() || null }),
-        ...(phone !== undefined && { phone: String(phone).trim() || null }),
-        ...(address !== undefined && { address: String(address).trim() || null }),
-        ...(city !== undefined && { city: String(city).trim() || null }),
-        ...(state !== undefined && { state: String(state).trim() || null }),
-        ...(zipCode !== undefined && { zipCode: String(zipCode).trim() || null }),
-        ...(contactName !== undefined && { contactName: String(contactName).trim() || null }),
-        ...(active !== undefined && { active: Boolean(active) }),
+      where: {
+        id,
       },
+      data: updateData,
     });
+
     res.json(supplier);
   } catch (error: any) {
+    console.error(error);
+
     if (error.code === "P2025") {
-      res.status(404).json({ message: "Proveedor no encontrado." });
+      res.status(404).json({
+        message: "Proveedor no encontrado.",
+      });
       return;
     }
-    res.status(500).json({ message: "Error al actualizar proveedor.", error: error.message });
+
+    if (error.code === "P2002") {
+      res.status(400).json({
+        message: "Ya existe un proveedor con esos datos.",
+      });
+      return;
+    }
+
+    res.status(500).json({
+      message: "Error al actualizar proveedor.",
+      error: error.message,
+    });
   }
 };
 

@@ -145,7 +145,7 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
 
       {!error && (
         <>
-          <div style={{ ...ui.kpiGrid, gridTemplateColumns: "repeat(4, 1fr)" }}>
+          <div style={ui.kpiGrid}>
             {kpis.slice(0, 4).map((k) => (
               <div key={k.label} style={ui.kpiCard}>
                 <div style={ui.kpiLabel}>{k.label}</div>
@@ -153,7 +153,7 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
               </div>
             ))}
           </div>
-          <div style={{ ...ui.kpiGrid, gridTemplateColumns: "repeat(5, 1fr)", marginTop: 16 }}>
+          <div style={{ ...ui.kpiGrid, marginTop: 16 }}>
             {kpis.slice(4).map((k) => (
               <div key={k.label} style={ui.kpiCard}>
                 <div style={ui.kpiLabel}>{k.label}</div>
@@ -162,7 +162,7 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
             ))}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginTop: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20, marginTop: 20 }}>
             <Panel style={{ padding: 20 }}>
               <h3 style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Ventas por método de pago</h3>
               <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 14 }}>
@@ -200,7 +200,7 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
             </Panel>
           </div>
 
-          <div style={{ ...ui.tableWrap, marginTop: 20 }}>
+          <div className="table-sticky-head" style={{ ...ui.tableWrap, marginTop: 20, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0" }}>
               <h3 style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Listado detallado de ventas</h3>
             </div>
@@ -235,7 +235,7 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
             </div>
           </div>
 
-          <div style={{ ...ui.tableWrap, marginTop: 20 }}>
+          <div className="table-sticky-head" style={{ ...ui.tableWrap, marginTop: 20, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0" }}>
               <h3 style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Productos más vendidos</h3>
             </div>

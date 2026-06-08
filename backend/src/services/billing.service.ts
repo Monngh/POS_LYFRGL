@@ -50,10 +50,32 @@ export class BillingService {
     }
 
     // Registrar o actualizar los datos fiscales del cliente en la DB si corresponde
-    if (sale.customerId) {
+    let customerId = sale.customerId;
+    const isGenericRfc = customer.rfc.toUpperCase() === "XAXX010101000" || customer.rfc.toUpperCase() === "XEXX010101000";
+
+    if (!customerId && !isGenericRfc) {
+      try {
+        const foundCustomer = await prisma.customer.findFirst({
+          where: {
+            taxId: customer.rfc.toUpperCase()
+          }
+        });
+        if (foundCustomer) {
+          customerId = foundCustomer.id;
+          await prisma.sale.update({
+            where: { id: sale.id },
+            data: { customerId: foundCustomer.id }
+          });
+        }
+      } catch (findErr) {
+        console.error("Error al buscar/asociar cliente por RFC:", findErr);
+      }
+    }
+
+    if (customerId) {
       try {
         await prisma.customer.update({
-          where: { id: sale.customerId },
+          where: { id: customerId },
           data: {
             taxId: customer.rfc.toUpperCase(),
             zipCode: customer.zip,
@@ -396,5 +418,220 @@ export class BillingService {
       throw new Error(`Error de Timbrado SAT (Nota de Crédito): ${err.message}`);
     }
   }
+
+  /**
+   * Cancelar factura en Facturapi (SAT)
+   */
+  static async cancelInvoice(invoiceId: string, motive: string = "02") {
+    const rawApiKey = process.env.FACTURAPI_API_KEY;
+    const apiKey = rawApiKey ? rawApiKey.replace(/['"]/g, "").trim() : "";
+
+    if (!apiKey || apiKey === "") {
+      throw new Error("API Key de Facturapi no configurada en las variables de entorno (.env).");
+    }
+
+    try {
+      const authHeader = "Bearer " + apiKey;
+      const response = await fetch(`https://www.facturapi.io/v2/invoices/${invoiceId}?motive=${motive}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": authHeader
+        }
+      });
+
+      const resData = await response.json() as any;
+
+      if (!response.ok) {
+        throw new Error(resData.message || "Error al cancelar la factura en Facturapi.");
+      }
+
+      return {
+        success: true,
+        status: resData.status,
+        uuid: resData.uuid
+      };
+    } catch (err: any) {
+      console.error("Facturapi Cancel Invoice Error:", err);
+      throw new Error(`Error al cancelar factura (API Real): ${err.message}`);
+    }
+  }
+
+  /**
+   * Generar y timbrar Factura Global (Facturapi)
+   */
+  static async createGlobalInvoice(
+    branchId: number,
+    startDate: Date,
+    endDate: Date,
+    periodicity: string,
+    month: string,
+    year: string
+  ) {
+    const rawApiKey = process.env.FACTURAPI_API_KEY;
+    const apiKey = rawApiKey ? rawApiKey.replace(/['"]/g, "").trim() : "";
+
+    if (!apiKey || apiKey === "") {
+      throw new Error("API Key de Facturapi no configurada en las variables de entorno (.env).");
+    }
+
+    // Buscar ventas elegibles
+    const sales = await prisma.sale.findMany({
+      where: {
+        branchId,
+        cfdiUuid: null,
+        status: "COMPLETADA",
+        createdAt: {
+          gte: startDate,
+          lte: endDate
+        }
+      },
+      include: {
+        saleDetails: {
+          include: {
+            product: {
+              include: {
+                productTaxes: {
+                  include: {
+                    taxType: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (sales.length === 0) {
+      throw new Error("No hay ventas pendientes de facturar en el rango especificado.");
+    }
+
+    try {
+      const facturapiItems: any[] = [];
+
+      for (const sale of sales) {
+        for (const detail of sale.saleDetails) {
+          const unitPrice = Number(detail.unitPrice);
+          const quantity = detail.quantity;
+          const discountPerUnit = Number(detail.discountAmount) / quantity;
+          const netUnitPrice = unitPrice - discountPerUnit;
+
+          const applicableTaxes = detail.product.productTaxes.filter((pt) => pt.taxType.active);
+
+          let totalTaxRate = 0;
+          for (const pt of applicableTaxes) {
+            totalTaxRate += Number(pt.taxType.rate);
+          }
+
+          const basePrice = totalTaxRate > 0 ? (netUnitPrice / (1 + totalTaxRate)) : netUnitPrice;
+
+          const mappedTaxes = applicableTaxes.map((pt) => {
+            const rateVal = Number(pt.taxType.rate);
+            const nameUpper = pt.taxType.name.toUpperCase();
+
+            if (nameUpper.includes("EXENTO")) {
+              return {
+                rate: 0,
+                type: "IVA",
+                exento: true,
+                withholding: false
+              };
+            }
+
+            let taxType = "IVA";
+            if (nameUpper.includes("IEPS")) {
+              taxType = "IEPS";
+            } else if (nameUpper.includes("ISR")) {
+              taxType = "ISR";
+            }
+
+            return {
+              rate: rateVal,
+              type: taxType,
+              withholding: false
+            };
+          });
+
+          // Fallback a IVA 16% si no hay impuestos
+          if (mappedTaxes.length === 0) {
+            mappedTaxes.push({
+              rate: 0.16,
+              type: "IVA",
+              withholding: false
+            });
+          }
+
+          facturapiItems.push({
+            quantity,
+            product: {
+              description: `Venta Ticket ${sale.invoiceNumber} - ${detail.product.name}`,
+              price: Number(basePrice.toFixed(2)),
+              product_key: "01010101", // Clave SAT obligatoria para Factura Global
+              unit_key: "ACT", // Unidad SAT obligatoria para Factura Global
+              taxes: mappedTaxes
+            }
+          });
+        }
+      }
+
+      const defaultZip = (process.env.CORPORATE_ZIP || "42080").trim();
+      const requestBody = {
+        type: "I",
+        customer: {
+          legal_name: "PÚBLICO GENERAL",
+          tax_id: "XAXX010101000",
+          tax_system: "616",
+          address: {
+            zip: defaultZip
+          }
+        },
+        items: facturapiItems,
+        payment_form: "01", // Por defecto "Efectivo" para público general
+        use: "S01",
+        global: {
+          periodicity,
+          months: month,
+          year: parseInt(year)
+        }
+      };
+
+      const authHeader = "Bearer " + apiKey;
+
+      const response = await fetch("https://www.facturapi.io/v2/invoices", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      const resData = await response.json() as any;
+
+      if (!response.ok) {
+        throw new Error(resData.message || "Error al comunicarse con Facturapi para Factura Global.");
+      }
+
+      // Actualizar todas las ventas procesadas con la referencia de la Factura Global
+      const saleIds = sales.map((s) => s.id);
+      await prisma.sale.updateMany({
+        where: { id: { in: saleIds } },
+        data: {
+          cfdiUuid: `GLOBAL:${resData.uuid}:${resData.id}`
+        }
+      });
+
+      return {
+        success: true,
+        uuid: resData.uuid,
+        pdfUrl: `https://www.facturapi.io/v2/invoices/${resData.uuid}/pdf`,
+        xmlUrl: `https://www.facturapi.io/v2/invoices/${resData.uuid}/xml`
+      };
+    } catch (err: any) {
+      console.error("Facturapi Global Invoice Error:", err);
+      throw new Error(`Error de Facturación SAT (Factura Global): ${err.message}`);
+    }
+  }
 }
+
 
