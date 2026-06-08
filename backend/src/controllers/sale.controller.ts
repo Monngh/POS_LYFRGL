@@ -1403,7 +1403,7 @@ export const getSaleDetailForCashier = async (req: Request, res: Response): Prom
       where,
       include: {
         user: { select: { name: true } },
-        customer: { select: { name: true, phone: true, points: true } },
+        customer: { select: { name: true, phone: true, email: true, points: true } },
         saleDetails: {
           include: {
             product: { select: { name: true, sku: true, sellPrice: true } },
@@ -1480,6 +1480,7 @@ export const getSaleDetailForCashier = async (req: Request, res: Response): Prom
       pointsDiscount: Number(sale.pointsDiscount),
       customerName: sale.customer?.name || null,
       customerPhone: sale.customer?.phone || null,
+      customerEmail: sale.customer?.email || sale.cfdiEmail || null,
       customerPoints: sale.customer?.points || 0,
       totalRefunded,
       returns: sale.returns.map((ret) => ({

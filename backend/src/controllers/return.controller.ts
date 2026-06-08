@@ -124,6 +124,7 @@ export const getReturnEligibility = async (req: Request, res: Response): Promise
         discountAmount: Number(sale.discountAmount),
         paymentMethod: sale.paymentMethod,
         customerName: sale.customer?.name || "Público General",
+        customerEmail: sale.customer?.email || null,
         cfdiUuid: sale.cfdiUuid,
       },
       items: eligibleItems
