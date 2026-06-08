@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { prisma } from "../app";
+import { normalizeSearchText, parseSearchWords } from "../utils/search.util";
 
 /**
  * Buscar productos por código de barras, SKU o nombre y retornar su inventario en la sucursal actual
@@ -14,6 +15,8 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
 
   try {
     const qStr = query ? String(query).trim() : "";
+    const rawWords = qStr ? qStr.split(/\s+/).filter((w) => w.length > 0) : [];
+    const searchWords = qStr ? parseSearchWords(qStr) : [];
 
     // Si la búsqueda es vacía, retornar listado de prueba rápido (ej. top 10 productos)
     const whereCondition = qStr
@@ -22,14 +25,14 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
           OR: [
             { sku: { contains: qStr } },
             { barcode: { contains: qStr } },
-            { name: { contains: qStr } },
+            ...(rawWords.length > 0 ? [{ name: { contains: rawWords[0] } }] : []),
           ],
         }
       : { active: true };
 
-    const products = await prisma.product.findMany({
+    const productsRaw = await prisma.product.findMany({
       where: whereCondition,
-      take: 15,
+      take: rawWords.length > 1 ? 40 : 15,
       include: {
         inventories: {
           where: { branchId: req.user.branchId },
@@ -50,6 +53,25 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
         }
       },
     });
+
+    const products = qStr
+      ? productsRaw
+          .filter((p) => {
+            const normQuery = normalizeSearchText(qStr);
+            const normSku = normalizeSearchText(p.sku);
+            const normBarcode = p.barcode ? normalizeSearchText(p.barcode) : "";
+
+            if (normSku.includes(normQuery) || normBarcode.includes(normQuery)) {
+              return true;
+            }
+
+            if (searchWords.length === 0) return true;
+
+            const normName = normalizeSearchText(p.name);
+            return searchWords.every((word) => normName.includes(word));
+          })
+          .slice(0, 15)
+      : productsRaw;
 
     const today = new Date();
 

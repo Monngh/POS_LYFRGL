@@ -1,0 +1,303 @@
+/* ==========================================================================
+   POS Cajero — Ajustes responsive (móvil / tablet)
+   Escritorio (>1024px): sin cambios. Solo aplica debajo de los breakpoints.
+   ========================================================================== */
+
+/* --- Tablet (≤1024px) --- */
+@media (max-width: 1024px) {
+  .pos-cashier-app {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  .pos-cashier-main-layout {
+    flex-direction: column !important;
+  }
+
+  .pos-cashier-sidebar {
+    width: 100% !important;
+    border-right: none !important;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 16px 20px !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+  }
+
+  .pos-cashier-sidebar-profile {
+    flex-direction: row !important;
+    text-align: left !important;
+    align-items: center !important;
+    gap: 12px !important;
+  }
+
+  .pos-cashier-content {
+    padding: 16px !important;
+    overflow-x: hidden;
+  }
+
+  .pos-cashier-stats-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  .pos-cashier-actions-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  .pos-cashier-tables-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .pos-cashier-table-card {
+    height: auto !important;
+    min-height: 260px;
+  }
+}
+
+/* --- Móvil / tablet pequeña (≤768px) --- */
+@media (max-width: 768px) {
+  .pos-cashier-navbar {
+    height: auto !important;
+    min-height: 56px;
+    padding: 10px 12px !important;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .pos-cashier-brand-text {
+    font-size: 13px !important;
+    line-height: 1.3;
+  }
+
+  .pos-cashier-logout-btn {
+    font-size: 12px !important;
+    padding: 6px 10px !important;
+  }
+
+  .pos-cashier-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .pos-cashier-actions-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .pos-cashier-action-btn {
+    padding: 14px 8px !important;
+  }
+
+  .pos-cashier-cash-alert {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
+
+  .pos-cashier-cash-alert-btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  /* Terminal de ventas */
+  .pos-cashier-terminal-header {
+    height: auto !important;
+    padding: 12px 16px !important;
+    flex-wrap: wrap !important;
+    gap: 8px;
+  }
+
+  .pos-cashier-terminal-header h2 {
+    font-size: 16px !important;
+  }
+
+  .pos-cashier-terminal-body {
+    padding: 12px !important;
+    flex: none !important;
+    overflow: visible !important;
+  }
+
+  .pos-cashier-search-row > form,
+  .pos-cashier-search-row > div {
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+  }
+
+  .pos-cashier-search-form {
+    flex-direction: column !important;
+  }
+
+  .pos-cashier-search-form .btn-primary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .pos-cashier-customer-search {
+    flex-wrap: wrap !important;
+  }
+
+  .pos-cashier-customer-selected {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+
+  .pos-cashier-customer-selected > div:first-child {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .pos-cashier-cart-card {
+    flex: none !important;
+    overflow: visible !important;
+    padding: 14px !important;
+  }
+
+  .pos-cashier-cart-scroll {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+  }
+
+  .pos-cashier-cart-scroll table {
+    min-width: 580px;
+  }
+
+  .pos-cashier-terminal-summary {
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+
+  .pos-cashier-terminal-summary-col {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .pos-cashier-terminal-summary .pos-cashier-modal-actions {
+    flex-direction: column !important;
+  }
+
+  .pos-cashier-terminal-summary .pos-cashier-modal-actions .active-tap {
+    width: 100%;
+  }
+
+  /* Tablas del dashboard */
+  .pos-cashier-table-scroll {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+  }
+
+  .pos-cashier-table-scroll table {
+    min-width: 640px;
+  }
+
+  .pos-cashier-table-scroll--deposits table {
+    min-width: 480px;
+  }
+
+  .pos-cashier-table-scroll--history table {
+    min-width: 520px;
+  }
+
+  /* Grids en modales y formularios */
+  .pos-cashier-grid-2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  .pos-cashier-grid-2 > [style*="gridColumn"] {
+    grid-column: span 1 !important;
+  }
+
+  .pos-cashier-grid-3 {
+    grid-template-columns: 1fr !important;
+  }
+
+  .pos-cashier-pay-methods {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Modales */
+  .pos-cashier-modal-overlay {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+
+  .pos-cashier-modal-overlay--center {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+
+  .pos-cashier-modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 12px 12px 0 0 !important;
+    max-height: 92vh !important;
+    overflow-y: auto !important;
+    margin: 0 !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pos-cashier-modal-header-row {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .pos-cashier-modal-actions {
+    flex-direction: column !important;
+  }
+
+  .pos-cashier-modal-actions > button,
+  .pos-cashier-modal-actions > .btn-primary {
+    width: 100% !important;
+    flex: none !important;
+  }
+
+  .pos-cashier-deposit-info {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 4px !important;
+  }
+
+  .pos-cashier-dep-tabs {
+    flex-wrap: wrap !important;
+  }
+
+  .pos-cashier-dep-tabs button {
+    font-size: 11px !important;
+    padding: 8px 6px !important;
+  }
+
+  /* Apertura de caja */
+  .pos-cashier-apertura-card {
+    margin: 24px auto !important;
+    padding: 24px 20px !important;
+    max-width: 100% !important;
+  }
+
+  /* Toast en móvil */
+  .pos-cashier-app .toast-premium {
+    left: 12px !important;
+    right: 12px !important;
+    bottom: 16px !important;
+    max-width: none !important;
+  }
+
+  /* Devoluciones — filas de producto */
+  .pos-cashier-return-item {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+}
+
+/* --- Móvil pequeño (≤480px) --- */
+@media (max-width: 480px) {
+  .pos-cashier-pay-methods {
+    grid-template-columns: 1fr !important;
+  }
+
+  .pos-cashier-checkout-total {
+    font-size: 28px !important;
+    padding: 12px !important;
+  }
+}
