@@ -1,4 +1,5 @@
 import express, { Request, Response } from "express";
+import path from "path";
 import cors from "cors";
 import helmet from "helmet";
 import { PrismaClient } from "@prisma/client";
@@ -80,11 +81,20 @@ app.get("/health", async (_req: Request, res: Response) => {
   }
 });
 
-// Manejo global de rutas no encontradas (404)
-app.use((_req: Request, res: Response) => {
+// Servir frontend en producción (o para pruebas con ngrok)
+const frontendDistPath = path.join(__dirname, "../../frontend/dist");
+app.use(express.static(frontendDistPath));
+
+// Manejo global de rutas no encontradas (404) para la API
+app.use("/api/*", (_req: Request, res: Response) => {
   res.status(404).json({
     message: `Ruta ${_req.originalUrl} no encontrada.`
   });
+});
+
+// Para cualquier otra ruta, servir el index.html de React (Frontend SPA)
+app.get("*", (_req: Request, res: Response) => {
+  res.sendFile(path.join(frontendDistPath, "index.html"));
 });
 
 export default app;

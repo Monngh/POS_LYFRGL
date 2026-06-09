@@ -1,7 +1,9 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
 
-// URL base de la API REST backend (configurable en variables de entorno de Vite)
-export const API_BASE_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:4000";
+// URL base de la API REST backend
+// Si corre en Vite (5173/5174) usa localhost:4000, si corre desde ngrok/producción usa rutas relativas
+const isVite = window.location.port === "5173" || window.location.port === "5174";
+export const API_BASE_URL = (import.meta.env.VITE_API_URL as string) || (isVite ? "http://localhost:4000" : "");
 
 const api = axios.create({
   baseURL: API_BASE_URL,

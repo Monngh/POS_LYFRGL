@@ -164,20 +164,32 @@ async function main() {
   console.log("  ✅ Cliente: Público General");
 
   const testCustomers = [
-    { name: "Juan Pérez",     phone: "5551234567", email: "juan.perez@email.com",   points: 150 },
-    { name: "María Gómez",    phone: "7721003000", email: "maria.gomez@email.com",  points: 50  },
-    { name: "Ana Martínez",   phone: "5559876543", email: "ana.martinez@email.com", points: 0   },
+    // Cliente completo facturable
+    { name: "Juan Pérez", phone: "5551234567", email: "juan.perez@email.com", points: 1500, taxId: "MAMM900101XYZ", taxRegime: "601", zipCode: "42000", cfdiUse: "G03", address: "Av. Revolución 123" },
+    // Cliente simple sin datos de facturación
+    { name: "María Gómez", phone: "7721003000", email: "maria.gomez@email.com", points: 50, taxId: "XAXX010101000", taxRegime: null, zipCode: null, cfdiUse: null, address: "Conocido" },
+    { name: "Ana Martínez", phone: "5559876543", email: "ana.martinez@email.com", points: 0, taxId: "XAXX010101000", taxRegime: null, zipCode: null, cfdiUse: null, address: "Dirección de Prueba" },
   ];
 
   for (const c of testCustomers) {
     const existing = await prisma.customer.findFirst({ where: { phone: c.phone } });
     if (!existing) {
       await prisma.customer.create({
-        data: { name: c.name, phone: c.phone, email: c.email, taxId: "XAXX010101000", address: "Dirección de Prueba", creditLimit: 0, balance: 0, points: c.points },
+        data: { 
+          name: c.name, phone: c.phone, email: c.email, 
+          taxId: c.taxId, taxRegime: c.taxRegime, zipCode: c.zipCode, cfdiUse: c.cfdiUse, 
+          address: c.address, creditLimit: 0, balance: 0, points: c.points 
+        },
       });
       console.log(`  ✅ Cliente nuevo: ${c.name}`);
     } else {
-      await prisma.customer.update({ where: { id: existing.id }, data: { points: c.points } });
+      await prisma.customer.update({ 
+        where: { id: existing.id }, 
+        data: { 
+          points: c.points, taxId: c.taxId, taxRegime: c.taxRegime, 
+          zipCode: c.zipCode, cfdiUse: c.cfdiUse 
+        } 
+      });
       console.log(`  ℹ️  Cliente actualizado: ${c.name} (puntos: ${c.points})`);
     }
   }
@@ -332,6 +344,130 @@ async function main() {
         });
         console.log(`  ✅ IVA 16% asignado por defecto al producto existente: ${p.name}`);
       }
+    }
+  }
+
+  // =========================================================================
+  // 7. DATOS HISTÓRICOS (Sesiones, Ventas, Devoluciones y Facturas)
+  // =========================================================================
+  console.log("  Generando datos históricos...");
+  
+  // Fechas base (hace 3 días)
+  const threeDaysAgo = new Date();
+  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+  const threeDaysAgoEnd = new Date(threeDaysAgo);
+  threeDaysAgoEnd.setHours(threeDaysAgoEnd.getHours() + 8);
+
+  const adminUser = await prisma.user.findFirst({ where: { email: "admin@fmb.com" } });
+  const cashierUser = await prisma.user.findFirst({ where: { email: "juan.centro@fmb.com" } });
+  const mainBranchId = branchesMap["Sucursal Centro LYFRGL"];
+  
+  if (cashierUser && adminUser && mainBranchId) {
+    // 7.1 Sesión de Caja Histórica
+    let historicalSession = await prisma.cashSession.findFirst({ where: { openedAt: { lte: threeDaysAgo }, status: "CERRADA", branchId: mainBranchId } });
+    if (!historicalSession) {
+      historicalSession = await prisma.cashSession.create({
+        data: {
+          branchId: mainBranchId,
+          userId: cashierUser.id,
+          openedAt: threeDaysAgo,
+          closedAt: threeDaysAgoEnd,
+          initialAmount: 1000,
+          expectedAmount: 2500,
+          declaredAmount: 2500,
+          difference: 0,
+          cashIn: 0,
+          cashOut: 0,
+          status: "CERRADA",
+          createdAt: threeDaysAgo,
+          updatedAt: threeDaysAgoEnd
+        }
+      });
+      console.log(`  ✅ Sesión de caja histórica creada.`);
+    }
+
+    const publicCustomer = await prisma.customer.findFirst({ where: { name: "Público General" } });
+    const facturableCustomer = await prisma.customer.findFirst({ where: { email: "juan.perez@email.com" } });
+    const p1 = await prisma.product.findUnique({ where: { sku: "PROD-001" } });
+    const p2 = await prisma.product.findUnique({ where: { sku: "PROD-003" } });
+    
+    if (p1 && p2 && publicCustomer && facturableCustomer && historicalSession) {
+      const createSaleIfNotExist = async (invoiceNum: string, date: Date, custId: number, isFacturada: boolean, globalUuid?: string, returned?: boolean, pointsMode?: boolean) => {
+        let sale = await prisma.sale.findUnique({ where: { invoiceNumber: invoiceNum } });
+        if (!sale) {
+          const tAmount = pointsMode ? 50.00 : 63.00;
+          sale = await prisma.sale.create({
+            data: {
+              invoiceNumber: invoiceNum,
+              branchId: mainBranchId,
+              userId: cashierUser.id,
+              customerId: custId,
+              cashSessionId: historicalSession.id,
+              totalAmount: tAmount,
+              taxAmount: 2.48,
+              paymentMethod: pointsMode ? "PUNTOS/MIXTO" : "EFECTIVO",
+              cashReceived: pointsMode ? 50.00 : 100.00,
+              changeGiven: pointsMode ? 0 : 37.00,
+              status: returned ? "DEVUELTA" : "COMPLETADA",
+              pointsEarned: 10,
+              pointsRedeemed: pointsMode ? 130 : 0,
+              pointsDiscount: pointsMode ? 13.00 : 0,
+              cfdiUuid: globalUuid ? globalUuid : (isFacturada ? "12345678-ABCD-EFGH-IJKL-1234567890AB:facturapi_id_1" : null),
+              createdAt: date,
+              updatedAt: date,
+              saleDetails: {
+                create: [
+                  { productId: p1.id, quantity: 1, unitPrice: p1.sellPrice, costPrice: p1.costPrice, taxAmount: 2.48 },
+                  { productId: p2.id, quantity: 1, unitPrice: p2.sellPrice, costPrice: p2.costPrice, taxAmount: 0 }
+                ]
+              }
+            }
+          });
+          console.log(`  ✅ Venta histórica: ${invoiceNum}`);
+        }
+        return sale;
+      };
+
+      // Venta 1: Facturada individual a cliente con RFC
+      await createSaleIfNotExist(`V-HIST-001`, threeDaysAgo, facturableCustomer.id, true);
+
+      // Ventas 2 y 3: Público General (No facturadas, para Factura Global)
+      await createSaleIfNotExist(`V-HIST-002`, threeDaysAgo, publicCustomer.id, false);
+      await createSaleIfNotExist(`V-HIST-003`, threeDaysAgo, publicCustomer.id, false);
+
+      // Venta 4: Venta con pago mixto (puntos)
+      await createSaleIfNotExist(`V-HIST-004`, threeDaysAgo, facturableCustomer.id, false, undefined, false, true);
+
+      // Venta 5: Venta devuelta
+      const saleToReturn = await createSaleIfNotExist(`V-HIST-005`, threeDaysAgo, publicCustomer.id, false, undefined, true);
+      const existingReturn = await prisma.return.findUnique({ where: { returnNumber: "DEV-HIST-001" } });
+      if (!existingReturn) {
+        await prisma.return.create({
+          data: {
+            returnNumber: "DEV-HIST-001",
+            saleId: saleToReturn.id,
+            userId: cashierUser.id,
+            authorizedById: adminUser.id,
+            reason: "Producto caducado/dañado",
+            type: "TOTAL",
+            totalRefunded: 63.00,
+            paymentMethod: "EFECTIVO",
+            cashSessionId: historicalSession.id,
+            createdAt: threeDaysAgoEnd,
+            updatedAt: threeDaysAgoEnd,
+            returnDetails: {
+              create: [
+                { productId: p1.id, saleDetailId: 1, quantity: 1, unitPrice: p1.sellPrice, taxAmount: 2.48, discountAmount: 0, destination: "WASTE" },
+                { productId: p2.id, saleDetailId: 2, quantity: 1, unitPrice: p2.sellPrice, taxAmount: 0, discountAmount: 0, destination: "INVENTORY" }
+              ]
+            }
+          }
+        });
+        console.log(`  ✅ Devolución histórica: DEV-HIST-001`);
+      }
+
+      // Venta 6: Factura Global
+      await createSaleIfNotExist(`V-HIST-006`, threeDaysAgo, publicCustomer.id, false, "GLOBAL:FMB-GLOB-1234:facturapi_id_global");
     }
   }
 

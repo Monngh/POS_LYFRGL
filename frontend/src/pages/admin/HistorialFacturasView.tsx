@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Download, FileText, CheckCircle } from "lucide-react";
+import { Download, FileText } from "lucide-react";
 import api from "../../services/api";
 import {
   ui,
