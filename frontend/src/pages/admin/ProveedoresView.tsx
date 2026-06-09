@@ -4,15 +4,14 @@ import api from "../../services/api";
 import { ui, type ViewProps, TableState, SectionHeader, Badge } from "./shared";
 
 // =========================
-// CONSTANTES Y REGEX
+// CONSTANTES Y REGEX 
 // =========================
-const NAME_REGEX = /^[a-zA-ZÀ-ÿÑñ\s]+$/; // Solo letras y espacios
-const COMPANY_NAME_REGEX = /^[a-zA-ZÀ-ÿ0-9\s.-]+$/; // Para nombre comercial que puede tener números
+const NAME_REGEX = /^[a-zA-ZÀ-ÿÑñ][a-zA-ZÀ-ÿ0-9\s.-]*$/;
+const ONLY_LETTERS_REGEX = /^[a-zA-ZÀ-ÿÑñ\s]*$/;
 const RFC_REGEX = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 const PHONE_REGEX = /^\d{10}$/;
 const ZIP_REGEX = /^\d{5}$/;
-const CITY_STATE_REGEX = /^[a-zA-ZÀ-ÿÑñ\s]+$/; // Solo letras y espacios para ciudad/estado
 
 // =========================
 // TIPOS
@@ -76,7 +75,7 @@ const emptyForm = (): FormData => ({
 });
 
 // =========================
-// VALIDADORES MEJORADOS
+// VALIDADORES
 // =========================
 const validateName = (value: string): string | undefined => {
   const v = value.trim();
@@ -84,7 +83,8 @@ const validateName = (value: string): string | undefined => {
   if (!v) return "El nombre es obligatorio.";
   if (v.length < 3) return "Debe tener al menos 3 caracteres.";
   if (v.length > 100) return "No puede exceder 100 caracteres.";
-  if (!COMPANY_NAME_REGEX.test(v)) return "Solo letras, números, espacios, puntos y guiones.";
+  if (!/^[a-zA-ZÀ-ÿÑñ]/.test(v)) return "El nombre debe comenzar con una letra.";
+  if (!NAME_REGEX.test(v)) return "Solo letras, números, espacios, puntos y guiones. No se permiten emojis.";
 
   return undefined;
 };
@@ -94,7 +94,7 @@ const validateContactName = (value: string): string | undefined => {
 
   if (!v) return "El nombre de contacto es obligatorio.";
   if (v.length < 3) return "Debe tener al menos 3 caracteres.";
-  if (!NAME_REGEX.test(v)) return "Solo letras y espacios.";
+  if (!ONLY_LETTERS_REGEX.test(v)) return "Solo letras y espacios. No se permiten números, símbolos ni emojis.";
 
   return undefined;
 };
@@ -110,11 +110,12 @@ const validateRFC = (value: string): string | undefined => {
 };
 
 const validateEmail = (value: string): string | undefined => {
-  const v = value.trim();
+  const v = value.trim().toLowerCase();
 
   if (!v) return "El correo es obligatorio.";
   if (v.length > 100) return "No puede exceder 100 caracteres.";
-  if (!EMAIL_REGEX.test(v)) return "Correo electrónico inválido.";
+  if (!EMAIL_REGEX.test(v)) return "Correo electrónico inválido. Ejemplo: usuario@dominio.com";
+  if (/[^\x00-\x7F]/.test(v)) return "El correo no debe contener caracteres especiales ni emojis.";
 
   return undefined;
 };
@@ -141,7 +142,7 @@ const validateCity = (value: string): string | undefined => {
 
   if (!v) return "La ciudad es obligatoria.";
   if (v.length < 2) return "Ciudad muy corta.";
-  if (!CITY_STATE_REGEX.test(v)) return "Solo letras y espacios, sin números ni símbolos.";
+  if (!ONLY_LETTERS_REGEX.test(v)) return "Solo letras y espacios. No se permiten números, símbolos ni emojis.";
 
   return undefined;
 };
@@ -151,7 +152,7 @@ const validateState = (value: string): string | undefined => {
 
   if (!v) return "El estado es obligatorio.";
   if (v.length < 2) return "Estado muy corto.";
-  if (!CITY_STATE_REGEX.test(v)) return "Solo letras y espacios, sin números ni símbolos.";
+  if (!ONLY_LETTERS_REGEX.test(v)) return "Solo letras y espacios. No se permiten números, símbolos ni emojis.";
 
   return undefined;
 };
@@ -167,11 +168,9 @@ const validateZip = (value: string): string | undefined => {
 // COMPONENTE PRINCIPAL
 // =========================
 const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
-  // Estados
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FormData>(emptyForm());
@@ -179,8 +178,8 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [originalForm, setOriginalForm] = useState<FormData | null>(null);
 
-  // Computed - Validación completa del formulario
   const isFormValid =
     !validateName(form.name) &&
     !validateContactName(form.contactName) &&
@@ -192,9 +191,18 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
     !validateState(form.state) &&
     !validateZip(form.zipCode);
 
-  // =========================
-  // CRUD
-  // =========================
+  const hasFormChanged = (): boolean => {
+    if (!originalForm) return true;
+    return JSON.stringify(form) !== JSON.stringify(originalForm);
+  };
+
+  const isSaveEnabled = () => {
+    if (saving) return false;
+    if (!isFormValid) return false;
+    if (editingId !== null && !hasFormChanged()) return false;
+    return true;
+  };
+
   const loadSuppliers = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -212,6 +220,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
   const openCreate = () => {
     setEditingId(null);
     setForm(emptyForm());
+    setOriginalForm(null);
     setFormError(null);
     setModalOpen(true);
     setFieldErrors(emptyErrors);
@@ -219,8 +228,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
   };
 
   const openEdit = (s: Supplier) => {
-    setEditingId(s.id);
-    setForm({
+    const editForm = {
       name: s.name,
       rfc: s.rfc || "",
       email: s.email || "",
@@ -231,9 +239,11 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
       zipCode: s.zipCode || "",
       contactName: s.contactName || "",
       active: s.active,
-    });
+    };
 
-    // Validar campos al abrir edición
+    setEditingId(s.id);
+    setForm(editForm);
+    setOriginalForm(JSON.parse(JSON.stringify(editForm)));
     setFieldErrors({
       name: validateName(s.name),
       contactName: validateContactName(s.contactName || ""),
@@ -263,53 +273,17 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
   };
 
   const closeModal = () => {
-    if (saving) return; // No cerrar mientras se guarda
+    if (saving) return;
     setModalOpen(false);
     setEditingId(null);
     setForm(emptyForm());
+    setOriginalForm(null);
     setFormError(null);
     setTouched({});
   };
 
   const handleSubmit = async () => {
-    // Prevenir múltiples envíos
-    if (saving) return;
-
-    // Marcar todos los campos como "tocados" para mostrar errores
-    const allTouched = {
-      name: true,
-      contactName: true,
-      rfc: true,
-      email: true,
-      phone: true,
-      address: true,
-      city: true,
-      state: true,
-      zipCode: true
-    };
-    setTouched(allTouched);
-
-    // Validar todo antes de enviar
-    const errors = {
-      name: validateName(form.name),
-      contactName: validateContactName(form.contactName),
-      rfc: validateRFC(form.rfc),
-      email: validateEmail(form.email),
-      phone: validatePhone(form.phone),
-      address: validateAddress(form.address),
-      city: validateCity(form.city),
-      state: validateState(form.state),
-      zipCode: validateZip(form.zipCode)
-    };
-
-    setFieldErrors(errors);
-
-    // Verificar si hay errores
-    const hasErrors = Object.values(errors).some(error => error !== undefined);
-    if (hasErrors) {
-      setFormError("Por favor, corrige los errores antes de guardar.");
-      return;
-    }
+    if (!isSaveEnabled()) return;
 
     setSaving(true);
     setFormError(null);
@@ -318,7 +292,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
       const payload = {
         name: form.name.trim(),
         rfc: form.rfc.trim() || null,
-        email: form.email.trim() || null,
+        email: form.email.trim().toLowerCase() || null,
         phone: form.phone.trim() || null,
         address: form.address.trim() || null,
         city: form.city.trim() || null,
@@ -343,11 +317,15 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
     }
   };
 
-  // =========================
-  // HANDLERS MEJORADOS
-  // =========================
+  // HANDLERS
   const handleName = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+    let value = e.target.value;
+    value = value.replace(/[^\w\s\u00C0-\u00FF.-]/g, '');
+
+    if (value.length === 1 && !/^[a-zA-ZÀ-ÿÑñ]$/.test(value)) {
+      return;
+    }
+
     setForm(f => ({ ...f, name: value }));
     if (touched.name) {
       setFieldErrors(f => ({ ...f, name: validateName(value) }));
@@ -355,12 +333,11 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
   };
 
   const handleContactName = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    // Solo permitir letras y espacios
-    const filteredValue = value.replace(/[^a-zA-ZÀ-ÿÑñ\s]/g, '');
-    setForm(f => ({ ...f, contactName: filteredValue }));
+    let value = e.target.value;
+    value = value.replace(/[^a-zA-ZÀ-ÿÑñ\s]/g, '');
+    setForm(f => ({ ...f, contactName: value }));
     if (touched.contactName) {
-      setFieldErrors(f => ({ ...f, contactName: validateContactName(filteredValue) }));
+      setFieldErrors(f => ({ ...f, contactName: validateContactName(value) }));
     }
   };
 
@@ -377,7 +354,8 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
   };
 
   const handleEmail = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+    let value = e.target.value;
+    value = value.replace(/[^\w\s@.-]/g, '');
     setForm(f => ({ ...f, email: value }));
     if (touched.email) {
       setFieldErrors(f => ({ ...f, email: validateEmail(value) }));
@@ -386,7 +364,6 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const handlePhone = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    // Solo permitir números
     if (!/^\d*$/.test(value)) return;
 
     const phone = value.slice(0, 10);
@@ -405,28 +382,25 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
   };
 
   const handleCity = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    // Solo permitir letras y espacios
-    const filteredValue = value.replace(/[^a-zA-ZÀ-ÿÑñ\s]/g, '');
-    setForm(f => ({ ...f, city: filteredValue }));
+    let value = e.target.value;
+    value = value.replace(/[^a-zA-ZÀ-ÿÑñ\s]/g, '');
+    setForm(f => ({ ...f, city: value }));
     if (touched.city) {
-      setFieldErrors(f => ({ ...f, city: validateCity(filteredValue) }));
+      setFieldErrors(f => ({ ...f, city: validateCity(value) }));
     }
   };
 
   const handleState = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    // Solo permitir letras y espacios
-    const filteredValue = value.replace(/[^a-zA-ZÀ-ÿÑñ\s]/g, '');
-    setForm(f => ({ ...f, state: filteredValue }));
+    let value = e.target.value;
+    value = value.replace(/[^a-zA-ZÀ-ÿÑñ\s]/g, '');
+    setForm(f => ({ ...f, state: value }));
     if (touched.state) {
-      setFieldErrors(f => ({ ...f, state: validateState(filteredValue) }));
+      setFieldErrors(f => ({ ...f, state: validateState(value) }));
     }
   };
 
   const handleZip = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    // Solo permitir números
     if (!/^\d*$/.test(value)) return;
 
     const zip = value.slice(0, 5);
@@ -439,7 +413,6 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
   const handleBlur = (field: keyof FieldErrors) => {
     setTouched(prev => ({ ...prev, [field]: true }));
 
-    // Validar el campo al perder el foco
     let error: string | undefined;
     switch (field) {
       case 'name':
@@ -476,9 +449,6 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
     }
   };
 
-  // =========================
-  // RENDER
-  // =========================
   useEffect(() => {
     loadSuppliers();
   }, [loadSuppliers]);
@@ -544,14 +514,10 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
         </table>
       </div>
 
-      {/* Modal */}
       {modalOpen && (
         <div
           style={ui.overlay}
-          onClick={(e) => {
-            //el modal SOLO se cierra con los botones de X o Cancelar
-            e.stopPropagation();
-          }}
+          onClick={(e) => e.stopPropagation()}
         >
           <div style={{ ...ui.modal, maxWidth: 550 }}>
             <div style={ui.modalHeader}>
@@ -569,7 +535,6 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
 
             <div style={ui.modalBody}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                {/* Nombre */}
                 <div style={{ gridColumn: "1 / -1" }}>
                   <label style={ui.fieldLabel}>Nombre *</label>
                   <input
@@ -577,7 +542,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                     value={form.name}
                     onChange={handleName}
                     onBlur={() => handleBlur('name')}
-                    placeholder="Razón social o nombre comercial"
+                    placeholder="Razón social o nombre comercial (debe empezar con letra)"
                     autoFocus
                     disabled={saving}
                   />
@@ -588,7 +553,6 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                   )}
                 </div>
 
-                {/* RFC */}
                 <div>
                   <label style={ui.fieldLabel}>RFC *</label>
                   <input
@@ -606,7 +570,6 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                   )}
                 </div>
 
-                {/* Persona de contacto */}
                 <div>
                   <label style={ui.fieldLabel}>Persona de contacto *</label>
                   <input
@@ -614,7 +577,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                     value={form.contactName}
                     onChange={handleContactName}
                     onBlur={() => handleBlur('contactName')}
-                    placeholder="Nombre del contacto"
+                    placeholder="Nombre del contacto (solo letras)"
                     disabled={saving}
                   />
                   {touched.contactName && fieldErrors.contactName && (
@@ -624,7 +587,6 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                   )}
                 </div>
 
-                {/* Email */}
                 <div>
                   <label style={ui.fieldLabel}>Email *</label>
                   <input
@@ -643,7 +605,6 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                   )}
                 </div>
 
-                {/* Teléfono */}
                 <div>
                   <label style={ui.fieldLabel}>Teléfono *</label>
                   <input
@@ -661,7 +622,6 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                   )}
                 </div>
 
-                {/* Dirección */}
                 <div style={{ gridColumn: "1 / -1" }}>
                   <label style={ui.fieldLabel}>Dirección *</label>
                   <input
@@ -679,7 +639,6 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                   )}
                 </div>
 
-                {/* Ciudad */}
                 <div>
                   <label style={ui.fieldLabel}>Ciudad *</label>
                   <input
@@ -687,7 +646,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                     value={form.city}
                     onChange={handleCity}
                     onBlur={() => handleBlur('city')}
-                    placeholder="Ciudad"
+                    placeholder="Ciudad (solo letras)"
                     disabled={saving}
                   />
                   {touched.city && fieldErrors.city && (
@@ -697,7 +656,6 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                   )}
                 </div>
 
-                {/* Estado */}
                 <div>
                   <label style={ui.fieldLabel}>Estado *</label>
                   <input
@@ -705,7 +663,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                     value={form.state}
                     onChange={handleState}
                     onBlur={() => handleBlur('state')}
-                    placeholder="Estado"
+                    placeholder="Estado (solo letras)"
                     disabled={saving}
                   />
                   {touched.state && fieldErrors.state && (
@@ -715,7 +673,6 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                   )}
                 </div>
 
-                {/* Código Postal */}
                 <div>
                   <label style={ui.fieldLabel}>C.P. *</label>
                   <input
@@ -733,7 +690,6 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                   )}
                 </div>
 
-                {/* Estatus */}
                 <div>
                   <label style={{ display: "block", marginBottom: "8px", fontSize: "12px", fontWeight: "600", color: "#1e3a8a" }}>
                     ESTATUS
@@ -780,11 +736,11 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <button
                   style={{
                     ...ui.primaryBtn,
-                    opacity: saving ? 0.6 : 1,
-                    cursor: saving ? "not-allowed" : "pointer"
+                    opacity: isSaveEnabled() ? 1 : 0.6,
+                    cursor: isSaveEnabled() ? "pointer" : "not-allowed"
                   }}
                   onClick={handleSubmit}
-                  disabled={saving || !isFormValid}
+                  disabled={!isSaveEnabled()}
                 >
                   {saving
                     ? "Guardando..."
