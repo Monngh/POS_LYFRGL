@@ -100,7 +100,7 @@ const Autofacturacion: React.FC = () => {
 
   // Autenticación de Clientes
   const [customerToken, setCustomerToken] = useState<string | null>(null);
-  const [customerInfo, setCustomerInfo] = useState<{ id: number; name: string; phone: string; email: string | null } | null>(null);
+  const [customerInfo, setCustomerInfo] = useState<{ id: number; name: string; phone: string; email: string | null; points?: number } | null>(null);
   
   // Modales
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -148,7 +148,8 @@ const Autofacturacion: React.FC = () => {
         id: c.id,
         name: c.name,
         phone: c.phone || "",
-        email: c.email
+        email: c.email,
+        points: c.points || 0
       });
 
       // Rellenar campos de edición de perfil
@@ -402,7 +403,7 @@ const Autofacturacion: React.FC = () => {
               <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
                 <div style={styles.clientBadge}>
                   <Sparkles size={14} color="#b45309" style={{ marginRight: "4px" }} />
-                  <span>Cliente: <strong>{customerInfo.name}</strong></span>
+                  <span>Cliente: <strong>{customerInfo.name}</strong> ({customerInfo.points ?? 0} pts)</span>
                 </div>
                 <button onClick={handleLogout} style={styles.logoutBtn}>
                   <LogOut size={16} /> Cerrar Sesión
@@ -463,7 +464,7 @@ const Autofacturacion: React.FC = () => {
           <>
             {/* Paso 1: Buscar Ticket */}
             {step === 1 && (
-              <div style={styles.card} className="card-premium">
+              <div style={styles.card} className="card-premium autofact-card">
                 <h1 style={styles.title}>Factura tu Compra</h1>
                 <p style={styles.subtitle}>
                   Ingresa el número de folio impreso en tu ticket de compra para comenzar el trámite. {customerInfo ? "Tus datos fiscales se cargarán automáticamente." : "Puedes hacerlo como invitado."}
@@ -498,7 +499,7 @@ const Autofacturacion: React.FC = () => {
 
             {/* Paso 2: Detalles del Ticket y Formulario de Facturación */}
             {step === 2 && ticket && (
-              <div style={{ ...styles.card, maxWidth: "800px" }}>
+              <div style={{ ...styles.card, maxWidth: "800px" }} className="card-premium autofact-card">
                 <button onClick={() => setStep(1)} style={styles.backButton}>
                   <ArrowLeft size={16} /> Regresar
                 </button>
@@ -518,7 +519,7 @@ const Autofacturacion: React.FC = () => {
                     </div>
                   </div>
 
-                  <div style={{ overflowX: "auto", marginTop: "16px" }}>
+                  <div style={{ overflowX: "auto", marginTop: "16px" }} className="autofact-table-scroll">
                     <table style={styles.table}>
                       <thead>
                         <tr style={styles.thRow}>
@@ -548,7 +549,7 @@ const Autofacturacion: React.FC = () => {
                 </p>
 
                 <form onSubmit={handleIssueInvoice} style={styles.billingForm}>
-                  <div style={styles.formGrid}>
+                  <div style={styles.formGrid} className="autofact-form-grid">
                     <div style={styles.formGroup}>
                       <label style={styles.label}>RFC *</label>
                       <input
@@ -642,7 +643,7 @@ const Autofacturacion: React.FC = () => {
 
             {/* Paso 3: Factura Emitida con Éxito */}
             {step === 3 && invoiceResult && (
-              <div style={styles.card}>
+              <div style={styles.card} className="card-premium autofact-card">
                 <div style={styles.successWrapper}>
                   <div style={styles.successIconBox}>
                     <CheckCircle2 size={56} color="#1e3a8a" />
@@ -692,7 +693,7 @@ const Autofacturacion: React.FC = () => {
 
         {/* TAB HISTORIAL DE FACTURAS */}
         {activeTab === "facturas" && customerInfo && (
-          <div style={{ ...styles.card, maxWidth: "1000px" }}>
+          <div style={{ ...styles.card, maxWidth: "1000px" }} className="card-premium autofact-card">
             <h1 style={{ ...styles.title, textAlign: "left", marginBottom: "6px" }}>Mis Compras y Facturas</h1>
             <p style={{ ...styles.subtitle, textAlign: "left", marginBottom: "24px" }}>
               Consulta el historial de todas tus compras y descarga directamente tus facturas emitidas.
@@ -706,7 +707,7 @@ const Autofacturacion: React.FC = () => {
                 <p>No se encontraron compras asociadas a tu número telefónico.</p>
               </div>
             ) : (
-              <div style={{ overflowX: "auto" }}>
+              <div style={{ overflowX: "auto" }} className="autofact-table-scroll">
                 <table style={styles.table}>
                   <thead>
                     <tr style={styles.thRow}>
@@ -805,14 +806,19 @@ const Autofacturacion: React.FC = () => {
 
         {/* TAB DATOS FISCALES */}
         {activeTab === "datos" && customerInfo && (
-          <div style={{ ...styles.card, maxWidth: "700px" }}>
-            <h1 style={{ ...styles.title, textAlign: "left", marginBottom: "6px" }}>Mis Datos Fiscales</h1>
+          <div style={{ ...styles.card, maxWidth: "700px" }} className="card-premium autofact-card">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", marginBottom: "6px" }}>
+              <h1 style={{ ...styles.title, textAlign: "left", marginBottom: 0 }}>Mis Datos Fiscales</h1>
+              <span style={{ fontSize: "14px", fontWeight: "700", color: "#0d9488", backgroundColor: "#f0fdf4", padding: "4px 10px", borderRadius: "100px", marginTop: "4px" }}>
+                ⭐ {customerInfo.points ?? 0} Puntos
+              </span>
+            </div>
             <p style={{ ...styles.subtitle, textAlign: "left", marginBottom: "24px" }}>
               Guarda tus datos fiscales SAT 4.0 de forma segura. Se completarán automáticamente al facturar tus tickets.
             </p>
 
             <form onSubmit={handleUpdateFiscalData} style={styles.billingForm}>
-              <div style={styles.formGrid}>
+              <div style={styles.formGrid} className="autofact-form-grid">
                 <div style={styles.formGroup}>
                   <label style={styles.label}>RFC *</label>
                   <input
