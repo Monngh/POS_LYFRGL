@@ -49,7 +49,7 @@ import {
   retryReturnRefund,
   createReturnCfdi,
 } from "../controllers/return.controller";
-import { createGlobalInvoiceController } from "../controllers/adminBilling.controller";
+import { createGlobalInvoiceController, getBillingHistoryController } from "../controllers/adminBilling.controller";
 import { authenticateJWT, authorizeRoles } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -128,7 +128,8 @@ router.get("/returns/:id", getAdminReturnDetail);
 router.post("/returns/:id/retry-refund", retryReturnRefund);
 router.post("/returns/:id/create-cfdi", createReturnCfdi);
 
-// Facturación (admin)
+// Facturación Global e Historial
 router.post("/billing/global", createGlobalInvoiceController);
+router.get("/billing/history", getBillingHistoryController);
 
 export default router;

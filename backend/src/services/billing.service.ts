@@ -460,7 +460,7 @@ export class BillingService {
    * Generar y timbrar Factura Global (Facturapi)
    */
   static async createGlobalInvoice(
-    branchId: number,
+    branchId: number | undefined,
     startDate: Date,
     endDate: Date,
     periodicity: string,
@@ -474,17 +474,27 @@ export class BillingService {
       throw new Error("API Key de Facturapi no configurada en las variables de entorno (.env).");
     }
 
+    const whereClause: any = {
+      cfdiUuid: null,
+      status: "COMPLETADA",
+      OR: [
+        { customerId: null },
+        { customer: { name: "Público General" } },
+        { customer: { taxId: "XAXX010101000" } }
+      ],
+      createdAt: {
+        gte: startDate,
+        lte: endDate
+      }
+    };
+
+    if (branchId) {
+      whereClause.branchId = branchId;
+    }
+
     // Buscar ventas elegibles
     const sales = await prisma.sale.findMany({
-      where: {
-        branchId,
-        cfdiUuid: null,
-        status: "COMPLETADA",
-        createdAt: {
-          gte: startDate,
-          lte: endDate
-        }
-      },
+      where: whereClause,
       include: {
         saleDetails: {
           include: {
