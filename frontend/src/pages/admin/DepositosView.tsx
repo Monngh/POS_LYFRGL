@@ -26,6 +26,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [accounts, setAccounts] = useState<string[]>([]);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedDeposit, setSelectedDeposit] = useState<any>(null);
+  const [confirmingDepositId, setConfirmingDepositId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,13 +72,15 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   }, [rows, accounts.length]);
 
   const confirmDeposit = async (depositId: number) => {
+    if (confirmingDepositId === depositId) return;
+    setConfirmingDepositId(depositId);
     try {
-      setLoading(true);
       await api.post(`/api/sales/deposits/${depositId}/confirm`);
-      load();
+      await load();
     } catch (err) {
       setError("Error al confirmar depósito");
-      setLoading(false);
+    } finally {
+      setConfirmingDepositId(null);
     }
   };
 
@@ -262,8 +265,25 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         type="checkbox"
                         checked={d.status === "COMPLETED" || d.status === "CONFIRMADO"}
                         onChange={() => confirmDeposit(d.id)}
-                        disabled={d.status === "CANCELLED" || d.status === "CANCELADO" || d.status === "COMPLETED"}
-                        style={{ cursor: "pointer", width: "18px", height: "18px" }}
+                        disabled={
+                          confirmingDepositId === d.id ||
+                          d.status === "CANCELLED" ||
+                          d.status === "CANCELADO" ||
+                          d.status === "COMPLETED" ||
+                          d.status === "CONFIRMADO"
+                        }
+                        style={{
+                          cursor:
+                            confirmingDepositId === d.id ||
+                            d.status === "CANCELLED" ||
+                            d.status === "CANCELADO" ||
+                            d.status === "COMPLETED" ||
+                            d.status === "CONFIRMADO"
+                              ? "not-allowed"
+                              : "pointer",
+                          width: "18px",
+                          height: "18px",
+                        }}
                       />
                       <button
                         onClick={() => openDetail(d)}
