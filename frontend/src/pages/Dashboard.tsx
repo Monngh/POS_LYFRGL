@@ -89,6 +89,15 @@ interface CashSession {
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
+
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
   
   // Vistas del Cajero: "dashboard" | "apertura" | "sales-terminal"
   const [view, setView] = useState<"dashboard" | "apertura" | "sales-terminal">("dashboard");
@@ -1902,7 +1911,12 @@ const Dashboard: React.FC = () => {
                 <Users size={24} color="#475569" />
               </div>
               <div style={{ display: "flex", flexDirection: "column" }}>
-                <h4 style={styles.profileName}>{user?.name}</h4>
+                <h4 style={styles.profileName}>
+                  {user?.name}
+                  <span style={{ fontSize: "11px", fontWeight: "normal", color: "#64748b", marginLeft: "8px", display: "inline-block" }}>
+                    {currentTime.toLocaleDateString()} {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </h4>
                 <p style={styles.profileBranch}>{user?.branch.name}</p>
               </div>
             </div>
@@ -3489,7 +3503,12 @@ const Dashboard: React.FC = () => {
               <Users size={22} color="#ffffff" />
             </div>
             <div style={{ display: "flex", flexDirection: "column" }}>
-              <h4 style={styles.profileName}>{user?.name}</h4>
+              <h4 style={styles.profileName}>
+                {user?.name}
+                <span style={{ fontSize: "11px", fontWeight: "normal", color: "#64748b", marginLeft: "8px", display: "inline-block" }}>
+                  {currentTime.toLocaleDateString()} {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </h4>
               <p style={styles.profileBranch}>{user?.branch.name}</p>
             </div>
           </div>
