@@ -99,6 +99,10 @@ const Dashboard: React.FC = () => {
   const [recentDeposits, setRecentDeposits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Estado para filas expandidas en tablas responsive
+  const [expandedSalesRows, setExpandedSalesRows] = useState<Set<number>>(new Set());
+  const [expandedDepositRows, setExpandedDepositRows] = useState<Set<number>>(new Set());
+
   // Modales de Acción Rápida: null | "price-lookup" | "ticket-history" | "cancel-sale" | "close-cash" | "bank-deposit" | "close-options" | "partial-cut-summary" | "partial-cut-receipt"
   const [activeModal, setActiveModal] = useState<string | null>(null);
 
@@ -152,6 +156,31 @@ const Dashboard: React.FC = () => {
       return;
     }
     logout();
+  };
+
+  // Funciones helper para toggle filas expandidas en tablas responsive
+  const toggleSalesRow = (saleId: number) => {
+    setExpandedSalesRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(saleId)) {
+        newSet.delete(saleId);
+      } else {
+        newSet.add(saleId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleDepositRow = (depositId: number) => {
+    setExpandedDepositRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(depositId)) {
+        newSet.delete(depositId);
+      } else {
+        newSet.add(depositId);
+      }
+      return newSet;
+    });
   };
 
   useEffect(() => {
@@ -3634,46 +3663,98 @@ const Dashboard: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {recentSales.map((sale) => (
-                      <tr key={sale.id} style={styles.tableRow}>
-                        <td style={{ ...styles.td, fontWeight: "600" }}>{sale.invoiceNumber}</td>
-                        <td style={styles.td}>
-                          {new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </td>
-                        <td style={{ ...styles.td, fontWeight: "700" }}>${sale.totalAmount.toFixed(2)}</td>
-                        <td style={styles.td}>{sale.paymentMethod}</td>
-                        <td style={styles.td}>{sale.cajero}</td>
-                        <td style={styles.td}>
-                          <span style={{
-                            color: sale.status === "CANCELADA" ? "#dc2626" : "#059669",
-                            fontWeight: "700",
-                            fontSize: "12px"
-                          }}>
-                            {sale.status === "CANCELADA" ? "Cancelado" : "Activo"}
-                          </span>
-                        </td>
-                        <td style={styles.td}>
-                          <button
-                            onClick={async () => {
-                              try {
-                                const res = await api.get(`/api/sales/detail?id=${sale.id}`);
-                                setSelectedSale({
-                                  ...res.data.sale,
-                                  refundStatus: sale.refundStatus,
-                                  isNewSale: false
-                                });
-                                setActiveModal("ticket-view");
-                              } catch (e: any) {
-                                showToast(e.response?.data?.message || "Error al recuperar los detalles de la venta.", "error");
-                              }
-                            }}
-                            style={styles.actionLink}
+                    {recentSales.map((sale) => {
+                      const isExpanded = expandedSalesRows.has(sale.id);
+                      return (
+                        <React.Fragment key={sale.id}>
+                          <tr 
+                            style={styles.tableRow}
+                            className={isExpanded ? "pos-cashier-table-row-expanded" : ""}
                           >
-                            Ver Ticket v
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                            <td style={{ ...styles.td, fontWeight: "600" }}>{sale.invoiceNumber}</td>
+                            <td style={styles.td}>
+                              {new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </td>
+                            <td style={{ ...styles.td, fontWeight: "700" }}>${sale.totalAmount.toFixed(2)}</td>
+                            <td style={styles.td}>{sale.paymentMethod}</td>
+                            <td style={styles.td}>{sale.cajero}</td>
+                            <td style={styles.td}>
+                              <span style={{
+                                color: sale.status === "CANCELADA" ? "#dc2626" : "#059669",
+                                fontWeight: "700",
+                                fontSize: "12px"
+                              }}>
+                                {sale.status === "CANCELADA" ? "Cancelado" : "Activo"}
+                              </span>
+                            </td>
+                            <td style={styles.td}>
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const res = await api.get(`/api/sales/detail?id=${sale.id}`);
+                                    setSelectedSale({
+                                      ...res.data.sale,
+                                      refundStatus: sale.refundStatus,
+                                      isNewSale: false
+                                    });
+                                    setActiveModal("ticket-view");
+                                  } catch (e: any) {
+                                    showToast(e.response?.data?.message || "Error al recuperar los detalles de la venta.", "error");
+                                  }
+                                }}
+                                style={styles.actionLink}
+                              >
+                                Ver Ticket v
+                              </button>
+                            </td>
+                          </tr>
+                          {/* Fila de detalles adicionales para responsive */}
+                          <tr className="pos-cashier-table-details-row">
+                            <td colSpan={7} style={{ padding: 0 }}>
+                              <div className="pos-cashier-table-details">
+                                <div className="pos-cashier-table-details-content">
+                                  <span className="pos-cashier-table-details-label">PAGO:</span>
+                                  <span className="pos-cashier-table-details-value">{sale.paymentMethod}</span>
+                                </div>
+                                <div className="pos-cashier-table-details-content">
+                                  <span className="pos-cashier-table-details-label">CAJERO:</span>
+                                  <span className="pos-cashier-table-details-value">{sale.cajero}</span>
+                                </div>
+                                <div className="pos-cashier-table-details-content">
+                                  <span className="pos-cashier-table-details-label">ACCIÓN:</span>
+                                  <span className="pos-cashier-table-details-value">
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          const res = await api.get(`/api/sales/detail?id=${sale.id}`);
+                                          setSelectedSale({
+                                            ...res.data.sale,
+                                            refundStatus: sale.refundStatus,
+                                            isNewSale: false
+                                          });
+                                          setActiveModal("ticket-view");
+                                        } catch (e: any) {
+                                          showToast(e.response?.data?.message || "Error al recuperar los detalles de la venta.", "error");
+                                        }
+                                      }}
+                                      style={styles.actionLink}
+                                    >
+                                      Ver Ticket v
+                                    </button>
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={() => toggleSalesRow(sale.id)}
+                                  className="pos-cashier-table-expand-btn"
+                                >
+                                  {isExpanded ? "▲ Ocultar detalles" : "▼ Ver detalles"}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        </React.Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -3693,16 +3774,41 @@ const Dashboard: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {recentDeposits.map((dep) => (
-                      <tr key={dep.id} style={styles.tableRow}>
-                        <td style={styles.td}>**** **** **** {dep.accountNumber.slice(-4)}</td>
-                        <td style={styles.td}>{dep.targetName}</td>
-                        <td style={{ ...styles.td, fontWeight: "700", color: "#dc2626" }}>-${dep.amount.toFixed(2)}</td>
-                        <td style={styles.td}>
-                          <span style={styles.badgeSuccess}>Exitoso</span>
-                        </td>
-                      </tr>
-                    ))}
+                    {recentDeposits.map((dep) => {
+                      const isExpanded = expandedDepositRows.has(dep.id);
+                      return (
+                        <React.Fragment key={dep.id}>
+                          <tr 
+                            style={styles.tableRow}
+                            className={isExpanded ? "pos-cashier-table-row-expanded" : ""}
+                          >
+                            <td style={styles.td}>**** **** **** {dep.accountNumber.slice(-4)}</td>
+                            <td style={styles.td}>{dep.targetName}</td>
+                            <td style={{ ...styles.td, fontWeight: "700", color: "#dc2626" }}>-${dep.amount.toFixed(2)}</td>
+                            <td style={styles.td}>
+                              <span style={styles.badgeSuccess}>Exitoso</span>
+                            </td>
+                          </tr>
+                          {/* Fila de detalles adicionales para responsive */}
+                          <tr className="pos-cashier-table-details-row">
+                            <td colSpan={4} style={{ padding: 0 }}>
+                              <div className="pos-cashier-table-details">
+                                <div className="pos-cashier-table-details-content">
+                                  <span className="pos-cashier-table-details-label">BENEFICIARIO:</span>
+                                  <span className="pos-cashier-table-details-value">{dep.targetName}</span>
+                                </div>
+                                <button
+                                  onClick={() => toggleDepositRow(dep.id)}
+                                  className="pos-cashier-table-expand-btn"
+                                >
+                                  {isExpanded ? "▲ Ocultar detalles" : "▼ Ver detalles"}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        </React.Fragment>
+                      );
+                    })}
                     {recentDeposits.length === 0 && (
                       <tr>
                         <td colSpan={4} style={{ textAlign: "center", padding: "20px", color: "#64748b" }}>
