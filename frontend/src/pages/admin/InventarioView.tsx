@@ -74,7 +74,6 @@ interface SupplierOption {
 }
 
 const subModalStyle: React.CSSProperties = {
-  ...({} as any),
   position: "fixed",
   inset: 0,
   backgroundColor: "rgba(15,23,42,0.55)",
@@ -106,6 +105,155 @@ interface ProductTaxResponse {
 }
 
 const emptyForm = { sku: "", barcode: "", name: "", description: "", costPrice: "", sellPrice: "", satProductKey: "", satUnitKey: "" };
+const PRODUCT_TEXT_REGEX = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü0-9\s.,#\-/()]+$/;
+const SKU_REGEX = /^[A-Za-z0-9_-]+$/;
+const BARCODE_REGEX = /^[0-9]+$/;
+const SAT_PRODUCT_KEY_REGEX = /^[0-9]{8}$/;
+const SAT_UNIT_KEY_REGEX = /^[A-Za-z0-9]+$/;
+const MONEY_REGEX = /^\d+(?:\.\d+)?$/;
+
+type ValidationSuccess<T> = {
+  ok: true;
+  value: T;
+};
+
+type ValidationFailure = {
+  ok: false;
+  error: string;
+};
+
+type ValidationResult<T> = ValidationSuccess<T> | ValidationFailure;
+
+interface MoneyField {
+  value: number;
+  roundedMessage?: string;
+}
+
+interface ValidatedProductForm {
+  sku: string;
+  barcode?: string;
+  name: string;
+  description?: string;
+  costPrice: number;
+  sellPrice: number;
+  satProductKey: string;
+  satUnitKey: string;
+  roundingMessages: string[];
+}
+
+const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+const formatMoneyValue = (value: number) => value.toFixed(2);
+const getValidationError = <T,>(result: ValidationResult<T>) => {
+  if (result.ok === true) return null;
+  return result.error;
+};
+
+const getValidationValue = <T,>(result: ValidationResult<T>) => {
+  if (result.ok === true) return result.value;
+  return null;
+};
+
+const validateMoneyField = (rawValue: string | number, field: "costo" | "precio"): ValidationResult<MoneyField> => {
+  const label = field === "costo" ? "El costo" : "El precio";
+  const raw = String(rawValue).trim();
+
+  if (!raw) {
+    return { ok: false, error: `${label} es requerido.` };
+  }
+  if (raw.startsWith("-")) {
+    return { ok: false, error: `${label} no puede ser negativo.` };
+  }
+  if (!MONEY_REGEX.test(raw)) {
+    return { ok: false, error: `${label} debe ser un número válido.` };
+  }
+
+  const value = Number(raw);
+  if (!Number.isFinite(value)) {
+    return { ok: false, error: `${label} debe ser un número válido.` };
+  }
+
+  const rounded = roundMoney(value);
+  const decimalPart = raw.includes(".") ? raw.split(".")[1] : "";
+  return {
+    ok: true,
+    value: {
+      value: rounded,
+      roundedMessage:
+        decimalPart.length > 2 && rounded !== value
+          ? `${label} fue redondeado a ${formatMoneyValue(rounded)} porque solo se permiten 2 decimales.`
+          : undefined,
+    },
+  };
+};
+
+const validateProductForm = (form: typeof emptyForm, requireSku: boolean): ValidationResult<ValidatedProductForm> => {
+  const sku = form.sku.trim();
+  const barcode = form.barcode.trim();
+  const name = form.name.trim();
+  const description = form.description.trim();
+  const satProductKey = form.satProductKey.trim() || "01010101";
+  const satUnitKey = form.satUnitKey.trim() || "H87";
+
+  if (requireSku && !sku) {
+    return { ok: false, error: "El SKU es obligatorio." };
+  }
+  if (sku && !SKU_REGEX.test(sku)) {
+    return { ok: false, error: "El SKU solo puede contener letras, números, guion medio y guion bajo." };
+  }
+  if (!name) {
+    return { ok: false, error: "El nombre del producto es requerido." };
+  }
+  if (!PRODUCT_TEXT_REGEX.test(name)) {
+    return { ok: false, error: "El nombre contiene caracteres no permitidos." };
+  }
+  if (barcode && !BARCODE_REGEX.test(barcode)) {
+    return { ok: false, error: "El código de barras solo puede contener números." };
+  }
+  if (description && !PRODUCT_TEXT_REGEX.test(description)) {
+    return { ok: false, error: "La descripción contiene caracteres no permitidos." };
+  }
+  if (!SAT_PRODUCT_KEY_REGEX.test(satProductKey)) {
+    return { ok: false, error: "La clave SAT debe contener 8 números." };
+  }
+  if (!SAT_UNIT_KEY_REGEX.test(satUnitKey)) {
+    return { ok: false, error: "La clave de unidad SAT solo puede contener letras y números." };
+  }
+
+  const cost = validateMoneyField(form.costPrice, "costo");
+  const costError = getValidationError(cost);
+  if (costError) {
+    return { ok: false, error: costError };
+  }
+  const costValue = getValidationValue(cost);
+  if (!costValue) {
+    return { ok: false, error: "El costo debe ser un número válido." };
+  }
+
+  const sell = validateMoneyField(form.sellPrice, "precio");
+  const sellError = getValidationError(sell);
+  if (sellError) {
+    return { ok: false, error: sellError };
+  }
+  const sellValue = getValidationValue(sell);
+  if (!sellValue) {
+    return { ok: false, error: "El precio debe ser un número válido." };
+  }
+
+  return {
+    ok: true,
+    value: {
+      sku,
+      barcode: barcode || undefined,
+      name,
+      description: description || undefined,
+      costPrice: costValue.value,
+      sellPrice: sellValue.value,
+      satProductKey,
+      satUnitKey,
+      roundingMessages: [costValue.roundedMessage, sellValue.roundedMessage].filter((message): message is string => Boolean(message)),
+    },
+  };
+};
 
 const getErrorMessage = (err: unknown, fallback: string) => {
   if (typeof err === "object" && err !== null && "response" in err) {
@@ -143,14 +291,14 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [selectedProduct, setSelectedProduct] = useState<ProductDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
-  const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
+  const [statusSaving, setStatusSaving] = useState(false);
 
   // Feature 1: edit prices
   const [editMode, setEditMode] = useState(false);
   const [editCost, setEditCost] = useState(0);
   const [editPrice, setEditPrice] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [productSaving, setProductSaving] = useState(false);
+  const [priceSaving, setPriceSaving] = useState(false);
 
   // Feature 2: adjust stock
   const [adjustOpen, setAdjustOpen] = useState(false);
@@ -160,7 +308,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [adjustReason, setAdjustReason] = useState("");
   const [adjustObservations, setAdjustObservations] = useState("");
   const [adjustError, setAdjustError] = useState<string | null>(null);
-  const [adjustmentSaving, setAdjustmentSaving] = useState(false);
+  const [adjustSaving, setAdjustSaving] = useState(false);
 
   // Feature 3: transfer
   const [transferOpen, setTransferOpen] = useState(false);
@@ -277,7 +425,6 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const handleEdit = (p: ProductRow | ProductDetail) => {
     closeDetail();
-    const detail = p as any;
     setForm({
       sku: p.sku,
       barcode: p.barcode || "",
@@ -285,8 +432,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       description: p.description || "",
       costPrice: String(p.costPrice),
       sellPrice: String(p.sellPrice),
-      satProductKey: detail.satProductKey || "01010101",
-      satUnitKey: detail.satUnitKey || "H87",
+      satProductKey: "satProductKey" in p ? p.satProductKey || "01010101" : "01010101",
+      satUnitKey: "satUnitKey" in p ? p.satUnitKey || "H87" : "H87",
     });
     setEditingId(p.id);
     setFormError(null);
@@ -295,8 +442,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   };
 
   const handleToggleActive = async (p: ProductRow | ProductDetail) => {
-    if (statusUpdatingId === p.id) return;
-    setStatusUpdatingId(p.id);
+    if (statusSaving) return;
+    setStatusSaving(true);
     try {
       if (p.active) {
         // Soft delete (desactivar)
@@ -304,11 +451,6 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       } else {
         // Activar (usando PUT con active: true)
         await api.put(`/api/admin/products/${p.id}`, {
-          name: p.name,
-          description: p.description || undefined,
-          barcode: p.barcode || undefined,
-          costPrice: p.costPrice,
-          sellPrice: p.sellPrice,
           active: true,
         });
       }
@@ -319,31 +461,22 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     } catch (err: unknown) {
       alert(getErrorMessage(err, "No se pudo cambiar el estado del producto."));
     } finally {
-      setStatusUpdatingId(null);
+      setStatusSaving(false);
     }
   };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.sku.trim()) {
-      setFormError("El SKU es obligatorio.");
-      return;
-    }
-    if (!form.name.trim()) {
-      setFormError("El nombre del producto es obligatorio.");
-      return;
-    }
-    const cost = parseFloat(form.costPrice);
-    const sell = parseFloat(form.sellPrice);
+    if (saving) return;
 
-    if (isNaN(cost) || cost <= 0) {
-      setFormError("El precio de costo debe ser mayor a 0.");
+    const validated = validateProductForm(form, editingId === null);
+    const validationError = getValidationError(validated);
+    if (validationError) {
+      setFormError(validationError);
       return;
     }
-    if (isNaN(sell) || sell <= 0) {
-      setFormError("El precio de venta debe ser mayor a 0.");
-      return;
-    }
+    const validatedProduct = getValidationValue(validated);
+    if (!validatedProduct) return;
     if (editingId !== null && taxLoading) {
       setFormError("Espere a que terminen de cargar los impuestos del producto.");
       return;
@@ -356,16 +489,20 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setSaving(true);
     setFormError(null);
     try {
+      if (validatedProduct.roundingMessages.length > 0) {
+        alert(validatedProduct.roundingMessages.join("\n"));
+      }
+
       if (editingId !== null) {
         // Modo Edición
         await api.put(`/api/admin/products/${editingId}`, {
-          name: form.name.trim(),
-          barcode: form.barcode.trim() || undefined,
-          description: form.description.trim() || undefined,
-          costPrice: cost,
-          sellPrice: sell,
-          satProductKey: form.satProductKey.trim() || "01010101",
-          satUnitKey: form.satUnitKey.trim() || "H87",
+          name: validatedProduct.name,
+          barcode: validatedProduct.barcode,
+          description: validatedProduct.description,
+          costPrice: validatedProduct.costPrice,
+          sellPrice: validatedProduct.sellPrice,
+          satProductKey: validatedProduct.satProductKey,
+          satUnitKey: validatedProduct.satUnitKey,
         });
         await api.put(`/api/admin-tax/products/${editingId}/taxes`, {
           taxIds: selectedTaxIds,
@@ -373,14 +510,14 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       } else {
         // Modo Creación
         const createRes = await api.post("/api/admin/products", {
-          sku: form.sku.trim(),
-          barcode: form.barcode.trim() || undefined,
-          name: form.name.trim(),
-          description: form.description.trim() || undefined,
-          costPrice: cost,
-          sellPrice: sell,
-          satProductKey: form.satProductKey.trim() || "01010101",
-          satUnitKey: form.satUnitKey.trim() || "H87",
+          sku: validatedProduct.sku,
+          barcode: validatedProduct.barcode,
+          name: validatedProduct.name,
+          description: validatedProduct.description,
+          costPrice: validatedProduct.costPrice,
+          sellPrice: validatedProduct.sellPrice,
+          satProductKey: validatedProduct.satProductKey,
+          satUnitKey: validatedProduct.satUnitKey,
         });
         if (selectedTaxIds.length > 0) {
           const newProductId = createRes.data.product.id;
@@ -454,14 +591,15 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       await fetchDetail(id);
       const spRes = await api.get<SupplierOption[]>(`/api/admin/products/${id}/suppliers`);
       setProductSuppliers(spRes.data.map((s) => s.id));
-    } catch (err: any) {
-      setDetailError(err.response?.data?.message || "No se pudo cargar el detalle del producto.");
+    } catch (err: unknown) {
+      setDetailError(getErrorMessage(err, "No se pudo cargar el detalle del producto."));
     } finally {
       setDetailLoading(false);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const closeDetail = () => {
+    if (priceSaving || adjustSaving || transferSaving || suppliersSaving || statusSaving) return;
     setDetailOpen(false);
     setEditMode(false);
     setAdjustOpen(false);
@@ -530,34 +668,56 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   // Feature 1: save price/cost edits
   const saveProductChanges = async () => {
-    if (productSaving || !selectedProduct) return;
-    setProductSaving(true);
+    if (!selectedProduct || priceSaving) return;
     setSaveError(null);
+
+    const cost = validateMoneyField(editCost, "costo");
+    const costError = getValidationError(cost);
+    if (costError) {
+      setSaveError(costError);
+      return;
+    }
+    const price = validateMoneyField(editPrice, "precio");
+    const priceError = getValidationError(price);
+    if (priceError) {
+      setSaveError(priceError);
+      return;
+    }
+    const costValue = getValidationValue(cost);
+    const priceValue = getValidationValue(price);
+    if (!costValue || !priceValue) return;
+
+    const roundingMessages = [costValue.roundedMessage, priceValue.roundedMessage].filter((message): message is string => Boolean(message));
+    setPriceSaving(true);
     try {
+      if (roundingMessages.length > 0) {
+        alert(roundingMessages.join("\n"));
+      }
+
       await api.put(`/api/admin/products/${selectedProduct.id}`, {
-        costPrice: editCost,
-        sellPrice: editPrice,
+        costPrice: costValue.value,
+        sellPrice: priceValue.value,
       });
       await fetchDetail(selectedProduct.id);
       setEditMode(false);
       await load();
-    } catch (err: any) {
-      setSaveError(err.response?.data?.message || "Error al guardar.");
+    } catch (err: unknown) {
+      setSaveError(getErrorMessage(err, "Error al guardar."));
     } finally {
-      setProductSaving(false);
+      setPriceSaving(false);
     }
   };
 
   // Feature 2: submit stock adjustment
   const submitAdjustment = async () => {
-    if (adjustmentSaving || !selectedProduct) return;
+    if (!selectedProduct || adjustSaving) return;
     setAdjustError(null);
     if (!adjustBranch || !adjustType || !adjustReason.trim()) {
       setAdjustError("Completa todos los campos obligatorios.");
       return;
     }
-    if (adjustQuantity <= 0) {
-      setAdjustError("La cantidad debe ser mayor a 0.");
+    if (!Number.isFinite(adjustQuantity) || !Number.isInteger(adjustQuantity) || adjustQuantity <= 0) {
+      setAdjustError("La cantidad debe ser un entero mayor a 0.");
       return;
     }
 
@@ -583,19 +743,28 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setAdjustError("La cantidad no puede ser 0.");
       return;
     }
+    if (currentStock + quantityChange < 0) {
+      setAdjustError("El ajuste resultaría en stock negativo.");
+      return;
+    }
 
-    const fullReason = adjustObservations.trim()
-      ? `${adjustReason} — ${adjustObservations.trim()}`
-      : adjustReason;
+    const cleanReason = adjustObservations.trim()
+      ? `${adjustReason.trim()} - ${adjustObservations.trim()}`
+      : adjustReason.trim();
 
-    setAdjustmentSaving(true);
+    if (!PRODUCT_TEXT_REGEX.test(cleanReason)) {
+      setAdjustError("El motivo u observaciones contiene caracteres no permitidos.");
+      return;
+    }
+
+    setAdjustSaving(true);
     try {
       await api.post("/api/admin/inventory/adjust", {
         productId: selectedProduct.id,
         branchId: adjustBranch,
         quantityChange,
         movementType,
-        reason: fullReason,
+        reason: cleanReason,
       });
       await fetchDetail(selectedProduct.id);
       await load();
@@ -605,16 +774,16 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setAdjustQuantity(0);
       setAdjustReason("");
       setAdjustObservations("");
-    } catch (err: any) {
-      setAdjustError(err.response?.data?.message || "Error al aplicar ajuste.");
+    } catch (err: unknown) {
+      setAdjustError(getErrorMessage(err, "Error al aplicar ajuste."));
     } finally {
-      setAdjustmentSaving(false);
+      setAdjustSaving(false);
     }
   };
 
   // Feature 3: submit transfer
   const submitTransfer = async () => {
-    if (transferSaving || !selectedProduct) return;
+    if (!selectedProduct || transferSaving) return;
     setTransferError(null);
     if (!transferFrom || !transferTo || !transferQty) {
       setTransferError("Completa todos los campos.");
@@ -635,18 +804,18 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setTransferTo(0);
       setTransferQty(0);
       setTransferConfirm(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setTransferConfirm(false);
-      setTransferError(err.response?.data?.message || "Error al trasladar.");
+      setTransferError(getErrorMessage(err, "Error al trasladar."));
     } finally {
       setTransferSaving(false);
     }
   };
 
   const saveSuppliersChanges = async () => {
-    if (suppliersSaving || !selectedProduct) return;
-    setSuppliersSaving(true);
+    if (!selectedProduct || suppliersSaving) return;
     setSuppliersError(null);
+    setSuppliersSaving(true);
     try {
       const res = await api.get<SupplierOption[]>(`/api/admin/products/${selectedProduct.id}/suppliers`);
       const oldIds = res.data.map((s) => s.id);
@@ -662,8 +831,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         }
       }
       setEditingSuppliersMode(false);
-    } catch (err: any) {
-      setSuppliersError(err.response?.data?.message || "Error al guardar proveedores.");
+    } catch (err: unknown) {
+      setSuppliersError(getErrorMessage(err, "Error al guardar proveedores."));
     } finally {
       setSuppliersSaving(false);
     }
@@ -842,7 +1011,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               {selectedProduct && !detailLoading && (
                 <>
                   {/* ── Precios (con modo edición) ── */}
-                  <div style={{ ...({} as any), border: "1px solid #e2e8f0", borderRadius: 10, padding: 16, marginBottom: 20 }}>
+                  <div style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 16, marginBottom: 20 }}>
                     {!editMode ? (
                       <>
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 12 }}>
@@ -907,9 +1076,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           <p style={{ fontSize: 12, color: "#b91c1c", marginBottom: 10 }}>{saveError}</p>
                         )}
                         <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={saveProductChanges} disabled={productSaving} style={ui.primaryBtn}>
-                            {productSaving ? "Guardando..." : "✓ Guardar"}
-                          </button>
+                          <button onClick={saveProductChanges} style={ui.primaryBtn}>✓ Guardar</button>
                           <button onClick={() => { setEditMode(false); setSaveError(null); }} style={ui.ghostBtn}>✕ Cancelar</button>
                         </div>
                       </>
@@ -1064,9 +1231,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           <p style={{ fontSize: 12, color: "#b91c1c", marginBottom: 10 }}>{suppliersError}</p>
                         )}
                         <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={saveSuppliersChanges} disabled={suppliersSaving} style={ui.primaryBtn}>
-                            {suppliersSaving ? "Guardando..." : "✓ Guardar"}
-                          </button>
+                          <button onClick={saveSuppliersChanges} style={ui.primaryBtn}>✓ Guardar</button>
                           <button onClick={() => { setEditingSuppliersMode(false); setSuppliersError(null); }} style={ui.ghostBtn}>✕ Cancelar</button>
                         </div>
                       </div>
@@ -1132,7 +1297,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <>
                   <button
                     onClick={() => handleToggleActive(selectedProduct)}
-                    disabled={statusUpdatingId === selectedProduct.id}
+                    disabled={statusSaving}
                     style={{
                       ...ui.ghostBtn,
                       color: selectedProduct.active ? "#b91c1c" : "#15803d",
@@ -1140,9 +1305,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       marginRight: "auto"
                     }}
                   >
-                    {statusUpdatingId === selectedProduct.id
-                      ? "Actualizando..."
-                      : selectedProduct.active ? "Desactivar" : "Activar"}
+                    {statusSaving ? "Procesando..." : selectedProduct.active ? "Desactivar" : "Activar"}
                   </button>
                   <button
                     onClick={() => handleEdit(selectedProduct)}
@@ -1176,11 +1339,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         const diff = adjustType === "RECOUNT" ? adjustQuantity - currentStock : null;
 
         return (
-          <div style={subModalStyle} onClick={() => setAdjustOpen(false)}>
+          <div style={subModalStyle} onClick={() => { if (!adjustSaving) setAdjustOpen(false); }}>
             <div style={{ ...ui.modal, maxWidth: 500 }} onClick={(e) => e.stopPropagation()}>
               <div style={ui.modalHeader}>
                 <div style={ui.modalTitle}>⚙️ Ajustar stock — {selectedProduct.name}</div>
-                <button onClick={() => setAdjustOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }}>
+                <button onClick={() => setAdjustOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }} disabled={adjustSaving}>
                   <X size={16} />
                 </button>
               </div>
@@ -1321,12 +1484,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid #e2e8f0" }}>
                 <button onClick={() => setAdjustOpen(false)} style={ui.ghostBtn}>Cancelar</button>
-                <button
-                  onClick={submitAdjustment}
-                  style={ui.primaryBtn}
-                  disabled={adjustmentSaving || !adjustBranch || !adjustType || !adjustReason}
-                >
-                  {adjustmentSaving ? "Procesando..." : "✓ Aplicar ajuste"}
+                <button onClick={submitAdjustment} style={ui.primaryBtn} disabled={!adjustBranch || !adjustType || !adjustReason}>
+                  ✓ Aplicar ajuste
                 </button>
               </div>
             </div>
@@ -1340,11 +1499,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         const toInv = selectedProduct.inventories.find((inv) => inv.branchId === transferTo);
 
         return (
-          <div style={subModalStyle} onClick={() => { if (!transferConfirm) setTransferOpen(false); }}>
+          <div style={subModalStyle} onClick={() => { if (!transferConfirm && !transferSaving) setTransferOpen(false); }}>
             <div style={{ ...ui.modal, maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
               <div style={ui.modalHeader}>
                 <div style={ui.modalTitle}>🔄 Trasladar stock — {selectedProduct.name}</div>
-                <button onClick={() => setTransferOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }}>
+                <button onClick={() => setTransferOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }} disabled={transferSaving}>
                   <X size={16} />
                 </button>
               </div>
@@ -1364,14 +1523,10 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <p style={{ fontSize: 13, color: "#b91c1c", marginBottom: 12 }}>{transferError}</p>
                   )}
                   <div style={{ display: "flex", gap: 10 }}>
-                    <button onClick={() => setTransferConfirm(false)} style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }}>
+                    <button onClick={() => setTransferConfirm(false)} style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} disabled={transferSaving}>
                       Volver
                     </button>
-                    <button
-                      onClick={submitTransfer}
-                      disabled={transferSaving}
-                      style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}
-                    >
+                    <button onClick={submitTransfer} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }} disabled={transferSaving}>
                       {transferSaving ? "Procesando..." : "✓ Confirmar traslado"}
                     </button>
                   </div>
@@ -1433,11 +1588,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     )}
                   </div>
                   <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid #e2e8f0" }}>
-                    <button onClick={() => setTransferOpen(false)} style={ui.ghostBtn}>Cancelar</button>
+                    <button onClick={() => setTransferOpen(false)} style={ui.ghostBtn} disabled={transferSaving}>Cancelar</button>
                     <button
                       onClick={() => { setTransferError(null); setTransferConfirm(true); }}
                       style={ui.primaryBtn}
-                      disabled={!transferFrom || !transferTo || !transferQty || (fromInv ? transferQty > fromInv.quantity : false)}
+                      disabled={transferSaving || !transferFrom || !transferTo || !transferQty || (fromInv ? transferQty > fromInv.quantity : false)}
                     >
                       🔄 Trasladar
                     </button>
@@ -1587,7 +1742,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   Cancelar
                 </button>
                 <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
-                  {saving ? "Guardando..." : "Guardar producto"}
+                  {saving ? (editingId !== null ? "Actualizando..." : "Guardando...") : editingId !== null ? "Actualizar producto" : "Guardar producto"}
                 </button>
               </div>
             </div>
