@@ -3,6 +3,15 @@
    Escritorio (>1024px): sin cambios. Solo aplica debajo de los breakpoints.
    ========================================================================== */
 
+/* Ocultar botón de expandir en escritorio por defecto */
+.pos-cashier-table-expand-btn {
+  display: none !important;
+}
+
+.pos-cashier-table-details {
+  display: none !important;
+}
+
 /* --- Tablet (≤1024px) --- */
 @media (max-width: 1024px) {
   .pos-cashier-app {
@@ -181,7 +190,7 @@
     width: 100%;
   }
 
-  /* Tablas del dashboard */
+  /* Tablas del dashboard - transformar a tarjetas en móvil/tablet */
   .pos-cashier-table-scroll {
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
@@ -198,6 +207,85 @@
 
   .pos-cashier-table-scroll--history table {
     min-width: 520px;
+  }
+
+  /* Ocultar columnas menos importantes en móvil/tablet por defecto */
+  .pos-cashier-table-scroll th:nth-child(4),
+  .pos-cashier-table-scroll th:nth-child(5),
+  .pos-cashier-table-scroll td:nth-child(4),
+  .pos-cashier-table-scroll td:nth-child(5) {
+    display: none;
+  }
+
+  /* Ocultar columna BENEFICIARIO en tabla de depósitos en móvil */
+  .pos-cashier-table-scroll--deposits th:nth-child(2),
+  .pos-cashier-table-scroll--deposits td:nth-child(2) {
+    display: none;
+  }
+
+  /* Botón de ver detalles en móvil/tablet - sobrescribir display: none inline */
+  .pos-cashier-table-expand-btn {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #1e3a8a;
+    cursor: pointer;
+    margin-top: 8px;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .pos-cashier-table-expand-btn:hover {
+    background: #e2e8f0;
+  }
+
+  /* Filas expandidas - mostrar columnas ocultas */
+  .pos-cashier-table-row-expanded td:nth-child(4),
+  .pos-cashier-table-row-expanded td:nth-child(5) {
+    display: table-cell !important;
+  }
+
+  /* Ocultar filas de detalles adicionales por defecto en móvil/tablet */
+  .pos-cashier-table-details-row {
+    display: none;
+  }
+
+  /* Mostrar filas de detalles cuando la fila está expandida */
+  .pos-cashier-table-row-expanded + .pos-cashier-table-details-row {
+    display: table-row;
+  }
+
+  /* Contenedor de detalles adicionales */
+  .pos-cashier-table-details {
+    display: block;
+    padding: 8px 12px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    font-size: 12px;
+  }
+
+  .pos-cashier-table-details-content {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    gap: 12px;
+  }
+
+  .pos-cashier-table-details-label {
+    color: #64748b;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .pos-cashier-table-details-value {
+    color: #0f172a;
+    text-align: right;
   }
 
   /* Grids en modales y formularios */
