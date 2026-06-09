@@ -4,7 +4,7 @@
   "description": "Backend para el Punto de Venta LYFRGL Solutions",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "start": "node dist/server.js",
     "predev": "node scripts/free-port.js",
     "dev": "nodemon --watch src -e ts --exec ts-node src/server.ts",
