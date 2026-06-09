@@ -1235,21 +1235,41 @@ export const listBankDeposits = async (req: Request, res: Response): Promise<voi
     const { from, to, account } = req.query;
 
     const where: any = {};
+
     if (branchId) where.branchId = branchId;
     if (account) where.accountNumber = String(account);
-    if (from && to) {
-      where.createdAt = {
-        gte: new Date(String(from)),
-        lte: new Date(String(to)),
-      };
+
+    // 🔧 CORRECCIÓN IMPORTANTE: Manejo de fechas con rangos
+    if (from || to) {
+      where.createdAt = {};
+
+      if (from) {
+        // Crear fecha desde el inicio del día (00:00:00)
+        const fromDate = new Date(String(from));
+        fromDate.setHours(0, 0, 0, 0);
+        where.createdAt.gte = fromDate;
+        console.log("Desde (UTC):", fromDate.toISOString()); // Debug
+      }
+
+      if (to) {
+        // Crear fecha hasta el final del día (23:59:59)
+        const toDate = new Date(String(to));
+        toDate.setHours(23, 59, 59, 999);
+        where.createdAt.lte = toDate;
+        console.log("Hasta (UTC):", toDate.toISOString()); // Debug
+      }
     }
+
+    console.log("Filtro where:", JSON.stringify(where, null, 2)); // Debug
 
     const deposits = await prisma.bankDeposit.findMany({
       where,
-      take: 100,
       orderBy: { createdAt: "desc" },
+      take: 100,
       include: { branch: { select: { name: true } } },
     });
+
+    console.log(`Encontrados ${deposits.length} depósitos`); // Debug
 
     res.status(200).json({
       deposits: deposits.map((d) => ({
@@ -1267,6 +1287,7 @@ export const listBankDeposits = async (req: Request, res: Response): Promise<voi
       })),
     });
   } catch (error: any) {
+    console.error("Error en listBankDeposits:", error);
     res.status(500).json({ message: "Error al listar los depósitos bancarios.", error: error.message });
   }
 };
