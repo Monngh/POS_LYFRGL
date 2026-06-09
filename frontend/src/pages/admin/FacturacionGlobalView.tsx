@@ -10,7 +10,6 @@ import {
   SectionHeader,
   moneyExact,
   fmtDate,
-  useMediaQuery,
 } from "./shared";
 
 const PERIODICIDADES = [
@@ -36,7 +35,6 @@ const MESES = [
 ];
 
 const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
-  const isMobile = useMediaQuery("(max-width: 768px)");
   // Configuración de la factura global
   const todayStr = new Date().toISOString().substring(0, 10);
   const [startDate, setStartDate] = useState(todayStr);
