@@ -127,7 +127,7 @@ export const getInvoicePdf = async (req: Request, res: Response): Promise<void> 
     const sale = await prisma.sale.findFirst({
       where: {
         cfdiUuid: {
-          startsWith: uuid
+          contains: uuid
         }
       }
     });
@@ -147,7 +147,7 @@ export const getInvoicePdf = async (req: Request, res: Response): Promise<void> 
     const authHeader = "Bearer " + cleanApiKey;
 
     const parts = sale.cfdiUuid.split(":");
-    const facturapiId = parts[1] || parts[0];
+    const facturapiId = parts[0] === "GLOBAL" ? parts[2] : (parts[1] || parts[0]);
 
     const response = await fetch(`https://www.facturapi.io/v2/invoices/${facturapiId}/pdf`, {
       method: "GET",
@@ -180,7 +180,7 @@ export const getInvoiceXml = async (req: Request, res: Response): Promise<void> 
     const sale = await prisma.sale.findFirst({
       where: {
         cfdiUuid: {
-          startsWith: uuid
+          contains: uuid
         }
       }
     });
@@ -200,7 +200,7 @@ export const getInvoiceXml = async (req: Request, res: Response): Promise<void> 
     const authHeader = "Bearer " + cleanApiKey;
 
     const parts = sale.cfdiUuid.split(":");
-    const facturapiId = parts[1] || parts[0];
+    const facturapiId = parts[0] === "GLOBAL" ? parts[2] : (parts[1] || parts[0]);
 
     const response = await fetch(`https://www.facturapi.io/v2/invoices/${facturapiId}/xml`, {
       method: "GET",

@@ -266,3 +266,35 @@ body {
   }
 }
 
+/* ==========================================================================
+   Facturación Global — Ajustes responsive
+   ========================================================================== */
+.fact-global-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.fact-global-layout > div {
+  min-width: 0;
+}
+
+.fact-global-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 1024px) {
+  .fact-global-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .fact-global-stats {
+    grid-template-columns: 1fr;
+  }
+}
+

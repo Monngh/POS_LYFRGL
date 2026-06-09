@@ -118,6 +118,7 @@ export const listSales = async (req: Request, res: Response): Promise<void> => {
       taxAmount: Number(s.taxAmount),
       paymentMethod: s.paymentMethod,
       status: s.status,
+      cfdiUuid: s.cfdiUuid,
     }));
 
     res.status(200).json({ sales: mapped });

@@ -13,10 +13,10 @@ import {
 } from "./shared";
 
 const PERIODICIDADES = [
-  { value: "01", label: "Diario" },
-  { value: "02", label: "Semanal" },
-  { value: "03", label: "Quincenal" },
-  { value: "04", label: "Mensual" },
+  { value: "day", label: "Diario" },
+  { value: "week", label: "Semanal" },
+  { value: "fortnight", label: "Quincenal" },
+  { value: "month", label: "Mensual" },
 ];
 
 const MESES = [
@@ -39,7 +39,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
   const todayStr = new Date().toISOString().substring(0, 10);
   const [startDate, setStartDate] = useState(todayStr);
   const [endDate, setEndDate] = useState(todayStr);
-  const [periodicity, setPeriodicity] = useState("01");
+  const [periodicity, setPeriodicity] = useState("day");
   const [month, setMonth] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
   const [year, setYear] = useState(String(new Date().getFullYear()));
 
@@ -52,6 +52,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
   const [stamping, setStamping] = useState(false);
   const [stampResult, setStampResult] = useState<any | null>(null);
   const [stampError, setStampError] = useState<string | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   // Cargar tickets elegibles
   const loadEligibleTickets = useCallback(async () => {
@@ -71,20 +72,15 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
         },
       });
 
-      // El endpoint de ventas retorna { sales: [...] }
-      // Filtramos las que no estén facturadas en el frontend
+      // Filtramos las que no estén facturadas y que sean estrictamente de Público General
       const sales = res.data.sales || [];
       
-      // Nota: El listado central retorna 'customer' y 'invoiceNumber'.
-      // Filtramos las ventas que no tienen cfdiUuid (en el listado central no viene cfdiUuid,
-      // pero si viene vacío el campo de factura se asume no facturada. Para ser 100% seguros,
-      // en el endpoint listSales el cfdiUuid no se mapea, pero si el backend no lo expone o
-      // ya tiene UUID no debería salir como elegible. Si el backend retorna todas, filtramos por
-      // cliente 'Público General' o ventas que sepamos no facturadas)
-      // Como el backend de listSales retorna todas las ventas de ese rango, agregamos un filtro
-      // en el controlador o las filtramos aquí. En el backend, ya creamos createGlobalInvoice
-      // que vuelve a filtrar con Prisma de forma estricta (cfdiUuid == null).
-      setTickets(sales);
+      const eligibleTickets = sales.filter((s: any) => 
+        s.customer === "Público General" && 
+        !s.cfdiUuid
+      );
+
+      setTickets(eligibleTickets);
     } catch (err: any) {
       setError(err.response?.data?.message || "Error al recuperar las ventas elegibles.");
     } finally {
@@ -97,15 +93,13 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
   }, [loadEligibleTickets]);
 
   // Ejecutar timbrado de Factura Global
-  const handleStampGlobal = async () => {
-    if (tickets.length === 0) {
-      alert("No hay tickets disponibles para facturar en este rango.");
-      return;
-    }
+  const handleStampGlobalClick = () => {
+    if (tickets.length === 0) return;
+    setShowConfirmModal(true);
+  };
 
-    if (!confirm(`¿Está seguro que desea timbrar la Factura Global de ${tickets.length} tickets? Esto enviará los datos al SAT de forma definitiva.`)) {
-      return;
-    }
+  const handleConfirmStampGlobal = async () => {
+    setShowConfirmModal(false);
 
     setStamping(true);
     setStampResult(null);
@@ -141,7 +135,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
         subtitle="Agrupa y timbra los tickets de venta al público en general que no fueron facturados individualmente."
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 24, alignItems: "start" }}>
+      <div className="fact-global-layout">
         
         {/* PANEL DE CONFIGURACIÓN */}
         <Panel style={{ padding: 20 }}>
@@ -232,7 +226,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                 </p>
                 <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
                   <a
-                    href={stampResult.pdfUrl}
+                    href={`${api.defaults.baseURL}/api/public/sales/invoice/${stampResult.cfdiUuid}/pdf`}
                     target="_blank"
                     rel="noreferrer"
                     style={downloadBtn}
@@ -240,7 +234,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                     Descargar PDF
                   </a>
                   <a
-                    href={stampResult.xmlUrl}
+                    href={`${api.defaults.baseURL}/api/public/sales/invoice/${stampResult.cfdiUuid}/xml`}
                     target="_blank"
                     rel="noreferrer"
                     style={{ ...downloadBtn, backgroundColor: "#0f172a" }}
@@ -266,7 +260,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
           <Panel style={{ padding: 20 }}>
             <h3 style={{ fontSize: 15, fontWeight: 800, color: "#0f172a", marginBottom: 14 }}>Resumen de Lote a Facturar</h3>
             
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+            <div className="fact-global-stats">
               <div style={kpiWrap}>
                 <span style={kpiLabel}>Total Tickets</span>
                 <span style={kpiVal}>{tickets.length}</span>
@@ -283,7 +277,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
 
             <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: 16, marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
               <button
-                onClick={handleStampGlobal}
+                onClick={handleStampGlobalClick}
                 disabled={tickets.length === 0 || stamping}
                 style={{
                   ...ui.primaryBtn,
@@ -302,7 +296,8 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
               <strong style={{ fontSize: 13, color: "#334155" }}>Ventas completadas en el rango de fechas</strong>
             </div>
-            <table style={ui.table}>
+            <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", width: "100%" }}>
+              <table style={ui.table}>
               <thead>
                 <tr style={ui.theadRow}>
                   <th style={ui.th}>Folio Venta</th>
@@ -338,12 +333,39 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                   </tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            </div>
           </div>
 
         </div>
 
       </div>
+
+      {showConfirmModal && (
+        <div style={modalOverlayStyle}>
+          <div style={modalContentStyle}>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0f172a", marginBottom: 12 }}>Confirmar Timbrado</h3>
+            <p style={{ fontSize: 14, color: "#475569", marginBottom: 24, lineHeight: 1.5 }}>
+              ¿Está seguro que desea timbrar la Factura Global de <strong style={{color:"#0f172a"}}>{tickets.length}</strong> tickets?<br/><br/>
+              Esto enviará los datos al SAT de forma definitiva y generará el folio fiscal UUID. Esta acción no se puede deshacer.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                style={{ ...ui.ghostBtn, border: "1px solid #cbd5e1" }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmStampGlobal}
+                style={{ ...ui.primaryBtn, backgroundColor: "#1e3a8a" }}
+              >
+                Confirmar y Timbrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -417,6 +439,27 @@ const payTone = (m: string) => {
   if (m === "TARJETA") return "blue";
   if (m === "MIXTO") return "amber";
   return "slate";
+};
+
+const modalOverlayStyle: React.CSSProperties = {
+  position: "fixed",
+  top: 0, left: 0, right: 0, bottom: 0,
+  backgroundColor: "rgba(15, 23, 42, 0.6)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 9999,
+  padding: 20
+};
+
+const modalContentStyle: React.CSSProperties = {
+  backgroundColor: "#ffffff",
+  borderRadius: 16,
+  padding: 24,
+  width: "100%",
+  maxWidth: 420,
+  boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25), 0 10px 15px -3px rgba(0,0,0,0.1)",
+  border: "1px solid #e2e8f0"
 };
 
 export default FacturacionGlobalView;
