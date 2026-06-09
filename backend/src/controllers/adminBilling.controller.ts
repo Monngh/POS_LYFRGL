@@ -19,12 +19,8 @@ export const createGlobalInvoiceController = async (req: Request, res: Response)
 
   try {
     const parsedBranchId = branchId ? parseInt(branchId) : req.user.branchId;
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
-    // Ajustar horas para cubrir el día completo
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
+    const start = new Date(`${startDate}T00:00:00`);
+    const end = new Date(`${endDate}T23:59:59.999`);
 
     const result = await BillingService.createGlobalInvoice(
       parsedBranchId,

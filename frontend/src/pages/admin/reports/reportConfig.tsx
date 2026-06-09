@@ -388,7 +388,7 @@ export const REPORTS: ReportDef[] = [
   },
 ];
 
-export const REPORT_CATEGORIES = ["Ventas y operación", "Inventario", "Compras", "Clientes", "Personal"];
+export const REPORT_CATEGORIES = ["Ventas y operación", "Inventario", "Compras", "Personal"];
 
 // Helper de formato para impresión (texto plano según tipo)
 export const formatForPrint = (col: Column, row: any): string => {
