@@ -829,12 +829,8 @@ export const getAdminReturns = async (req: Request, res: Response): Promise<void
 
     if (startDate || endDate) {
       where.createdAt = {};
-      if (startDate) where.createdAt.gte = new Date(startDate as string);
-      if (endDate) {
-        const end = new Date(endDate as string);
-        end.setHours(23, 59, 59, 999);
-        where.createdAt.lte = end;
-      }
+      if (startDate) where.createdAt.gte = new Date(`${startDate}T00:00:00`);
+      if (endDate) where.createdAt.lte = new Date(`${endDate}T23:59:59.999`);
     }
 
     if (branchId && branchId !== "all") {

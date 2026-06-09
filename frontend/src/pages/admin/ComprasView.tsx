@@ -400,7 +400,10 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                   {l.productId && productTaxes[l.productId] !== undefined && (
                     <div style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>
                       {productTaxes[l.productId].length > 0
-                        ? productTaxes[l.productId].map((t) => `${t.name} ${(t.rate * 100).toFixed(0)}%`).join(" · ")
+                        ? productTaxes[l.productId].map((t) => {
+                            const pct = `${(t.rate * 100).toFixed(0)}%`;
+                            return t.name.includes(pct) ? t.name : `${t.name} ${pct}`;
+                          }).join(" · ")
                         : "Sin impuestos"}
                     </div>
                   )}
