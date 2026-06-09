@@ -24,6 +24,52 @@ const trimQuery = (v: unknown): string | undefined => {
   return s.length > 0 ? s : undefined;
 };
 
+const PRODUCT_TEXT_REGEX = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü0-9\s.,#\-/()]+$/;
+const SKU_REGEX = /^[A-Za-z0-9_-]+$/;
+const BARCODE_REGEX = /^[0-9]+$/;
+const SAT_PRODUCT_KEY_REGEX = /^[0-9]{8}$/;
+const SAT_UNIT_KEY_REGEX = /^[A-Za-z0-9]+$/;
+const MONEY_REGEX = /^\d+(?:\.\d+)?$/;
+const MOVEMENT_TYPE_REGEX = /^[A-Z_]+$/;
+
+type MoneyValidation = { ok: true; value: number } | { ok: false; message: string };
+
+const cleanBodyText = (value: unknown): string => String(value ?? "").trim();
+const cleanOptionalBodyText = (value: unknown): string | null => {
+  const text = cleanBodyText(value);
+  return text.length > 0 ? text : null;
+};
+const roundMoney = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100;
+
+const parseMoney = (value: unknown, field: "costo" | "precio"): MoneyValidation => {
+  const label = field === "costo" ? "El precio de costo" : "El precio de venta";
+  const text = cleanBodyText(value);
+
+  if (!text) {
+    return { ok: false, message: `${label} es requerido.` };
+  }
+  if (text.startsWith("-")) {
+    return { ok: false, message: `${label} no puede ser negativo.` };
+  }
+  if (!MONEY_REGEX.test(text)) {
+    return { ok: false, message: `${label} debe ser un número válido.` };
+  }
+
+  const numeric = Number(text);
+  if (!Number.isFinite(numeric)) {
+    return { ok: false, message: `${label} debe ser un número válido.` };
+  }
+
+  return { ok: true, value: roundMoney(numeric) };
+};
+
+const parseInteger = (value: unknown): number | null => {
+  const text = cleanBodyText(value);
+  if (!/^-?\d+$/.test(text)) return null;
+  const numeric = Number(text);
+  return Number.isSafeInteger(numeric) ? numeric : null;
+};
+
 // ===========================================================================
 // VENTAS
 // ===========================================================================
@@ -2439,29 +2485,60 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
   try {
     const { sku, barcode, name, description, costPrice, sellPrice, trackingType, isReturnable, returnWindowDays, satProductKey, satUnitKey } = req.body;
 
-    if (!sku || typeof sku !== "string" || !sku.trim()) {
+    const skuClean = cleanBodyText(sku);
+    if (!skuClean) {
       res.status(400).json({ message: "El SKU del producto es obligatorio." });
       return;
     }
-    if (!name || typeof name !== "string" || !name.trim()) {
-      res.status(400).json({ message: "El nombre del producto es obligatorio." });
+    if (!SKU_REGEX.test(skuClean)) {
+      res.status(400).json({ message: "El SKU solo puede contener letras, números, guion medio y guion bajo." });
+      return;
+    }
+    const nameClean = cleanBodyText(name);
+    if (!nameClean) {
+      res.status(400).json({ message: "El nombre del producto es requerido." });
+      return;
+    }
+    if (!PRODUCT_TEXT_REGEX.test(nameClean)) {
+      res.status(400).json({ message: "El nombre contiene caracteres no permitidos." });
       return;
     }
 
-    const cost = Number(costPrice);
-    const sell = Number(sellPrice);
-
-    if (isNaN(cost) || cost < 0) {
-      res.status(400).json({ message: "El precio de costo debe ser un número no negativo." });
-      return;
-    }
-    if (isNaN(sell) || sell < 0) {
-      res.status(400).json({ message: "El precio de venta debe ser un número no negativo." });
+    const descriptionClean = cleanOptionalBodyText(description);
+    if (descriptionClean && !PRODUCT_TEXT_REGEX.test(descriptionClean)) {
+      res.status(400).json({ message: "La descripción contiene caracteres no permitidos." });
       return;
     }
 
-    const skuClean = sku.trim();
-    const barcodeClean = barcode && typeof barcode === "string" && barcode.trim() ? barcode.trim() : null;
+    const barcodeClean = cleanOptionalBodyText(barcode);
+    if (barcodeClean && !BARCODE_REGEX.test(barcodeClean)) {
+      res.status(400).json({ message: "El código de barras solo puede contener números." });
+      return;
+    }
+
+    const cost = parseMoney(costPrice, "costo");
+    const sell = parseMoney(sellPrice, "precio");
+
+    if (!cost.ok) {
+      res.status(400).json({ message: cost.message });
+      return;
+    }
+    if (!sell.ok) {
+      res.status(400).json({ message: sell.message });
+      return;
+    }
+
+    const satProductKeyClean = cleanOptionalBodyText(satProductKey) ?? "01010101";
+    if (!SAT_PRODUCT_KEY_REGEX.test(satProductKeyClean)) {
+      res.status(400).json({ message: "La clave SAT debe contener 8 números." });
+      return;
+    }
+
+    const satUnitKeyClean = cleanOptionalBodyText(satUnitKey) ?? "H87";
+    if (!SAT_UNIT_KEY_REGEX.test(satUnitKeyClean)) {
+      res.status(400).json({ message: "La clave de unidad SAT solo puede contener letras y números." });
+      return;
+    }
 
     // Usar una transacción para verificar unicidad y crear producto + inventarios
     const newProduct = await prisma.$transaction(async (tx) => {
@@ -2488,16 +2565,16 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
         data: {
           sku: skuClean,
           barcode: barcodeClean,
-          name: name.trim(),
-          description: description && typeof description === "string" ? description.trim() : null,
-          costPrice: cost,
-          sellPrice: sell,
+          name: nameClean,
+          description: descriptionClean,
+          costPrice: cost.value,
+          sellPrice: sell.value,
           active: true,
           isReturnable: isReturnable !== undefined ? Boolean(isReturnable) : true,
           returnWindowDays: returnWindowDays !== undefined ? Number(returnWindowDays) : 30,
           trackingType: trackingType && String(trackingType).trim() ? String(trackingType).trim() : "NONE",
-          satProductKey: satProductKey && String(satProductKey).trim() ? String(satProductKey).trim() : "01010101",
-          satUnitKey: satUnitKey && String(satUnitKey).trim() ? String(satUnitKey).trim() : "H87",
+          satProductKey: satProductKeyClean,
+          satUnitKey: satUnitKeyClean,
         }
       });
 
@@ -2668,32 +2745,13 @@ export const getProductDetail = async (req: Request, res: Response): Promise<voi
 
 export const updateProduct = async (req: Request, res: Response): Promise<void> => {
   try {
-    const id = Number(req.params.id);
-    if (isNaN(id)) {
+    const id = parseInteger(req.params.id);
+    if (!id || id <= 0) {
       res.status(400).json({ message: "Identificador de producto inválido." });
       return;
     }
 
     const { name, description, barcode, costPrice, sellPrice, active, isReturnable, returnWindowDays, trackingType, satProductKey, satUnitKey } = req.body;
-
-    if (!name || typeof name !== "string" || !name.trim()) {
-      res.status(400).json({ message: "El nombre del producto es obligatorio." });
-      return;
-    }
-
-    const cost = Number(costPrice);
-    const sell = Number(sellPrice);
-
-    if (isNaN(cost) || cost < 0) {
-      res.status(400).json({ message: "El precio de costo debe ser un número no negativo." });
-      return;
-    }
-    if (isNaN(sell) || sell < 0) {
-      res.status(400).json({ message: "El precio de venta debe ser un número no negativo." });
-      return;
-    }
-
-    const barcodeClean = barcode && typeof barcode === "string" && barcode.trim() ? barcode.trim() : null;
 
     const existingProduct = await prisma.product.findUnique({
       where: { id }
@@ -2704,7 +2762,73 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    if (barcodeClean) {
+    const nameClean = name !== undefined ? cleanBodyText(name) : existingProduct.name;
+    if (name !== undefined && !nameClean) {
+      res.status(400).json({ message: "El nombre del producto es requerido." });
+      return;
+    }
+    if (name !== undefined && !PRODUCT_TEXT_REGEX.test(nameClean)) {
+      res.status(400).json({ message: "El nombre contiene caracteres no permitidos." });
+      return;
+    }
+
+    const descriptionClean = description !== undefined ? cleanOptionalBodyText(description) : existingProduct.description;
+    if (description !== undefined && descriptionClean && !PRODUCT_TEXT_REGEX.test(descriptionClean)) {
+      res.status(400).json({ message: "La descripción contiene caracteres no permitidos." });
+      return;
+    }
+
+    const barcodeClean = barcode !== undefined ? cleanOptionalBodyText(barcode) : existingProduct.barcode;
+    if (barcode !== undefined && barcodeClean && !BARCODE_REGEX.test(barcodeClean)) {
+      res.status(400).json({ message: "El código de barras solo puede contener números." });
+      return;
+    }
+
+    let cost = Number(existingProduct.costPrice);
+    if (costPrice !== undefined) {
+      const parsedCost = parseMoney(costPrice, "costo");
+      if (!parsedCost.ok) {
+        res.status(400).json({ message: parsedCost.message });
+        return;
+      }
+      cost = parsedCost.value;
+    }
+
+    let sell = Number(existingProduct.sellPrice);
+    if (sellPrice !== undefined) {
+      const parsedSell = parseMoney(sellPrice, "precio");
+      if (!parsedSell.ok) {
+        res.status(400).json({ message: parsedSell.message });
+        return;
+      }
+      sell = parsedSell.value;
+    }
+
+    let satProductKeyClean = existingProduct.satProductKey || "01010101";
+    if (satProductKey !== undefined) {
+      satProductKeyClean = cleanOptionalBodyText(satProductKey) ?? "01010101";
+      if (!SAT_PRODUCT_KEY_REGEX.test(satProductKeyClean)) {
+        res.status(400).json({ message: "La clave SAT debe contener 8 números." });
+        return;
+      }
+    }
+
+    let satUnitKeyClean = existingProduct.satUnitKey || "H87";
+    if (satUnitKey !== undefined) {
+      satUnitKeyClean = cleanOptionalBodyText(satUnitKey) ?? "H87";
+      if (!SAT_UNIT_KEY_REGEX.test(satUnitKeyClean)) {
+        res.status(400).json({ message: "La clave de unidad SAT solo puede contener letras y números." });
+        return;
+      }
+    }
+
+    const returnWindowDaysClean = returnWindowDays !== undefined ? parseInteger(returnWindowDays) : existingProduct.returnWindowDays;
+    if (returnWindowDaysClean === null || returnWindowDaysClean < 0) {
+      res.status(400).json({ message: "La ventana de devolución debe ser un entero no negativo." });
+      return;
+    }
+
+    if (barcode !== undefined && barcodeClean) {
       const duplicateBarcode = await prisma.product.findFirst({
         where: {
           barcode: barcodeClean,
@@ -2720,17 +2844,17 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
     const updated = await prisma.product.update({
       where: { id },
       data: {
-        name: name.trim(),
-        description: description && typeof description === "string" ? description.trim() : null,
+        name: nameClean,
+        description: descriptionClean,
         barcode: barcodeClean,
         costPrice: cost,
         sellPrice: sell,
         active: typeof active === "boolean" ? active : existingProduct.active,
         isReturnable: isReturnable !== undefined ? Boolean(isReturnable) : existingProduct.isReturnable,
-        returnWindowDays: returnWindowDays !== undefined ? Number(returnWindowDays) : existingProduct.returnWindowDays,
-        trackingType: trackingType !== undefined ? String(trackingType).trim() : existingProduct.trackingType,
-        satProductKey: satProductKey !== undefined ? String(satProductKey).trim() : existingProduct.satProductKey,
-        satUnitKey: satUnitKey !== undefined ? String(satUnitKey).trim() : existingProduct.satUnitKey,
+        returnWindowDays: returnWindowDaysClean,
+        trackingType: trackingType !== undefined ? cleanBodyText(trackingType) || "NONE" : existingProduct.trackingType,
+        satProductKey: satProductKeyClean,
+        satUnitKey: satUnitKeyClean,
       }
     });
 
@@ -2762,15 +2886,23 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
 // ===========================================================================
 export const adjustInventory = async (req: Request, res: Response): Promise<void> => {
   try {
-    const productId = Number(req.body.productId);
-    const branchId = Number(req.body.branchId);
-    const quantityChange = Number(req.body.quantityChange);
-    const movementType = String(req.body.movementType || "").trim();
-    const reason = String(req.body.reason || "").trim();
+    const productId = parseInteger(req.body.productId);
+    const branchId = parseInteger(req.body.branchId);
+    const quantityChange = parseInteger(req.body.quantityChange);
+    const movementType = cleanBodyText(req.body.movementType);
+    const reason = cleanBodyText(req.body.reason);
     const userId = req.user!.userId;
 
-    if (!productId || !branchId || quantityChange === 0 || !movementType || !reason) {
+    if (!productId || productId <= 0 || !branchId || branchId <= 0 || quantityChange === null || quantityChange === 0 || !movementType || !reason) {
       res.status(400).json({ message: "Campos requeridos incompletos." });
+      return;
+    }
+    if (!MOVEMENT_TYPE_REGEX.test(movementType)) {
+      res.status(400).json({ message: "El tipo de movimiento contiene caracteres no permitidos." });
+      return;
+    }
+    if (!PRODUCT_TEXT_REGEX.test(reason)) {
+      res.status(400).json({ message: "El motivo contiene caracteres no permitidos." });
       return;
     }
 
@@ -2810,13 +2942,13 @@ export const adjustInventory = async (req: Request, res: Response): Promise<void
 // ===========================================================================
 export const transferInventory = async (req: Request, res: Response): Promise<void> => {
   try {
-    const productId = Number(req.body.productId);
-    const fromBranch = Number(req.body.fromBranch);
-    const toBranch = Number(req.body.toBranch);
-    const quantity = Number(req.body.quantity);
+    const productId = parseInteger(req.body.productId);
+    const fromBranch = parseInteger(req.body.fromBranch);
+    const toBranch = parseInteger(req.body.toBranch);
+    const quantity = parseInteger(req.body.quantity);
     const userId = req.user!.userId;
 
-    if (!productId || !fromBranch || !toBranch || !quantity) {
+    if (!productId || productId <= 0 || !fromBranch || fromBranch <= 0 || !toBranch || toBranch <= 0 || quantity === null) {
       res.status(400).json({ message: "Campos requeridos incompletos." });
       return;
     }

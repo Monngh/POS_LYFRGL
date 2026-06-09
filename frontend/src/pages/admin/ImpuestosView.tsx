@@ -2,6 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { BadgePercent, Pencil, Plus, Power, X } from "lucide-react";
 import api from "../../services/api";
 import {
+  getDecimalValidationValue,
+  handleDecimalInputChange,
+  validateDecimalField,
+} from "../../utils/decimalInput";
+import {
   ui,
   type ViewProps,
   Toolbar,
@@ -152,11 +157,13 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const validateForm = () => {
     if (!form.name.trim()) return "El nombre del impuesto es obligatorio.";
-    if (!form.rate.trim()) return "La tasa del impuesto es obligatoria.";
 
-    const rate = Number(form.rate);
-    if (!Number.isFinite(rate) || rate < 0) {
-      return "La tasa debe ser un numero mayor o igual a 0.";
+    const rate = validateDecimalField(form.rate, "La tasa del impuesto", {
+      invalidMessage: "La tasa debe ser un numero valido con maximo 3 decimales.",
+      minMessage: "La tasa no puede ser negativa.",
+    });
+    if (!rate.ok) {
+      return rate.error;
     }
 
     return null;
@@ -174,18 +181,28 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
       setFormError(validation);
       return;
     }
+    const rate = validateDecimalField(form.rate, "La tasa del impuesto", {
+      invalidMessage: "La tasa debe ser un numero valido con maximo 3 decimales.",
+      minMessage: "La tasa no puede ser negativa.",
+    });
+    const rateValue = getDecimalValidationValue(rate);
+    if (!rateValue) return;
 
     const desiredActive = form.active;
     const payload = {
       name: form.name.trim(),
       description: form.description.trim(),
-      rate: form.rate.trim(),
+      rate: rateValue.value,
       active: true,
     };
 
     setSaving(true);
     setFormError(null);
     try {
+      if (rateValue.roundedMessage) {
+        alert(rateValue.roundedMessage);
+      }
+
       if (editing === "create") {
         const res = await api.post<TaxResponse>(TAX_ENDPOINT, payload);
         const created = Array.isArray(res.data.data) ? null : res.data.data;
@@ -238,6 +255,9 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
     (key: keyof FormState) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  const setRate = (e: React.ChangeEvent<HTMLInputElement>) =>
+    handleDecimalInputChange(e.target.value, (nextValue) => setForm((f) => ({ ...f, rate: nextValue })));
 
   return (
     <div>
@@ -360,7 +380,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
 
               <div style={{ marginBottom: 14 }}>
                 <label style={ui.fieldLabel}>Tasa decimal *</label>
-                <input style={ui.input} value={form.rate} onChange={set("rate")} placeholder="0.16" inputMode="decimal" />
+                <input type="text" style={ui.input} value={form.rate} onChange={setRate} placeholder="0.16" inputMode="decimal" />
                 <p style={styles.helpText}>Use formato decimal: IVA 16% = 0.16, IEPS 8% = 0.08.</p>
               </div>
 

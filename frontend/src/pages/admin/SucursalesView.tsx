@@ -97,7 +97,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [allEmployees, setAllEmployees] = useState<any[]>([]);
   const [reassignId, setReassignId] = useState<number | null>(null);
   const [reassignTarget, setReassignTarget] = useState<string>("");
-  const [reassigning, setReassigning] = useState(false);
+  const [reassigningEmployeeId, setReassigningEmployeeId] = useState<number | null>(null);
 
   // ---------------------------------------------------------------------------
   // Validez global reactiva — se recalcula cada vez que el formulario cambia
@@ -153,6 +153,30 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
     setReassignTarget("");
     setShowEmployeesModal(true);
   };
+
+  const handleReassign = async () => {
+    if (!reassignId || !reassignTarget) {
+      alert("Selecciona un empleado y una sucursal destino.");
+      return;
+    }
+    if (reassigningEmployeeId === reassignId) return;
+    const employeeId = reassignId;
+    setReassigningEmployeeId(employeeId);
+    try {
+      await api.put(`/api/admin/employees/${employeeId}`, { branchId: parseInt(reassignTarget) });
+      await Promise.all([load(), loadEmployees()]);
+      setReassignId(null);
+      setReassignTarget("");
+      setSelectedBranch((prev) =>
+        prev ? { ...prev, employees: prev.employees - 1 } : prev
+      );
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Error al reasignar empleado.");
+    } finally {
+      setReassigningEmployeeId(null);
+    }
+  };
+
 
   const openCreate = () => {
     setForm({ ...emptyForm });
@@ -610,15 +634,13 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           <button
                             style={{
                               ...ui.primaryBtn,
-                              opacity: reassigning ? 0.6 : 1,
-                              cursor: reassigning ? "not-allowed" : "pointer",
+                              opacity: reassigningEmployeeId === reassignId ? 0.6 : 1,
+                              cursor: reassigningEmployeeId === reassignId ? "not-allowed" : "pointer",
                             }}
-                            disabled={reassigning}
                             onClick={handleReassign}
+                            disabled={reassigningEmployeeId === reassignId}
                           >
-                            {reassigning
-                              ? "Reasignando..."
-                              : "Confirmar reasignación"}
+                            {reassigningEmployeeId === reassignId ? "Reasignando..." : "Confirmar reasignación"}
                           </button>
                         </div>
                       </div>

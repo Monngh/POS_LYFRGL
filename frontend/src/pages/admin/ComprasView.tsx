@@ -2,6 +2,13 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Plus, Trash2, CheckCircle2, Package } from "lucide-react";
 import api from "../../services/api";
 import {
+  collectRoundedDecimalMessages,
+  getDecimalValidationValue,
+  handleDecimalInputChange,
+  type DecimalFieldValue,
+  validateDecimalField,
+} from "../../utils/decimalInput";
+import {
   ui,
   type ViewProps,
   Panel,
@@ -144,6 +151,9 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
   const setLine = (i: number, k: keyof Line, v: string) =>
     setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, [k]: v } : l)));
 
+  const setDecimalLine = (i: number, k: "unitCost", value: string) =>
+    handleDecimalInputChange(value, (nextValue) => setLine(i, k, nextValue));
+
   const onPickProduct = (i: number, productId: string) => {
     const pool = supplierId && supplierProducts.length > 0 ? supplierProducts : products;
     const prod = pool.find((p) => String(p.id) === productId);
@@ -211,23 +221,51 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
       setFormError("Ingrese la referencia o folio de la compra.");
       return;
     }
-    const validLines = lines.filter((l) => l.productId && Number(l.quantity) > 0);
-    if (validLines.length === 0) {
+    const selectedLines = lines.filter((l) => l.productId);
+    if (selectedLines.length === 0) {
       setFormError("Agregue al menos un producto con cantidad mayor a 0.");
       return;
     }
+    const details: Array<{ productId: number; quantity: number; unitCost: number }> = [];
+    const roundedValues: Array<DecimalFieldValue | null> = [];
+    for (const [index, line] of selectedLines.entries()) {
+      const quantity = Number(line.quantity);
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        setFormError(`La cantidad del renglon ${index + 1} debe ser un entero mayor a 0.`);
+        return;
+      }
+
+      const unitCostValidation = line.unitCost.trim()
+        ? validateDecimalField(line.unitCost, `El costo unitario del renglon ${index + 1}`, {
+            invalidMessage: `El costo unitario del renglon ${index + 1} debe ser un numero valido con maximo 3 decimales.`,
+          })
+        : null;
+      if (unitCostValidation && !unitCostValidation.ok) {
+        setFormError(unitCostValidation.error);
+        return;
+      }
+      const unitCostValue = unitCostValidation ? getDecimalValidationValue(unitCostValidation) : null;
+      roundedValues.push(unitCostValue);
+      details.push({
+        productId: Number(line.productId),
+        quantity,
+        unitCost: unitCostValue?.value ?? 0,
+      });
+    }
+    const roundingMessages = collectRoundedDecimalMessages(roundedValues);
+
     setSaving(true);
     try {
+      if (roundingMessages.length > 0) {
+        alert(roundingMessages.join("\n"));
+      }
+
       const res = await api.post<PurchaseRow>("/api/admin/purchases", {
         supplierId: Number(supplierId),
         branchId: Number(branchId),
         reference: reference.trim(),
         notes: notes.trim() || undefined,
-        details: validLines.map((l) => ({
-          productId: Number(l.productId),
-          quantity: Number(l.quantity),
-          unitCost: l.unitCost ? Number(l.unitCost) : 0,
-        })),
+        details,
       });
       setSuccess(
         `Orden #${res.data.id} creada (${res.data.reference}) — Proveedor: ${res.data.supplier.name}. Total: ${money(Number(res.data.total))}. Estado: PENDIENTE.`
@@ -377,9 +415,11 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                 </td>
                 <td style={ui.td}>
                   <input
+                    type="text"
+                    inputMode="decimal"
                     style={{ ...ui.input, padding: "8px 10px", textAlign: "center" }}
                     value={l.unitCost}
-                    onChange={(e) => setLine(i, "unitCost", e.target.value)}
+                    onChange={(e) => setDecimalLine(i, "unitCost", e.target.value)}
                     placeholder="0.00"
                   />
                 </td>
