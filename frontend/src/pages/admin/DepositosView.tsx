@@ -2,6 +2,83 @@ import React, { useEffect, useState, useCallback } from "react";
 import api from "../../services/api";
 import { ui, type ViewProps, Toolbar, Badge, TableState, SectionHeader, money, fmtDate, fmtTime, payTone, FilterSelect } from "./shared";
 
+const formatCommentsHtml = (comments: string | null): string => {
+  if (!comments) return "Sin comentarios";
+  const trimmed = comments.trim();
+  if (trimmed.startsWith("{")) {
+    try {
+      const meta = JSON.parse(trimmed);
+      let html = '<div style="margin-top: 4px; padding: 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; display: inline-block; text-align: left; width: 100%; box-sizing: border-box;">';
+      if (meta.userComments) html += `<div style="margin-bottom: 4px;"><strong>Comentario:</strong> ${meta.userComments}</div>`;
+      if (meta.convenio && meta.convenio !== "N/A") html += `<div style="margin-bottom: 4px;"><strong>Convenio:</strong> ${meta.convenio}</div>`;
+      if (meta.barcode) html += `<div style="margin-bottom: 4px; font-family: monospace;"><strong>Código/Referencia:</strong> ${meta.barcode}</div>`;
+      if (meta.expirationDate) html += `<div style="margin-bottom: 4px;"><strong>Expiración:</strong> ${new Date(meta.expirationDate).toLocaleString("es-MX")}</div>`;
+      if (meta.ticketUrl) html += `<div style="margin-top: 6px;"><a href="${meta.ticketUrl}" target="_blank" style="color: #2563eb; font-weight: bold; text-decoration: underline;">🖨️ Ver Ticket de Pago</a></div>`;
+      html += '</div>';
+      return html;
+    } catch {
+      // Ignorar
+    }
+  }
+  return comments;
+};
+
+const renderComments = (comments: string | null) => {
+  if (!comments) return "Sin comentarios";
+  const trimmed = comments.trim();
+  if (trimmed.startsWith("{")) {
+    try {
+      const meta = JSON.parse(trimmed);
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4, padding: 10, background: "#f8fafc", borderRadius: 6, border: "1px solid #e2e8f0", width: "100%", boxSizing: "border-box" }}>
+          {meta.userComments && (
+            <div style={{ fontSize: 13, color: "#334155" }}>
+              <strong>Comentario:</strong> {meta.userComments}
+            </div>
+          )}
+          {meta.convenio && meta.convenio !== "N/A" && (
+            <div style={{ fontSize: 13, color: "#334155" }}>
+              <strong>Convenio:</strong> {meta.convenio}
+            </div>
+          )}
+          {meta.barcode && (
+            <div style={{ fontSize: 13, color: "#334155", fontFamily: "monospace" }}>
+              <strong>Código/Referencia:</strong> {meta.barcode}
+            </div>
+          )}
+          {meta.expirationDate && (
+            <div style={{ fontSize: 13, color: "#334155" }}>
+              <strong>Expiración:</strong> {new Date(meta.expirationDate).toLocaleString("es-MX")}
+            </div>
+          )}
+          {meta.ticketUrl && (
+            <div style={{ marginTop: 6 }}>
+              <a
+                href={meta.ticketUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  fontSize: 12,
+                  color: "#2563eb",
+                  fontWeight: "bold",
+                  textDecoration: "underline"
+                }}
+              >
+                🖨️ Ver Ticket de Pago
+              </a>
+            </div>
+          )}
+        </div>
+      );
+    } catch (e) {
+      // Ignorar
+    }
+  }
+  return comments;
+};
+
 interface DepositRow {
   id: number;
   accountMasked: string;
@@ -163,7 +240,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           </div>
           <div class="row">
             <span class="label">Comentarios:</span>
-            <span>${deposit.comments || 'Sin comentarios'}</span>
+            <span>${formatCommentsHtml(deposit.comments)}</span>
           </div>
         </div>
 
@@ -386,9 +463,9 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   {selectedDeposit.status}
                 </span>
               </p>
-              <p style={{ margin: "8px 0" }}>
-                <strong>Comentarios:</strong> {selectedDeposit.comments || "Sin comentarios"}
-              </p>
+              <div style={{ margin: "8px 0" }}>
+                <strong>Comentarios:</strong> {renderComments(selectedDeposit.comments)}
+              </div>
             </div>
 
             <div style={{ display: "flex", gap: "12px" }}>
