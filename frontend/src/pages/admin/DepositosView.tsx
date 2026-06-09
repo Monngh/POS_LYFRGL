@@ -32,9 +32,23 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setError(null);
     try {
       const params: Record<string, any> = branchId !== "all" ? { branchId } : {};
-      if (from) params.from = from;
-      if (to) params.to = to;
+
+      // 🔧 CONVERTIR FECHAS DE DD/MM/YYYY a YYYY-MM-DD
+      if (from) {
+        const [day, month, year] = from.split('/');
+        const formattedFrom = `${year}-${month}-${day}`;
+        params.from = formattedFrom;
+      }
+
+      if (to) {
+        const [day, month, year] = to.split('/');
+        const formattedTo = `${year}-${month}-${day}`;
+        params.to = formattedTo;
+      }
+
       if (account) params.account = account;
+
+      console.log("Fechas enviadas (formato ISO):", { from: params.from, to: params.to });
 
       const res = await api.get<{ deposits: DepositRow[] }>("/api/admin/bank-deposits", { params });
       setRows(res.data.deposits);
@@ -189,7 +203,11 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px" }}
           />
           <button
-            onClick={() => { setFrom(""); setTo(""); setAccount(""); }}
+            onClick={() => {
+              setFrom("");
+              setTo("");
+              setAccount("");
+            }}
             style={{ padding: "8px 12px", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer" }}
           >
             Limpiar
