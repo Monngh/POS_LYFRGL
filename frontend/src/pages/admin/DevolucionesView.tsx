@@ -369,32 +369,34 @@ const ReturnDetailSubView: React.FC<{
               {fmtDate(current.exchangeSale.date)}
             </span>
           </div>
-          <table style={ui.table}>
-            <thead>
-              <tr style={ui.theadRow}>
-                <th style={ui.th}>Producto</th>
-                <th style={{ ...ui.th, textAlign: "center" }}>Cant.</th>
-                <th style={{ ...ui.th, textAlign: "right" }}>P.Unit.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {current.exchangeSale.items.map((item, i) => (
-                <tr key={i}>
-                  <td style={ui.td}>{item.productName}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>{item.quantity}</td>
-                  <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(item.unitPrice)}</td>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ ...ui.table, minWidth: 320 }}>
+              <thead>
+                <tr style={ui.theadRow}>
+                  <th style={ui.th}>Producto</th>
+                  <th style={{ ...ui.th, textAlign: "center" }}>Cant.</th>
+                  <th style={{ ...ui.th, textAlign: "right" }}>P.Unit.</th>
                 </tr>
-              ))}
-              <tr>
-                <td colSpan={2} style={{ ...ui.td, fontWeight: 800 }}>
-                  Total
-                </td>
-                <td style={{ ...ui.td, textAlign: "right", fontWeight: 800 }}>
-                  {moneyExact(current.exchangeSale.total)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {current.exchangeSale.items.map((item, i) => (
+                  <tr key={i}>
+                    <td style={ui.td}>{item.productName}</td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>{item.quantity}</td>
+                    <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(item.unitPrice)}</td>
+                  </tr>
+                ))}
+                <tr>
+                  <td colSpan={2} style={{ ...ui.td, fontWeight: 800 }}>
+                    Total
+                  </td>
+                  <td style={{ ...ui.td, textAlign: "right", fontWeight: 800 }}>
+                    {moneyExact(current.exchangeSale.total)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </Panel>
       )}
 
@@ -591,8 +593,12 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         )}
       </Toolbar>
 
-      <div style={ui.tableWrap}>
-        <table style={ui.table}>
+      <p className="flex items-center gap-1 text-xs text-slate-400 mb-2 sm:hidden">
+        <span>↔</span> Desliza para ver todas las columnas
+      </p>
+
+      <div style={{ ...ui.tableWrap, overflowX: "auto" }}>
+        <table style={{ ...ui.table, minWidth: 680 }}>
           <thead>
             <tr style={ui.theadRow}>
               <th style={ui.th}>Folio Devolución</th>
