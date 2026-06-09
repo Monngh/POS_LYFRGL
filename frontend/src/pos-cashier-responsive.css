@@ -54,7 +54,7 @@
   }
 
   .pos-cashier-tables-grid {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: minmax(0, 1fr) !important;
   }
 
   .pos-cashier-table-card {
@@ -386,6 +386,80 @@
   /* Reducir tamaño de textos de métricas en móvil */
   .pos-cashier-stats-grid h3 {
     font-size: 14px !important;
+  }
+}
+
+/* ==========================================================================
+   Tablas del dashboard del cajero (ÚLTIMAS VENTAS / DEPÓSITOS):
+   en móvil/tablet se transforman en TARJETAS apiladas (etiqueta: valor),
+   así nunca se cortan ni requieren scroll horizontal.
+   Solo afecta tablas dentro de .pos-cashier-table-card (no el carrito ni modales).
+   ========================================================================== */
+@media (max-width: 768px) {
+  /* Cada tabla-tarjeta queda contenida y hace scroll vertical interno
+     para que la vista no se haga enorme con muchas filas */
+  .pos-cashier-table-card .pos-cashier-table-scroll {
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    max-height: 360px !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pos-cashier-table-card .pos-cashier-table-scroll table {
+    display: block !important;
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .pos-cashier-table-card .pos-cashier-table-scroll thead {
+    display: none !important;
+  }
+
+  .pos-cashier-table-card .pos-cashier-table-scroll tbody {
+    display: block !important;
+  }
+
+  .pos-cashier-table-card .pos-cashier-table-scroll tbody tr {
+    display: block !important;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 4px 12px;
+    margin-bottom: 10px;
+    background: #ffffff;
+  }
+
+  /* Cada celda pasa a ser una fila etiqueta:valor; se anula el ocultamiento previo */
+  .pos-cashier-table-card .pos-cashier-table-scroll td {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 0 !important;
+    border: none !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+    white-space: normal !important;
+    text-align: right;
+    font-size: 13px;
+  }
+
+  .pos-cashier-table-card .pos-cashier-table-scroll td:last-child {
+    border-bottom: none !important;
+  }
+
+  .pos-cashier-table-card .pos-cashier-table-scroll td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    font-size: 11px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    text-align: left;
+    flex-shrink: 0;
+  }
+
+  /* En formato tarjeta ya no se usan las filas de detalle/expandir */
+  .pos-cashier-table-card .pos-cashier-table-details-row {
+    display: none !important;
   }
 }
 

@@ -262,7 +262,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             ...employees.map((e) => ({ value: String(e.id), label: e.name })),
           ]}
         />
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>Desde:</span>
           <input
             type="date"
@@ -621,6 +621,9 @@ const dateInput: React.CSSProperties = {
   outline: "none",
   fontFamily: "inherit",
   cursor: "pointer",
+  flex: "1 1 120px",
+  minWidth: 0,
+  maxWidth: 180,
 };
 
 const clearBtn: React.CSSProperties = {

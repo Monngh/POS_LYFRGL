@@ -2,6 +2,24 @@ import React from "react";
 import { Search } from "lucide-react";
 
 // ---------------------------------------------------------------------------
+// Hook de responsividad compartido: reacciona al ancho del viewport en vivo.
+// Úsalo en cualquier vista admin: const isMobile = useMediaQuery("(max-width: 768px)")
+// ---------------------------------------------------------------------------
+export function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = React.useState(
+    () => typeof window !== "undefined" && window.matchMedia(query).matches
+  );
+  React.useEffect(() => {
+    const m = window.matchMedia(query);
+    const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
+    setMatches(m.matches);
+    m.addEventListener("change", handler);
+    return () => m.removeEventListener("change", handler);
+  }, [query]);
+  return matches;
+}
+
+// ---------------------------------------------------------------------------
 // Helpers de formato (es-MX)
 // ---------------------------------------------------------------------------
 export const money = (n: number) =>

@@ -597,7 +597,7 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         <span>↔</span> Desliza para ver todas las columnas
       </p>
 
-      <div style={{ ...ui.tableWrap, overflowX: "auto" }}>
+      <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
         <table style={{ ...ui.table, minWidth: 680 }}>
           <thead>
             <tr style={ui.theadRow}>

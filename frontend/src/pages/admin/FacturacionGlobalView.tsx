@@ -10,6 +10,7 @@ import {
   SectionHeader,
   moneyExact,
   fmtDate,
+  useMediaQuery,
 } from "./shared";
 
 const PERIODICIDADES = [
@@ -35,6 +36,7 @@ const MESES = [
 ];
 
 const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+  const isMobile = useMediaQuery("(max-width: 768px)");
   // Configuración de la factura global
   const todayStr = new Date().toISOString().substring(0, 10);
   const [startDate, setStartDate] = useState(todayStr);
@@ -141,7 +143,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
         subtitle="Agrupa y timbra los tickets de venta al público en general que no fueron facturados individualmente."
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 24, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "280px minmax(0, 1fr)", gap: 24, alignItems: "start" }}>
         
         {/* PANEL DE CONFIGURACIÓN */}
         <Panel style={{ padding: 20 }}>
@@ -266,7 +268,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
           <Panel style={{ padding: 20 }}>
             <h3 style={{ fontSize: 15, fontWeight: 800, color: "#0f172a", marginBottom: 14 }}>Resumen de Lote a Facturar</h3>
             
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 16 }}>
               <div style={kpiWrap}>
                 <span style={kpiLabel}>Total Tickets</span>
                 <span style={kpiVal}>{tickets.length}</span>
@@ -302,7 +304,8 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
               <strong style={{ fontSize: 13, color: "#334155" }}>Ventas completadas en el rango de fechas</strong>
             </div>
-            <table style={ui.table}>
+            <div className="table-sticky-head" style={{ overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
+            <table style={{ ...ui.table, minWidth: 720 }}>
               <thead>
                 <tr style={ui.theadRow}>
                   <th style={ui.th}>Folio Venta</th>
@@ -339,6 +342,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
 
         </div>
