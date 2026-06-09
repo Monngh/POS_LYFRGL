@@ -2,6 +2,12 @@ import React, { useEffect, useState, useCallback } from "react";
 import { X, Plus, Activity, Pencil } from "lucide-react";
 import api from "../../services/api";
 import {
+  collectRoundedDecimalMessages,
+  getDecimalValidationValue,
+  handleDecimalInputChange,
+  validateDecimalField,
+} from "../../utils/decimalInput";
+import {
   ui,
   type ViewProps,
   Toolbar,
@@ -166,16 +172,46 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       }
     }
 
+    const baseSalaryValidation = form.baseSalary.trim()
+      ? validateDecimalField(form.baseSalary, "El sueldo base", {
+          invalidMessage: "El sueldo base debe ser un numero valido con maximo 3 decimales.",
+        })
+      : null;
+    if (baseSalaryValidation && !baseSalaryValidation.ok) {
+      setFormError(baseSalaryValidation.error);
+      return;
+    }
+    const baseSalaryValue = baseSalaryValidation ? getDecimalValidationValue(baseSalaryValidation) : null;
+
+    const commissionValidation = form.commissionRate.trim()
+      ? validateDecimalField(form.commissionRate, "La comision de ventas", {
+          max: 100,
+          invalidMessage: "La comision de ventas debe ser un numero valido con maximo 3 decimales.",
+          maxMessage: "La comision de ventas no puede ser mayor a 100.",
+        })
+      : null;
+    if (commissionValidation && !commissionValidation.ok) {
+      setFormError(commissionValidation.error);
+      return;
+    }
+    const commissionValue = commissionValidation ? getDecimalValidationValue(commissionValidation) : null;
+
+    const roundingMessages = collectRoundedDecimalMessages([baseSalaryValue, commissionValue]);
+
     setSaving(true);
     setFormError(null);
     try {
+      if (roundingMessages.length > 0) {
+        alert(roundingMessages.join("\n"));
+      }
+
       if (editingId !== null) {
         await api.put(`/api/admin/employees/${editingId}`, {
           name: form.name,
           email: form.email,
           phone: form.phone || undefined,
-          baseSalary: form.baseSalary || undefined,
-          commissionRate: form.commissionRate || undefined,
+          baseSalary: baseSalaryValue?.value ?? undefined,
+          commissionRate: commissionValue?.value ?? undefined,
           active: editActive,
           newPin: form.newPin || undefined,
         });
@@ -188,8 +224,8 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           branchId: Number(form.branchId),
           pinCode: form.pinCode || undefined,
           phone: form.phone || undefined,
-          baseSalary: form.baseSalary || undefined,
-          commissionRate: form.commissionRate || undefined,
+          baseSalary: baseSalaryValue?.value ?? undefined,
+          commissionRate: commissionValue?.value ?? undefined,
         });
       }
       setShowForm(false);
@@ -218,6 +254,9 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const set = (k: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const setDecimal = (k: "baseSalary" | "commissionRate") => (e: React.ChangeEvent<HTMLInputElement>) =>
+    handleDecimalInputChange(e.target.value, (nextValue) => setForm((f) => ({ ...f, [k]: nextValue })));
 
   return (
     <div>
@@ -328,11 +367,11 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
                 <div>
                   <label style={ui.fieldLabel}>Sueldo base ($)</label>
-                  <input style={ui.input} type="number" step="0.01" min="0" value={form.baseSalary} onChange={set("baseSalary")} placeholder="0.00" />
+                  <input style={ui.input} type="text" inputMode="decimal" value={form.baseSalary} onChange={setDecimal("baseSalary")} placeholder="0.00" />
                 </div>
                 <div>
                   <label style={ui.fieldLabel}>% Comisión de ventas</label>
-                  <input style={ui.input} type="number" step="0.01" min="0" max="100" value={form.commissionRate} onChange={set("commissionRate")} placeholder="0.00" />
+                  <input style={ui.input} type="text" inputMode="decimal" value={form.commissionRate} onChange={setDecimal("commissionRate")} placeholder="0.00" />
                   <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 3 }}>Ej: 2.5 para 2.5%</p>
                 </div>
               </div>
