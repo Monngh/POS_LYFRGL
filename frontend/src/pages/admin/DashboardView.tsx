@@ -185,7 +185,7 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       <SectionHeader title="Dashboard" subtitle="Métricas en tiempo real desde SQL Server" />
 
       {/* Tarjetas de métricas */}
-      <div style={s.metricsGrid}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((card) => {
           const Icon = card.icon;
           return (
@@ -205,7 +205,7 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       </div>
 
       {/* ── Fila 3: Operaciones del día ── */}
-      <div style={{ ...s.metricsGrid, marginTop: 16 }}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" style={{ marginTop: 16 }}>
         {/* Widget: Estado de cajas */}
         <div style={s.metricCard}>
           <div style={s.metricHead}>
@@ -304,7 +304,7 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       </div>
 
       {/* Gráfica de 7 días */}
-      <div style={{ ...ui.panel, padding: 20, marginTop: 20 }}>
+      <div style={{ ...ui.panel, padding: 20, marginTop: 16 }}>
         <h3 style={s.panelTitle}>Ventas de los últimos 7 días</h3>
         <div style={s.chart}>
           {(data?.ventas7dias ?? []).map((d, i) => {
@@ -327,7 +327,7 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       </div>
 
       {/* Comparativos */}
-      <div style={s.bottomGrid}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
         <div style={{ ...ui.panel, padding: 20 }}>
           <h3 style={s.panelTitle}>Ventas por sucursal</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 16 }}>
@@ -373,7 +373,6 @@ const EmptyState: React.FC = () => (
 );
 
 const s: { [k: string]: React.CSSProperties } = {
-  metricsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 },
   metricCard: {
     backgroundColor: "#ffffff",
     border: "1px solid #e2e8f0",
@@ -413,10 +412,9 @@ const s: { [k: string]: React.CSSProperties } = {
     gap: 8,
     height: "100%",
   },
-  chartValue: { fontSize: 10, fontWeight: 700, color: "#64748b", height: 12 },
+  chartValue: { fontSize: 11, fontWeight: 700, color: "#64748b", height: 13 },
   bar: { width: "60%", maxWidth: 46, borderRadius: "6px 6px 0 0", transition: "height 0.3s ease" },
   chartLabel: { fontSize: 12, fontWeight: 600, color: "#94a3b8" },
-  bottomGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20, marginTop: 20 },
   track: { height: 9, backgroundColor: "#eef2f7", borderRadius: 999, overflow: "hidden" },
   trackFill: { height: "100%", backgroundColor: "#3b82f6", borderRadius: 999, transition: "width 0.3s ease" },
   productRow: {
@@ -442,6 +440,7 @@ const s: { [k: string]: React.CSSProperties } = {
   errorBox: {
     display: "flex",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: 12,
     backgroundColor: "#fffbeb",
     border: "1px solid #fef3c7",
