@@ -157,6 +157,7 @@
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
     width: 100%;
+    margin-bottom: 20px !important;
   }
 
   .pos-cashier-cart-scroll table {
@@ -166,6 +167,7 @@
   .pos-cashier-terminal-summary {
     flex-direction: column !important;
     gap: 16px !important;
+    margin-top: 24px !important;
   }
 
   .pos-cashier-terminal-summary-col {
@@ -190,6 +192,10 @@
 
   .pos-cashier-table-scroll table {
     min-width: 640px;
+  }
+
+  .pos-cashier-table-scroll table td {
+    white-space: nowrap !important;
   }
 
   .pos-cashier-table-scroll--deposits table {
