@@ -40,6 +40,7 @@ import ImpuestosView from "./admin/ImpuestosView";
 import PromocionesView from "./admin/PromocionesView";
 import DevolucionesView from "./admin/DevolucionesView";
 import FacturacionGlobalView from "./admin/FacturacionGlobalView";
+import HistorialFacturasView from "./admin/HistorialFacturasView";
 import type { ViewProps } from "./admin/shared";
 
 interface BranchOption {
@@ -79,12 +80,13 @@ const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<
   { key: "promociones", label: "Promociones", icon: Tags, view: PromocionesView, branchScoped: false },
   { key: "reportes", label: "Reportes", icon: BarChart3, view: ReportesView, branchScoped: true },
   { key: "facturacion-global", label: "Factura Global", icon: BadgePercent, view: FacturacionGlobalView, branchScoped: true },
+  { key: "historial-facturas", label: "Historial Facturas", icon: ClipboardList, view: HistorialFacturasView, branchScoped: false },
 ];
 
 const NAV_SECTIONS: { label: string; items: string[] }[] = [
   { label: "Inicio", items: ["dashboard"] },
   { label: "Operación", items: ["ventas", "devoluciones", "compras"] },
-  { label: "Caja y finanzas", items: ["cajas", "depositos", "facturacion-global"] },
+  { label: "Caja y finanzas", items: ["cajas", "depositos", "facturacion-global", "historial-facturas"] },
   { label: "Inventario", items: ["inventario"] },
   { label: "Catálogos", items: ["clientes", "empleados", "sucursales", "proveedores", "impuestos", "promociones"] },
   { label: "Reportes", items: ["reportes"] },

@@ -3,6 +3,15 @@
    Escritorio (>1024px): sin cambios. Solo aplica debajo de los breakpoints.
    ========================================================================== */
 
+/* Scroll horizontal siempre disponible en tablas del cajero (solo scroll si sobra contenido) */
+.pos-cashier-table-scroll {
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+  flex: 1;
+}
+
 /* Ocultar botón de expandir en escritorio por defecto */
 .pos-cashier-table-expand-btn {
   display: none !important;
@@ -60,6 +69,13 @@
   .pos-cashier-table-card {
     height: auto !important;
     min-height: 260px;
+  }
+
+  /* Scroll horizontal en tablas también en tablet */
+  .pos-cashier-table-scroll {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
   }
 }
 
@@ -192,11 +208,13 @@
     width: 100%;
   }
 
-  /* Tablas del dashboard - transformar a tarjetas en móvil/tablet */
+  /* Tablas del dashboard - scroll horizontal siempre disponible */
   .pos-cashier-table-scroll {
     overflow-x: auto !important;
+    overflow-y: auto !important;
     -webkit-overflow-scrolling: touch;
     width: 100%;
+    flex: 1;
   }
 
   .pos-cashier-table-scroll table {
