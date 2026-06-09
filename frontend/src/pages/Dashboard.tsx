@@ -3767,14 +3767,14 @@ const Dashboard: React.FC = () => {
                             style={styles.tableRow}
                             className={isExpanded ? "pos-cashier-table-row-expanded" : ""}
                           >
-                            <td style={{ ...styles.td, fontWeight: "600" }}>{sale.invoiceNumber}</td>
-                            <td style={styles.td}>
+                            <td data-label="Folio" style={{ ...styles.td, fontWeight: "600" }}>{sale.invoiceNumber}</td>
+                            <td data-label="Hora" style={styles.td}>
                               {new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </td>
-                            <td style={{ ...styles.td, fontWeight: "700" }}>${sale.totalAmount.toFixed(2)}</td>
-                            <td style={styles.td}>{sale.paymentMethod}</td>
-                            <td style={styles.td}>{sale.cajero}</td>
-                            <td style={styles.td}>
+                            <td data-label="Total" style={{ ...styles.td, fontWeight: "700" }}>${sale.totalAmount.toFixed(2)}</td>
+                            <td data-label="Pago" style={styles.td}>{sale.paymentMethod}</td>
+                            <td data-label="Cajero" style={styles.td}>{sale.cajero}</td>
+                            <td data-label="Estado" style={styles.td}>
                               <span style={{
                                 color: sale.status === "CANCELADA" ? "#dc2626" : "#059669",
                                 fontWeight: "700",
@@ -3783,7 +3783,7 @@ const Dashboard: React.FC = () => {
                                 {sale.status === "CANCELADA" ? "Cancelado" : "Activo"}
                               </span>
                             </td>
-                            <td style={styles.td}>
+                            <td data-label="Acción" style={styles.td}>
                               <button
                                 onClick={async () => {
                                   try {
@@ -3878,10 +3878,10 @@ const Dashboard: React.FC = () => {
                             style={styles.tableRow}
                             className={isExpanded ? "pos-cashier-table-row-expanded" : ""}
                           >
-                            <td style={styles.td}>**** **** **** {dep.accountNumber.slice(-4)}</td>
-                            <td style={styles.td}>{dep.targetName}</td>
-                            <td style={{ ...styles.td, fontWeight: "700", color: "#dc2626" }}>-${dep.amount.toFixed(2)}</td>
-                            <td style={styles.td}>
+                            <td data-label="Cuenta" style={styles.td}>**** **** **** {dep.accountNumber.slice(-4)}</td>
+                            <td data-label="Beneficiario" style={styles.td}>{dep.targetName}</td>
+                            <td data-label="Monto" style={{ ...styles.td, fontWeight: "700", color: "#dc2626" }}>-${dep.amount.toFixed(2)}</td>
+                            <td data-label="Estado" style={styles.td}>
                               <span style={styles.badgeSuccess}>Exitoso</span>
                             </td>
                           </tr>
