@@ -29,7 +29,8 @@ import {
   FileText,
   RotateCcw,
   Mail,
-  ArrowLeft
+  ArrowLeft,
+  MoreVertical
 } from "lucide-react";
 
 interface Product {
@@ -118,6 +119,8 @@ const Dashboard: React.FC = () => {
   // Estado para filas expandidas en tablas responsive
   const [expandedSalesRows, setExpandedSalesRows] = useState<Set<number>>(new Set());
   const [expandedDepositRows, setExpandedDepositRows] = useState<Set<number>>(new Set());
+  const [openDashboardTableMenu, setOpenDashboardTableMenu] = useState<string | null>(null);
+  const [dashboardTicketLoadingId, setDashboardTicketLoadingId] = useState<number | null>(null);
 
   // Modales de Acción Rápida: null | "price-lookup" | "ticket-history" | "cancel-sale" | "close-cash" | "bank-deposit" | "close-options" | "partial-cut-summary" | "partial-cut-receipt"
   const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -200,6 +203,26 @@ const Dashboard: React.FC = () => {
     });
   };
 
+  const handleOpenDashboardSaleTicket = async (sale: Sale) => {
+    if (dashboardTicketLoadingId !== null) return;
+
+    setOpenDashboardTableMenu(null);
+    setDashboardTicketLoadingId(sale.id);
+    try {
+      const res = await api.get(`/api/sales/detail?id=${sale.id}`);
+      setSelectedSale({
+        ...res.data.sale,
+        refundStatus: sale.refundStatus,
+        isNewSale: false
+      });
+      setActiveModal("ticket-view");
+    } catch (e: any) {
+      showToast(e.response?.data?.message || "Error al recuperar los detalles de la venta.", "error");
+    } finally {
+      setDashboardTicketLoadingId(null);
+    }
+  };
+
   useEffect(() => {
     if (toast) {
       const timer = setTimeout(() => {
@@ -246,6 +269,19 @@ const Dashboard: React.FC = () => {
       >
         <AlertTriangle size={18} color={textColor} />
         <span>{toast.message}</span>
+      </div>
+    );
+  };
+
+  const renderDashboardTicketLoading = () => {
+    if (dashboardTicketLoadingId === null) return null;
+
+    return (
+      <div className="pos-cashier-loading-overlay">
+        <div className="pos-cashier-loading-box">
+          <div className="pos-cashier-loading-spinner" />
+          <span>Cargando operación...</span>
+        </div>
       </div>
     );
   };
@@ -2053,6 +2089,7 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         </div>
+        {renderDashboardTicketLoading()}
         {renderToast()}
       </div>
     );
@@ -2294,8 +2331,9 @@ const Dashboard: React.FC = () => {
 
           {/* Carrito de Productos */}
           <div className="card-premium pos-cashier-cart-card" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "20px" }}>
-            <div style={{ flex: 1, overflowY: "auto" }} className="pos-cashier-cart-scroll">
-              <table style={styles.table}>
+            <h3 className="pos-cashier-cart-mobile-title">Detalle de Productos</h3>
+            <div style={{ flex: 1, overflowY: "auto", maxHeight: "40vh" }} className="pos-cashier-cart-scroll">
+              <table style={styles.table} className="pos-cashier-cart-table">
                 <thead>
                   <tr style={styles.tableHeaderRow}>
                     <th style={styles.th}>Código</th>
@@ -3745,7 +3783,7 @@ const Dashboard: React.FC = () => {
             {/* Últimas Ventas */}
             <div className="card-premium pos-cashier-table-card" style={styles.tableCard}>
               <h4 style={styles.tableCardTitle}>ÚLTIMAS VENTAS</h4>
-              <div style={{ overflowY: "auto", flex: 1, marginTop: "12px" }} className="pos-cashier-table-scroll">
+              <div style={{ overflowY: "auto", flex: 1, marginTop: "12px" }} className="pos-cashier-table-scroll pos-cashier-table-scroll--dashboard-sales">
                 <table style={styles.table}>
                   <thead>
                     <tr style={styles.tableHeaderRow}>
@@ -3755,6 +3793,7 @@ const Dashboard: React.FC = () => {
                       <th style={styles.th}>PAGO</th>
                       <th style={styles.th}>CAJERO</th>
                       <th style={styles.th}>ESTADO</th>
+                      <th style={styles.th} className="pos-cashier-responsive-menu-head">MAS</th>
                       <th style={styles.th}>ACCIÓN</th>
                     </tr>
                   </thead>
@@ -3767,14 +3806,14 @@ const Dashboard: React.FC = () => {
                             style={styles.tableRow}
                             className={isExpanded ? "pos-cashier-table-row-expanded" : ""}
                           >
-                            <td style={{ ...styles.td, fontWeight: "600" }}>{sale.invoiceNumber}</td>
-                            <td style={styles.td}>
+                            <td style={{ ...styles.td, fontWeight: "600" }} data-label="Folio">{sale.invoiceNumber}</td>
+                            <td style={styles.td} data-label="Hora">
                               {new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </td>
-                            <td style={{ ...styles.td, fontWeight: "700" }}>${sale.totalAmount.toFixed(2)}</td>
-                            <td style={styles.td}>{sale.paymentMethod}</td>
-                            <td style={styles.td}>{sale.cajero}</td>
-                            <td style={styles.td}>
+                            <td style={{ ...styles.td, fontWeight: "700" }} data-label="Total">${sale.totalAmount.toFixed(2)}</td>
+                            <td style={styles.td} data-label="Pago">{sale.paymentMethod}</td>
+                            <td style={styles.td} data-label="Cajero">{sale.cajero}</td>
+                            <td style={styles.td} data-label="Estado">
                               <span style={{
                                 color: sale.status === "CANCELADA" ? "#dc2626" : "#059669",
                                 fontWeight: "700",
@@ -3783,30 +3822,55 @@ const Dashboard: React.FC = () => {
                                 {sale.status === "CANCELADA" ? "Cancelado" : "Activo"}
                               </span>
                             </td>
-                            <td style={styles.td}>
+                            <td style={styles.td} data-label="Acción">
                               <button
-                                onClick={async () => {
-                                  try {
-                                    const res = await api.get(`/api/sales/detail?id=${sale.id}`);
-                                    setSelectedSale({
-                                      ...res.data.sale,
-                                      refundStatus: sale.refundStatus,
-                                      isNewSale: false
-                                    });
-                                    setActiveModal("ticket-view");
-                                  } catch (e: any) {
-                                    showToast(e.response?.data?.message || "Error al recuperar los detalles de la venta.", "error");
-                                  }
-                                }}
-                                style={styles.actionLink}
+                                onClick={() => handleOpenDashboardSaleTicket(sale)}
+                                disabled={dashboardTicketLoadingId === sale.id}
+                                style={{ ...styles.actionLink, opacity: dashboardTicketLoadingId === sale.id ? 0.65 : 1 }}
                               >
                                 Ver Ticket v
                               </button>
+                              <button
+                                onClick={() => toggleSalesRow(sale.id)}
+                                className="pos-cashier-table-expand-btn"
+                              >
+                                {isExpanded ? "Ocultar detalles" : "Ver detalles"}
+                              </button>
+                            </td>
+                            <td style={styles.td} className="pos-cashier-responsive-menu-cell">
+                              <button
+                                type="button"
+                                className="pos-cashier-kebab-btn"
+                                aria-label="Opciones de venta"
+                                onClick={() => setOpenDashboardTableMenu(openDashboardTableMenu === `sale-${sale.id}` ? null : `sale-${sale.id}`)}
+                              >
+                                <MoreVertical size={18} />
+                              </button>
+                              {openDashboardTableMenu === `sale-${sale.id}` && (
+                                <div className="pos-cashier-row-menu">
+                                  <button
+                                    type="button"
+                                    disabled={dashboardTicketLoadingId === sale.id}
+                                    onClick={() => handleOpenDashboardSaleTicket(sale)}
+                                  >
+                                    Ver Ticket
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      toggleSalesRow(sale.id);
+                                      setOpenDashboardTableMenu(null);
+                                    }}
+                                  >
+                                    {isExpanded ? "Ocultar detalles" : "Ver mas detalles"}
+                                  </button>
+                                </div>
+                              )}
                             </td>
                           </tr>
                           {/* Fila de detalles adicionales para responsive */}
                           <tr className="pos-cashier-table-details-row">
-                            <td colSpan={7} style={{ padding: 0 }}>
+                            <td colSpan={8} style={{ padding: 0 }}>
                               <div className="pos-cashier-table-details">
                                 <div className="pos-cashier-table-details-content">
                                   <span className="pos-cashier-table-details-label">PAGO:</span>
@@ -3815,6 +3879,10 @@ const Dashboard: React.FC = () => {
                                 <div className="pos-cashier-table-details-content">
                                   <span className="pos-cashier-table-details-label">CAJERO:</span>
                                   <span className="pos-cashier-table-details-value">{sale.cajero}</span>
+                                </div>
+                                <div className="pos-cashier-table-details-content pos-cashier-sale-status-detail">
+                                  <span className="pos-cashier-table-details-label">ESTADO:</span>
+                                  <span className="pos-cashier-table-details-value">{sale.status === "CANCELADA" ? "Cancelado" : "Activo"}</span>
                                 </div>
                                 <div className="pos-cashier-table-details-content">
                                   <span className="pos-cashier-table-details-label">ACCIÓN:</span>
@@ -3859,13 +3927,14 @@ const Dashboard: React.FC = () => {
             {/* Solicitudes de Cancelación / Historial de depósitos */}
             <div className="card-premium pos-cashier-table-card" style={styles.tableCard}>
               <h4 style={styles.tableCardTitle}>HISTORIAL DE DEPÓSITOS BANCARIOS</h4>
-              <div style={{ overflowY: "auto", flex: 1, marginTop: "12px" }} className="pos-cashier-table-scroll pos-cashier-table-scroll--deposits">
+              <div style={{ overflowY: "auto", flex: 1, marginTop: "12px" }} className="pos-cashier-table-scroll pos-cashier-table-scroll--deposits pos-cashier-table-scroll--dashboard-deposits">
                 <table style={styles.table}>
                   <thead>
                     <tr style={styles.tableHeaderRow}>
                       <th style={styles.th}>CUENTA TARGET</th>
                       <th style={styles.th}>BENEFICIARIO</th>
                       <th style={styles.th}>MONTO</th>
+                      <th style={styles.th} className="pos-cashier-responsive-menu-head">MAS</th>
                       <th style={styles.th}>ESTADO</th>
                     </tr>
                   </thead>
@@ -3878,20 +3947,49 @@ const Dashboard: React.FC = () => {
                             style={styles.tableRow}
                             className={isExpanded ? "pos-cashier-table-row-expanded" : ""}
                           >
-                            <td style={styles.td}>**** **** **** {dep.accountNumber.slice(-4)}</td>
-                            <td style={styles.td}>{dep.targetName}</td>
-                            <td style={{ ...styles.td, fontWeight: "700", color: "#dc2626" }}>-${dep.amount.toFixed(2)}</td>
-                            <td style={styles.td}>
+                            <td style={styles.td} data-label="Cuenta target">**** **** **** {dep.accountNumber.slice(-4)}</td>
+                            <td style={styles.td} data-label="Beneficiario">{dep.targetName}</td>
+                            <td style={{ ...styles.td, fontWeight: "700", color: "#dc2626" }} data-label="Monto">-${dep.amount.toFixed(2)}</td>
+                            <td style={styles.td} data-label="Estado">
                               <span style={styles.badgeSuccess}>Exitoso</span>
+                              <button
+                                onClick={() => toggleDepositRow(dep.id)}
+                                className="pos-cashier-table-expand-btn"
+                              >
+                                {isExpanded ? "Ocultar detalles" : "Ver detalles"}
+                              </button>
+                            </td>
+                            <td style={styles.td} className="pos-cashier-responsive-menu-cell">
+                              <button
+                                type="button"
+                                className="pos-cashier-kebab-btn"
+                                aria-label="Opciones de deposito"
+                                onClick={() => setOpenDashboardTableMenu(openDashboardTableMenu === `deposit-${dep.id}` ? null : `deposit-${dep.id}`)}
+                              >
+                                <MoreVertical size={18} />
+                              </button>
+                              {openDashboardTableMenu === `deposit-${dep.id}` && (
+                                <div className="pos-cashier-row-menu">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      toggleDepositRow(dep.id);
+                                      setOpenDashboardTableMenu(null);
+                                    }}
+                                  >
+                                    {isExpanded ? "Ocultar detalles" : "Ver mas detalles"}
+                                  </button>
+                                </div>
+                              )}
                             </td>
                           </tr>
                           {/* Fila de detalles adicionales para responsive */}
                           <tr className="pos-cashier-table-details-row">
-                            <td colSpan={4} style={{ padding: 0 }}>
+                            <td colSpan={5} style={{ padding: 0 }}>
                               <div className="pos-cashier-table-details">
                                 <div className="pos-cashier-table-details-content">
-                                  <span className="pos-cashier-table-details-label">BENEFICIARIO:</span>
-                                  <span className="pos-cashier-table-details-value">{dep.targetName}</span>
+                                  <span className="pos-cashier-table-details-label">ESTADO:</span>
+                                  <span className="pos-cashier-table-details-value">Exitoso</span>
                                 </div>
                                 <button
                                   onClick={() => toggleDepositRow(dep.id)}
@@ -3907,7 +4005,7 @@ const Dashboard: React.FC = () => {
                     })}
                     {recentDeposits.length === 0 && (
                       <tr>
-                        <td colSpan={4} style={{ textAlign: "center", padding: "20px", color: "#64748b" }}>
+                        <td colSpan={5} style={{ textAlign: "center", padding: "20px", color: "#64748b" }}>
                           No hay depósitos bancarios registrados en este turno.
                         </td>
                       </tr>
@@ -5829,6 +5927,23 @@ const Dashboard: React.FC = () => {
             </div>
 
             <div style={{ maxHeight: "240px", overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: "6px" }} className="pos-cashier-table-scroll pos-cashier-table-scroll--history">
+              <style>{`
+                @media (max-width: 1024px) {
+                  .pos-cashier-table-scroll--history { overflow-x: hidden; max-height: 60vh; padding: 4px 6px; }
+                  .pos-cashier-table-scroll--history table { width: 100%; border-collapse: collapse; min-width: 0; }
+                  .pos-cashier-table-scroll--history thead { display: none; }
+                  .pos-cashier-table-scroll--history tbody { display: block; }
+                  .pos-cashier-table-scroll--history tr { display: grid; grid-template-columns: 1fr 110px; grid-template-rows: auto auto; gap: 6px; align-items: center; padding: 10px 8px; border-bottom: 1px solid #f1f5f9; margin: 0; }
+                  .pos-cashier-table-scroll--history td { display: block; padding: 0; vertical-align: top; box-sizing: border-box; min-width: 0; word-break: break-word; white-space: normal; }
+                  .pos-cashier-table-scroll--history td:nth-child(1) { grid-column: 1 / 2; grid-row: 1 / 2; font-weight: 600; color: #0f172a; }
+                  .pos-cashier-table-scroll--history td:nth-child(2) { grid-column: 1 / 2; grid-row: 2 / 3; color: #64748b; font-size: 12px; }
+                  .pos-cashier-table-scroll--history td:nth-child(3) { grid-column: 2 / 3; grid-row: 1 / 2; text-align: right; font-weight: 700; color: #0f172a; }
+                  .pos-cashier-table-scroll--history td:nth-child(4) { grid-column: 2 / 3; grid-row: 2 / 3; display: flex; justify-content: flex-end; }
+                  .pos-cashier-table-scroll--history .btn-primary { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+                  /* Prevent horizontal overflow from long text */
+                  .pos-cashier-table-scroll--history, .pos-cashier-table-scroll--history table, .pos-cashier-table-scroll--history tbody, .pos-cashier-table-scroll--history tr, .pos-cashier-table-scroll--history td { box-sizing: border-box; }
+                }
+              `}</style>
               <table style={styles.table}>
                 <thead>
                   <tr style={styles.tableHeaderRow}>
@@ -6352,6 +6467,7 @@ const Dashboard: React.FC = () => {
         </div>
       )}
       {renderTicketEmailModal()}
+      {renderDashboardTicketLoading()}
       {renderToast()}
     </div>
   );
