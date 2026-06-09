@@ -267,20 +267,20 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       <SectionHeader title="Depósitos bancarios" subtitle="Retiros de efectivo de caja depositados a cuentas bancarias" />
 
       <Toolbar>
-        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
           <label style={{ fontSize: "12px", fontWeight: "600", color: "#1e3a8a" }}>Desde:</label>
           <input
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
-            style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px" }}
+            style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", flex: "1 1 120px", minWidth: 0, maxWidth: 180 }}
           />
           <label style={{ fontSize: "12px", fontWeight: "600", color: "#1e3a8a" }}>Hasta:</label>
           <input
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px" }}
+            style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", flex: "1 1 120px", minWidth: 0, maxWidth: 180 }}
           />
           <button
             onClick={() => {
