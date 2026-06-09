@@ -1,6 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { AlertTriangle, Printer, X, Plus, BadgePercent } from "lucide-react";
 import api from "../../services/api";
+import {
+  handleDecimalInputChange,
+  validateDecimalField,
+} from "../../utils/decimalInput";
 import KardexView from "./KardexView";
 import {
   ui,
@@ -110,7 +114,6 @@ const SKU_REGEX = /^[A-Za-z0-9_-]+$/;
 const BARCODE_REGEX = /^[0-9]+$/;
 const SAT_PRODUCT_KEY_REGEX = /^[0-9]{8}$/;
 const SAT_UNIT_KEY_REGEX = /^[A-Za-z0-9]+$/;
-const MONEY_REGEX = /^\d+(?:\.\d+)?$/;
 
 type ValidationSuccess<T> = {
   ok: true;
@@ -141,8 +144,6 @@ interface ValidatedProductForm {
   roundingMessages: string[];
 }
 
-const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
-const formatMoneyValue = (value: number) => value.toFixed(2);
 const getValidationError = <T,>(result: ValidationResult<T>) => {
   if (result.ok === true) return null;
   return result.error;
@@ -155,35 +156,9 @@ const getValidationValue = <T,>(result: ValidationResult<T>) => {
 
 const validateMoneyField = (rawValue: string | number, field: "costo" | "precio"): ValidationResult<MoneyField> => {
   const label = field === "costo" ? "El costo" : "El precio";
-  const raw = String(rawValue).trim();
-
-  if (!raw) {
-    return { ok: false, error: `${label} es requerido.` };
-  }
-  if (raw.startsWith("-")) {
-    return { ok: false, error: `${label} no puede ser negativo.` };
-  }
-  if (!MONEY_REGEX.test(raw)) {
-    return { ok: false, error: `${label} debe ser un número válido.` };
-  }
-
-  const value = Number(raw);
-  if (!Number.isFinite(value)) {
-    return { ok: false, error: `${label} debe ser un número válido.` };
-  }
-
-  const rounded = roundMoney(value);
-  const decimalPart = raw.includes(".") ? raw.split(".")[1] : "";
-  return {
-    ok: true,
-    value: {
-      value: rounded,
-      roundedMessage:
-        decimalPart.length > 2 && rounded !== value
-          ? `${label} fue redondeado a ${formatMoneyValue(rounded)} porque solo se permiten 2 decimales.`
-          : undefined,
-    },
-  };
+  return validateDecimalField(rawValue, label, {
+    invalidMessage: `${label} debe ser un número válido con máximo 3 decimales.`,
+  });
 };
 
 const validateProductForm = (form: typeof emptyForm, requireSku: boolean): ValidationResult<ValidatedProductForm> => {
@@ -295,8 +270,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   // Feature 1: edit prices
   const [editMode, setEditMode] = useState(false);
-  const [editCost, setEditCost] = useState(0);
-  const [editPrice, setEditPrice] = useState(0);
+  const [editCost, setEditCost] = useState("");
+  const [editPrice, setEditPrice] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [priceSaving, setPriceSaving] = useState(false);
 
@@ -341,6 +316,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const setMoney = (k: "costPrice" | "sellPrice") => (e: React.ChangeEvent<HTMLInputElement>) =>
+    handleDecimalInputChange(e.target.value, (nextValue) => setForm((f) => ({ ...f, [k]: nextValue })));
 
   const closeForm = () => {
     if (saving) return;
@@ -573,8 +551,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const fetchDetail = async (id: number) => {
     const res = await api.get<{ product: ProductDetail }>(`/api/admin/products/${id}`);
     setSelectedProduct(res.data.product);
-    setEditCost(res.data.product.costPrice);
-    setEditPrice(res.data.product.sellPrice);
+    setEditCost(String(res.data.product.costPrice));
+    setEditPrice(String(res.data.product.sellPrice));
   };
 
   const openProductDetail = useCallback(async (id: number) => {
@@ -848,9 +826,17 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const lowCount = filteredRows.filter((r) => r.low).length;
   const scope = branchId !== "all" ? "en la sucursal seleccionada" : "consolidado de todas las sucursales";
 
+  const editCostNumber = Number(editCost);
+  const editPriceNumber = Number(editPrice);
+  const hasValidEditPrices =
+    editCost.trim() !== "" &&
+    editPrice.trim() !== "" &&
+    Number.isFinite(editCostNumber) &&
+    Number.isFinite(editPriceNumber) &&
+    editPriceNumber > 0;
   const liveMargem =
-    editPrice > 0
-      ? (((editPrice - editCost) / editPrice) * 100).toFixed(1)
+    hasValidEditPrices
+      ? (((editPriceNumber - editCostNumber) / editPriceNumber) * 100).toFixed(1)
       : "—";
 
   return (
@@ -1051,20 +1037,22 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           <div>
                             <label style={ui.fieldLabel}>Costo</label>
                             <input
-                              type="number"
+                              type="text"
+                              inputMode="decimal"
                               value={editCost}
-                              onChange={(e) => setEditCost(parseFloat(e.target.value) || 0)}
-                              step="0.01"
+                              onChange={(e) => handleDecimalInputChange(e.target.value, setEditCost)}
+                              placeholder="0.00"
                               style={ui.input}
                             />
                           </div>
                           <div>
                             <label style={ui.fieldLabel}>Precio venta</label>
                             <input
-                              type="number"
+                              type="text"
+                              inputMode="decimal"
                               value={editPrice}
-                              onChange={(e) => setEditPrice(parseFloat(e.target.value) || 0)}
-                              step="0.01"
+                              onChange={(e) => handleDecimalInputChange(e.target.value, setEditPrice)}
+                              placeholder="0.00"
                               style={ui.input}
                             />
                           </div>
@@ -1651,11 +1639,25 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
                 <div>
                   <label style={ui.fieldLabel}>Precio Costo ($) *</label>
-                  <input style={ui.input} value={form.costPrice} onChange={set("costPrice")} placeholder="0.00" />
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    style={ui.input}
+                    value={form.costPrice}
+                    onChange={setMoney("costPrice")}
+                    placeholder="0.00"
+                  />
                 </div>
                 <div>
                   <label style={ui.fieldLabel}>Precio Venta ($) *</label>
-                  <input style={ui.input} value={form.sellPrice} onChange={set("sellPrice")} placeholder="0.00" />
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    style={ui.input}
+                    value={form.sellPrice}
+                    onChange={setMoney("sellPrice")}
+                    placeholder="0.00"
+                  />
                 </div>
               </div>
 

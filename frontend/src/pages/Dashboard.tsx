@@ -2,6 +2,13 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 import AdminDashboard from "./AdminDashboard";
+import {
+  collectRoundedDecimalMessages,
+  type DecimalFieldValue,
+  handleDecimalInputChange,
+  roundToTwoDecimals,
+  validateDecimalField,
+} from "../utils/decimalInput";
 import { 
   LogOut, 
   Store, 
@@ -256,14 +263,21 @@ const Dashboard: React.FC = () => {
   const [openingLoading, setOpeningLoading] = useState(false);
 
   const handleOpenCash = async () => {
-    if (isNaN(Number(initialFund)) || Number(initialFund) < 0) {
-      showToast("Por favor ingrese un monto inicial válido.");
+    const initialFundValidation = validateDecimalField(initialFund, "El fondo inicial", {
+      invalidMessage: "El fondo inicial debe ser un monto valido con maximo 3 decimales.",
+    });
+    if (!initialFundValidation.ok) {
+      showToast(initialFundValidation.error);
       return;
     }
+    const initialFundValue = initialFundValidation.value;
     setOpeningLoading(true);
     try {
+      if (initialFundValue.roundedMessage) {
+        showToast(initialFundValue.roundedMessage, "info");
+      }
       const res = await api.post("/api/cash-session/open", {
-        initialAmount: Number(initialFund)
+        initialAmount: initialFundValue.value
       });
       setSession(res.data.session);
       setView("dashboard");
@@ -826,11 +840,13 @@ const Dashboard: React.FC = () => {
   const pointsDiscount = (usePoints && selectedCustomer) ? Math.min(selectedCustomer.points, pointsToRedeem) : 0;
   const netTotalToPay = Math.max(0, cartTotal - pointsDiscount);
 
-  const parsedReceived = Number(cashReceived) || 0;
+  const parsedReceived = roundToTwoDecimals(Number(cashReceived) || 0);
+  const parsedMixtoCash = roundToTwoDecimals(Number(mixtoCash) || 0);
+  const parsedMixtoCard = roundToTwoDecimals(Number(mixtoCard) || 0);
   const calculatedChange = paymentMethod === "EFECTIVO" 
     ? (parsedReceived >= netTotalToPay ? parsedReceived - netTotalToPay : 0)
     : paymentMethod === "MIXTO"
-    ? (Number(mixtoCard) <= netTotalToPay && Number(mixtoCash) >= (netTotalToPay - Number(mixtoCard)) ? Number(mixtoCash) - (netTotalToPay - Number(mixtoCard)) : 0)
+    ? (parsedMixtoCard <= netTotalToPay && parsedMixtoCash >= (netTotalToPay - parsedMixtoCard) ? parsedMixtoCash - (netTotalToPay - parsedMixtoCard) : 0)
     : 0;
 
   const buildCheckoutItemsPayload = () => {
@@ -870,25 +886,64 @@ const Dashboard: React.FC = () => {
       return;
     }
 
-    if (paymentMethod === "EFECTIVO" && parsedReceived < netTotalToPay) {
-      setCheckoutError("El efectivo recibido es menor al total a pagar.");
-      return;
-    }
-    if (paymentMethod === "MIXTO") {
-      const mCash = Number(mixtoCash) || 0;
-      const mCard = Number(mixtoCard) || 0;
-      if (mCard <= 0 || mCash <= 0) {
-        setCheckoutError("En un pago mixto, tanto el monto de tarjeta como el de efectivo deben ser mayores a cero. Si solo usa un método, seleccione Efectivo o Tarjeta.");
+    let cashPayment = 0;
+    let cardPayment: number | undefined;
+    const paymentRoundedValues: DecimalFieldValue[] = [];
+
+    if (paymentMethod === "EFECTIVO") {
+      const cashValidation = validateDecimalField(cashReceived, "El monto recibido", {
+        invalidMessage: "El monto recibido debe ser un numero valido con maximo 3 decimales.",
+      });
+      if (!cashValidation.ok) {
+        setCheckoutError(cashValidation.error);
         return;
       }
-      if (mCard > netTotalToPay) {
+      cashPayment = cashValidation.value.value;
+      paymentRoundedValues.push(cashValidation.value);
+    }
+
+    if (paymentMethod === "MIXTO") {
+      const cardValidation = validateDecimalField(mixtoCard, "El monto con tarjeta", {
+        min: 0,
+        minExclusive: true,
+        invalidMessage: "El monto con tarjeta debe ser un numero valido con maximo 3 decimales.",
+        minMessage: "El monto con tarjeta debe ser mayor a 0.",
+      });
+      if (!cardValidation.ok) {
+        setCheckoutError(cardValidation.error);
+        return;
+      }
+
+      const cashValidation = validateDecimalField(mixtoCash, "El monto con efectivo", {
+        min: 0,
+        minExclusive: true,
+        invalidMessage: "El monto con efectivo debe ser un numero valido con maximo 3 decimales.",
+        minMessage: "El monto con efectivo debe ser mayor a 0.",
+      });
+      if (!cashValidation.ok) {
+        setCheckoutError(cashValidation.error);
+        return;
+      }
+
+      cardPayment = cardValidation.value.value;
+      cashPayment = cashValidation.value.value;
+      paymentRoundedValues.push(cardValidation.value, cashValidation.value);
+
+      if (cardPayment > netTotalToPay) {
         setCheckoutError("El monto pagado con tarjeta no puede ser mayor al total de la compra.");
         return;
       }
-      if (mCash + mCard < netTotalToPay) {
+      if (cashPayment + cardPayment < netTotalToPay) {
         setCheckoutError("La suma de efectivo y tarjeta es menor al total a pagar.");
         return;
       }
+    }
+
+    const paymentRoundingMessages = collectRoundedDecimalMessages(paymentRoundedValues);
+
+    if (paymentMethod === "EFECTIVO" && cashPayment < netTotalToPay) {
+      setCheckoutError("El efectivo recibido es menor al total a pagar.");
+      return;
     }
 
     if (paymentMethod === "QR_MERCADOPAGO") {
@@ -937,12 +992,16 @@ const Dashboard: React.FC = () => {
 
     setCheckoutLoading(true);
     try {
+      if (paymentRoundingMessages.length > 0) {
+        showToast(paymentRoundingMessages.join("\n"), "info");
+      }
+
       const res = await api.post("/api/sales", {
         items: itemsPayload,
         paymentMethod,
         cardType: (paymentMethod === "TARJETA" || paymentMethod === "MIXTO") ? cardType : undefined,
-        cashReceived: paymentMethod === "EFECTIVO" ? parsedReceived : paymentMethod === "MIXTO" ? Number(mixtoCash) : 0,
-        cardAmount: paymentMethod === "MIXTO" ? Number(mixtoCard) : undefined,
+        cashReceived: paymentMethod === "EFECTIVO" ? cashPayment : paymentMethod === "MIXTO" ? cashPayment : 0,
+        cardAmount: paymentMethod === "MIXTO" ? cardPayment : undefined,
         changeGiven: calculatedChange,
         discountAmount: cartDiscount,
         customerId: selectedCustomer ? selectedCustomer.id : undefined,
@@ -969,7 +1028,7 @@ const Dashboard: React.FC = () => {
           total: cartTotal,
           paymentMethod,
           cardType: (paymentMethod === "TARJETA" || paymentMethod === "MIXTO") ? cardType : undefined,
-          cashReceived: paymentMethod === "EFECTIVO" ? parsedReceived : paymentMethod === "MIXTO" ? Number(mixtoCash) : 0,
+          cashReceived: paymentMethod === "EFECTIVO" ? cashPayment : paymentMethod === "MIXTO" ? cashPayment : 0,
           changeGiven: calculatedChange,
           createdAt: new Date().toISOString(),
           isNewSale: true,
@@ -1159,18 +1218,25 @@ const Dashboard: React.FC = () => {
   const [closingLoading, setClosingLoading] = useState(false);
 
   const calculatedDifference = sessionStats
-    ? (Number(declaredCash) || 0) - sessionStats.expectedAmount
+    ? roundToTwoDecimals(Number(declaredCash) || 0) - sessionStats.expectedAmount
     : 0;
 
   const handleCloseShift = async () => {
-    if (!declaredCash || isNaN(Number(declaredCash))) {
-      showToast("Por favor ingrese el efectivo contado en la caja.");
+    const declaredCashValidation = validateDecimalField(declaredCash, "El efectivo contado", {
+      invalidMessage: "El efectivo contado debe ser un monto valido con maximo 3 decimales.",
+    });
+    if (!declaredCashValidation.ok) {
+      showToast(declaredCashValidation.error);
       return;
     }
+    const declaredCashValue = declaredCashValidation.value;
     setClosingLoading(true);
     try {
+      if (declaredCashValue.roundedMessage) {
+        showToast(declaredCashValue.roundedMessage, "info");
+      }
       const res = await api.post("/api/cash-session/close", {
-        declaredAmount: Number(declaredCash)
+        declaredAmount: declaredCashValue.value
       });
       showToast("Turno cerrado con éxito. Generando reporte de arqueo...", "success");
       setLastClosedStats(res.data.stats);
@@ -1224,17 +1290,27 @@ const Dashboard: React.FC = () => {
       }
     }
     
-    if (!depAmount || isNaN(Number(depAmount)) || Number(depAmount) <= 0) {
-      showToast("Por favor ingrese un monto válido mayor a cero.");
+    const depAmountValidation = validateDecimalField(depAmount, "El monto del deposito", {
+      min: 0,
+      minExclusive: true,
+      invalidMessage: "El monto del deposito debe ser un numero valido con maximo 3 decimales.",
+      minMessage: "El monto del deposito debe ser mayor a 0.",
+    });
+    if (!depAmountValidation.ok) {
+      showToast(depAmountValidation.error);
       return;
     }
+    const depAmountValue = depAmountValidation.value;
 
     setDepLoading(true);
     try {
+      if (depAmountValue.roundedMessage) {
+        showToast(depAmountValue.roundedMessage, "info");
+      }
       const res = await api.post("/api/sales/bank-deposit", {
         accountNumber: isMercadoPago ? "" : depAccount,
         targetName: isMercadoPago ? "" : depName,
-        amount: Number(depAmount),
+        amount: depAmountValue.value,
         paymentType: depType,
         comments: depComments
       });
@@ -1695,7 +1771,8 @@ const Dashboard: React.FC = () => {
                   className="input-corporate"
                   style={{ fontSize: "20px", fontWeight: "700", textAlign: "center", padding: "12px" }}
                   value={initialFund}
-                  onChange={(e) => setInitialFund(e.target.value)}
+                  inputMode="decimal"
+                  onChange={(e) => handleDecimalInputChange(e.target.value, setInitialFund)}
                 />
               </div>
 
@@ -2231,8 +2308,9 @@ const Dashboard: React.FC = () => {
                       className="input-corporate"
                       placeholder="Ingrese cantidad recibida"
                       value={cashReceived}
+                      inputMode="decimal"
                       onChange={(e) => {
-                        setCashReceived(e.target.value);
+                        handleDecimalInputChange(e.target.value, setCashReceived);
                         setCheckoutError(null);
                       }}
                     />
@@ -2289,8 +2367,9 @@ const Dashboard: React.FC = () => {
                       type="text"
                       className="input-corporate"
                       value={mixtoCard}
+                      inputMode="decimal"
                       onChange={(e) => {
-                        setMixtoCard(e.target.value);
+                        handleDecimalInputChange(e.target.value, setMixtoCard);
                         setCheckoutError(null);
                       }}
                     />
@@ -2301,8 +2380,9 @@ const Dashboard: React.FC = () => {
                       type="text"
                       className="input-corporate"
                       value={mixtoCash}
+                      inputMode="decimal"
                       onChange={(e) => {
-                        setMixtoCash(e.target.value);
+                        handleDecimalInputChange(e.target.value, setMixtoCash);
                         setCheckoutError(null);
                       }}
                     />
@@ -4232,7 +4312,8 @@ const Dashboard: React.FC = () => {
                   style={{ fontSize: "16px", fontWeight: "700", textAlign: "center" }}
                   placeholder="Ingrese el conteo físico"
                   value={declaredCash}
-                  onChange={(e) => setDeclaredCash(e.target.value)}
+                  inputMode="decimal"
+                  onChange={(e) => handleDecimalInputChange(e.target.value, setDeclaredCash)}
                 />
               </div>
 
@@ -4465,7 +4546,8 @@ const Dashboard: React.FC = () => {
                         className="input-corporate"
                         placeholder={depType.startsWith("MERCADOPAGO_") ? "Monto a depositar en MP" : "Monto a retirar en efectivo"}
                         value={depAmount}
-                        onChange={(e) => setDepAmount(e.target.value)}
+                        inputMode="decimal"
+                        onChange={(e) => handleDecimalInputChange(e.target.value, setDepAmount)}
                       />
                     </div>
 
