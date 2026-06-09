@@ -2,6 +2,12 @@ import React, { useEffect, useState, useCallback } from "react";
 import { X, Plus, Pencil } from "lucide-react";
 import api from "../../services/api";
 import {
+  collectRoundedDecimalMessages,
+  getDecimalValidationValue,
+  handleDecimalInputChange,
+  validateDecimalField,
+} from "../../utils/decimalInput";
+import {
   ui,
   type ViewProps,
   Toolbar,
@@ -99,8 +105,13 @@ const fieldErrorStyle: React.CSSProperties = {
 
 const normalizeSpaces = (value: string) => value.trim().replace(/\s+/g, " ");
 
-const validateCustomerForm = (form: FormState): { errors: FieldErrors; payload: CustomerPayload | null } => {
+const validateCustomerForm = (form: FormState): {
+  errors: FieldErrors;
+  payload: CustomerPayload | null;
+  roundingMessages: string[];
+} => {
   const errors: FieldErrors = {};
+  const roundingMessages: string[] = [];
 
   const name = normalizeSpaces(form.name);
   if (!name) {
@@ -143,11 +154,14 @@ const validateCustomerForm = (form: FormState): { errors: FieldErrors; payload: 
   }
 
   const creditLimitText = form.creditLimit.trim();
-  const creditLimit = creditLimitText ? Number(creditLimitText) : 0;
-  if (!Number.isFinite(creditLimit)) {
-    errors.creditLimit = "El limite de credito debe ser numerico.";
-  } else if (creditLimit < 0) {
-    errors.creditLimit = "El limite de credito no puede ser negativo.";
+  const creditLimitValidation = validateDecimalField(creditLimitText || "0", "El limite de credito", {
+    invalidMessage: "El limite de credito debe ser numerico con maximo 3 decimales.",
+  });
+  const creditLimitValue = getDecimalValidationValue(creditLimitValidation);
+  if (!creditLimitValidation.ok) {
+    errors.creditLimit = creditLimitValidation.error;
+  } else {
+    roundingMessages.push(...collectRoundedDecimalMessages([creditLimitValue]));
   }
 
   const zipCode = form.zipCode.trim();
@@ -166,7 +180,7 @@ const validateCustomerForm = (form: FormState): { errors: FieldErrors; payload: 
   }
 
   if (Object.keys(errors).length > 0) {
-    return { errors, payload: null };
+    return { errors, payload: null, roundingMessages: [] };
   }
 
   return {
@@ -177,11 +191,12 @@ const validateCustomerForm = (form: FormState): { errors: FieldErrors; payload: 
       email: email || undefined,
       phone: phone || undefined,
       address: address || undefined,
-      creditLimit,
+      creditLimit: creditLimitValue?.value ?? 0,
       zipCode: zipCode || undefined,
       taxRegime: taxRegime || undefined,
       cfdiUse: cfdiUse || undefined,
     },
+    roundingMessages,
   };
 };
 
@@ -252,20 +267,25 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     setFieldErrors({});
   };
 
+  const updateFormField = (k: keyof typeof emptyForm, value: string) => {
+    const nextValue = k === "taxId" ? value.toUpperCase().replace(/\s+/g, "") : value;
+    setForm((f) => ({ ...f, [k]: nextValue }));
+    setFormError(null);
+    setFieldErrors((prev) => {
+      if (!prev[k]) return prev;
+      const next = { ...prev };
+      delete next[k];
+      return next;
+    });
+  };
+
   const set =
     (k: keyof typeof emptyForm) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-      {
-        const value = k === "taxId" ? e.target.value.toUpperCase().replace(/\s+/g, "") : e.target.value;
-        setForm((f) => ({ ...f, [k]: value }));
-        setFormError(null);
-        setFieldErrors((prev) => {
-          if (!prev[k]) return prev;
-          const next = { ...prev };
-          delete next[k];
-          return next;
-        });
-      };
+      updateFormField(k, e.target.value);
+
+  const setCreditLimit = (e: React.ChangeEvent<HTMLInputElement>) =>
+    handleDecimalInputChange(e.target.value, (nextValue) => updateFormField("creditLimit", nextValue));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -286,6 +306,9 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     setFieldErrors({});
     try {
       const payload = validation.payload;
+      if (validation.roundingMessages.length > 0) {
+        alert(validation.roundingMessages.join("\n"));
+      }
 
       if (editingId !== null) {
         await api.put(`/api/admin/customers/${editingId}`, payload);
@@ -438,7 +461,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
                 <div>
                   <label style={ui.fieldLabel}>Límite de crédito ($)</label>
-                  <input inputMode="decimal" style={ui.input} value={form.creditLimit} onChange={set("creditLimit")} placeholder="0.00" />
+                  <input type="text" inputMode="decimal" style={ui.input} value={form.creditLimit} onChange={setCreditLimit} placeholder="0.00" />
                   {fieldErrors.creditLimit && <p style={fieldErrorStyle}>{fieldErrors.creditLimit}</p>}
                 </div>
                 <div>

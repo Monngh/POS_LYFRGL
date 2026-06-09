@@ -2,6 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Eye, PackagePlus, Pencil, Plus, Power, Tags, X } from "lucide-react";
 import api from "../../services/api";
 import {
+  collectRoundedDecimalMessages,
+  handleDecimalInputChange,
+  validateDecimalField,
+} from "../../utils/decimalInput";
+import {
   ui,
   type ViewProps,
   Toolbar,
@@ -67,6 +72,12 @@ interface FormState {
 }
 
 type RuleKey = "percentage" | "fixedAmount" | "buyXPayY" | "specialPrice";
+
+interface PromotionDecimalValues {
+  value: number | null;
+  specialPrice: number | null;
+  roundingMessages: string[];
+}
 
 const todayInput = () => new Date().toISOString().slice(0, 10);
 
@@ -310,6 +321,78 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
       setForm((current) => ({ ...current, [key]: value }));
     };
 
+  const setDecimalField =
+    (key: "value" | "specialPrice") =>
+    (event: React.ChangeEvent<HTMLInputElement>) =>
+      handleDecimalInputChange(event.target.value, (nextValue) =>
+        setForm((current) => ({ ...current, [key]: nextValue }))
+      );
+
+  const validatePromotionDecimals = (): { ok: true; value: PromotionDecimalValues } | { ok: false; error: string } => {
+    const emptyValues: PromotionDecimalValues = { value: null, specialPrice: null, roundingMessages: [] };
+
+    if (selectedRule === "percentage") {
+      const value = validateDecimalField(form.value, "El porcentaje", {
+        min: 0,
+        max: 100,
+        minExclusive: true,
+        invalidMessage: "El porcentaje debe ser un numero valido con maximo 3 decimales.",
+        minMessage: "El porcentaje debe ser mayor a 0.",
+        maxMessage: "El porcentaje debe ser menor o igual a 100.",
+      });
+      if (!value.ok) return { ok: false, error: value.error };
+      const decimalValue = value.value;
+      return {
+        ok: true,
+        value: {
+          ...emptyValues,
+          value: decimalValue.value,
+          roundingMessages: collectRoundedDecimalMessages([decimalValue]),
+        },
+      };
+    }
+
+    if (selectedRule === "fixedAmount") {
+      const value = validateDecimalField(form.value, "El monto fijo", {
+        min: 0,
+        minExclusive: true,
+        invalidMessage: "El monto fijo debe ser un numero valido con maximo 3 decimales.",
+        minMessage: "El monto fijo debe ser mayor a 0.",
+      });
+      if (!value.ok) return { ok: false, error: value.error };
+      const decimalValue = value.value;
+      return {
+        ok: true,
+        value: {
+          ...emptyValues,
+          value: decimalValue.value,
+          roundingMessages: collectRoundedDecimalMessages([decimalValue]),
+        },
+      };
+    }
+
+    if (selectedRule === "specialPrice") {
+      const specialPrice = validateDecimalField(form.specialPrice, "El precio especial", {
+        min: 0,
+        minExclusive: true,
+        invalidMessage: "El precio especial debe ser un numero valido con maximo 3 decimales.",
+        minMessage: "El precio especial debe ser mayor a 0.",
+      });
+      if (!specialPrice.ok) return { ok: false, error: specialPrice.error };
+      const decimalValue = specialPrice.value;
+      return {
+        ok: true,
+        value: {
+          ...emptyValues,
+          specialPrice: decimalValue.value,
+          roundingMessages: collectRoundedDecimalMessages([decimalValue]),
+        },
+      };
+    }
+
+    return { ok: true, value: emptyValues };
+  };
+
   const changeType = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const type = promotionTypes.find((item) => item.id === Number(event.target.value));
     const rule = type ? getRule(type.name) : null;
@@ -345,15 +428,13 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     if (form.productIds.length === 0) return "Seleccione al menos un producto activo.";
 
     if (selectedRule === "percentage") {
-      const value = Number(form.value);
-      if (!Number.isFinite(value) || value <= 0 || value > 100) {
-        return "El porcentaje debe ser mayor a 0 y menor o igual a 100.";
-      }
+      const decimalValidation = validatePromotionDecimals();
+      if (!decimalValidation.ok) return decimalValidation.error;
     }
 
     if (selectedRule === "fixedAmount") {
-      const value = Number(form.value);
-      if (!Number.isFinite(value) || value <= 0) return "El monto fijo debe ser mayor a 0.";
+      const decimalValidation = validatePromotionDecimals();
+      if (!decimalValidation.ok) return decimalValidation.error;
     }
 
     if (selectedRule === "buyXPayY") {
@@ -366,9 +447,9 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
     if (selectedRule === "specialPrice") {
       const minQuantity = Number(form.minQuantity);
-      const specialPrice = Number(form.specialPrice);
       if (!Number.isInteger(minQuantity) || minQuantity < 1) return "La cantidad minima debe ser mayor o igual a 1.";
-      if (!Number.isFinite(specialPrice) || specialPrice <= 0) return "El precio especial debe ser mayor a 0.";
+      const decimalValidation = validatePromotionDecimals();
+      if (!decimalValidation.ok) return decimalValidation.error;
     }
 
     if (!selectedRule) return "El tipo de promocion seleccionado no esta soportado.";
@@ -376,17 +457,17 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     return null;
   };
 
-  const buildPayload = () => ({
+  const buildPayload = (decimalValues: PromotionDecimalValues) => ({
     name: form.name.trim(),
     description: form.description.trim() || null,
     promotionTypeId: Number(form.promotionTypeId),
     startDate: form.startDate,
     endDate: form.endDate,
     isActive: form.isActive,
-    value: form.value.trim() ? Number(form.value) : null,
+    value: decimalValues.value,
     minQuantity: form.minQuantity.trim() ? Number(form.minQuantity) : null,
     payQuantity: form.payQuantity.trim() ? Number(form.payQuantity) : null,
-    specialPrice: form.specialPrice.trim() ? Number(form.specialPrice) : null,
+    specialPrice: decimalValues.specialPrice,
     productIds: form.productIds,
   });
 
@@ -460,15 +541,24 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
       setFormError(validation);
       return;
     }
+    const decimalValidation = validatePromotionDecimals();
+    if (!decimalValidation.ok) {
+      setFormError(decimalValidation.error);
+      return;
+    }
 
     setSaving(true);
     setFormError(null);
     try {
+      if (decimalValidation.value.roundingMessages.length > 0) {
+        alert(decimalValidation.value.roundingMessages.join("\n"));
+      }
+
       if (editing === "create") {
-        await api.post("/api/admin-promotions/promotions", buildPayload());
+        await api.post("/api/admin-promotions/promotions", buildPayload(decimalValidation.value));
         setNotice("Promocion creada correctamente.");
       } else if (editing) {
-        await api.put(`/api/admin-promotions/promotions/${editing.id}`, buildPayload());
+        await api.put(`/api/admin-promotions/promotions/${editing.id}`, buildPayload(decimalValidation.value));
         setNotice("Promocion actualizada correctamente.");
       }
 
@@ -695,7 +785,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                 {(selectedRule === "percentage" || selectedRule === "fixedAmount") && (
                   <div>
                     <label style={ui.fieldLabel}>{selectedRule === "percentage" ? "Porcentaje *" : "Monto fijo *"}</label>
-                    <input style={ui.input} value={form.value} onChange={setField("value")} placeholder={selectedRule === "percentage" ? "20" : "10.00"} inputMode="decimal" />
+                    <input type="text" style={ui.input} value={form.value} onChange={setDecimalField("value")} placeholder={selectedRule === "percentage" ? "20" : "10.00"} inputMode="decimal" />
                   </div>
                 )}
 
@@ -720,7 +810,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     </div>
                     <div>
                       <label style={ui.fieldLabel}>Precio especial *</label>
-                      <input style={ui.input} value={form.specialPrice} onChange={setField("specialPrice")} placeholder="38.00" inputMode="decimal" />
+                      <input type="text" style={ui.input} value={form.specialPrice} onChange={setDecimalField("specialPrice")} placeholder="38.00" inputMode="decimal" />
                     </div>
                   </>
                 )}
