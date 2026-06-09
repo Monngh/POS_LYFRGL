@@ -1753,15 +1753,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleCancelSale = () => {
-    setCart([]);
-    setSelectedCustomer(null);
-    setUsePoints(false);
-    setPointsToRedeem(0);
-    setInvoiceRequested(false);
-    setCheckoutModalOpen(false);
-  };
-
   const handleCancelDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cancellingDep) return;

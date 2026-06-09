@@ -266,36 +266,6 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
   };
 
   // ---------------------------------------------------------------------------
-  // Reasignación de empleados
-  // ---------------------------------------------------------------------------
-  const handleReassign = async () => {
-    if (!reassignId || !reassignTarget || reassigning) {
-      return;
-    }
-    setReassigning(true);
-    try {
-      await api.put(`/api/admin/employees/${reassignId}`, {
-        branchId: parseInt(reassignTarget),
-      });
-      await Promise.all([
-        load(),
-        loadEmployees()
-      ]);
-      setReassignId(null);
-      setReassignTarget("");
-      setSelectedBranch((prev) =>
-        prev
-          ? { ...prev, employees: prev.employees - 1 }
-          : prev
-      );
-    } catch (err: any) {
-      alert(err.response?.data?.message || "Error al reasignar empleado.");
-    } finally {
-      setReassigning(false);
-    }
-  };
-
-  // ---------------------------------------------------------------------------
   // Filtros de tabla
   // ---------------------------------------------------------------------------
   const activeCount = rows.filter((r) => r.active).length;
