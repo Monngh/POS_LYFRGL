@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { FileText, RefreshCw, CheckCircle, AlertCircle, Calendar } from "lucide-react";
+import { RefreshCw, CheckCircle, AlertCircle } from "lucide-react";
 import api from "../../services/api";
 import {
   ui,
   type ViewProps,
-  Toolbar,
   Badge,
   Panel,
   TableState,
@@ -134,7 +133,6 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
   // Cálculos resumen
   const totalAmount = tickets.reduce((acc, t) => acc + t.totalAmount, 0);
   const totalTax = tickets.reduce((acc, t) => acc + t.taxAmount, 0);
-  const totalSubtotal = totalAmount - totalTax;
 
   return (
     <div>

@@ -13,8 +13,6 @@ import {
   LogOut, 
   LogIn, 
   Sparkles, 
-  Calendar, 
-  DollarSign, 
   ClipboardList, 
   Check, 
   FileCode 
