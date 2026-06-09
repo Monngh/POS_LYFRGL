@@ -243,7 +243,21 @@ const AdminDashboard: React.FC = () => {
             >
               <ArrowLeft size={18} color="#1e3a8a" />
             </button>
-            <span style={{ ...styles.appLabel, ...(isMobile ? { fontSize: 14 } : {}) }}>
+            <span
+              style={{
+                ...styles.appLabel,
+                ...(isMobile
+                  ? {
+                      fontSize: 14,
+                      flex: "1 1 0",
+                      minWidth: 0,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }
+                  : {}),
+              }}
+            >
               {isMobile ? active.label : "Panel Administrativo Central"}
             </span>
           </div>
