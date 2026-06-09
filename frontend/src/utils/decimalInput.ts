@@ -4,12 +4,12 @@ export const DECIMAL_SAVE_REGEX = /^\d+(?:\.\d{0,3})?$/;
 export type DecimalValidationResult = DecimalValidationSuccess | DecimalValidationFailure;
 
 export interface DecimalValidationSuccess {
-  ok: true;
+  readonly ok: true;
   value: DecimalFieldValue;
 }
 
 export interface DecimalValidationFailure {
-  ok: false;
+  readonly ok: false;
   error: string;
 }
 
