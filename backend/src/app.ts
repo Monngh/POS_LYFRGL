@@ -34,7 +34,11 @@ app.use((req, res, next) => {
 
 app.use(helmet());
 app.use(cors({
-  origin: ["http://localhost:5173", "https://pos-fmb.vercel.app"], // En producción configurar para los dominios permitidos
+  origin: [
+    "http://localhost:5173",
+    "https://pos-fmb.vercel.app",
+    "https://pos-lyfrgl.vercel.app"
+  ],
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
