@@ -689,14 +689,10 @@ export const getRecentSales = async (req: Request, res: Response): Promise<void>
       if (dateFrom || dateTo) {
         where.createdAt = {};
         if (dateFrom) {
-          where.createdAt.gte = new Date(String(dateFrom));
+          where.createdAt.gte = new Date(`${dateFrom}T00:00:00`);
         }
         if (dateTo) {
-          const dateToParsed = new Date(String(dateTo));
-          if (String(dateTo).length <= 10) {
-            dateToParsed.setHours(23, 59, 59, 999);
-          }
-          where.createdAt.lte = dateToParsed;
+          where.createdAt.lte = new Date(`${dateTo}T23:59:59.999`);
         }
       }
     }
@@ -1216,14 +1212,10 @@ export const searchDeposits = async (req: Request, res: Response): Promise<void>
     if (dateFrom || dateTo) {
       whereClause.createdAt = {};
       if (dateFrom) {
-        whereClause.createdAt.gte = new Date(String(dateFrom));
+        whereClause.createdAt.gte = new Date(`${dateFrom}T00:00:00`);
       }
       if (dateTo) {
-        const dateToParsed = new Date(String(dateTo));
-        if (String(dateTo).length <= 10) {
-          dateToParsed.setHours(23, 59, 59, 999);
-        }
-        whereClause.createdAt.lte = dateToParsed;
+        whereClause.createdAt.lte = new Date(`${dateTo}T23:59:59.999`);
       }
     }
 
