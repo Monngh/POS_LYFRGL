@@ -21,6 +21,54 @@
   display: none !important;
 }
 
+.pos-cashier-responsive-menu-head,
+.pos-cashier-responsive-menu-cell {
+  display: none !important;
+}
+
+.pos-cashier-cart-mobile-title {
+  display: none;
+}
+
+.pos-cashier-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.32);
+}
+
+.pos-cashier-loading-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 16px 28px rgba(15, 23, 42, 0.18);
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pos-cashier-loading-spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid #dbeafe;
+  border-top-color: #2563eb;
+  border-radius: 999px;
+  animation: pos-cashier-spin 0.8s linear infinite;
+}
+
+@keyframes pos-cashier-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* --- Tablet (≤1024px) --- */
 @media (max-width: 1024px) {
   .pos-cashier-app {
@@ -71,12 +119,7 @@
     min-height: 260px;
   }
 
-  /* Scroll horizontal en tablas también en tablet */
-  .pos-cashier-table-scroll {
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
-    width: 100%;
-  }
+
 }
 
 /* --- Móvil / tablet pequeña (≤768px) --- */
@@ -179,14 +222,155 @@
   }
 
   .pos-cashier-cart-scroll {
-    overflow-x: auto !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
     -webkit-overflow-scrolling: touch;
     width: 100%;
     margin-bottom: 20px !important;
   }
 
-  .pos-cashier-cart-scroll table {
-    min-width: 580px;
+  .pos-cashier-cart-mobile-title {
+    display: block;
+    margin: 0 0 12px;
+    color: #0f172a;
+    font-size: 17px;
+    font-weight: 800;
+  }
+
+  .pos-cashier-cart-table,
+  .pos-cashier-cart-table tbody {
+    display: block;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .pos-cashier-cart-table thead {
+    display: none;
+  }
+
+  .pos-cashier-cart-table tbody tr {
+    position: relative;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "product qty"
+      "sku qty"
+      "price amount";
+    gap: 4px 14px;
+    width: 100%;
+    margin-bottom: 12px;
+    padding: 14px 42px 14px 16px;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  }
+
+  .pos-cashier-cart-table tbody tr > td {
+    display: block !important;
+    min-width: 0;
+    padding: 0 !important;
+    border: 0 !important;
+    white-space: normal !important;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(1) {
+    grid-area: sku;
+    color: #64748b !important;
+    font-size: 13px !important;
+    font-weight: 600;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(2) {
+    grid-area: product;
+    padding-right: 4px !important;
+    color: #0f172a !important;
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    line-height: 1.25;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(3) {
+    grid-area: qty;
+    align-self: center;
+    justify-self: end;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(3) > div {
+    height: 38px;
+    border-radius: 6px !important;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(3) button {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(3) input {
+    width: 42px !important;
+    height: 36px !important;
+    font-size: 15px !important;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(4) {
+    grid-area: price;
+    color: #334155 !important;
+    font-size: 13px !important;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(4)::before {
+    content: "Unitario: ";
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(5) {
+    grid-area: amount;
+    align-self: end;
+    justify-self: end;
+    color: #0f172a !important;
+    font-size: 14px !important;
+    font-weight: 800 !important;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(5)::before {
+    content: "Importe: ";
+    color: #0f172a;
+    font-weight: 500;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(6) {
+    position: absolute;
+    top: -9px;
+    right: -7px;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(6) button {
+    width: 30px;
+    height: 30px;
+    border-radius: 999px !important;
+    background: #dc2626 !important;
+    border: 2px solid #ffffff !important;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(6) svg {
+    width: 22px;
+    height: 22px;
+    color: #ffffff;
+    stroke: #ffffff;
+  }
+
+  .pos-cashier-cart-table .pos-cashier-cart-empty {
+    display: block !important;
+    padding: 24px 12px !important;
+    text-align: center;
+  }
+
+  .pos-cashier-cart-table td > span[style*="backgroundColor"] {
+    margin-top: 8px !important;
   }
 
   .pos-cashier-terminal-summary {
@@ -219,6 +403,11 @@
 
   .pos-cashier-table-scroll table {
     min-width: 640px;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales table,
+  .pos-cashier-table-scroll--dashboard-deposits table {
+    min-width: 0 !important;
   }
 
   .pos-cashier-table-scroll table td {
@@ -287,7 +476,7 @@
 
   /* Contenedor de detalles adicionales */
   .pos-cashier-table-details {
-    display: block;
+    display: block !important;
     padding: 8px 12px;
     background: #f8fafc;
     border-top: 1px solid #e2e8f0;
@@ -453,5 +642,372 @@
   .pos-cashier-pin-grid button {
     height: 40px !important;
     font-size: 14px !important;
+  }
+}
+
+/* Nueva venta: tablet conserva flujo vertical y carrito sin scroll horizontal */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .pos-cashier-terminal-header {
+    height: auto !important;
+    padding: 12px 18px !important;
+    gap: 12px;
+  }
+
+  .pos-cashier-terminal-body {
+    padding: 16px !important;
+    gap: 16px !important;
+    overflow: visible !important;
+  }
+
+  .pos-cashier-search-row > form,
+  .pos-cashier-search-row > div {
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+  }
+
+  .pos-cashier-cart-card {
+    flex: none !important;
+    overflow: visible !important;
+    padding: 16px !important;
+  }
+
+  .pos-cashier-cart-scroll {
+    width: 100%;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+    margin-bottom: 20px !important;
+  }
+
+  .pos-cashier-cart-mobile-title {
+    display: block;
+    margin: 0 0 12px;
+    color: #0f172a;
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  .pos-cashier-cart-table,
+  .pos-cashier-cart-table tbody {
+    display: block;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .pos-cashier-cart-table thead {
+    display: none;
+  }
+
+  .pos-cashier-cart-table tbody tr {
+    position: relative;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "product qty"
+      "sku qty"
+      "price amount";
+    gap: 5px 18px;
+    width: 100%;
+    margin-bottom: 12px;
+    padding: 16px 46px 16px 18px;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  }
+
+  .pos-cashier-cart-table tbody tr > td {
+    display: block !important;
+    min-width: 0;
+    padding: 0 !important;
+    border: 0 !important;
+    white-space: normal !important;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(1) {
+    grid-area: sku;
+    color: #64748b !important;
+    font-size: 13px !important;
+    font-weight: 600;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(2) {
+    grid-area: product;
+    color: #0f172a !important;
+    font-size: 17px !important;
+    font-weight: 800 !important;
+    line-height: 1.25;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(3) {
+    grid-area: qty;
+    align-self: center;
+    justify-self: end;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(3) > div {
+    height: 38px;
+    border-radius: 6px !important;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(3) button {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(3) input {
+    width: 42px !important;
+    height: 36px !important;
+    font-size: 15px !important;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(4) {
+    grid-area: price;
+    color: #334155 !important;
+    font-size: 13px !important;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(4)::before {
+    content: "Unitario: ";
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(5) {
+    grid-area: amount;
+    align-self: end;
+    justify-self: end;
+    color: #0f172a !important;
+    font-size: 15px !important;
+    font-weight: 800 !important;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(5)::before {
+    content: "Importe: ";
+    color: #0f172a;
+    font-weight: 500;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(6) {
+    position: absolute;
+    top: -9px;
+    right: -7px;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(6) button {
+    width: 30px;
+    height: 30px;
+    border-radius: 999px !important;
+    background: #dc2626 !important;
+    border: 2px solid #ffffff !important;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .pos-cashier-cart-table tbody tr > td:nth-child(6) svg {
+    width: 22px;
+    height: 22px;
+    color: #ffffff;
+    stroke: #ffffff;
+  }
+
+  .pos-cashier-terminal-summary {
+    flex-direction: column !important;
+    gap: 16px !important;
+    margin-top: 24px !important;
+  }
+
+  .pos-cashier-terminal-summary-col {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+}
+
+/* Dashboard cajero: tablas compactas con menu en tablet/movil */
+@media (max-width: 1024px) {
+  .pos-cashier-table-scroll--dashboard-sales,
+  .pos-cashier-table-scroll--dashboard-deposits {
+    max-height: 320px;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales table,
+  .pos-cashier-table-scroll--dashboard-deposits table {
+    display: table !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales thead,
+  .pos-cashier-table-scroll--dashboard-deposits thead {
+    display: table-header-group !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales tbody,
+  .pos-cashier-table-scroll--dashboard-deposits tbody {
+    display: table-row-group !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales tr,
+  .pos-cashier-table-scroll--dashboard-deposits tr {
+    display: table-row !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales th,
+  .pos-cashier-table-scroll--dashboard-sales td,
+  .pos-cashier-table-scroll--dashboard-deposits th,
+  .pos-cashier-table-scroll--dashboard-deposits td {
+    display: table-cell !important;
+    padding: 10px 8px !important;
+    white-space: nowrap !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales th:nth-child(4),
+  .pos-cashier-table-scroll--dashboard-sales th:nth-child(5),
+  .pos-cashier-table-scroll--dashboard-sales th:nth-child(6),
+  .pos-cashier-table-scroll--dashboard-sales th:nth-child(8),
+  .pos-cashier-table-scroll--dashboard-sales td:nth-child(4),
+  .pos-cashier-table-scroll--dashboard-sales td:nth-child(5),
+  .pos-cashier-table-scroll--dashboard-sales td:nth-child(6),
+  .pos-cashier-table-scroll--dashboard-sales td:nth-child(7) {
+    display: none !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales th.pos-cashier-responsive-menu-head,
+  .pos-cashier-table-scroll--dashboard-sales td.pos-cashier-responsive-menu-cell {
+    display: table-cell !important;
+    width: 46px;
+    overflow: visible;
+    position: relative;
+    text-align: center;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales th:nth-child(1),
+  .pos-cashier-table-scroll--dashboard-sales td:nth-child(1) {
+    width: 38%;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales th:nth-child(2),
+  .pos-cashier-table-scroll--dashboard-sales td:nth-child(2) {
+    width: 24%;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales th:nth-child(3),
+  .pos-cashier-table-scroll--dashboard-sales td:nth-child(3) {
+    width: 24%;
+  }
+
+  .pos-cashier-table-scroll--dashboard-deposits th:nth-child(5),
+  .pos-cashier-table-scroll--dashboard-deposits td:nth-child(4) {
+    display: none !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-deposits th.pos-cashier-responsive-menu-head,
+  .pos-cashier-table-scroll--dashboard-deposits td.pos-cashier-responsive-menu-cell {
+    display: table-cell !important;
+    width: 46px;
+    overflow: visible;
+    position: relative;
+    text-align: center;
+  }
+
+  .pos-cashier-kebab-btn {
+    width: 34px;
+    height: 34px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #334155;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .pos-cashier-row-menu {
+    position: absolute;
+    right: 8px;
+    z-index: 80;
+    min-width: 150px;
+    margin-top: 6px;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.14);
+    overflow: hidden;
+    text-align: left;
+  }
+
+  .pos-cashier-row-menu button {
+    width: 100%;
+    border: 0;
+    background: #ffffff;
+    color: #0f172a;
+    cursor: pointer;
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 10px 12px;
+    text-align: left;
+  }
+
+  .pos-cashier-row-menu button + button {
+    border-top: 1px solid #f1f5f9;
+  }
+
+  .pos-cashier-row-menu button:hover {
+    background: #f8fafc;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-details-row,
+  .pos-cashier-table-scroll--dashboard-deposits .pos-cashier-table-details-row {
+    display: none !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-row-expanded + .pos-cashier-table-details-row,
+  .pos-cashier-table-scroll--dashboard-deposits .pos-cashier-table-row-expanded + .pos-cashier-table-details-row {
+    display: table-row !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-details-row > td,
+  .pos-cashier-table-scroll--dashboard-deposits .pos-cashier-table-details-row > td {
+    display: table-cell !important;
+    white-space: normal !important;
+    overflow: visible;
+    padding: 0 !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-details,
+  .pos-cashier-table-scroll--dashboard-deposits .pos-cashier-table-details {
+    display: block !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-details-content:nth-of-type(4),
+  .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-details .pos-cashier-table-expand-btn,
+  .pos-cashier-table-scroll--dashboard-deposits .pos-cashier-table-details .pos-cashier-table-expand-btn {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .pos-cashier-table-scroll--dashboard-sales,
+  .pos-cashier-table-scroll--dashboard-deposits {
+    max-height: 280px;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales th,
+  .pos-cashier-table-scroll--dashboard-sales td,
+  .pos-cashier-table-scroll--dashboard-deposits th,
+  .pos-cashier-table-scroll--dashboard-deposits td {
+    padding: 9px 6px !important;
+    font-size: 11px !important;
   }
 }
