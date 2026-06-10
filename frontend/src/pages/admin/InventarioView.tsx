@@ -2,9 +2,11 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { AlertTriangle, Printer, X, Plus, BadgePercent } from "lucide-react";
 import api from "../../services/api";
 import {
+  DECIMAL_INPUT_REGEX,
   handleDecimalInputChange,
   validateDecimalField,
 } from "../../utils/decimalInput";
+import { validateInteger } from "../../utils/formValidation";
 import KardexView from "./KardexView";
 import {
   ui,
@@ -109,6 +111,7 @@ interface ProductTaxResponse {
 }
 
 const emptyForm = { sku: "", barcode: "", name: "", description: "", costPrice: "", sellPrice: "", satProductKey: "", satUnitKey: "" };
+type ProductFieldErrors = Partial<Record<keyof typeof emptyForm, string>>;
 const PRODUCT_TEXT_REGEX = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü0-9\s.,#\-/()]+$/;
 const SKU_REGEX = /^[A-Za-z0-9_-]+$/;
 const BARCODE_REGEX = /^[0-9]+$/;
@@ -230,6 +233,37 @@ const validateProductForm = (form: typeof emptyForm, requireSku: boolean): Valid
   };
 };
 
+const validateProductFormFields = (form: typeof emptyForm, requireSku: boolean): ProductFieldErrors => {
+  const errors: ProductFieldErrors = {};
+  const sku = form.sku.trim();
+  const barcode = form.barcode.trim();
+  const name = form.name.trim();
+  const description = form.description.trim();
+  const satProductKey = form.satProductKey.trim() || "01010101";
+  const satUnitKey = form.satUnitKey.trim() || "H87";
+
+  if (requireSku && !sku) errors.sku = "El SKU es obligatorio.";
+  else if (sku && !SKU_REGEX.test(sku)) errors.sku = "El SKU solo puede contener letras, numeros, guion medio y guion bajo.";
+
+  if (!name) errors.name = "El nombre del producto es requerido.";
+  else if (!PRODUCT_TEXT_REGEX.test(name)) errors.name = "El nombre contiene caracteres no permitidos.";
+
+  if (barcode && !BARCODE_REGEX.test(barcode)) errors.barcode = "El codigo de barras solo puede contener numeros.";
+  if (description && !PRODUCT_TEXT_REGEX.test(description)) errors.description = "La descripcion contiene caracteres no permitidos.";
+  if (!SAT_PRODUCT_KEY_REGEX.test(satProductKey)) errors.satProductKey = "La clave SAT debe contener 8 numeros.";
+  if (!SAT_UNIT_KEY_REGEX.test(satUnitKey)) errors.satUnitKey = "La clave de unidad SAT solo puede contener letras y numeros.";
+
+  const cost = validateMoneyField(form.costPrice, "costo");
+  const costError = getValidationError(cost);
+  if (costError) errors.costPrice = costError;
+
+  const sell = validateMoneyField(form.sellPrice, "precio");
+  const sellError = getValidationError(sell);
+  if (sellError) errors.sellPrice = sellError;
+
+  return errors;
+};
+
 const getErrorMessage = (err: unknown, fallback: string) => {
   if (typeof err === "object" && err !== null && "response" in err) {
     const apiError = err as { response?: { data?: { message?: string } } };
@@ -272,6 +306,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [editMode, setEditMode] = useState(false);
   const [editCost, setEditCost] = useState("");
   const [editPrice, setEditPrice] = useState("");
+  const [priceFieldErrors, setPriceFieldErrors] = useState<Partial<Record<"cost" | "price", string>>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
   const [priceSaving, setPriceSaving] = useState(false);
 
@@ -283,6 +318,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [adjustReason, setAdjustReason] = useState("");
   const [adjustObservations, setAdjustObservations] = useState("");
   const [adjustError, setAdjustError] = useState<string | null>(null);
+  const [adjustFieldErrors, setAdjustFieldErrors] = useState<Partial<Record<"quantity", string>>>({});
   const [adjustSaving, setAdjustSaving] = useState(false);
 
   // Feature 3: transfer
@@ -292,6 +328,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [transferQty, setTransferQty] = useState(0);
   const [transferConfirm, setTransferConfirm] = useState(false);
   const [transferError, setTransferError] = useState<string | null>(null);
+  const [transferFieldErrors, setTransferFieldErrors] = useState<Partial<Record<"quantity", string>>>({});
   const [transferSaving, setTransferSaving] = useState(false);
 
 
@@ -305,6 +342,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
+  const [fieldErrors, setFieldErrors] = useState<ProductFieldErrors>({});
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -314,17 +352,109 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [taxError, setTaxError] = useState<string | null>(null);
   const taxRequestId = useRef(0);
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const value = k === "barcode" || k === "satProductKey" ? e.target.value.replace(/\D/g, "") : e.target.value;
+    const nextForm = { ...form, [k]: value };
+    const validation = validateProductFormFields(nextForm, editingId === null);
+    setForm(nextForm);
+    setFormError(null);
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      if (validation[k]) next[k] = validation[k];
+      else delete next[k];
+      return next;
+    });
+  };
 
-  const setMoney = (k: "costPrice" | "sellPrice") => (e: React.ChangeEvent<HTMLInputElement>) =>
-    handleDecimalInputChange(e.target.value, (nextValue) => setForm((f) => ({ ...f, [k]: nextValue })));
+  const setMoney = (k: "costPrice" | "sellPrice") => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.trim();
+    if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        [k]: k === "costPrice"
+          ? "El costo debe ser un numero valido con maximo 3 decimales."
+          : "El precio debe ser un numero valido con maximo 3 decimales.",
+      }));
+      return;
+    }
+    handleDecimalInputChange(rawValue, (nextValue) => {
+      const nextForm = { ...form, [k]: nextValue };
+      const validation = validateProductFormFields(nextForm, editingId === null);
+      setForm(nextForm);
+      setFormError(null);
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        if (validation[k]) next[k] = validation[k];
+        else delete next[k];
+        return next;
+      });
+    });
+  };
+
+  const setEditMoney = (key: "cost" | "price") => (value: string) => {
+    const rawValue = value.trim();
+    if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
+      setPriceFieldErrors((prev) => ({
+        ...prev,
+        [key]: key === "cost"
+          ? "El costo debe ser un numero valido con maximo 3 decimales."
+          : "El precio debe ser un numero valido con maximo 3 decimales.",
+      }));
+      return;
+    }
+    handleDecimalInputChange(rawValue, (nextValue) => {
+      if (key === "cost") setEditCost(nextValue);
+      else setEditPrice(nextValue);
+      const validation = validateMoneyField(nextValue, key === "cost" ? "costo" : "precio");
+      const error = getValidationError(validation);
+      setPriceFieldErrors((prev) => {
+        const next = { ...prev };
+        if (error) next[key] = error;
+        else delete next[key];
+        return next;
+      });
+      setSaveError(null);
+    });
+  };
+
+  const handleAdjustQuantityChange = (value: string) => {
+    if (!value) {
+      setAdjustQuantity(0);
+      setAdjustFieldErrors((prev) => ({ ...prev, quantity: undefined }));
+      return;
+    }
+    const error = validateInteger(value, "La cantidad", { min: 1 });
+    if (error) {
+      setAdjustFieldErrors((prev) => ({ ...prev, quantity: error }));
+      return;
+    }
+    setAdjustQuantity(Number(value));
+    setAdjustFieldErrors((prev) => ({ ...prev, quantity: undefined }));
+    setAdjustError(null);
+  };
+
+  const handleTransferQuantityChange = (value: string) => {
+    if (!value) {
+      setTransferQty(0);
+      setTransferFieldErrors((prev) => ({ ...prev, quantity: undefined }));
+      return;
+    }
+    const error = validateInteger(value, "La cantidad", { min: 1 });
+    if (error) {
+      setTransferFieldErrors((prev) => ({ ...prev, quantity: error }));
+      return;
+    }
+    setTransferQty(Number(value));
+    setTransferFieldErrors((prev) => ({ ...prev, quantity: undefined }));
+    setTransferError(null);
+  };
 
   const closeForm = () => {
     if (saving) return;
     taxRequestId.current += 1;
     setShowForm(false);
     setEditingId(null);
+    setFieldErrors({});
     setFormError(null);
     setTaxError(null);
     setTaxOptions([]);
@@ -394,6 +524,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     taxRequestId.current += 1;
     setForm({ ...emptyForm, satProductKey: "01010101", satUnitKey: "H87" });
     setEditingId(null);
+    setFieldErrors({});
     setFormError(null);
     setTaxError(null);
     setSelectedTaxIds([]);
@@ -414,6 +545,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       satUnitKey: "satUnitKey" in p ? p.satUnitKey || "H87" : "H87",
     });
     setEditingId(p.id);
+    setFieldErrors({});
     setFormError(null);
     setShowForm(true);
     void loadProductTaxes(p.id);
@@ -447,6 +579,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     e.preventDefault();
     if (saving) return;
 
+    const fieldValidation = validateProductFormFields(form, editingId === null);
+    if (Object.keys(fieldValidation).length > 0) {
+      setFieldErrors(fieldValidation);
+      setFormError("Revisa los campos marcados antes de guardar.");
+      return;
+    }
+
     const validated = validateProductForm(form, editingId === null);
     const validationError = getValidationError(validated);
     if (validationError) {
@@ -466,6 +605,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
     setSaving(true);
     setFormError(null);
+    setFieldErrors({});
     try {
       if (validatedProduct.roundingMessages.length > 0) {
         alert(validatedProduct.roundingMessages.join("\n"));
@@ -507,6 +647,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setShowForm(false);
       setForm({ ...emptyForm });
       setEditingId(null);
+      setFieldErrors({});
       setTaxOptions([]);
       setSelectedTaxIds([]);
       await load();
@@ -652,13 +793,15 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     const cost = validateMoneyField(editCost, "costo");
     const costError = getValidationError(cost);
     if (costError) {
-      setSaveError(costError);
+      setPriceFieldErrors((prev) => ({ ...prev, cost: costError }));
+      setSaveError("Revisa los campos marcados antes de guardar.");
       return;
     }
     const price = validateMoneyField(editPrice, "precio");
     const priceError = getValidationError(price);
     if (priceError) {
-      setSaveError(priceError);
+      setPriceFieldErrors((prev) => ({ ...prev, price: priceError }));
+      setSaveError("Revisa los campos marcados antes de guardar.");
       return;
     }
     const costValue = getValidationValue(cost);
@@ -678,6 +821,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       });
       await fetchDetail(selectedProduct.id);
       setEditMode(false);
+      setPriceFieldErrors({});
       await load();
     } catch (err: unknown) {
       setSaveError(getErrorMessage(err, "Error al guardar."));
@@ -694,10 +838,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setAdjustError("Completa todos los campos obligatorios.");
       return;
     }
-    if (!Number.isFinite(adjustQuantity) || !Number.isInteger(adjustQuantity) || adjustQuantity <= 0) {
-      setAdjustError("La cantidad debe ser un entero mayor a 0.");
+    const adjustQuantityError = validateInteger(adjustQuantity ? String(adjustQuantity) : "", "La cantidad", { min: 1 });
+    if (adjustQuantityError || !Number.isFinite(adjustQuantity) || !Number.isInteger(adjustQuantity) || adjustQuantity <= 0) {
+      setAdjustFieldErrors((prev) => ({ ...prev, quantity: adjustQuantityError || "La cantidad debe ser un entero mayor a 0." }));
+      setAdjustError("Revisa los campos marcados antes de aplicar el ajuste.");
       return;
     }
+    setAdjustFieldErrors({});
 
     const currentStock = selectedProduct.inventories.find((inv) => inv.branchId === adjustBranch)?.quantity ?? 0;
 
@@ -750,6 +897,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setAdjustBranch(0);
       setAdjustType("");
       setAdjustQuantity(0);
+      setAdjustFieldErrors({});
       setAdjustReason("");
       setAdjustObservations("");
     } catch (err: unknown) {
@@ -767,6 +915,19 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setTransferError("Completa todos los campos.");
       return;
     }
+    const transferQuantityError = validateInteger(transferQty ? String(transferQty) : "", "La cantidad", { min: 1 });
+    if (transferQuantityError) {
+      setTransferFieldErrors((prev) => ({ ...prev, quantity: transferQuantityError }));
+      setTransferError("Revisa los campos marcados antes de trasladar.");
+      return;
+    }
+    const fromInventory = selectedProduct.inventories.find((inv) => inv.branchId === transferFrom);
+    if (fromInventory && transferQty > fromInventory.quantity) {
+      setTransferFieldErrors((prev) => ({ ...prev, quantity: "La cantidad supera el stock disponible." }));
+      setTransferError("Revisa los campos marcados antes de trasladar.");
+      return;
+    }
+    setTransferFieldErrors({});
     setTransferSaving(true);
     try {
       await api.post("/api/admin/inventory/transfer", {
@@ -781,6 +942,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setTransferFrom(0);
       setTransferTo(0);
       setTransferQty(0);
+      setTransferFieldErrors({});
       setTransferConfirm(false);
     } catch (err: unknown) {
       setTransferConfirm(false);
@@ -1020,7 +1182,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           ))}
                         </div>
                         <button
-                          onClick={() => { setEditMode(true); setSaveError(null); }}
+                          onClick={() => { setEditMode(true); setSaveError(null); setPriceFieldErrors({}); }}
                           style={{
                             ...ui.ghostBtn,
                             fontSize: 12,
@@ -1040,10 +1202,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               type="text"
                               inputMode="decimal"
                               value={editCost}
-                              onChange={(e) => handleDecimalInputChange(e.target.value, setEditCost)}
+                              onChange={(e) => setEditMoney("cost")(e.target.value)}
                               placeholder="0.00"
                               style={ui.input}
                             />
+                            {priceFieldErrors.cost && <p style={styles.fieldError}>{priceFieldErrors.cost}</p>}
                           </div>
                           <div>
                             <label style={ui.fieldLabel}>Precio venta</label>
@@ -1051,10 +1214,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               type="text"
                               inputMode="decimal"
                               value={editPrice}
-                              onChange={(e) => handleDecimalInputChange(e.target.value, setEditPrice)}
+                              onChange={(e) => setEditMoney("price")(e.target.value)}
                               placeholder="0.00"
                               style={ui.input}
                             />
+                            {priceFieldErrors.price && <p style={styles.fieldError}>{priceFieldErrors.price}</p>}
                           </div>
                         </div>
                         <div style={{ fontSize: 12, color: "#64748b", marginBottom: 12 }}>
@@ -1065,7 +1229,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         )}
                         <div style={{ display: "flex", gap: 8 }}>
                           <button onClick={saveProductChanges} style={ui.primaryBtn}>✓ Guardar</button>
-                          <button onClick={() => { setEditMode(false); setSaveError(null); }} style={ui.ghostBtn}>✕ Cancelar</button>
+                          <button onClick={() => { setEditMode(false); setSaveError(null); setPriceFieldErrors({}); }} style={ui.ghostBtn}>✕ Cancelar</button>
                         </div>
                       </>
                     )}
@@ -1383,14 +1547,15 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           {adjustType === "RECOUNT" ? "Stock final declarado (reconteo) *" : `Cantidad a ${adjustType === "ENTRADA" ? "agregar" : "retirar"} *`}
                         </label>
                         <input
-                          type="number"
-                          min={0}
+                          type="text"
+                          inputMode="numeric"
                           value={adjustQuantity || ""}
-                          onChange={(e) => setAdjustQuantity(parseInt(e.target.value) || 0)}
+                          onChange={(e) => handleAdjustQuantityChange(e.target.value)}
                           style={ui.input}
                           placeholder="0"
                           autoFocus
                         />
+                        {adjustFieldErrors.quantity && <p style={styles.fieldError}>{adjustFieldErrors.quantity}</p>}
                         {adjustQuantity > 0 && (
                           adjustType === "RECOUNT" ? (
                             <p style={{ fontSize: 12, color: diff === 0 ? "#6b7280" : diff! > 0 ? "#059669" : "#b91c1c", marginTop: 4 }}>
@@ -1557,12 +1722,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <div style={{ marginBottom: 16 }}>
                       <label style={ui.fieldLabel}>Cantidad a trasladar</label>
                       <input
-                        type="number"
-                        min={1}
+                        type="text"
+                        inputMode="numeric"
                         value={transferQty || ""}
-                        onChange={(e) => setTransferQty(parseInt(e.target.value) || 0)}
+                        onChange={(e) => handleTransferQuantityChange(e.target.value)}
                         style={ui.input}
                       />
+                      {transferFieldErrors.quantity && <p style={styles.fieldError}>{transferFieldErrors.quantity}</p>}
                       {fromInv && transferQty > 0 && (
                         <p style={{ fontSize: 12, color: transferQty > fromInv.quantity ? "#b91c1c" : "#1e3a8a", marginTop: 4 }}>
                           {transferQty > fromInv.quantity
@@ -1614,16 +1780,19 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     autoFocus={editingId === null}
                     readOnly={editingId !== null}
                   />
+                  {fieldErrors.sku && <p style={styles.fieldError}>{fieldErrors.sku}</p>}
                 </div>
                 <div>
                   <label style={ui.fieldLabel}>Código de barras</label>
                   <input style={ui.input} value={form.barcode} onChange={set("barcode")} placeholder="7501000000000" />
+                  {fieldErrors.barcode && <p style={styles.fieldError}>{fieldErrors.barcode}</p>}
                 </div>
               </div>
 
               <div style={{ marginBottom: 14 }}>
                 <label style={ui.fieldLabel}>Nombre *</label>
                 <input style={ui.input} value={form.name} onChange={set("name")} placeholder="Nombre del producto" />
+                {fieldErrors.name && <p style={styles.fieldError}>{fieldErrors.name}</p>}
               </div>
 
               <div style={{ marginBottom: 14 }}>
@@ -1634,6 +1803,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   onChange={set("description")}
                   placeholder="Detalle o descripción opcional"
                 />
+                {fieldErrors.description && <p style={styles.fieldError}>{fieldErrors.description}</p>}
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
@@ -1647,6 +1817,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     onChange={setMoney("costPrice")}
                     placeholder="0.00"
                   />
+                  {fieldErrors.costPrice && <p style={styles.fieldError}>{fieldErrors.costPrice}</p>}
                 </div>
                 <div>
                   <label style={ui.fieldLabel}>Precio Venta ($) *</label>
@@ -1658,6 +1829,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     onChange={setMoney("sellPrice")}
                     placeholder="0.00"
                   />
+                  {fieldErrors.sellPrice && <p style={styles.fieldError}>{fieldErrors.sellPrice}</p>}
                 </div>
               </div>
 
@@ -1665,10 +1837,12 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <div>
                   <label style={ui.fieldLabel}>Clave SAT (ClaveProdServ) *</label>
                   <input style={ui.input} value={form.satProductKey} onChange={set("satProductKey")} placeholder="01010101" />
+                  {fieldErrors.satProductKey && <p style={styles.fieldError}>{fieldErrors.satProductKey}</p>}
                 </div>
                 <div>
                   <label style={ui.fieldLabel}>Clave Unidad SAT (ClaveUnidad) *</label>
                   <input style={ui.input} value={form.satUnitKey} onChange={set("satUnitKey")} placeholder="H87" />
+                  {fieldErrors.satUnitKey && <p style={styles.fieldError}>{fieldErrors.satUnitKey}</p>}
                 </div>
               </div>
 
@@ -1756,6 +1930,12 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 };
 
 const styles: { [key: string]: React.CSSProperties } = {
+  fieldError: {
+    color: "#b91c1c",
+    fontSize: 12,
+    fontWeight: 600,
+    marginTop: 5,
+  },
   taxSection: {
     border: "1px solid #e2e8f0",
     borderRadius: 10,

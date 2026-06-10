@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import api from "../../services/api";
-import { ui, type ViewProps, Toolbar, Badge, TableState, SectionHeader, money, fmtDate, fmtTime, payTone, FilterSelect } from "./shared";
+import { ui, type ViewProps, Toolbar, Badge, TableState, SectionHeader, money, fmtDate, fmtTime, payTone, FilterSelect, printTicketHtml } from "./shared";
 
 interface DepositRow {
   id: number;
@@ -95,92 +95,39 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   };
 
   const printDeposit = (deposit: any) => {
-    const printWindow = window.open('', '', 'width=800,height=600');
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Depósito #${deposit.id}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          h1 { color: #1e3a8a; font-size: 18px; text-align: center; }
-          .section { margin: 20px 0; }
-          .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
-          .label { font-weight: bold; color: #1e3a8a; }
-          .amount { color: #dc2626; font-weight: bold; font-size: 16px; }
-          .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #666; }
-        </style>
-      </head>
-      <body>
-        <h1>COMPROBANTE DE DEPÓSITO BANCARIO</h1>
-        
-        <div class="section">
-          <div class="row">
-            <span class="label">Folio Depósito:</span>
-            <span>#${deposit.id}</span>
-          </div>
-          <div class="row">
-            <span class="label">Fecha:</span>
-            <span>${new Date(deposit.createdAt).toLocaleString()}</span>
-          </div>
+    const safe = (value: unknown) =>
+      String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    const branchName = deposit.branch?.name || deposit.branch || "N/A";
+    const body = `
+      <div>
+        <div class="ticket-header">
+          <span class="ticket-store">LYFRGL POS</span>
+          <span class="ticket-muted">Sucursal: ${safe(branchName)}</span>
+          <span class="ticket-operation">DEPOSITO / RETIRO</span>
         </div>
-
-        <div class="section">
-          <div class="row">
-            <span class="label">Cuenta Destino:</span>
-            <span>${deposit.accountNumber}</span>
-          </div>
-          <div class="row">
-            <span class="label">Beneficiario:</span>
-            <span>${deposit.targetName}</span>
-          </div>
-          <div class="row">
-            <span class="label">Sucursal:</span>
-            <span>${deposit.branch?.name || deposit.branch || '—'}</span>
-          </div>
+        <div class="ticket-section">
+          <div class="ticket-row"><span>Folio:</span><span class="ticket-value">#${deposit.id}</span></div>
+          <div class="ticket-row"><span>Fecha:</span><span class="ticket-value">${safe(new Date(deposit.createdAt).toLocaleString())}</span></div>
+          <div class="ticket-row"><span>Cuenta destino:</span><span class="ticket-value">${safe(deposit.accountNumber)}</span></div>
+          <div class="ticket-row"><span>Beneficiario:</span><span class="ticket-value">${safe(deposit.targetName)}</span></div>
+          <div class="ticket-row"><span>Tipo:</span><span class="ticket-value">${safe(deposit.paymentType)}</span></div>
+          <div class="ticket-row"><span>Referencia:</span><span class="ticket-value">${safe(deposit.reference || "N/A")}</span></div>
+          <div class="ticket-row"><span>Estado:</span><span class="ticket-value">${safe(deposit.status)}</span></div>
+          <div class="ticket-row"><span>Comentarios:</span><span class="ticket-value">${safe(deposit.comments || "Sin comentarios")}</span></div>
+          <div class="ticket-row ticket-total"><span>Monto:</span><span>-$${Number(deposit.amount).toFixed(2)}</span></div>
         </div>
-
-        <div class="section">
-          <div class="row">
-            <span class="label">Tipo de Transferencia:</span>
-            <span>${deposit.paymentType}</span>
-          </div>
-          <div class="row">
-            <span class="label">Referencia:</span>
-            <span>${deposit.reference || '—'}</span>
-          </div>
-          <div class="row">
-            <span class="label">Monto:</span>
-            <span class="amount">-$${deposit.amount.toFixed(2)}</span>
-          </div>
+        <div class="ticket-footer">
+          <p>COMPROBANTE DE DEPOSITO BANCARIO</p>
+          <p>Generado: ${safe(new Date().toLocaleString())}</p>
         </div>
-
-        <div class="section">
-          <div class="row">
-            <span class="label">Estado:</span>
-            <span>${deposit.status}</span>
-          </div>
-          <div class="row">
-            <span class="label">Comentarios:</span>
-            <span>${deposit.comments || 'Sin comentarios'}</span>
-          </div>
-        </div>
-
-        <div class="footer">
-          <p>Generado: ${new Date().toLocaleString()}</p>
-          <p>Este es un comprobante de depósito bancario.</p>
-        </div>
-      </body>
-      </html>
+      </div>
     `;
 
-    printWindow?.document.write(htmlContent);
-    printWindow?.document.close();
-
-    setTimeout(() => {
-      printWindow?.print();
-    }, 250);
+    printTicketHtml(`Deposito #${deposit.id}`, body);
   };
 
   const total = rows.reduce((acc, d) => acc + d.amount, 0);

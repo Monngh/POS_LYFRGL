@@ -1,5 +1,7 @@
 import React from "react";
 import { Search } from "lucide-react";
+import { validateSearchText } from "../../utils/formValidation";
+import { openTicketPrintWindow } from "../../utils/ticketEmailDocument.util";
 
 // ---------------------------------------------------------------------------
 // Hook de responsividad compartido: reacciona al ancho del viewport en vivo.
@@ -74,6 +76,13 @@ export const printHtml = (title: string, bodyHtml: string) => {
   w.document.close();
 };
 
+export const printTicketHtml = (title: string, bodyHtml: string) => {
+  const printed = openTicketPrintWindow(title, bodyHtml);
+  if (!printed) {
+    alert("Habilite las ventanas emergentes para imprimir el comprobante.");
+  }
+};
+
 // ---------------------------------------------------------------------------
 // Props comunes que el shell pasa a cada vista
 // ---------------------------------------------------------------------------
@@ -135,17 +144,24 @@ export const SearchInput: React.FC<{
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
-}> = ({ value, onChange, placeholder }) => (
-  <div style={ui.searchBox}>
-    <Search size={16} color="#94a3b8" />
-    <input
-      style={ui.searchInput}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder || "Buscar..."}
-    />
-  </div>
-);
+}> = ({ value, onChange, placeholder }) => {
+  const error = validateSearchText(value, "La busqueda", { max: 120 });
+  return (
+    <div style={ui.searchField}>
+      <div style={{ ...ui.searchBox, borderColor: error ? "#dc2626" : "#e2e8f0" }}>
+        <Search size={16} color="#94a3b8" />
+        <input
+          style={ui.searchInput}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder || "Buscar..."}
+          aria-invalid={Boolean(error)}
+        />
+      </div>
+      {error && <p style={ui.fieldError}>{error}</p>}
+    </div>
+  );
+};
 
 export const FilterSelect: React.FC<{
   value: string;
@@ -224,6 +240,13 @@ export const ui: { [k: string]: React.CSSProperties } = {
     gap: 10,
     marginBottom: 16,
   },
+  searchField: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    minWidth: 240,
+    flex: "0 1 320px",
+  },
   searchBox: {
     display: "flex",
     alignItems: "center",
@@ -233,8 +256,7 @@ export const ui: { [k: string]: React.CSSProperties } = {
     padding: "0 12px",
     height: 38,
     backgroundColor: "#ffffff",
-    minWidth: 240,
-    flex: "0 1 320px",
+    width: "100%",
   },
   searchInput: {
     border: "none",
@@ -290,11 +312,15 @@ export const ui: { [k: string]: React.CSSProperties } = {
     backgroundColor: "#ffffff",
     border: "1px solid #e2e8f0",
     borderRadius: 12,
-    overflow: "hidden",
+    overflowX: "auto",
+    overflowY: "hidden",
+    width: "100%",
+    maxWidth: "100%",
     boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
   },
   table: {
     width: "100%",
+    minWidth: 700,
     borderCollapse: "collapse",
     textAlign: "left",
   },
@@ -421,5 +447,11 @@ export const ui: { [k: string]: React.CSSProperties } = {
     outline: "none",
     fontFamily: "inherit",
     backgroundColor: "#ffffff",
+  },
+  fieldError: {
+    color: "#b91c1c",
+    fontSize: 12,
+    fontWeight: 600,
+    margin: "4px 0 0",
   },
 };

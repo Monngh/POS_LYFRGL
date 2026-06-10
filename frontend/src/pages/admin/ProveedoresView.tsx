@@ -1,18 +1,18 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Plus, X, Edit2 } from "lucide-react";
 import api from "../../services/api";
+import {
+  normalizeEmailInput,
+  normalizeIntegerInput,
+  normalizePhoneInput,
+  normalizeRfcInput,
+  validateEmail as validateEmailFormat,
+  validatePhone as validatePhoneFormat,
+  validateReference,
+  validateRfc,
+  validateSafeText,
+} from "../../utils/formValidation";
 import { ui, type ViewProps, TableState, SectionHeader, Badge } from "./shared";
-
-// =========================
-// CONSTANTES Y REGEX
-// =========================
-const NAME_REGEX = /^[a-zA-ZÀ-ÿÑñ\s]+$/; // Solo letras y espacios
-const COMPANY_NAME_REGEX = /^[a-zA-ZÀ-ÿ0-9\s.-]+$/; // Para nombre comercial que puede tener números
-const RFC_REGEX = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_REGEX = /^\d{10}$/;
-const ZIP_REGEX = /^\d{5}$/;
-const CITY_STATE_REGEX = /^[a-zA-ZÀ-ÿÑñ\s]+$/; // Solo letras y espacios para ciudad/estado
 
 // =========================
 // TIPOS
@@ -79,51 +79,24 @@ const emptyForm = (): FormData => ({
 // VALIDADORES MEJORADOS
 // =========================
 const validateName = (value: string): string | undefined => {
-  const v = value.trim();
-
-  if (!v) return "El nombre es obligatorio.";
-  if (v.length < 3) return "Debe tener al menos 3 caracteres.";
-  if (v.length > 100) return "No puede exceder 100 caracteres.";
-  if (!COMPANY_NAME_REGEX.test(v)) return "Solo letras, números, espacios, puntos y guiones.";
-
-  return undefined;
+  return validateSafeText(value, "El nombre", { required: true, min: 3, max: 100 });
 };
 
 const validateContactName = (value: string): string | undefined => {
-  const v = value.trim();
-
-  if (!v) return "El nombre de contacto es obligatorio.";
-  if (v.length < 3) return "Debe tener al menos 3 caracteres.";
-  if (!NAME_REGEX.test(v)) return "Solo letras y espacios.";
-
-  return undefined;
+  return validateSafeText(value, "El nombre de contacto", { required: true, min: 3, max: 100 });
 };
 
 const validateRFC = (value: string): string | undefined => {
-  const v = value.trim();
-
-  if (!v) return "El RFC es obligatorio.";
-  if (v.length !== 12 && v.length !== 13) return "RFC debe tener 12 o 13 caracteres.";
-  if (!RFC_REGEX.test(v)) return "Formato de RFC inválido.";
-
-  return undefined;
+  return validateRfc(value, { required: true });
 };
 
 const validateEmail = (value: string): string | undefined => {
-  const v = value.trim();
-
-  if (!v) return "El correo es obligatorio.";
-  if (v.length > 100) return "No puede exceder 100 caracteres.";
-  if (!EMAIL_REGEX.test(v)) return "Correo electrónico inválido.";
-
-  return undefined;
+  if (value.trim().length > 100) return "No puede exceder 100 caracteres.";
+  return validateEmailFormat(value, { required: true });
 };
 
 const validatePhone = (value: string): string | undefined => {
-  if (!value) return "El teléfono es obligatorio.";
-  if (!PHONE_REGEX.test(value)) return "Debe contener exactamente 10 dígitos numéricos.";
-
-  return undefined;
+  return validatePhoneFormat(value, { required: true, minDigits: 10, maxDigits: 15 });
 };
 
 const validateAddress = (value: string): string | undefined => {
@@ -132,33 +105,23 @@ const validateAddress = (value: string): string | undefined => {
   if (!v) return "La dirección es obligatoria.";
   if (v.length < 5) return "Dirección muy corta.";
   if (v.length > 200) return "No puede exceder 200 caracteres.";
+  const referenceError = validateReference(v, "La direccion", { required: true, max: 200 });
+  if (referenceError) return referenceError;
 
   return undefined;
 };
 
 const validateCity = (value: string): string | undefined => {
-  const v = value.trim();
-
-  if (!v) return "La ciudad es obligatoria.";
-  if (v.length < 2) return "Ciudad muy corta.";
-  if (!CITY_STATE_REGEX.test(v)) return "Solo letras y espacios, sin números ni símbolos.";
-
-  return undefined;
+  return validateSafeText(value, "La ciudad", { required: true, min: 2, max: 80 });
 };
 
 const validateState = (value: string): string | undefined => {
-  const v = value.trim();
-
-  if (!v) return "El estado es obligatorio.";
-  if (v.length < 2) return "Estado muy corto.";
-  if (!CITY_STATE_REGEX.test(v)) return "Solo letras y espacios, sin números ni símbolos.";
-
-  return undefined;
+  return validateSafeText(value, "El estado", { required: true, min: 2, max: 80 });
 };
 
 const validateZip = (value: string): string | undefined => {
   if (!value) return "El código postal es obligatorio.";
-  if (!ZIP_REGEX.test(value)) return "Debe contener exactamente 5 dígitos numéricos.";
+  if (!/^\d{5}$/.test(value)) return "Debe contener exactamente 5 digitos numericos.";
 
   return undefined;
 };
@@ -178,7 +141,6 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
 
   // Computed - Validación completa del formulario
   const isFormValid =
@@ -215,7 +177,6 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
     setFormError(null);
     setModalOpen(true);
     setFieldErrors(emptyErrors);
-    setTouched({});
   };
 
   const openEdit = (s: Supplier) => {
@@ -246,18 +207,6 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
       zipCode: validateZip(s.zipCode || "")
     });
 
-    setTouched({
-      name: true,
-      contactName: true,
-      rfc: true,
-      email: true,
-      phone: true,
-      address: true,
-      city: true,
-      state: true,
-      zipCode: true
-    });
-
     setFormError(null);
     setModalOpen(true);
   };
@@ -268,26 +217,11 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
     setEditingId(null);
     setForm(emptyForm());
     setFormError(null);
-    setTouched({});
   };
 
   const handleSubmit = async () => {
     // Prevenir múltiples envíos
     if (saving) return;
-
-    // Marcar todos los campos como "tocados" para mostrar errores
-    const allTouched = {
-      name: true,
-      contactName: true,
-      rfc: true,
-      email: true,
-      phone: true,
-      address: true,
-      city: true,
-      state: true,
-      zipCode: true
-    };
-    setTouched(allTouched);
 
     // Validar todo antes de enviar
     const errors = {
@@ -349,9 +283,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
   const handleName = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setForm(f => ({ ...f, name: value }));
-    if (touched.name) {
-      setFieldErrors(f => ({ ...f, name: validateName(value) }));
-    }
+    setFieldErrors(f => ({ ...f, name: validateName(value) }));
   };
 
   const handleContactName = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -359,49 +291,32 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
     // Solo permitir letras y espacios
     const filteredValue = value.replace(/[^a-zA-ZÀ-ÿÑñ\s]/g, '');
     setForm(f => ({ ...f, contactName: filteredValue }));
-    if (touched.contactName) {
-      setFieldErrors(f => ({ ...f, contactName: validateContactName(filteredValue) }));
-    }
+    setFieldErrors(f => ({ ...f, contactName: validateContactName(filteredValue) }));
   };
 
   const handleRFC = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value
-      .toUpperCase()
-      .replace(/[^A-Z0-9Ñ&]/g, "")
-      .slice(0, 13);
+    const value = normalizeRfcInput(e.target.value).slice(0, 13);
 
     setForm(f => ({ ...f, rfc: value }));
-    if (touched.rfc) {
-      setFieldErrors(f => ({ ...f, rfc: validateRFC(value) }));
-    }
+    setFieldErrors(f => ({ ...f, rfc: validateRFC(value) }));
   };
 
   const handleEmail = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+    const value = normalizeEmailInput(e.target.value);
     setForm(f => ({ ...f, email: value }));
-    if (touched.email) {
-      setFieldErrors(f => ({ ...f, email: validateEmail(value) }));
-    }
+    setFieldErrors(f => ({ ...f, email: validateEmail(value) }));
   };
 
   const handlePhone = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    // Solo permitir números
-    if (!/^\d*$/.test(value)) return;
-
-    const phone = value.slice(0, 10);
+    const phone = normalizePhoneInput(e.target.value).slice(0, 20);
     setForm(f => ({ ...f, phone }));
-    if (touched.phone) {
-      setFieldErrors(f => ({ ...f, phone: validatePhone(phone) }));
-    }
+    setFieldErrors(f => ({ ...f, phone: validatePhone(phone) }));
   };
 
   const handleAddress = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setForm(f => ({ ...f, address: value }));
-    if (touched.address) {
-      setFieldErrors(f => ({ ...f, address: validateAddress(value) }));
-    }
+    setFieldErrors(f => ({ ...f, address: validateAddress(value) }));
   };
 
   const handleCity = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -409,9 +324,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
     // Solo permitir letras y espacios
     const filteredValue = value.replace(/[^a-zA-ZÀ-ÿÑñ\s]/g, '');
     setForm(f => ({ ...f, city: filteredValue }));
-    if (touched.city) {
-      setFieldErrors(f => ({ ...f, city: validateCity(filteredValue) }));
-    }
+    setFieldErrors(f => ({ ...f, city: validateCity(filteredValue) }));
   };
 
   const handleState = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -419,26 +332,16 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
     // Solo permitir letras y espacios
     const filteredValue = value.replace(/[^a-zA-ZÀ-ÿÑñ\s]/g, '');
     setForm(f => ({ ...f, state: filteredValue }));
-    if (touched.state) {
-      setFieldErrors(f => ({ ...f, state: validateState(filteredValue) }));
-    }
+    setFieldErrors(f => ({ ...f, state: validateState(filteredValue) }));
   };
 
   const handleZip = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    // Solo permitir números
-    if (!/^\d*$/.test(value)) return;
-
-    const zip = value.slice(0, 5);
+    const zip = normalizeIntegerInput(e.target.value).slice(0, 5);
     setForm(f => ({ ...f, zipCode: zip }));
-    if (touched.zipCode) {
-      setFieldErrors(f => ({ ...f, zipCode: validateZip(zip) }));
-    }
+    setFieldErrors(f => ({ ...f, zipCode: validateZip(zip) }));
   };
 
   const handleBlur = (field: keyof FieldErrors) => {
-    setTouched(prev => ({ ...prev, [field]: true }));
-
     // Validar el campo al perder el foco
     let error: string | undefined;
     switch (field) {
@@ -573,7 +476,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <div style={{ gridColumn: "1 / -1" }}>
                   <label style={ui.fieldLabel}>Nombre *</label>
                   <input
-                    style={{ ...ui.input, borderColor: touched.name && fieldErrors.name ? "#dc2626" : "#d1d5db" }}
+                    style={{ ...ui.input, borderColor: fieldErrors.name ? "#dc2626" : "#d1d5db" }}
                     value={form.name}
                     onChange={handleName}
                     onBlur={() => handleBlur('name')}
@@ -581,7 +484,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                     autoFocus
                     disabled={saving}
                   />
-                  {touched.name && fieldErrors.name && (
+                  {fieldErrors.name && (
                     <span style={{ color: "#dc2626", fontSize: "12px", marginTop: "4px", display: "block" }}>
                       {fieldErrors.name}
                     </span>
@@ -592,14 +495,14 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <div>
                   <label style={ui.fieldLabel}>RFC *</label>
                   <input
-                    style={{ ...ui.input, borderColor: touched.rfc && fieldErrors.rfc ? "#dc2626" : "#d1d5db" }}
+                    style={{ ...ui.input, borderColor: fieldErrors.rfc ? "#dc2626" : "#d1d5db" }}
                     value={form.rfc}
                     onChange={handleRFC}
                     onBlur={() => handleBlur('rfc')}
                     placeholder="RFC del proveedor"
                     disabled={saving}
                   />
-                  {touched.rfc && fieldErrors.rfc && (
+                  {fieldErrors.rfc && (
                     <span style={{ color: "#dc2626", fontSize: "12px", marginTop: "4px", display: "block" }}>
                       {fieldErrors.rfc}
                     </span>
@@ -610,14 +513,14 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <div>
                   <label style={ui.fieldLabel}>Persona de contacto *</label>
                   <input
-                    style={{ ...ui.input, borderColor: touched.contactName && fieldErrors.contactName ? "#dc2626" : "#d1d5db" }}
+                    style={{ ...ui.input, borderColor: fieldErrors.contactName ? "#dc2626" : "#d1d5db" }}
                     value={form.contactName}
                     onChange={handleContactName}
                     onBlur={() => handleBlur('contactName')}
                     placeholder="Nombre del contacto"
                     disabled={saving}
                   />
-                  {touched.contactName && fieldErrors.contactName && (
+                  {fieldErrors.contactName && (
                     <span style={{ color: "#dc2626", fontSize: "12px", marginTop: "4px", display: "block" }}>
                       {fieldErrors.contactName}
                     </span>
@@ -628,7 +531,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <div>
                   <label style={ui.fieldLabel}>Email *</label>
                   <input
-                    style={{ ...ui.input, borderColor: touched.email && fieldErrors.email ? "#dc2626" : "#d1d5db" }}
+                    style={{ ...ui.input, borderColor: fieldErrors.email ? "#dc2626" : "#d1d5db" }}
                     type="email"
                     value={form.email}
                     onChange={handleEmail}
@@ -636,7 +539,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                     placeholder="correo@proveedor.com"
                     disabled={saving}
                   />
-                  {touched.email && fieldErrors.email && (
+                  {fieldErrors.email && (
                     <span style={{ color: "#dc2626", fontSize: "12px", marginTop: "4px", display: "block" }}>
                       {fieldErrors.email}
                     </span>
@@ -647,14 +550,14 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <div>
                   <label style={ui.fieldLabel}>Teléfono *</label>
                   <input
-                    style={{ ...ui.input, borderColor: touched.phone && fieldErrors.phone ? "#dc2626" : "#d1d5db" }}
+                    style={{ ...ui.input, borderColor: fieldErrors.phone ? "#dc2626" : "#d1d5db" }}
                     value={form.phone}
                     onChange={handlePhone}
                     onBlur={() => handleBlur('phone')}
                     placeholder="5512345678"
                     disabled={saving}
                   />
-                  {touched.phone && fieldErrors.phone && (
+                  {fieldErrors.phone && (
                     <span style={{ color: "#dc2626", fontSize: "12px", marginTop: "4px", display: "block" }}>
                       {fieldErrors.phone}
                     </span>
@@ -665,14 +568,14 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <div style={{ gridColumn: "1 / -1" }}>
                   <label style={ui.fieldLabel}>Dirección *</label>
                   <input
-                    style={{ ...ui.input, borderColor: touched.address && fieldErrors.address ? "#dc2626" : "#d1d5db" }}
+                    style={{ ...ui.input, borderColor: fieldErrors.address ? "#dc2626" : "#d1d5db" }}
                     value={form.address}
                     onChange={handleAddress}
                     onBlur={() => handleBlur('address')}
                     placeholder="Calle, número, colonia"
                     disabled={saving}
                   />
-                  {touched.address && fieldErrors.address && (
+                  {fieldErrors.address && (
                     <span style={{ color: "#dc2626", fontSize: "12px", marginTop: "4px", display: "block" }}>
                       {fieldErrors.address}
                     </span>
@@ -683,14 +586,14 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <div>
                   <label style={ui.fieldLabel}>Ciudad *</label>
                   <input
-                    style={{ ...ui.input, borderColor: touched.city && fieldErrors.city ? "#dc2626" : "#d1d5db" }}
+                    style={{ ...ui.input, borderColor: fieldErrors.city ? "#dc2626" : "#d1d5db" }}
                     value={form.city}
                     onChange={handleCity}
                     onBlur={() => handleBlur('city')}
                     placeholder="Ciudad"
                     disabled={saving}
                   />
-                  {touched.city && fieldErrors.city && (
+                  {fieldErrors.city && (
                     <span style={{ color: "#dc2626", fontSize: "12px", marginTop: "4px", display: "block" }}>
                       {fieldErrors.city}
                     </span>
@@ -701,14 +604,14 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <div>
                   <label style={ui.fieldLabel}>Estado *</label>
                   <input
-                    style={{ ...ui.input, borderColor: touched.state && fieldErrors.state ? "#dc2626" : "#d1d5db" }}
+                    style={{ ...ui.input, borderColor: fieldErrors.state ? "#dc2626" : "#d1d5db" }}
                     value={form.state}
                     onChange={handleState}
                     onBlur={() => handleBlur('state')}
                     placeholder="Estado"
                     disabled={saving}
                   />
-                  {touched.state && fieldErrors.state && (
+                  {fieldErrors.state && (
                     <span style={{ color: "#dc2626", fontSize: "12px", marginTop: "4px", display: "block" }}>
                       {fieldErrors.state}
                     </span>
@@ -719,14 +622,14 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <div>
                   <label style={ui.fieldLabel}>C.P. *</label>
                   <input
-                    style={{ ...ui.input, borderColor: touched.zipCode && fieldErrors.zipCode ? "#dc2626" : "#d1d5db" }}
+                    style={{ ...ui.input, borderColor: fieldErrors.zipCode ? "#dc2626" : "#d1d5db" }}
                     value={form.zipCode}
                     onChange={handleZip}
                     onBlur={() => handleBlur('zipCode')}
                     placeholder="00000"
                     disabled={saving}
                   />
-                  {touched.zipCode && fieldErrors.zipCode && (
+                  {fieldErrors.zipCode && (
                     <span style={{ color: "#dc2626", fontSize: "12px", marginTop: "4px", display: "block" }}>
                       {fieldErrors.zipCode}
                     </span>
@@ -802,3 +705,4 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
 };
 
 export default ProveedoresView;
+

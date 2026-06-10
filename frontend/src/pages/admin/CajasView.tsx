@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
+import { validateReference } from "../../utils/formValidation";
 import {
   ui,
   type ViewProps,
@@ -14,7 +15,7 @@ import {
   fmtTime,
   fmtDateTime,
   statusTone,
-  printHtml,
+  printTicketHtml,
 } from "./shared";
 
 interface SessionRow {
@@ -73,6 +74,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const [forceOpen, setForceOpen] = useState(false);
   const [forceReason, setForceReason] = useState("");
+  const [forceReasonError, setForceReasonError] = useState("");
   const [forceLoading, setForceLoading] = useState(false);
   const [forceError, setForceError] = useState<string | null>(null);
 
@@ -134,13 +136,20 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setSelectedDetail(null);
     setForceOpen(false);
     setForceReason("");
+    setForceReasonError("");
     setForceError(null);
   };
 
   const handleForceClose = async () => {
-    if (!selectedDetail || !forceReason.trim()) return;
+    if (!selectedDetail) return;
+    const reasonError = validateReference(forceReason, "El motivo", { required: true, max: 180 });
+    if (reasonError) {
+      setForceReasonError(reasonError);
+      return;
+    }
     setForceLoading(true);
     setForceError(null);
+    setForceReasonError("");
     try {
       await api.put(`/api/admin/cash-sessions/${selectedDetail.id}/force-close`, {
         reason: forceReason.trim(),
@@ -165,7 +174,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         ? `${d.difference >= 0 ? "+" : ""}$${d.difference.toFixed(2)}`
         : "—";
 
-    const body = `
+    let body = `
       <div class="doc-header">
         <div>
           <div class="doc-brand">LYFRGL POS</div>
@@ -230,7 +239,57 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       </table>
     `;
 
-    printHtml(`Arqueo Caja #${d.id}`, body);
+    body = `
+      <div>
+        <div class="ticket-header">
+          <span class="ticket-store">LYFRGL POS</span>
+          <span class="ticket-muted">Sucursal: ${d.branch}</span>
+          <span class="ticket-operation">ARQUEO DE CAJA</span>
+        </div>
+        <div class="ticket-section">
+          <div class="ticket-row"><span>Folio:</span><span class="ticket-value">Caja #${d.id}</span></div>
+          <div class="ticket-row"><span>Cajero:</span><span class="ticket-value">${d.cajero}</span></div>
+          <div class="ticket-row"><span>Estado:</span><span class="ticket-value">${d.status}</span></div>
+          <div class="ticket-row"><span>Apertura:</span><span class="ticket-value">${fmtDateTime(d.openedAt)}</span></div>
+          ${d.closedAt ? `<div class="ticket-row"><span>Cierre:</span><span class="ticket-value">${fmtDateTime(d.closedAt)}</span></div>` : ""}
+        </div>
+        <div class="ticket-section">
+          <div class="ticket-row"><span>Fondo inicial:</span><span class="ticket-value">$${d.initialAmount.toFixed(2)}</span></div>
+          <div class="ticket-row"><span>Ventas efectivo:</span><span class="ticket-value">$${d.cashIn.toFixed(2)}</span></div>
+          <div class="ticket-row"><span>Depositos/salidas:</span><span class="ticket-value">-$${d.cashOut.toFixed(2)}</span></div>
+          <div class="ticket-row"><span>Efectivo esperado:</span><span class="ticket-value">$${d.expectedAmount.toFixed(2)}</span></div>
+          <div class="ticket-row"><span>Declarado:</span><span class="ticket-value">${d.declaredAmount !== null ? "$" + d.declaredAmount.toFixed(2) : "N/A"}</span></div>
+          <div class="ticket-row ticket-total"><span>Diferencia:</span><span style="color:${diffColor}">${diffStr}</span></div>
+        </div>
+        <div class="ticket-section">
+          <div class="ticket-row"><span>Efectivo:</span><span class="ticket-value">$${d.payBreakdown.efectivo.toFixed(2)}</span></div>
+          <div class="ticket-row"><span>T. credito:</span><span class="ticket-value">$${d.payBreakdown.tarjetaCredito.toFixed(2)}</span></div>
+          <div class="ticket-row"><span>T. debito:</span><span class="ticket-value">$${d.payBreakdown.tarjetaDebito.toFixed(2)}</span></div>
+          <div class="ticket-row"><span>MercadoPago:</span><span class="ticket-value">$${d.payBreakdown.mercadoPago.toFixed(2)}</span></div>
+          <div class="ticket-row ticket-total"><span>Total ventas:</span><span>$${d.payBreakdown.totalVentas.toFixed(2)}</span></div>
+        </div>
+        <div class="ticket-section">
+          <div style="font-weight:800;margin-bottom:4px;">MOVIMIENTOS (${d.movements.length})</div>
+          ${d.movements
+            .map(
+              (m) => `
+                <div style="border-top:1px dashed #cbd5e1;padding-top:4px;margin-top:4px;">
+                  <div class="ticket-row"><span>${fmtDateTime(m.date)}</span><span class="ticket-value">${m.type}</span></div>
+                  <div style="font-size:9px;margin-bottom:3px;">${m.description}</div>
+                  <div class="ticket-row"><span>Monto:</span><span class="ticket-value" style="color:${m.amount >= 0 ? "#15803d" : "#b91c1c"}">${m.amount >= 0 ? "+" : ""}$${m.amount.toFixed(2)}</span></div>
+                  <div class="ticket-row"><span>Saldo:</span><span class="ticket-value">$${m.balance.toFixed(2)}</span></div>
+                </div>`
+            )
+            .join("")}
+        </div>
+        <div class="ticket-footer">
+          <p>COMPROBANTE DE ARQUEO</p>
+          <p>Documento generado el ${new Date().toLocaleString("es-MX")}</p>
+        </div>
+      </div>
+    `;
+
+    printTicketHtml(`Arqueo Caja #${d.id}`, body);
   };
 
   const openCount = rows.filter((r) => r.status === "ABIERTA").length;
@@ -462,7 +521,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       Sin movimientos registrados.
                     </p>
                   ) : (
-                    <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, overflow: "hidden" }}>
+                    <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, overflowX: "auto", overflowY: "hidden", maxWidth: "100%" }}>
                       <table style={{ ...ui.table, fontSize: 12 }}>
                         <thead>
                           <tr style={ui.theadRow}>
@@ -551,7 +610,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               <span style={ui.modalTitle}>¿Cerrar caja forzadamente?</span>
               <button
                 style={ui.ghostBtn}
-                onClick={() => { setForceOpen(false); setForceReason(""); setForceError(null); }}
+                onClick={() => { setForceOpen(false); setForceReason(""); setForceReasonError(""); setForceError(null); }}
               >
                 ✕
               </button>
@@ -563,7 +622,11 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               <label style={ui.fieldLabel}>Motivo de cierre *</label>
               <textarea
                 value={forceReason}
-                onChange={(e) => setForceReason(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setForceReason(value);
+                  setForceReasonError(validateReference(value, "El motivo", { required: true, max: 180 }) || "");
+                }}
                 placeholder="Ingresa el motivo del cierre forzado..."
                 rows={3}
                 style={{
@@ -574,13 +637,16 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   lineHeight: 1.5,
                 }}
               />
+              {forceReasonError && (
+                <p style={ui.fieldError}>{forceReasonError}</p>
+              )}
               {forceError && (
                 <p style={{ color: "#b91c1c", fontSize: 13, marginTop: 8 }}>{forceError}</p>
               )}
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
                 <button
                   style={ui.ghostBtn}
-                  onClick={() => { setForceOpen(false); setForceReason(""); setForceError(null); }}
+                  onClick={() => { setForceOpen(false); setForceReason(""); setForceReasonError(""); setForceError(null); }}
                   disabled={forceLoading}
                 >
                   Cancelar
