@@ -6876,7 +6876,6 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   table: {
     width: "100%",
-    minWidth: "700px",
     borderCollapse: "collapse" as const,
     textAlign: "left" as const,
   },
