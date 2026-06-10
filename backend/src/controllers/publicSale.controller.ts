@@ -2,6 +2,79 @@ import { Request, Response } from "express";
 import { prisma } from "../app";
 import { BillingService } from "../services/billing.service";
 
+// =========================
+// REGEX PARA VALIDACIONES
+// =========================
+const RFC_REGEX = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
+const NAME_REGEX = /^[a-zA-ZÀ-ÿÑñ\s]+$/;
+const ZIP_REGEX = /^\d{5}$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Validar RFC
+ */
+const validateRFCBackend = (rfc: string): { valid: boolean; message: string } => {
+  const cleaned = rfc.toUpperCase().replace(/\s+/g, "");
+  if (!cleaned) {
+    return { valid: false, message: "El RFC es obligatorio." };
+  }
+  if (cleaned.length !== 12 && cleaned.length !== 13) {
+    return { valid: false, message: "El RFC debe tener 12 o 13 caracteres." };
+  }
+  if (!RFC_REGEX.test(cleaned)) {
+    return { valid: false, message: "El formato del RFC es inválido. Solo letras y números." };
+  }
+  return { valid: true, message: "" };
+};
+
+/**
+ * Validar Nombre/Razón Social
+ */
+const validateNameBackend = (name: string): { valid: boolean; message: string } => {
+  const cleaned = name.trim();
+  if (!cleaned) {
+    return { valid: false, message: "El nombre o razón social es obligatorio." };
+  }
+  if (cleaned.length < 3) {
+    return { valid: false, message: "El nombre debe tener al menos 3 caracteres." };
+  }
+  if (!NAME_REGEX.test(cleaned)) {
+    return { valid: false, message: "El nombre solo puede contener letras y espacios." };
+  }
+  return { valid: true, message: "" };
+};
+
+/**
+ * Validar Código Postal
+ */
+const validateZipBackend = (zip: string): { valid: boolean; message: string } => {
+  const cleaned = zip.trim();
+  if (!cleaned) {
+    return { valid: false, message: "El código postal es obligatorio." };
+  }
+  if (!ZIP_REGEX.test(cleaned)) {
+    return { valid: false, message: "El código postal debe contener exactamente 5 dígitos." };
+  }
+  return { valid: true, message: "" };
+};
+
+/**
+ * Validar Email
+ */
+const validateEmailBackend = (email: string): { valid: boolean; message: string } => {
+  const cleaned = email.trim().toLowerCase();
+  if (!cleaned) {
+    return { valid: false, message: "El correo electrónico es obligatorio." };
+  }
+  if (!EMAIL_REGEX.test(cleaned)) {
+    return { valid: false, message: "El correo electrónico no es válido." };
+  }
+  if (/[^\x00-\x7F]/.test(cleaned)) {
+    return { valid: false, message: "El correo no debe contener emojis ni caracteres especiales." };
+  }
+  return { valid: true, message: "" };
+};
+
 /**
  * Obtener detalles de un ticket de venta para el cliente
  */
@@ -10,6 +83,13 @@ export const getTicketDetails = async (req: Request, res: Response): Promise<voi
 
   if (!invoiceNumber) {
     res.status(400).json({ message: "El folio del ticket es requerido." });
+    return;
+  }
+
+  // Validar formato del folio (solo letras, números y guiones)
+  const folioRegex = /^[a-zA-Z0-9-]+$/;
+  if (!folioRegex.test(invoiceNumber)) {
+    res.status(400).json({ message: "El folio solo puede contener letras, números y guiones." });
     return;
   }
 
@@ -84,30 +164,52 @@ export const getTicketDetails = async (req: Request, res: Response): Promise<voi
 export const issueTicketInvoice = async (req: Request, res: Response): Promise<void> => {
   const { saleId, rfc, legalName, taxSystem, zip, email, cfdiUse } = req.body;
 
+  // Validar que todos los campos estén presentes
   if (!saleId || !rfc || !legalName || !taxSystem || !zip || !email || !cfdiUse) {
     res.status(400).json({ message: "Todos los campos de facturación son requeridos." });
     return;
   }
 
-  // Validación básica de RFC
-  const rfcRegex = /^[A-Z&Ñ]{3,4}[0-9]{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])[A-Z0-9]{3}$/i;
-  if (!rfcRegex.test(rfc)) {
-    res.status(400).json({ message: "El RFC ingresado no tiene un formato válido para México." });
+  // Validar RFC
+  const rfcValidation = validateRFCBackend(rfc);
+  if (!rfcValidation.valid) {
+    res.status(400).json({ message: rfcValidation.message });
+    return;
+  }
+
+  // Validar Nombre/Razón Social
+  const nameValidation = validateNameBackend(legalName);
+  if (!nameValidation.valid) {
+    res.status(400).json({ message: nameValidation.message });
+    return;
+  }
+
+  // Validar Código Postal
+  const zipValidation = validateZipBackend(zip);
+  if (!zipValidation.valid) {
+    res.status(400).json({ message: zipValidation.message });
+    return;
+  }
+
+  // Validar Email
+  const emailValidation = validateEmailBackend(email);
+  if (!emailValidation.valid) {
+    res.status(400).json({ message: emailValidation.message });
     return;
   }
 
   try {
     const result = await BillingService.createInvoice(Number(saleId), {
-      rfc,
-      legalName,
+      rfc: rfc.trim().toUpperCase(),
+      legalName: legalName.trim().toUpperCase(),
       taxSystem,
-      zip,
-      email,
+      zip: zip.trim(),
+      email: email.trim(),
       cfdiUse
     });
 
     res.status(200).json({
-      message: result.mode === "real" 
+      message: result.mode === "real"
         ? "Factura timbrada exitosamente y enviada al correo del cliente."
         : "Factura simulada exitosamente (Modo Demo). Descarga tus archivos abajo.",
       ...result
