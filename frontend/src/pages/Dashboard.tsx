@@ -97,8 +97,8 @@ interface CashSession {
 
 // Funciones de validación para formularios
 const validatePinInput = (value: string): string => {
-  // Solo acepta números (0-9)
-  return value.replace(/[^0-9]/g, "");
+  // Solo acepta números (0-9) y máximo 4 dígitos
+  return value.replace(/[^0-9]/g, "").slice(0, 4);
 };
 
 const validateNameInput = (value: string): string => {
@@ -113,12 +113,25 @@ const validatePhoneInput = (value: string): string => {
   return value.replace(/[^0-9]/g, "").slice(0, 10);
 };
 
+const validateNumbersOnly = (value: string): string => {
+  // Solo números
+  return value.replace(/[^0-9]/g, "");
+};
+
 const validateReasonInput = (value: string): string => {
   // Acepta texto (letras) y si hay algo, permite números, puntos y comas
   // Elimina todos los emojis y símbolos raros
   return value
     .replace(/[\u{1F300}-\u{1F9FF}]/gu, "") // Elimina emojis
     .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ0-9\s.,]/g, ""); // Solo letras, números, espacios, puntos y comas
+};
+
+const validateMotivoDevoluccion = (value: string): string => {
+  // Acepta letras, números, espacios y símbolos necesarios (. , - ')
+  // Elimina emojis y símbolos raros
+  return value
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "") // Elimina emojis
+    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ0-9\s.,\-']/g, ""); // Letras, números, espacios, puntos, comas, guiones, apóstrofos
 };
 
 const validateLongTextInput = (value: string): string => {
@@ -134,6 +147,13 @@ const validateTextInput = (value: string): string => {
   return value
     .replace(/[\u{1F300}-\u{1F9FF}]/gu, "") // Elimina emojis
     .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ0-9\s]/g, ""); // Solo letras, números y espacios
+};
+
+const validateFolioInput = (value: string): string => {
+  // Folio: letras, números y guiones; sin emojis ni símbolos raros
+  return value
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
+    .replace(/[^a-zA-Z0-9\-]/g, "");
 };
 
 const Dashboard: React.FC = () => {
@@ -198,12 +218,6 @@ const Dashboard: React.FC = () => {
   const [returnPaymentMethod, setReturnPaymentMethod] = useState("EFECTIVO");
   const [returnProcessing, setReturnProcessing] = useState(false);
   const [returnReceipt, setReturnReceipt] = useState<any>(null);
-  const [returnQtyDraft, setReturnQtyDraft] = useState<Record<number, string>>({});
-
-  // Helper para sanitizar textos: permite letras (incluye acentos/ñ), números, espacios, guiones, comas, puntos. Rechaza emojis y símbolos raros.
-  const sanitizeText = (value: string): string => {
-    return value.replace(/[^\p{L}\p{N}\s\-,.]/gu, "");
-  };
 
   // Estados para alertas personalizadas y cobro (Fase 3.5)
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" | "info" } | null>(null);
@@ -2225,13 +2239,11 @@ const Dashboard: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        setCart([]);
+                        // Solo deseleccionar cliente — no tocar carrito ni otros estados globales
                         setSelectedCustomer(null);
+                        // Resetear uso de puntos si estaba activo
                         setUsePoints(false);
                         setPointsToRedeem(0);
-                        setInvoiceRequested(false);
-                        localStorage.removeItem(DRAFT_KEY);
-                        showToast("Carrito vaciado correctamente.", "info");
                       }}
                       style={{
                         border: "none",
@@ -2861,7 +2873,9 @@ const Dashboard: React.FC = () => {
                           placeholder="Puntos a canjear"
                           value={pointsToRedeem || ""}
                           onChange={(e) => {
-                            const val = Math.max(0, parseInt(e.target.value) || 0);
+                            // Aceptar solo dígitos: eliminar cualquier caracter no numérico
+                            const raw = (e.target.value || "").toString().replace(/[^0-9]/g, "");
+                            const val = Math.max(0, parseInt(raw || "0", 10));
                             const maxVal = Math.min(selectedCustomer.points, Math.floor(cartTotal));
                             if (val > maxVal) {
                               setPointsToRedeem(maxVal);
@@ -3582,7 +3596,7 @@ const Dashboard: React.FC = () => {
                         type="text"
                         placeholder="Motivo de cancelación"
                         value={pendingCancelReason}
-                        onChange={(e) => setPendingCancelReason(validateReasonInput(e.target.value))}
+                        onChange={(e) => setPendingCancelReason(validateNameInput(e.target.value))}
                         className="input-corporate"
                         style={{ padding: "6px 10px", fontSize: "12px", width: "100%" }}
                       />
@@ -4324,7 +4338,7 @@ const Dashboard: React.FC = () => {
                   className="input-corporate"
                   placeholder="Ej. Producto equivocado, error de cobro"
                   value={cancelReason}
-                  onChange={(e) => setCancelReason(validateReasonInput(e.target.value))}
+                  onChange={(e) => setCancelReason(validateNameInput(e.target.value))}
                 />
               </div>
 
@@ -5135,7 +5149,7 @@ const Dashboard: React.FC = () => {
                             className="input-corporate"
                             placeholder="Nombre de la persona o banco"
                             value={depName}
-                            onChange={(e) => setDepName(validateTextInput(e.target.value))}
+                            onChange={(e) => setDepName(validateNameInput(e.target.value))}
                           />
                         </div>
                       </>
@@ -5193,7 +5207,7 @@ const Dashboard: React.FC = () => {
                            className="input-corporate"
                            placeholder="DEP-..."
                            value={searchDepRef}
-                           onChange={(e) => setSearchDepRef(e.target.value)}
+                           onChange={(e) => setSearchDepRef(validateNumbersOnly(e.target.value))}
                         />
                       </div>
                       <div style={styles.inputGroup}>
@@ -5930,7 +5944,7 @@ const Dashboard: React.FC = () => {
                   className="input-corporate"
                   placeholder="Buscar por folio de venta (V-XXXXXX)..."
                   value={ticketSearch}
-                  onChange={(e) => setTicketSearch(e.target.value)}
+                  onChange={(e) => setTicketSearch(validateFolioInput(e.target.value).toUpperCase())}
                 />
               </div>
               <div style={styles.inputGroup}>
@@ -5940,7 +5954,7 @@ const Dashboard: React.FC = () => {
                   className="input-corporate"
                   placeholder="Coincidencia parcial..."
                   value={ticketCustomer}
-                  onChange={(e) => setTicketCustomer(e.target.value)}
+                  onChange={(e) => setTicketCustomer(validateNameInput(e.target.value))}
                 />
               </div>
               <div style={styles.inputGroup}>
@@ -5950,7 +5964,7 @@ const Dashboard: React.FC = () => {
                   className="input-corporate"
                   placeholder="Coincidencia parcial..."
                   value={ticketPhone}
-                  onChange={(e) => setTicketPhone(e.target.value)}
+                  onChange={(e) => setTicketPhone(validatePhoneInput(e.target.value))}
                 />
               </div>
               <div style={styles.inputGroup}>
@@ -6030,6 +6044,8 @@ const Dashboard: React.FC = () => {
                         <td style={{ ...styles.td, textAlign: "center" }}>
                           <button
                             onClick={async () => {
+                              if (dashboardTicketLoadingId !== null) return;
+                              setDashboardTicketLoadingId(sale.id);
                               try {
                                 const res = await api.get(`/api/sales/detail?id=${sale.id}`);
                                 setSelectedSale({
@@ -6040,12 +6056,15 @@ const Dashboard: React.FC = () => {
                                 setActiveModal("ticket-view");
                               } catch (e: any) {
                                 showToast(e.response?.data?.message || "Error al recuperar los detalles de la venta.", "error");
+                              } finally {
+                                setDashboardTicketLoadingId(null);
                               }
                             }}
+                            disabled={dashboardTicketLoadingId === sale.id}
                             className="btn-primary"
-                            style={{ padding: "6px 10px", fontSize: "12px" }}
+                            style={{ padding: "6px 10px", fontSize: "12px", opacity: dashboardTicketLoadingId === sale.id ? 0.65 : 1 }}
                           >
-                            Reimprimir
+                            {dashboardTicketLoadingId === sale.id ? "Cargando documento..." : "Reimprimir"}
                           </button>
                         </td>
                       </tr>
@@ -6111,7 +6130,7 @@ const Dashboard: React.FC = () => {
                     className="input-corporate"
                     placeholder="V-XXXXXX"
                     value={returnFolio}
-                    onChange={(e) => setReturnFolio(e.target.value.toUpperCase())}
+                    onChange={(e) => setReturnFolio(validateFolioInput(e.target.value).toUpperCase())}
                     onKeyDown={(e) => { if (e.key === "Enter") handleReturnSearch(); }}
                     autoFocus
                   />
@@ -6206,7 +6225,20 @@ const Dashboard: React.FC = () => {
                               onClick={() => handleReturnQtyChange(idx, item.qtyToReturn - 1)}
                               style={{ width: "24px", height: "24px", border: "1px solid #cbd5e1", borderRadius: "4px", backgroundColor: "#f8fafc", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                             ><Minus size={12} /></button>
-                            <span style={{ fontSize: "13px", fontWeight: "700", minWidth: "24px", textAlign: "center" }}>{item.qtyToReturn}</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={item.maxReturnableQty}
+                              value={item.qtyToReturn}
+                              onChange={(e) => {
+                                // Aceptar solo números; prevenir negativos y valores mayores al disponible
+                                const raw = (e.target.value || "").toString().replace(/[^0-9]/g, "");
+                                const parsed = Math.max(0, parseInt(raw || "0", 10));
+                                const val = Math.min(item.maxReturnableQty, parsed);
+                                handleReturnQtyChange(idx, val);
+                              }}
+                              style={{ fontSize: "13px", fontWeight: "700", width: "50px", textAlign: "center", border: "1px solid #cbd5e1", borderRadius: "4px", padding: "4px" }}
+                            />
                             <button
                               onClick={() => handleReturnQtyChange(idx, item.qtyToReturn + 1)}
                               style={{ width: "24px", height: "24px", border: "1px solid #cbd5e1", borderRadius: "4px", backgroundColor: "#f8fafc", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
@@ -6268,7 +6300,7 @@ const Dashboard: React.FC = () => {
                       className="input-corporate"
                       placeholder="Ej: Producto defectuoso, talla incorrecta..."
                       value={returnReason}
-                      onChange={(e) => setReturnReason(e.target.value)}
+                      onChange={(e) => setReturnReason(validateMotivoDevoluccion(e.target.value))}
                     />
                   </div>
                   <div style={styles.inputGroup}>
@@ -6376,15 +6408,16 @@ const Dashboard: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <input
-                    type="password"
-                    className="input-corporate"
-                    placeholder="Ingrese PIN de Gerente/Admin"
-                    value={returnPin}
-                    onChange={(e) => setReturnPin(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") handleReturnProcess(); }}
-                    style={{ textAlign: "center", letterSpacing: "8px", fontSize: "18px", fontWeight: "700" }}
-                  />
+                      <input
+                        type="password"
+                        maxLength={4}
+                        className="input-corporate"
+                        placeholder="Ingrese PIN de Gerente/Admin"
+                        value={returnPin}
+                        onChange={(e) => setReturnPin(validatePinInput(e.target.value))}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleReturnProcess(); }}
+                        style={{ textAlign: "center", letterSpacing: "8px", fontSize: "18px", fontWeight: "700" }}
+                      />
                 </div>
 
                 <div style={{ display: "flex", gap: "8px" }}>
