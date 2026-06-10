@@ -3,6 +3,7 @@ import {
   createSale,
   simulateSale,
   getRecentSales,
+  getMyRecentSales,
   authorizeAndCancelSale,
   createBankDeposit,
   getRecentDeposits,
@@ -27,6 +28,7 @@ router.use(authenticateJWT);
 router.post("/", createSale);
 router.post("/simulate", simulateSale);
 router.get("/recent", getRecentSales);
+router.get("/my-recent", getMyRecentSales); // Solo ventas del cajero autenticado (filtrado por userId del token)
 router.post("/authorize-cancel", authorizeAndCancelSale);
 router.post("/bank-deposit", createBankDeposit);
 router.get("/deposits", getRecentDeposits);

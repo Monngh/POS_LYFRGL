@@ -12,6 +12,7 @@ import {
   fmtDate,
   useMediaQuery,
 } from "./shared";
+import { type FieldErrors, normalizeIntegerInput, validateInteger } from "../../utils/formValidation";
 
 const PERIODICIDADES = [
   { value: "01", label: "Diario" },
@@ -44,6 +45,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
   const [periodicity, setPeriodicity] = useState("01");
   const [month, setMonth] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
   const [year, setYear] = useState(String(new Date().getFullYear()));
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors<"year">>({});
 
   // Estado de los tickets a facturar
   const [tickets, setTickets] = useState<any[]>([]);
@@ -54,6 +56,19 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
   const [stamping, setStamping] = useState(false);
   const [stampResult, setStampResult] = useState<any | null>(null);
   const [stampError, setStampError] = useState<string | null>(null);
+
+  const validateYear = (value: string) => {
+    const error = validateInteger(value, "El anio", { required: true, min: 2000, max: 2100 });
+    if (error) return error;
+    return value.length === 4 ? undefined : "El anio debe tener 4 digitos.";
+  };
+
+  const handleYearChange = (value: string) => {
+    const normalized = normalizeIntegerInput(value).slice(0, 4);
+    const forcedError = value !== normalized ? "El anio solo puede contener numeros enteros." : undefined;
+    setYear(normalized);
+    setFieldErrors((prev) => ({ ...prev, year: forcedError || validateYear(normalized) }));
+  };
 
   // Cargar tickets elegibles
   const loadEligibleTickets = useCallback(async () => {
@@ -100,6 +115,10 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
 
   // Ejecutar timbrado de Factura Global
   const handleStampGlobal = async () => {
+    const yearError = validateYear(year);
+    setFieldErrors({ year: yearError });
+    if (yearError) return;
+
     if (tickets.length === 0) {
       alert("No hay tickets disponibles para facturar en este rango.");
       return;
@@ -203,11 +222,15 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
             <div>
               <label style={fieldLabel}>Año correspondiente</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                maxLength={4}
                 value={year}
-                onChange={(e) => setYear(e.target.value)}
-                style={ui.input}
+                onChange={(e) => handleYearChange(e.target.value)}
+                onBlur={() => setFieldErrors({ year: validateYear(year) })}
+                style={{ ...ui.input, ...(fieldErrors.year ? fieldErrorInput : {}) }}
               />
+              {fieldErrors.year && <p style={ui.fieldError}>{fieldErrors.year}</p>}
             </div>
 
             <button
@@ -401,6 +424,11 @@ const errorAlert: React.CSSProperties = {
   color: "#b91c1c",
   padding: 16,
   borderRadius: 12,
+};
+
+const fieldErrorInput: React.CSSProperties = {
+  borderColor: "#ef4444",
+  boxShadow: "0 0 0 2px rgba(239, 68, 68, 0.12)",
 };
 
 const downloadBtn: React.CSSProperties = {

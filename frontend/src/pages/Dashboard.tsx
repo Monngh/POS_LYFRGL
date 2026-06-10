@@ -2,16 +2,32 @@ import React, { useState, useEffect } from "react";
 import "../pos-cashier-responsive.css";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
-import { ticketPdfFilename } from "../utils/ticketEmailDocument.util";
+import {
+  printTicketElementById,
+  TICKET_PRINT_MEDIA_STYLES,
+  ticketPdfFilename,
+} from "../utils/ticketEmailDocument.util";
 import { generateTicketPdfBase64 } from "../utils/ticketPdf.util";
 import AdminDashboard from "./AdminDashboard";
 import {
   collectRoundedDecimalMessages,
+  DECIMAL_INPUT_REGEX,
   type DecimalFieldValue,
   handleDecimalInputChange,
   roundToTwoDecimals,
   validateDecimalField,
 } from "../utils/decimalInput";
+import {
+  normalizeEmailInput,
+  normalizeIntegerInput,
+  normalizePhoneInput,
+  validateEmail,
+  validateInteger,
+  validatePhone,
+  validateReference,
+  validateSafeText,
+  validateSearchText,
+} from "../utils/formValidation";
 import { 
   LogOut, 
   Store, 
@@ -23,7 +39,6 @@ import {
   Printer,
   XCircle,
   PiggyBank,
-  Delete,
   KeyRound,
   AlertTriangle,
   FileText,
@@ -137,6 +152,7 @@ const Dashboard: React.FC = () => {
   const [cancellingDep, setCancellingDep] = useState<any | null>(null);
   const [depCancelReason, setDepCancelReason] = useState("");
   const [depCancelPin, setDepCancelPin] = useState("");
+  const [depCancelFieldErrors, setDepCancelFieldErrors] = useState<Partial<Record<"pin" | "reason", string>>>({});
   const [depCancelLoading, setDepCancelLoading] = useState(false);
   const [syncingDepositId, setSyncingDepositId] = useState<number | null>(null);
 
@@ -150,6 +166,7 @@ const Dashboard: React.FC = () => {
   const [returnItems, setReturnItems] = useState<any[]>([]);
   const [returnReason, setReturnReason] = useState("");
   const [returnPin, setReturnPin] = useState("");
+  const [returnFieldErrors, setReturnFieldErrors] = useState<Partial<Record<"folio" | "reason" | "pin", string>>>({});
   const [returnPinAttempts, setReturnPinAttempts] = useState<number>(0);
   const [returnPaymentMethod, setReturnPaymentMethod] = useState("EFECTIVO");
   const [returnProcessing, setReturnProcessing] = useState(false);
@@ -158,6 +175,7 @@ const Dashboard: React.FC = () => {
   // Estados para alertas personalizadas y cobro (Fase 3.5)
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" | "info" } | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [checkoutFieldErrors, setCheckoutFieldErrors] = useState<Partial<Record<"cashReceived" | "mixtoCard" | "mixtoCash", string>>>({});
 
   // Simulación de venta: impuestos y promociones dinámicos desde backend
   const [simulationData, setSimulationData] = useState<any>(null);
@@ -283,7 +301,7 @@ const Dashboard: React.FC = () => {
     try {
       const [resStats, resSales, resDeposits] = await Promise.all([
         api.get("/api/cash-session/stats"),
-        api.get("/api/sales/recent"),
+        api.get("/api/sales/my-recent"),
         api.get("/api/sales/deposits").catch(() => ({ data: { deposits: [] } }))
       ]);
       setSessionStats(resStats.data.stats);
@@ -302,6 +320,7 @@ const Dashboard: React.FC = () => {
   // 2. APERTURA DE CAJA (Mockup 8)
   // ---------------------------------------------------------------------------
   const [initialFund, setInitialFund] = useState("500.00");
+  const [initialFundError, setInitialFundError] = useState("");
   const [openingLoading, setOpeningLoading] = useState(false);
 
   const handleOpenCash = async () => {
@@ -309,9 +328,11 @@ const Dashboard: React.FC = () => {
       invalidMessage: "El fondo inicial debe ser un monto valido con maximo 3 decimales.",
     });
     if (!initialFundValidation.ok) {
+      setInitialFundError(initialFundValidation.error);
       showToast(initialFundValidation.error);
       return;
     }
+    setInitialFundError("");
     const initialFundValue = initialFundValidation.value;
     setOpeningLoading(true);
     try {
@@ -373,7 +394,7 @@ const Dashboard: React.FC = () => {
   // 4. TERMINAL DE VENTAS (Mockup 5)
   // ---------------------------------------------------------------------------
   // Restaurar borrador de venta desde localStorage al montar
-  const DRAFT_KEY = "pos_sale_draft";
+  const DRAFT_KEY = user?.id ? `pos_sale_draft_${user.id}` : "pos_sale_draft";
   const loadDraft = (): CartEntry[] => {
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
@@ -405,6 +426,7 @@ const Dashboard: React.FC = () => {
 
   const [cart, setCart] = useState<CartEntry[]>(loadDraft);
   const [barcodeSearch, setBarcodeSearch] = useState("");
+  const [barcodeSearchError, setBarcodeSearchError] = useState("");
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState<any>(null); // Guardar venta tras cobro para ticket
@@ -433,10 +455,12 @@ const Dashboard: React.FC = () => {
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
+  const [customerSearchError, setCustomerSearchError] = useState("");
   const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([]);
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
   const [newCustomerForm, setNewCustomerForm] = useState({ name: "", phone: "", email: "" });
+  const [newCustomerFieldErrors, setNewCustomerFieldErrors] = useState<Partial<Record<keyof typeof newCustomerForm, string>>>({});
   const [newCustomerLoading, setNewCustomerLoading] = useState(false);
   const [newCustomerError, setNewCustomerError] = useState<string | null>(null);
 
@@ -476,7 +500,7 @@ const Dashboard: React.FC = () => {
         if (ticketDateFrom) params.dateFrom = ticketDateFrom;
         if (ticketDateTo) params.dateTo = ticketDateTo;
 
-        const res = await api.get("/api/sales/recent", { params });
+        const res = await api.get("/api/sales/my-recent", { params });
         setFilteredSales(res.data.sales || []);
       } catch (err) {
         console.error("Error al buscar tickets:", err);
@@ -490,7 +514,14 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     if (view !== "sales-terminal") return;
     const query = customerSearch.trim();
+    const searchError = validateSearchText(query, "La busqueda de cliente", { max: 120 });
+    setCustomerSearchError(searchError || "");
     if (!query) {
+      setCustomerSearchResults([]);
+      setIsCustomerDropdownOpen(false);
+      return;
+    }
+    if (searchError) {
       setCustomerSearchResults([]);
       setIsCustomerDropdownOpen(false);
       return;
@@ -534,8 +565,50 @@ const Dashboard: React.FC = () => {
     loadSaleSimulation();
   }, [cart]);
 
+  const validateNewCustomerField = (field: keyof typeof newCustomerForm, value: string) => {
+    if (field === "name") return validateSafeText(value, "El nombre", { required: true, min: 2, max: 100 });
+    if (field === "phone") return validatePhone(value, { required: true, minDigits: 10, maxDigits: 15 });
+    if (field === "email") return validateEmail(value, { required: false });
+    return undefined;
+  };
+
+  const validateNewCustomerForm = () => {
+    const errors: Partial<Record<keyof typeof newCustomerForm, string>> = {};
+    (Object.keys(newCustomerForm) as Array<keyof typeof newCustomerForm>).forEach((field) => {
+      const error = validateNewCustomerField(field, newCustomerForm[field]);
+      if (error) errors[field] = error;
+    });
+    return errors;
+  };
+
+  const setNewCustomerField =
+    (field: keyof typeof newCustomerForm) =>
+    (value: string) => {
+      const nextValue =
+        field === "phone"
+          ? normalizePhoneInput(value).slice(0, 20)
+          : field === "email"
+            ? normalizeEmailInput(value)
+            : value;
+      setNewCustomerForm((prev) => ({ ...prev, [field]: nextValue }));
+      setNewCustomerError(null);
+      setNewCustomerFieldErrors((prev) => {
+        const next = { ...prev };
+        const error = validateNewCustomerField(field, nextValue);
+        if (error) next[field] = error;
+        else delete next[field];
+        return next;
+      });
+    };
+
   const handleRegisterCustomerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errors = validateNewCustomerForm();
+    if (Object.keys(errors).length > 0) {
+      setNewCustomerFieldErrors(errors);
+      setNewCustomerError(null);
+      return;
+    }
     const { name, phone, email } = newCustomerForm;
     if (!name.trim() || !phone.trim()) {
       setNewCustomerError("El nombre y el teléfono son obligatorios.");
@@ -555,6 +628,7 @@ const Dashboard: React.FC = () => {
       setIsCustomerDropdownOpen(false);
       setIsNewCustomerModalOpen(false);
       setNewCustomerForm({ name: "", phone: "", email: "" });
+      setNewCustomerFieldErrors({});
       showToast("Cliente registrado y seleccionado.", "success");
     } catch (err: any) {
       setNewCustomerError(err.response?.data?.message || "Error al registrar cliente.");
@@ -566,6 +640,9 @@ const Dashboard: React.FC = () => {
   const handleProductBarcodeSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     const query = barcodeSearch.trim();
+    const searchError = validateSearchText(query, "La busqueda de producto", { max: 120 });
+    setBarcodeSearchError(searchError || "");
+    if (searchError) return;
     if (!query) return;
     if (query === lastSearchQueryRef.current) return;
     lastSearchQueryRef.current = query;
@@ -590,7 +667,14 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     if (view !== "sales-terminal") return;
     const query = barcodeSearch.trim();
+    const searchError = validateSearchText(query, "La busqueda de producto", { max: 120 });
+    setBarcodeSearchError(searchError || "");
     if (!query) {
+      setSearchResults([]);
+      lastSearchQueryRef.current = "";
+      return;
+    }
+    if (searchError) {
       setSearchResults([]);
       lastSearchQueryRef.current = "";
       return;
@@ -615,12 +699,25 @@ const Dashboard: React.FC = () => {
 
   // Persistir borrador de venta en localStorage cada vez que cambie el carrito
   useEffect(() => {
+    if (!user?.id) return;
     if (cart.length > 0) {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(cart));
     } else {
       localStorage.removeItem(DRAFT_KEY);
     }
-  }, [cart]);
+  }, [cart, user?.id, DRAFT_KEY]);
+
+  // Sincronizar borrador y pagos pendientes QR cuando cambie el usuario autenticado
+  useEffect(() => {
+    if (user?.id) {
+      setCart(loadDraft());
+      const saved = localStorage.getItem(`pendingQrSales_${user.id}`);
+      setPendingQrSales(saved ? JSON.parse(saved) : []);
+    } else {
+      setCart([]);
+      setPendingQrSales([]);
+    }
+  }, [user?.id]);
 
   const addProductToCart = (prod: Product) => {
     if (prod.stock <= 0) {
@@ -769,8 +866,8 @@ const Dashboard: React.FC = () => {
 
   const handleCartPinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cartPin || cartPin.length < 4) {
-      setCartPinError("Ingrese un código PIN completo de 4 dígitos.");
+    if (!cartPin) {
+      setCartPinError("Ingrese la contraseña o clave de autorización.");
       return;
     }
     setCartPinLoading(true);
@@ -787,6 +884,74 @@ const Dashboard: React.FC = () => {
     } finally {
       setCartPinLoading(false);
     }
+  };
+
+  const renderCartAuthorizationModal = () => {
+    if (activeModal !== "cart-pin-auth") return null;
+
+    return (
+      <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+        <div style={{ ...styles.cancelModal, width: "380px" }} className="pos-cashier-modal">
+          <h3 style={styles.modalTitle}>Autorización de Gerente/Admin</h3>
+          <p style={{ fontSize: "12px", color: "#64748b", margin: "8px 0 16px 0", textAlign: "center" }}>
+            Esta operación requiere la autorización de un Administrador o Gerente. Ingrese la contraseña o clave de autorización.
+          </p>
+
+          <form onSubmit={handleCartPinSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            <div style={styles.inputGroup}>
+              <label htmlFor="cartAuthorizationPassword" style={styles.label}>Contraseña de autorización:</label>
+              <input
+                id="cartAuthorizationPassword"
+                autoFocus
+                type="password"
+                required
+                className="input-corporate"
+                placeholder="Contraseña o clave"
+                value={cartPin}
+                onChange={(e) => {
+                  setCartPin(e.target.value);
+                  if (cartPinError) setCartPinError("");
+                }}
+                autoComplete="off"
+              />
+            </div>
+
+            {cartPinError && (
+              <p style={{ fontSize: "12px", color: "#dc2626", fontWeight: "600", margin: 0, textAlign: "center" }}>
+                {cartPinError}
+              </p>
+            )}
+
+            <div style={{ display: "flex", gap: "10px", marginTop: "4px" }} className="pos-cashier-modal-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingCartAction(null);
+                  setCartPin("");
+                  setCartPinError("");
+                  setActiveModal(null);
+                }}
+                style={{ ...styles.modalBtn, backgroundColor: "#64748b", color: "white" }}
+              >
+                CANCELAR
+              </button>
+              <button
+                type="submit"
+                disabled={cartPinLoading || !cartPin}
+                style={{
+                  ...styles.modalBtn,
+                  backgroundColor: cartPin ? "#1e3a8a" : "#cbd5e1",
+                  color: "white",
+                  cursor: cartPin ? "pointer" : "default",
+                }}
+              >
+                {cartPinLoading ? "Validando..." : "AUTORIZAR"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
   };
 
   // Función auxiliar para calcular las promociones de una línea del carrito
@@ -951,6 +1116,7 @@ const Dashboard: React.FC = () => {
 
   const handleCheckoutSubmit = async () => {
     setCheckoutError(null);
+    setCheckoutFieldErrors({});
 
     let itemsPayload: ReturnType<typeof buildCheckoutItemsPayload>;
     try {
@@ -969,7 +1135,7 @@ const Dashboard: React.FC = () => {
         invalidMessage: "El monto recibido debe ser un numero valido con maximo 3 decimales.",
       });
       if (!cashValidation.ok) {
-        setCheckoutError(cashValidation.error);
+        setCheckoutFieldErrors((prev) => ({ ...prev, cashReceived: cashValidation.error }));
         return;
       }
       cashPayment = cashValidation.value.value;
@@ -984,7 +1150,7 @@ const Dashboard: React.FC = () => {
         minMessage: "El monto con tarjeta debe ser mayor a 0.",
       });
       if (!cardValidation.ok) {
-        setCheckoutError(cardValidation.error);
+        setCheckoutFieldErrors((prev) => ({ ...prev, mixtoCard: cardValidation.error }));
         return;
       }
 
@@ -995,7 +1161,7 @@ const Dashboard: React.FC = () => {
         minMessage: "El monto con efectivo debe ser mayor a 0.",
       });
       if (!cashValidation.ok) {
-        setCheckoutError(cashValidation.error);
+        setCheckoutFieldErrors((prev) => ({ ...prev, mixtoCash: cashValidation.error }));
         return;
       }
 
@@ -1004,11 +1170,11 @@ const Dashboard: React.FC = () => {
       paymentRoundedValues.push(cardValidation.value, cashValidation.value);
 
       if (cardPayment > netTotalToPay) {
-        setCheckoutError("El monto pagado con tarjeta no puede ser mayor al total de la compra.");
+        setCheckoutFieldErrors((prev) => ({ ...prev, mixtoCard: "El monto pagado con tarjeta no puede ser mayor al total de la compra." }));
         return;
       }
       if (cashPayment + cardPayment < netTotalToPay) {
-        setCheckoutError("La suma de efectivo y tarjeta es menor al total a pagar.");
+        setCheckoutFieldErrors((prev) => ({ ...prev, mixtoCash: "La suma de efectivo y tarjeta es menor al total a pagar." }));
         return;
       }
     }
@@ -1016,7 +1182,7 @@ const Dashboard: React.FC = () => {
     const paymentRoundingMessages = collectRoundedDecimalMessages(paymentRoundedValues);
 
     if (paymentMethod === "EFECTIVO" && cashPayment < netTotalToPay) {
-      setCheckoutError("El efectivo recibido es menor al total a pagar.");
+      setCheckoutFieldErrors((prev) => ({ ...prev, cashReceived: "El efectivo recibido es menor al total a pagar." }));
       return;
     }
 
@@ -1141,7 +1307,11 @@ const Dashboard: React.FC = () => {
   // 6. TICKET DE VENTA (Mockup 3)
   // ---------------------------------------------------------------------------
   const handlePrintTicket = () => {
-    window.print();
+    const title = selectedSale?.invoiceNumber ? `Ticket ${selectedSale.invoiceNumber}` : "Ticket";
+    const printed = printTicketElementById(title, "print-area");
+    if (!printed) {
+      alert("Habilite las ventanas emergentes para imprimir el ticket.");
+    }
   };
 
   const isValidTicketEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -1162,27 +1332,81 @@ const Dashboard: React.FC = () => {
 
   const buildReturnReceiptHtml = () => {
     if (!returnReceipt) return "";
+    const safe = (value: unknown) =>
+      String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    const selectedItems = returnItems.filter((it) => it.selected && it.qtyToReturn > 0);
     const rows = [
-      `<p><strong>Folio Devolución:</strong> ${returnReceipt.returnNumber}</p>`,
-      `<p><strong>Total Reembolsado:</strong> $${Number(returnReceipt.totalRefunded).toFixed(2)}</p>`,
+      `<div class="ticket-row"><span>Folio devolucion:</span><span class="ticket-value">${safe(returnReceipt.returnNumber)}</span></div>`,
+      `<div class="ticket-row"><span>Venta origen:</span><span class="ticket-value">${safe(returnSaleData?.invoiceNumber || "N/A")}</span></div>`,
+      `<div class="ticket-row"><span>Fecha:</span><span class="ticket-value">${safe(new Date().toLocaleString())}</span></div>`,
+      `<div class="ticket-row"><span>Sucursal:</span><span class="ticket-value">${safe(user?.branch?.name || "N/A")}</span></div>`,
+      `<div class="ticket-row"><span>Cajero:</span><span class="ticket-value">${safe(user?.name || "N/A")}</span></div>`,
+      `<div class="ticket-row"><span>Cliente:</span><span class="ticket-value">${safe(returnSaleData?.customerName || "Publico general")}</span></div>`,
+      `<div class="ticket-row"><span>Metodo reembolso:</span><span class="ticket-value">${safe(returnPaymentMethod)}</span></div>`,
+      `<div class="ticket-row"><span>Motivo:</span><span class="ticket-value">${safe(returnReason || "N/A")}</span></div>`,
     ];
     if (returnReceipt.storeCreditCode) {
-      rows.push(`<p><strong>Código de Vale:</strong> ${returnReceipt.storeCreditCode}</p>`);
+      rows.push(`<div class="ticket-row"><span>Codigo de vale:</span><span class="ticket-value">${safe(returnReceipt.storeCreditCode)}</span></div>`);
     }
     if (returnReceipt.cfdiUuid) {
-      rows.push(`<p><strong>Nota de Crédito SAT:</strong> ${returnReceipt.cfdiUuid}</p>`);
+      rows.push(`<div class="ticket-row"><span>Nota credito SAT:</span><span class="ticket-value">${safe(returnReceipt.cfdiUuid)}</span></div>`);
     }
     if (returnReceipt.exchangeSaleInvoice) {
-      rows.push(`<p><strong>Cambio de Producto:</strong> ${returnReceipt.exchangeSaleInvoice}</p>`);
+      rows.push(`<div class="ticket-row"><span>Cambio producto:</span><span class="ticket-value">${safe(returnReceipt.exchangeSaleInvoice)}</span></div>`);
     }
+    const itemRows = selectedItems
+      .map(
+        (item) => `
+          <tr>
+            <td style="width:12%;text-align:left;padding:3px 2px 3px 0;">${Number(item.qtyToReturn)}</td>
+            <td style="width:48%;padding:3px 4px 3px 0;">${safe(item.name)}</td>
+            <td style="width:18%;text-align:right;padding:3px 4px 3px 0;">$${Number(item.netUnitPrice).toFixed(2)}</td>
+            <td style="width:22%;text-align:right;padding:3px 0;">$${Number(item.netUnitPrice * item.qtyToReturn * 1.16).toFixed(2)}</td>
+          </tr>`
+      )
+      .join("");
+
     return `
-      <div style="font-family: monospace; font-size: 12px; color: #0f172a;">
-        <div style="text-align: center; margin-bottom: 12px;">
-          <strong style="font-size: 14px;">LYFRGL POS</strong>
-          <p style="margin: 4px 0 0 0; font-size: 11px;">COMPROBANTE DE DEVOLUCIÓN</p>
+      <div>
+        <div class="ticket-header">
+          <span class="ticket-store">LYFRGL POS</span>
+          <span class="ticket-muted">Sucursal: ${safe(user?.branch?.name || "N/A")}</span>
+          <span class="ticket-operation">DEVOLUCION</span>
         </div>
-        ${rows.join("")}
-        <p style="margin-top: 12px; font-size: 10px; color: #64748b; text-align: center;">Devolución procesada correctamente.</p>
+        <div class="ticket-section">
+          ${rows.join("")}
+        </div>
+        ${
+          itemRows
+            ? `<div class="ticket-section">
+                <table>
+                  <thead>
+                    <tr style="border-bottom:1px dashed #111111;">
+                      <th style="width:12%;text-align:left;padding-bottom:4px;">Cant</th>
+                      <th style="width:48%;text-align:left;padding-bottom:4px;">Descripcion</th>
+                      <th style="width:18%;text-align:right;padding-bottom:4px;">Unit</th>
+                      <th style="width:22%;text-align:right;padding-bottom:4px;">Importe</th>
+                    </tr>
+                  </thead>
+                  <tbody>${itemRows}</tbody>
+                </table>
+              </div>`
+            : ""
+        }
+        <div class="ticket-section">
+          <div class="ticket-row ticket-total">
+            <span>Total reembolsado:</span>
+            <span>$${Number(returnReceipt.totalRefunded).toFixed(2)}</span>
+          </div>
+        </div>
+        <div class="ticket-footer">
+          <p>DEVOLUCION PROCESADA CORRECTAMENTE</p>
+          <p>Conserve este comprobante.</p>
+        </div>
       </div>
     `;
   };
@@ -1314,7 +1538,7 @@ const Dashboard: React.FC = () => {
       defaultEmail?: string | null;
     };
   }) => (
-    <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions">
+    <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions no-print" data-no-ticket-print="true">
       <button onClick={options.onClose} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
         {options.closeLabel || "CERRAR"}
       </button>
@@ -1334,7 +1558,7 @@ const Dashboard: React.FC = () => {
     if (fromPendingQrId) {
       setPendingQrSales(prev => {
         const updated = prev.filter(sale => sale.id !== fromPendingQrId);
-        localStorage.setItem("pendingQrSales", JSON.stringify(updated));
+        localStorage.setItem(QR_KEY, JSON.stringify(updated));
         return updated;
       });
     }
@@ -1363,6 +1587,7 @@ const Dashboard: React.FC = () => {
   const [cancelInvoice, setCancelInvoice] = useState("");
   const [cancelPin, setCancelPin] = useState("");
   const [cancelReason, setCancelReason] = useState("");
+  const [cancelFieldErrors, setCancelFieldErrors] = useState<Partial<Record<"invoice" | "pin" | "reason", string>>>({});
   const [cancelLoading, setCancelLoading] = useState(false);
 
   // Estado para previsualización de ticket a cancelar (Fase 3.8)
@@ -1388,10 +1613,41 @@ const Dashboard: React.FC = () => {
     return () => clearTimeout(timer);
   }, [cancelInvoice]);
 
+  const validateCancelFields = () => {
+    const errors: Partial<Record<"invoice" | "pin" | "reason", string>> = {};
+    const invoiceError = validateReference(cancelInvoice, "El folio de venta", { required: true, max: 40 });
+    if (invoiceError) errors.invoice = invoiceError;
+    const pinError = validateInteger(cancelPin, "El PIN", { min: 0 });
+    if (pinError || cancelPin.length !== 4) errors.pin = "El PIN debe contener 4 digitos.";
+    const reasonError = validateReference(cancelReason, "El motivo", { required: true, max: 180 });
+    if (reasonError) errors.reason = reasonError;
+    return errors;
+  };
+
+  const setCancelField = (field: "invoice" | "pin" | "reason", value: string) => {
+    const nextValue = field === "pin" ? normalizeIntegerInput(value).slice(0, 4) : value;
+    if (field === "invoice") setCancelInvoice(nextValue);
+    if (field === "pin") setCancelPin(nextValue);
+    if (field === "reason") setCancelReason(nextValue);
+    setCancelFieldErrors((prev) => {
+      const next = { ...prev };
+      const error =
+        field === "invoice"
+          ? validateReference(nextValue, "El folio de venta", { required: true, max: 40 })
+          : field === "pin"
+            ? (validateInteger(nextValue, "El PIN", { min: 0 }) || nextValue.length !== 4 ? "El PIN debe contener 4 digitos." : undefined)
+            : validateReference(nextValue, "El motivo", { required: true, max: 180 });
+      if (error) next[field] = error;
+      else delete next[field];
+      return next;
+    });
+  };
+
   const handleCancelSaleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cancelInvoice || !cancelPin || !cancelReason) {
-      showToast("Por favor complete todos los campos.");
+    const errors = validateCancelFields();
+    if (Object.keys(errors).length > 0) {
+      setCancelFieldErrors(errors);
       return;
     }
     setCancelLoading(true);
@@ -1419,12 +1675,14 @@ const Dashboard: React.FC = () => {
     setCancelInvoice("");
     setCancelPin("");
     setCancelReason("");
+    setCancelFieldErrors({});
     setCancelSalePreview(null);
   };
 
   const handleCloseModal_closeCash = () => {
     setActiveModal(null);
     setDeclaredCash("");
+    setDeclaredCashError("");
     if (lastClosedStats) {
       setLastClosedStats(null);
       logout();
@@ -1442,6 +1700,7 @@ const Dashboard: React.FC = () => {
     setDepName("");
     setDepAmount("");
     setDepComments("");
+    setDepositFieldErrors({});
   };
 
   const handleCloseModal_ticketHistory = () => {
@@ -1473,6 +1732,7 @@ const Dashboard: React.FC = () => {
   // 8. CIERRE DE CAJA Y CORTE PARCIAL (Mockup 2)
   // ---------------------------------------------------------------------------
   const [declaredCash, setDeclaredCash] = useState("");
+  const [declaredCashError, setDeclaredCashError] = useState("");
   const [closingLoading, setClosingLoading] = useState(false);
 
   const calculatedDifference = sessionStats
@@ -1484,9 +1744,11 @@ const Dashboard: React.FC = () => {
       invalidMessage: "El efectivo contado debe ser un monto valido con maximo 3 decimales.",
     });
     if (!declaredCashValidation.ok) {
+      setDeclaredCashError(declaredCashValidation.error);
       showToast(declaredCashValidation.error);
       return;
     }
+    setDeclaredCashError("");
     const declaredCashValue = declaredCashValidation.value;
     setClosingLoading(true);
     try {
@@ -1501,6 +1763,7 @@ const Dashboard: React.FC = () => {
       setSession(null);
       setActiveModal("close-receipt");
       setDeclaredCash("");
+      setDeclaredCashError("");
     } catch (err: any) {
       showToast(err.response?.data?.message || "Error al cerrar turno.");
     } finally {
@@ -1529,6 +1792,7 @@ const Dashboard: React.FC = () => {
   const [depName, setDepName] = useState("");
   const [depAmount, setDepAmount] = useState("");
   const [depComments, setDepComments] = useState("");
+  const [depositFieldErrors, setDepositFieldErrors] = useState<Record<string, string>>({});
   const [depLoading, setDepLoading] = useState(false);
   const [lastDeposit, setLastDeposit] = useState<any>(null);
   const [depType, setDepType] = useState("EFECTIVO");
@@ -1536,15 +1800,15 @@ const Dashboard: React.FC = () => {
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const isMercadoPago = depType.startsWith("MERCADOPAGO_");
+    const errors: Record<string, string> = {};
     
     if (!isMercadoPago) {
       if (depAccount.length !== 16 || isNaN(Number(depAccount))) {
-        showToast("El número de cuenta debe tener exactamente 16 dígitos.");
-        return;
+        errors.account = "El numero de cuenta debe tener exactamente 16 digitos.";
       }
-      if (!depName) {
-        showToast("Por favor especifique el nombre del beneficiario.");
-        return;
+      const nameError = validateSafeText(depName, "El beneficiario", { required: true, min: 2, max: 100 });
+      if (nameError) {
+        errors.name = nameError;
       }
     }
     
@@ -1555,9 +1819,17 @@ const Dashboard: React.FC = () => {
       minMessage: "El monto del deposito debe ser mayor a 0.",
     });
     if (!depAmountValidation.ok) {
-      showToast(depAmountValidation.error);
+      errors.amount = depAmountValidation.error;
+    }
+    const commentsError = validateReference(depComments, "La referencia", { required: false, max: 180 });
+    if (commentsError) errors.comments = commentsError;
+    if (Object.keys(errors).length > 0) {
+      setDepositFieldErrors(errors);
+      showToast("Revisa los campos marcados antes de guardar.");
       return;
     }
+    if (!depAmountValidation.ok) return;
+    setDepositFieldErrors({});
     const depAmountValue = depAmountValidation.value;
 
     setDepLoading(true);
@@ -1578,6 +1850,7 @@ const Dashboard: React.FC = () => {
       setDepName("");
       setDepAmount("");
       setDepComments("");
+      setDepositFieldErrors({});
       setDepType("EFECTIVO");
       
       await loadDashboardData();
@@ -1609,14 +1882,16 @@ const Dashboard: React.FC = () => {
   // ---------------------------------------------------------------------------
   // 9.5 PAGOS PENDIENTES QR MERCADO PAGO
   // ---------------------------------------------------------------------------
+  const QR_KEY = user?.id ? `pendingQrSales_${user.id}` : "pendingQrSales";
   const [pendingQrSales, setPendingQrSales] = useState<any[]>(() => {
-    const saved = localStorage.getItem("pendingQrSales");
+    const saved = localStorage.getItem(QR_KEY);
     return saved ? JSON.parse(saved) : [];
   });
   const [pendingQrChecking, setPendingQrChecking] = useState<string | null>(null);
   const [viewingPendingQrSale, setViewingPendingQrSale] = useState<any | null>(null);
   const [pendingCancelPin, setPendingCancelPin] = useState("");
   const [pendingCancelReason, setPendingCancelReason] = useState("");
+  const [pendingCancelFieldErrors, setPendingCancelFieldErrors] = useState<Partial<Record<"pin" | "reason", string>>>({});
   const [pendingCancelLoading, setPendingCancelLoading] = useState(false);
 
   const addPendingQrSale = () => {
@@ -1635,7 +1910,7 @@ const Dashboard: React.FC = () => {
     
     setPendingQrSales(prev => {
       const updated = [...prev, newPending];
-      localStorage.setItem("pendingQrSales", JSON.stringify(updated));
+      localStorage.setItem(QR_KEY, JSON.stringify(updated));
       return updated;
     });
     
@@ -1669,6 +1944,7 @@ const Dashboard: React.FC = () => {
         setViewingPendingQrSale(null);
         setPendingCancelPin("");
         setPendingCancelReason("");
+        setPendingCancelFieldErrors({});
 
         // Mostrar directamente el ticket de impresión
         if (salePending) {
@@ -1704,7 +1980,7 @@ const Dashboard: React.FC = () => {
               ? { ...sale, status: "rejected" } 
               : sale
           );
-          localStorage.setItem("pendingQrSales", JSON.stringify(updated));
+          localStorage.setItem(QR_KEY, JSON.stringify(updated));
           return updated;
         });
 
@@ -1720,6 +1996,70 @@ const Dashboard: React.FC = () => {
       showToast("Error al verificar: " + (err.response?.data?.message || err.message));
     } finally {
       setPendingQrChecking(null);
+    }
+  };
+
+  const validatePendingCancelFields = () => {
+    const errors: Partial<Record<"pin" | "reason", string>> = {};
+    const pinError = validateInteger(pendingCancelPin, "El PIN", { min: 0 });
+    if (pinError || pendingCancelPin.length !== 4) errors.pin = "El PIN debe contener 4 digitos.";
+    const reasonError = validateReference(pendingCancelReason, "El motivo", { required: true, max: 180 });
+    if (reasonError) errors.reason = reasonError;
+    return errors;
+  };
+
+  const handlePendingCancelPinChange = (rawValue: string) => {
+    const value = normalizeIntegerInput(rawValue).slice(0, 4);
+    setPendingCancelPin(value);
+    setPendingCancelFieldErrors((prev) => ({
+      ...prev,
+      pin:
+        rawValue !== value
+          ? "El PIN debe contener 4 digitos."
+          : value.length === 4
+            ? undefined
+            : "El PIN debe contener 4 digitos.",
+    }));
+  };
+
+  const handlePendingCancelReasonChange = (value: string) => {
+    setPendingCancelReason(value);
+    setPendingCancelFieldErrors((prev) => ({
+      ...prev,
+      reason: validateReference(value, "El motivo", { required: true, max: 180 }),
+    }));
+  };
+
+  const handlePendingQrCancel = async () => {
+    if (!viewingPendingQrSale) return;
+    const errors = validatePendingCancelFields();
+    setPendingCancelFieldErrors(errors);
+    if (Object.values(errors).some(Boolean)) return;
+
+    setPendingCancelLoading(true);
+    try {
+      const res = await api.post("/api/sales/authorize-cancel", {
+        invoiceNumber: viewingPendingQrSale.invoiceNumber,
+        pinCode: pendingCancelPin,
+        reason: pendingCancelReason.trim(),
+      });
+
+      showToast(res.data.message, "success");
+      setPendingQrSales(prev => {
+        const updated = prev.filter(sale => sale.id !== viewingPendingQrSale.id);
+        localStorage.setItem(QR_KEY, JSON.stringify(updated));
+        return updated;
+      });
+
+      setViewingPendingQrSale(null);
+      setPendingCancelPin("");
+      setPendingCancelReason("");
+      setPendingCancelFieldErrors({});
+      await loadDashboardData();
+    } catch (err: any) {
+      showToast(err.response?.data?.message || "Error al cancelar la venta.");
+    } finally {
+      setPendingCancelLoading(false);
     }
   };
 
@@ -1753,23 +2093,33 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const validateDepositCancelFields = () => {
+    const errors: Partial<Record<"pin" | "reason", string>> = {};
+    const pinError = validateInteger(depCancelPin, "El PIN", { min: 0 });
+    if (pinError || depCancelPin.length !== 4) errors.pin = "El PIN debe contener 4 digitos.";
+    const reasonError = validateReference(depCancelReason, "El motivo", { required: true, max: 180 });
+    if (reasonError) errors.reason = reasonError;
+    return errors;
+  };
+
   const handleCancelDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cancellingDep) return;
-    if (!depCancelPin || !depCancelReason) {
-      alert("El PIN y el motivo de cancelación son obligatorios.");
-      return;
-    }
+    const errors = validateDepositCancelFields();
+    setDepCancelFieldErrors(errors);
+    if (Object.values(errors).some(Boolean)) return;
+
     setDepCancelLoading(true);
     try {
       const res = await api.post(`/api/sales/deposits/${cancellingDep.id}/cancel`, {
         pinCode: depCancelPin,
-        reason: depCancelReason
+        reason: depCancelReason.trim()
       });
       alert(res.data.message || "Depósito cancelado exitosamente.");
       setCancellingDep(null);
       setDepCancelPin("");
       setDepCancelReason("");
+      setDepCancelFieldErrors({});
       await handleSearchDeposits();
       await loadDashboardData();
     } catch (err: any) {
@@ -1785,6 +2135,7 @@ const Dashboard: React.FC = () => {
       setCancellingDep(null);
       setDepCancelPin("");
       setDepCancelReason("");
+      setDepCancelFieldErrors({});
       fetchCashiers();
       handleSearchDeposits();
     }
@@ -1809,6 +2160,7 @@ const Dashboard: React.FC = () => {
     setReturnItems([]);
     setReturnReason("");
     setReturnPin("");
+    setReturnFieldErrors({});
     setReturnPinAttempts(0);
     setReturnPaymentMethod("EFECTIVO");
     setReturnProcessing(false);
@@ -1817,10 +2169,16 @@ const Dashboard: React.FC = () => {
 
   const handleReturnSearch = async () => {
     const folio = returnFolio.trim();
-    if (!folio) {
-      showToast("Ingrese el folio de la venta (V-XXXXXX).", "error");
+    const folioError = validateReference(folio, "El folio de venta", { required: true, max: 40 });
+    if (folioError) {
+      setReturnFieldErrors((prev) => ({ ...prev, folio: folioError }));
       return;
     }
+    setReturnFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next.folio;
+      return next;
+    });
     setReturnLoading(true);
     try {
       const res = await api.get(`/api/returns/eligible/${encodeURIComponent(folio)}`);
@@ -1898,6 +2256,16 @@ const Dashboard: React.FC = () => {
       showToast("Seleccione al menos un producto para devolver.", "error");
       return;
     }
+    const reasonError = validateReference(returnReason, "El motivo", { required: true, max: 180 });
+    if (reasonError) {
+      setReturnFieldErrors((prev) => ({ ...prev, reason: reasonError }));
+      return;
+    }
+    setReturnFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next.reason;
+      return next;
+    });
     if (!returnReason.trim()) {
       showToast("Indique el motivo de la devolución.", "error");
       return;
@@ -1915,6 +2283,16 @@ const Dashboard: React.FC = () => {
       }, 2000);
       return;
     }
+    const pinError = validateInteger(returnPin, "El PIN", { min: 0 });
+    if (pinError || returnPin.length !== 4) {
+      setReturnFieldErrors((prev) => ({ ...prev, pin: "El PIN debe contener 4 digitos." }));
+      return;
+    }
+    setReturnFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next.pin;
+      return next;
+    });
     if (!returnPin.trim()) {
       showToast("Ingrese el PIN de autorización del supervisor.", "error");
       return;
@@ -2038,8 +2416,19 @@ const Dashboard: React.FC = () => {
                   style={{ fontSize: "20px", fontWeight: "700", textAlign: "center", padding: "12px" }}
                   value={initialFund}
                   inputMode="decimal"
-                  onChange={(e) => handleDecimalInputChange(e.target.value, setInitialFund)}
+                  onChange={(e) => {
+                    const rawValue = e.target.value.trim();
+                    if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
+                      setInitialFundError("El fondo inicial debe ser un monto valido con maximo 3 decimales.");
+                      return;
+                    }
+                    handleDecimalInputChange(rawValue, (value) => {
+                    setInitialFund(value);
+                    setInitialFundError("");
+                    });
+                  }}
                 />
+                {initialFundError && <p style={styles.fieldError}>{initialFundError}</p>}
               </div>
 
               <button
@@ -2064,6 +2453,7 @@ const Dashboard: React.FC = () => {
   if (view === "sales-terminal") {
     return (
       <div style={styles.appContainer} className="pos-cashier-app">
+        <style>{TICKET_PRINT_MEDIA_STYLES}</style>
         {/* Header Venta */}
         <header style={styles.terminalHeader} className="pos-cashier-terminal-header">
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -2105,6 +2495,7 @@ const Dashboard: React.FC = () => {
                     value={barcodeSearch}
                     onChange={(e) => setBarcodeSearch(e.target.value)}
                   />
+                  {barcodeSearchError && <p style={styles.fieldError}>{barcodeSearchError}</p>}
                 </div>
                 <button type="submit" className="btn-primary">
                   Buscar
@@ -2177,6 +2568,7 @@ const Dashboard: React.FC = () => {
                           }
                         }}
                       />
+                      {customerSearchError && <p style={styles.fieldError}>{customerSearchError}</p>}
                     </div>
                     <button
                       type="button"
@@ -2184,6 +2576,7 @@ const Dashboard: React.FC = () => {
                       style={{ backgroundColor: "#0f172a" }}
                       onClick={() => {
                         setNewCustomerError(null);
+                        setNewCustomerFieldErrors({});
                         setNewCustomerForm({ name: "", phone: "", email: "" });
                         setIsNewCustomerModalOpen(true);
                       }}
@@ -2259,6 +2652,7 @@ const Dashboard: React.FC = () => {
                       style={{ fontSize: "12px", padding: "6px 12px", width: "100%", backgroundColor: "#0f172a" }}
                       onClick={() => {
                         setNewCustomerError(null);
+                        setNewCustomerFieldErrors({});
                         setNewCustomerForm({ name: "", phone: customerSearch.replace(/\D/g, ""), email: "" });
                         setIsNewCustomerModalOpen(true);
                         setIsCustomerDropdownOpen(false);
@@ -2477,6 +2871,7 @@ const Dashboard: React.FC = () => {
                     <div style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
                       📱 Pagos QR Pendientes
                     </div>
+                    <div className="pos-cashier-inline-table-scroll">
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                       <tbody>
                         {pendingQrSales.slice(-3).reverse().map((sale) => {
@@ -2499,7 +2894,7 @@ const Dashboard: React.FC = () => {
                               </td>
                               <td style={{ padding: "5px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
                                 <div style={{ display: "inline-flex", gap: "4px" }}>
-                                  <button onClick={(e) => { e.stopPropagation(); setViewingPendingQrSale(sale); }} title="Ver QR"
+                                  <button onClick={(e) => { e.stopPropagation(); setPendingCancelFieldErrors({}); setViewingPendingQrSale(sale); }} title="Ver QR"
                                     style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: "#dbeafe", color: "#1e40af", border: "1px solid #93c5fd", cursor: "pointer" }}>
                                     QR
                                   </button>
@@ -2514,6 +2909,7 @@ const Dashboard: React.FC = () => {
                         })}
                       </tbody>
                     </table>
+                    </div>
                   </>
                 )}
               </div>
@@ -2605,6 +3001,7 @@ const Dashboard: React.FC = () => {
                   onClick={() => {
                     setPaymentMethod("EFECTIVO");
                     setCheckoutError(null);
+                    setCheckoutFieldErrors({});
                   }}
                   style={{ ...styles.payMethodBtn, ...(paymentMethod === "EFECTIVO" ? styles.payMethodActive : {}) }}
                 >
@@ -2614,6 +3011,7 @@ const Dashboard: React.FC = () => {
                   onClick={() => {
                     setPaymentMethod("TARJETA");
                     setCheckoutError(null);
+                    setCheckoutFieldErrors({});
                   }}
                   style={{ ...styles.payMethodBtn, ...(paymentMethod === "TARJETA" ? styles.payMethodActive : {}) }}
                 >
@@ -2623,13 +3021,14 @@ const Dashboard: React.FC = () => {
                   onClick={() => {
                     setPaymentMethod("MIXTO");
                     setCheckoutError(null);
+                    setCheckoutFieldErrors({});
                   }}
                   style={{ ...styles.payMethodBtn, ...(paymentMethod === "MIXTO" ? styles.payMethodActive : {}) }}
                 >
                   ⚖️ MIXTO
                 </button>
                 <button
-                  onClick={() => setPaymentMethod("QR_MERCADOPAGO")}
+                  onClick={() => { setPaymentMethod("QR_MERCADOPAGO"); setCheckoutError(null); setCheckoutFieldErrors({}); }}
                   style={{ ...styles.payMethodBtn, ...(paymentMethod === "QR_MERCADOPAGO" ? styles.payMethodActive : {}) }}
                 >
                   📱 QR MP
@@ -2648,10 +3047,17 @@ const Dashboard: React.FC = () => {
                       value={cashReceived}
                       inputMode="decimal"
                       onChange={(e) => {
-                        handleDecimalInputChange(e.target.value, setCashReceived);
+                        const rawValue = e.target.value.trim();
+                        if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
+                          setCheckoutFieldErrors((prev) => ({ ...prev, cashReceived: "El monto recibido debe ser un numero valido con maximo 3 decimales." }));
+                          return;
+                        }
+                        handleDecimalInputChange(rawValue, setCashReceived);
+                        setCheckoutFieldErrors((prev) => ({ ...prev, cashReceived: "" }));
                         setCheckoutError(null);
                       }}
                     />
+                    {checkoutFieldErrors.cashReceived && <p style={styles.fieldError}>{checkoutFieldErrors.cashReceived}</p>}
                   </div>
                   <div style={styles.inputGroup}>
                     <label style={styles.label}>Su Cambio:</label>
@@ -2707,10 +3113,17 @@ const Dashboard: React.FC = () => {
                       value={mixtoCard}
                       inputMode="decimal"
                       onChange={(e) => {
-                        handleDecimalInputChange(e.target.value, setMixtoCard);
+                        const rawValue = e.target.value.trim();
+                        if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
+                          setCheckoutFieldErrors((prev) => ({ ...prev, mixtoCard: "El monto con tarjeta debe ser un numero valido con maximo 3 decimales." }));
+                          return;
+                        }
+                        handleDecimalInputChange(rawValue, setMixtoCard);
+                        setCheckoutFieldErrors((prev) => ({ ...prev, mixtoCard: "" }));
                         setCheckoutError(null);
                       }}
                     />
+                    {checkoutFieldErrors.mixtoCard && <p style={styles.fieldError}>{checkoutFieldErrors.mixtoCard}</p>}
                   </div>
                   <div style={styles.inputGroup}>
                     <label style={styles.label}>Monto con Efectivo ($):</label>
@@ -2720,10 +3133,17 @@ const Dashboard: React.FC = () => {
                       value={mixtoCash}
                       inputMode="decimal"
                       onChange={(e) => {
-                        handleDecimalInputChange(e.target.value, setMixtoCash);
+                        const rawValue = e.target.value.trim();
+                        if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
+                          setCheckoutFieldErrors((prev) => ({ ...prev, mixtoCash: "El monto con efectivo debe ser un numero valido con maximo 3 decimales." }));
+                          return;
+                        }
+                        handleDecimalInputChange(rawValue, setMixtoCash);
+                        setCheckoutFieldErrors((prev) => ({ ...prev, mixtoCash: "" }));
                         setCheckoutError(null);
                       }}
                     />
+                    {checkoutFieldErrors.mixtoCash && <p style={styles.fieldError}>{checkoutFieldErrors.mixtoCash}</p>}
                   </div>
                   <div style={styles.inputGroup}>
                     <label style={styles.label}>Cambio en Efectivo ($):</label>
@@ -2933,8 +3353,9 @@ const Dashboard: React.FC = () => {
                     className="input-corporate"
                     placeholder="Ej. Juan Pérez"
                     value={newCustomerForm.name}
-                    onChange={(e) => setNewCustomerForm(prev => ({ ...prev, name: e.target.value }))}
+                    onChange={(e) => setNewCustomerField("name")(e.target.value)}
                   />
+                  {newCustomerFieldErrors.name && <p style={styles.fieldError}>{newCustomerFieldErrors.name}</p>}
                 </div>
                 <div style={styles.inputGroup}>
                   <label style={styles.label}>Teléfono (10 dígitos) *</label>
@@ -2944,8 +3365,9 @@ const Dashboard: React.FC = () => {
                     className="input-corporate"
                     placeholder="Ej. 5551234567"
                     value={newCustomerForm.phone}
-                    onChange={(e) => setNewCustomerForm(prev => ({ ...prev, phone: e.target.value.replace(/\D/g, "") }))}
+                    onChange={(e) => setNewCustomerField("phone")(e.target.value)}
                   />
+                  {newCustomerFieldErrors.phone && <p style={styles.fieldError}>{newCustomerFieldErrors.phone}</p>}
                 </div>
                 <div style={styles.inputGroup}>
                   <label style={styles.label}>Correo Electrónico (Opcional)</label>
@@ -2954,8 +3376,9 @@ const Dashboard: React.FC = () => {
                     className="input-corporate"
                     placeholder="Ej. cliente@correo.com"
                     value={newCustomerForm.email}
-                    onChange={(e) => setNewCustomerForm(prev => ({ ...prev, email: e.target.value }))}
+                    onChange={(e) => setNewCustomerField("email")(e.target.value)}
                   />
+                  {newCustomerFieldErrors.email && <p style={styles.fieldError}>{newCustomerFieldErrors.email}</p>}
                 </div>
 
                 {newCustomerError && (
@@ -2979,7 +3402,7 @@ const Dashboard: React.FC = () => {
                 <div style={{ display: "flex", gap: "10px", marginTop: "16px" }} className="pos-cashier-modal-actions">
                   <button
                     type="button"
-                    onClick={() => setIsNewCustomerModalOpen(false)}
+                    onClick={() => { setIsNewCustomerModalOpen(false); setNewCustomerFieldErrors({}); }}
                     style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
                   >
                     CANCELAR
@@ -2998,178 +3421,13 @@ const Dashboard: React.FC = () => {
         )}
 
         {/* MODAL: AUTORIZACIÓN PIN GERENTE/ADMIN PARA CARRITO (Fase 3.0) */}
-        {activeModal === "cart-pin-auth" && (
-          <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-            <div style={{ ...styles.cancelModal, width: "360px" }} className="pos-cashier-modal">
-              <h3 style={styles.modalTitle}>Autorización de Gerente/Admin</h3>
-              <p style={{ fontSize: "12px", color: "#64748b", margin: "8px 0 16px 0", textAlign: "center" }}>
-                Esta operación requiere la autorización de un Administrador o Gerente. Por favor, introduzca su PIN.
-              </p>
-              
-              <form onSubmit={handleCartPinSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                {/* Input oculto para capturar teclado físico */}
-                <input
-                  autoFocus
-                  type="text"
-                  inputMode="numeric"
-                  value={cartPin}
-                  onChange={() => {}}
-                  onKeyDown={(e) => {
-                    e.preventDefault();
-                    if (/^[0-9]$/.test(e.key) && cartPin.length < 4) {
-                      setCartPin((prev) => prev + e.key);
-                    } else if (e.key === "Backspace") {
-                      setCartPin((prev) => prev.slice(0, -1));
-                    } else if (e.key === "Enter" && cartPin.length === 4) {
-                      handleCartPinSubmit(e as any);
-                    }
-                  }}
-                  style={{
-                    position: "absolute",
-                    opacity: 0,
-                    width: "1px",
-                    height: "1px",
-                    overflow: "hidden",
-                    pointerEvents: "none",
-                  }}
-                  aria-label="PIN de autorización"
-                />
-                {/* PIN Dots Row */}
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
-                  <div style={{ display: "flex", gap: "12px", height: "16px", alignItems: "center" }}>
-                    {[0, 1, 2, 3].map((index) => (
-                      <div
-                        key={index}
-                        style={{
-                          width: "12px",
-                          height: "12px",
-                          borderRadius: "50%",
-                          backgroundColor: cartPin.length > index ? "#1e3a8a" : "#cbd5e1",
-                        }}
-                      />
-                    ))}
-                  </div>
-                  {cartPinError && (
-                    <p style={{ fontSize: "12px", color: "#dc2626", fontWeight: "600", marginTop: "4px", textAlign: "center" }}>
-                      {cartPinError}
-                    </p>
-                  )}
-                </div>
-
-                {/* PIN Pad */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }} className="pos-cashier-pin-grid">
-                  {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
-                    <button
-                      key={num}
-                      type="button"
-                      style={{
-                        height: "48px",
-                        borderRadius: "6px",
-                        border: "1px solid #e2e8f0",
-                        backgroundColor: "#ffffff",
-                        fontSize: "16px",
-                        fontWeight: "700",
-                        color: "#334155",
-                        cursor: "pointer",
-                      }}
-                      onClick={() => {
-                        if (cartPin.length < 4) {
-                          setCartPin((prev) => prev + num);
-                        }
-                      }}
-                      className="active-tap"
-                    >
-                      {num}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    style={{
-                      height: "48px",
-                      borderRadius: "6px",
-                      border: "1px solid #e2e8f0",
-                      backgroundColor: "#f1f5f9",
-                      color: "#64748b",
-                      cursor: "pointer",
-                      display: "flex",
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
-                    onClick={() => setCartPin((prev) => prev.slice(0, -1))}
-                    className="active-tap"
-                  >
-                    <Delete size={20} />
-                  </button>
-                  <button
-                    type="button"
-                    style={{
-                      height: "48px",
-                      borderRadius: "6px",
-                      border: "1px solid #e2e8f0",
-                      backgroundColor: "#ffffff",
-                      fontSize: "16px",
-                      fontWeight: "700",
-                      color: "#334155",
-                      cursor: "pointer",
-                    }}
-                    onClick={() => {
-                      if (cartPin.length < 4) {
-                        setCartPin((prev) => prev + "0");
-                      }
-                    }}
-                    className="active-tap"
-                  >
-                    0
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={cartPinLoading || cartPin.length < 4}
-                    style={{
-                      height: "48px",
-                      borderRadius: "6px",
-                      border: "none",
-                      backgroundColor: cartPin.length === 4 ? "#1e3a8a" : "#cbd5e1",
-                      color: "#ffffff",
-                      cursor: cartPin.length === 4 ? "pointer" : "default",
-                      display: "flex",
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
-                    className="active-tap"
-                  >
-                    {cartPinLoading ? "..." : <KeyRound size={20} />}
-                  </button>
-                </div>
-
-                {/* Botón Cancelar */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPendingCartAction(null);
-                    setActiveModal(null);
-                  }}
-                  style={{
-                    padding: "10px",
-                    borderRadius: "6px",
-                    border: "1px solid #cbd5e1",
-                    backgroundColor: "#ffffff",
-                    color: "#64748b",
-                    fontWeight: "700",
-                    cursor: "pointer",
-                  }}
-                >
-                  CANCELAR
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
+        {renderCartAuthorizationModal()}
 
         {/* MODAL 3: TICKET IMPRESO/PDF (Mockup 3) */}
         {activeModal === "ticket-view" && selectedSale && (
           <div style={{ ...styles.modalOverlay, zIndex: ticketEmailModalOpen ? 9998 : 100 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
             <div style={styles.ticketModal} className="pos-cashier-modal">
-              <div id="print-area" style={styles.ticketContainer}>
+              <div id="print-area" style={styles.ticketContainer} className="ticket-print">
                 {selectedSale.status === "CANCELADA" && (
                   <div style={{
                     textAlign: "center",
@@ -3218,7 +3476,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 )}
                 <div style={{ textAlign: "center", marginBottom: "14px" }}>
-                  <h4 style={{ textTransform: "uppercase", fontWeight: "800" }}>LYFRGL</h4>
+                  <h4 style={{ textTransform: "uppercase", fontWeight: "800", margin: "0 0 4px 0", fontSize: "14px" }}>LYFRGL</h4>
                   <p style={{ fontSize: "11px", color: "#475569" }}>SUCURSAL: {user?.branch.name}</p>
                   <p style={{ fontSize: "10px", color: "#64748b" }}>TEL: 772 100 2000</p>
                 </div>
@@ -3231,13 +3489,13 @@ const Dashboard: React.FC = () => {
                   <p><strong>Artículos:</strong> {selectedSale.items.reduce((sum: number, item: any) => sum + item.quantity, 0)}</p>
                 </div>
 
-                <table style={{ width: "100%", fontSize: "11px", borderCollapse: "collapse", marginBottom: "8px" }}>
+                <table style={{ width: "100%", fontSize: "10px", borderCollapse: "collapse", marginBottom: "8px", tableLayout: "fixed" }}>
                   <thead>
-                    <tr style={{ borderBottom: "1px solid #cbd5e1" }}>
-                      <th style={{ textAlign: "left", paddingBottom: "4px" }}>Producto</th>
-                      <th style={{ textAlign: "center", paddingBottom: "4px" }}>Cant</th>
-                      <th style={{ textAlign: "right", paddingBottom: "4px" }}>Importe</th>
-                      <th style={{ textAlign: "right", paddingBottom: "4px", paddingLeft: "8px" }}>P. Unit</th>
+                    <tr style={{ borderBottom: "1px dashed #111111" }}>
+                      <th style={{ textAlign: "left", paddingBottom: "4px", width: "12%" }}>Cant</th>
+                      <th style={{ textAlign: "left", paddingBottom: "4px", width: "43%" }}>Descripción</th>
+                      <th style={{ textAlign: "right", paddingBottom: "4px", width: "20%" }}>P. Unit</th>
+                      <th style={{ textAlign: "right", paddingBottom: "4px", width: "25%" }}>Importe</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -3252,7 +3510,8 @@ const Dashboard: React.FC = () => {
                       const hasDiscount = promoDetails.discountAmount > 0;
                       return (
                         <tr key={idx}>
-                          <td style={{ padding: "4px 0" }}>
+                          <td style={{ textAlign: "left", padding: "4px 2px 4px 0", whiteSpace: "nowrap" }}>{item.quantity}</td>
+                          <td style={{ padding: "4px 4px 4px 0" }}>
                             <div>{item.product.name}</div>
                             {item.product.activePromotion && (
                               <div style={{ fontSize: "9px", color: "#1e40af", fontWeight: "600" }}>
@@ -3270,8 +3529,10 @@ const Dashboard: React.FC = () => {
                               </div>
                             )}
                           </td>
-                          <td style={{ textAlign: "center", padding: "4px 0" }}>{item.quantity}</td>
-                          <td style={{ textAlign: "right", padding: "4px 0" }}>
+                          <td style={{ textAlign: "right", padding: "4px 4px 4px 0", whiteSpace: "nowrap" }}>
+                            ${Number(item.product.sellPrice).toFixed(2)}
+                          </td>
+                          <td style={{ textAlign: "right", padding: "4px 0", whiteSpace: "nowrap" }}>
                             {hasDiscount ? (
                               <>
                                 <span style={{ textDecoration: "line-through", color: "#94a3b8", marginRight: "4px", fontSize: "10px" }}>
@@ -3284,9 +3545,6 @@ const Dashboard: React.FC = () => {
                             ) : (
                               `$${(item.product.sellPrice * item.quantity).toFixed(2)}`
                             )}
-                          </td>
-                          <td style={{ textAlign: "right", padding: "4px 0", paddingLeft: "8px" }}>
-                            ${Number(item.product.sellPrice).toFixed(2)}
                           </td>
                         </tr>
                       );
@@ -3487,51 +3745,26 @@ const Dashboard: React.FC = () => {
                         placeholder="PIN Gerente"
                         maxLength={4}
                         value={pendingCancelPin}
-                        onChange={(e) => setPendingCancelPin(e.target.value)}
+                        onChange={(e) => handlePendingCancelPinChange(e.target.value)}
                         className="input-corporate"
                         style={{ padding: "6px 10px", fontSize: "12px", width: "100%" }}
                       />
+                      {pendingCancelFieldErrors.pin && <p style={styles.fieldError}>{pendingCancelFieldErrors.pin}</p>}
                     </div>
                     <div style={{ flex: 2 }}>
                       <input
                         type="text"
                         placeholder="Motivo de cancelación"
                         value={pendingCancelReason}
-                        onChange={(e) => setPendingCancelReason(e.target.value)}
+                        onChange={(e) => handlePendingCancelReasonChange(e.target.value)}
                         className="input-corporate"
                         style={{ padding: "6px 10px", fontSize: "12px", width: "100%" }}
                       />
+                      {pendingCancelFieldErrors.reason && <p style={styles.fieldError}>{pendingCancelFieldErrors.reason}</p>}
                     </div>
                   </div>
                   <button
-                    onClick={async () => {
-                      if (!pendingCancelPin || !pendingCancelReason) {
-                        showToast("El PIN de gerente y el motivo son obligatorios para cancelar.");
-                        return;
-                      }
-                      setPendingCancelLoading(true);
-                      try {
-                        const res = await api.post("/api/sales/authorize-cancel", {
-                          invoiceNumber: viewingPendingQrSale.invoiceNumber,
-                          pinCode: pendingCancelPin,
-                          reason: pendingCancelReason,
-                        });
-                        showToast(res.data.message, "success");
-                        setPendingQrSales(prev => {
-                          const updated = prev.filter(sale => sale.id !== viewingPendingQrSale.id);
-                          localStorage.setItem("pendingQrSales", JSON.stringify(updated));
-                          return updated;
-                        });
-                        setViewingPendingQrSale(null);
-                        setPendingCancelPin("");
-                        setPendingCancelReason("");
-                        await loadDashboardData();
-                      } catch (err: any) {
-                        showToast(err.response?.data?.message || "Error al cancelar la venta.");
-                      } finally {
-                        setPendingCancelLoading(false);
-                      }
-                    }}
+                    onClick={handlePendingQrCancel}
                     disabled={pendingCancelLoading}
                     style={{
                       padding: "8px",
@@ -3555,6 +3788,7 @@ const Dashboard: React.FC = () => {
                     setViewingPendingQrSale(null);
                     setPendingCancelPin("");
                     setPendingCancelReason("");
+                    setPendingCancelFieldErrors({});
                   }}
                   style={{ ...styles.modalBtn, backgroundColor: "#64748b", color: "white" }}
                 >
@@ -3582,14 +3816,7 @@ const Dashboard: React.FC = () => {
   // ===========================================================================
   return (
     <div style={styles.appContainer} className="pos-cashier-app">
-      <style>{`
-        @media print {
-          #print-area {
-            max-height: none !important;
-            overflow: visible !important;
-          }
-        }
-      `}</style>
+      <style>{TICKET_PRINT_MEDIA_STYLES}</style>
       {/* Navbar */}
       <header style={styles.navbar} className="pos-cashier-navbar">
         <div style={styles.navBrand}>
@@ -3851,6 +4078,13 @@ const Dashboard: React.FC = () => {
                         </React.Fragment>
                       );
                     })}
+                    {recentSales.length === 0 && (
+                      <tr>
+                        <td colSpan={7} style={{ textAlign: "center", padding: "24px 12px", color: "#64748b", fontSize: "13px" }}>
+                          Aún no tienes ventas registradas en este turno.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -3941,7 +4175,7 @@ const Dashboard: React.FC = () => {
               />
             </div>
 
-            <div style={{ maxHeight: "240px", overflowY: "auto", marginTop: "14px", border: "1px solid #e2e8f0", borderRadius: "6px" }}>
+            <div style={{ maxHeight: "240px", overflowX: "auto", overflowY: "auto", marginTop: "14px", border: "1px solid #e2e8f0", borderRadius: "6px" }} className="pos-cashier-inline-table-scroll">
               <table style={styles.table}>
                 <thead>
                   <tr style={styles.tableHeaderRow}>
@@ -3975,145 +4209,7 @@ const Dashboard: React.FC = () => {
       )}
 
       {/* MODAL: AUTORIZACIÓN PIN GERENTE/ADMIN PARA CARRITO (Fase 3.0) */}
-      {activeModal === "cart-pin-auth" && (
-        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-          <div style={{ ...styles.cancelModal, width: "360px" }} className="pos-cashier-modal">
-            <h3 style={styles.modalTitle}>Autorización de Gerente/Admin</h3>
-            <p style={{ fontSize: "12px", color: "#64748b", margin: "8px 0 16px 0", textAlign: "center" }}>
-              Esta operación requiere la autorización de un Administrador o Gerente. Por favor, introduzca su PIN.
-            </p>
-            
-            <form onSubmit={handleCartPinSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {/* PIN Dots Row */}
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
-                <div style={{ display: "flex", gap: "12px", height: "16px", alignItems: "center" }}>
-                  {[0, 1, 2, 3].map((index) => (
-                    <div
-                      key={index}
-                      style={{
-                        width: "12px",
-                        height: "12px",
-                        borderRadius: "50%",
-                        backgroundColor: cartPin.length > index ? "#1e3a8a" : "#cbd5e1",
-                      }}
-                    />
-                  ))}
-                </div>
-                {cartPinError && (
-                  <p style={{ fontSize: "12px", color: "#dc2626", fontWeight: "600", marginTop: "4px", textAlign: "center" }}>
-                    {cartPinError}
-                  </p>
-                )}
-              </div>
-
-              {/* PIN Pad */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }} className="pos-cashier-pin-grid">
-                {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
-                  <button
-                    key={num}
-                    type="button"
-                    style={{
-                      height: "48px",
-                      borderRadius: "6px",
-                      border: "1px solid #e2e8f0",
-                      backgroundColor: "#ffffff",
-                      fontSize: "16px",
-                      fontWeight: "700",
-                      color: "#334155",
-                      cursor: "pointer",
-                    }}
-                    onClick={() => {
-                      if (cartPin.length < 4) {
-                        setCartPin((prev) => prev + num);
-                      }
-                    }}
-                    className="active-tap"
-                  >
-                    {num}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  style={{
-                    height: "48px",
-                    borderRadius: "6px",
-                    border: "1px solid #e2e8f0",
-                    backgroundColor: "#f1f5f9",
-                    color: "#64748b",
-                    cursor: "pointer",
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                  onClick={() => setCartPin((prev) => prev.slice(0, -1))}
-                  className="active-tap"
-                >
-                  <Delete size={20} />
-                </button>
-                <button
-                  type="button"
-                  style={{
-                    height: "48px",
-                    borderRadius: "6px",
-                    border: "1px solid #e2e8f0",
-                    backgroundColor: "#ffffff",
-                    fontSize: "16px",
-                    fontWeight: "700",
-                    color: "#334155",
-                    cursor: "pointer",
-                  }}
-                  onClick={() => {
-                    if (cartPin.length < 4) {
-                      setCartPin((prev) => prev + "0");
-                    }
-                  }}
-                  className="active-tap"
-                >
-                  0
-                </button>
-                <button
-                  type="submit"
-                  disabled={cartPinLoading || cartPin.length < 4}
-                  style={{
-                    height: "48px",
-                    borderRadius: "6px",
-                    border: "none",
-                    backgroundColor: cartPin.length === 4 ? "#1e3a8a" : "#cbd5e1",
-                    color: "#ffffff",
-                    cursor: cartPin.length === 4 ? "pointer" : "default",
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                  className="active-tap"
-                >
-                  {cartPinLoading ? "..." : <KeyRound size={20} />}
-                </button>
-              </div>
-
-              {/* Botón Cancelar */}
-              <button
-                type="button"
-                onClick={() => {
-                  setPendingCartAction(null);
-                  setActiveModal(null);
-                }}
-                style={{
-                  padding: "10px",
-                  borderRadius: "6px",
-                  border: "1px solid #cbd5e1",
-                  backgroundColor: "#ffffff",
-                  color: "#64748b",
-                  fontWeight: "700",
-                  cursor: "pointer",
-                }}
-              >
-                CANCELAR
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+      {renderCartAuthorizationModal()}
 
       {/* MODAL 2: SOLICITAR CANCELACIÓN CON PIN DE ADMIN (Mockup 1) */}
       {activeModal === "cancel-sale" && (
@@ -4130,8 +4226,9 @@ const Dashboard: React.FC = () => {
                   className="input-corporate"
                   placeholder="V-XXXXXX"
                   value={cancelInvoice}
-                  onChange={(e) => setCancelInvoice(e.target.value)}
+                  onChange={(e) => setCancelField("invoice", e.target.value)}
                 />
+                {cancelFieldErrors.invoice && <p style={styles.fieldError}>{cancelFieldErrors.invoice}</p>}
               </div>
 
               {cancelSalePreview && (
@@ -4166,8 +4263,9 @@ const Dashboard: React.FC = () => {
                   className="input-corporate"
                   placeholder="PIN de 4 dígitos"
                   value={cancelPin}
-                  onChange={(e) => setCancelPin(e.target.value)}
+                  onChange={(e) => setCancelField("pin", e.target.value)}
                 />
+                {cancelFieldErrors.pin && <p style={styles.fieldError}>{cancelFieldErrors.pin}</p>}
               </div>
 
               <div style={styles.inputGroup}>
@@ -4179,8 +4277,9 @@ const Dashboard: React.FC = () => {
                   className="input-corporate"
                   placeholder="Ej. Producto equivocado, error de cobro"
                   value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
+                  onChange={(e) => setCancelField("reason", e.target.value)}
                 />
+                {cancelFieldErrors.reason && <p style={styles.fieldError}>{cancelFieldErrors.reason}</p>}
               </div>
 
               <div style={{ display: "flex", gap: "10px", marginTop: "10px" }} className="pos-cashier-modal-actions">
@@ -4208,7 +4307,7 @@ const Dashboard: React.FC = () => {
       {activeModal === "ticket-view" && selectedSale && (
         <div style={{ ...styles.modalOverlay, zIndex: ticketEmailModalOpen ? 9998 : 100 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
           <div style={styles.ticketModal} className="pos-cashier-modal">
-            <div id="print-area" style={styles.ticketContainer}>
+            <div id="print-area" style={styles.ticketContainer} className="ticket-print">
               {selectedSale.status === "CANCELADA" && (
                 <div style={{
                   textAlign: "center",
@@ -4257,7 +4356,7 @@ const Dashboard: React.FC = () => {
                 </div>
               )}
               <div style={{ textAlign: "center", marginBottom: "14px" }}>
-                <h4 style={{ textTransform: "uppercase", fontWeight: "800" }}>LYFRGL</h4>
+                <h4 style={{ textTransform: "uppercase", fontWeight: "800", margin: "0 0 4px 0", fontSize: "14px" }}>LYFRGL</h4>
                 <p style={{ fontSize: "11px", color: "#475569" }}>SUCURSAL: {user?.branch.name}</p>
                 <p style={{ fontSize: "10px", color: "#64748b" }}>TEL: 772 100 2000</p>
               </div>
@@ -4281,13 +4380,13 @@ const Dashboard: React.FC = () => {
                 </div>
               )}
 
-              <table style={{ width: "100%", fontSize: "11px", borderCollapse: "collapse", marginBottom: "8px" }}>
+              <table style={{ width: "100%", fontSize: "10px", borderCollapse: "collapse", marginBottom: "8px", tableLayout: "fixed" }}>
                 <thead>
-                  <tr style={{ borderBottom: "1px solid #cbd5e1" }}>
-                    <th style={{ textAlign: "left", paddingBottom: "4px" }}>Producto</th>
-                    <th style={{ textAlign: "center", paddingBottom: "4px" }}>Cant</th>
-                    <th style={{ textAlign: "right", paddingBottom: "4px" }}>Importe</th>
-                    <th style={{ textAlign: "right", paddingBottom: "4px", paddingLeft: "8px" }}>P. Unit</th>
+                  <tr style={{ borderBottom: "1px dashed #111111" }}>
+                    <th style={{ textAlign: "left", paddingBottom: "4px", width: "12%" }}>Cant</th>
+                    <th style={{ textAlign: "left", paddingBottom: "4px", width: "43%" }}>Descripción</th>
+                    <th style={{ textAlign: "right", paddingBottom: "4px", width: "20%" }}>P. Unit</th>
+                    <th style={{ textAlign: "right", paddingBottom: "4px", width: "25%" }}>Importe</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -4302,7 +4401,8 @@ const Dashboard: React.FC = () => {
                     const hasDiscount = promoDetails.discountAmount > 0;
                     return (
                       <tr key={idx}>
-                        <td style={{ padding: "4px 0" }}>
+                        <td style={{ textAlign: "left", padding: "4px 2px 4px 0", whiteSpace: "nowrap" }}>{item.quantity}</td>
+                        <td style={{ padding: "4px 4px 4px 0" }}>
                           <div>{item.product.name}</div>
                           {item.product.activePromotion && (
                             <div style={{ fontSize: "9px", color: "#1e40af", fontWeight: "600" }}>
@@ -4320,8 +4420,10 @@ const Dashboard: React.FC = () => {
                             </div>
                           )}
                         </td>
-                        <td style={{ textAlign: "center", padding: "4px 0" }}>{item.quantity}</td>
-                        <td style={{ textAlign: "right", padding: "4px 0" }}>
+                        <td style={{ textAlign: "right", padding: "4px 4px 4px 0", whiteSpace: "nowrap" }}>
+                          ${Number(item.product.sellPrice).toFixed(2)}
+                        </td>
+                        <td style={{ textAlign: "right", padding: "4px 0", whiteSpace: "nowrap" }}>
                           {hasDiscount ? (
                             <>
                               <span style={{ textDecoration: "line-through", color: "#94a3b8", marginRight: "4px", fontSize: "10px" }}>
@@ -4334,9 +4436,6 @@ const Dashboard: React.FC = () => {
                           ) : (
                             `$${(item.product.sellPrice * item.quantity).toFixed(2)}`
                           )}
-                        </td>
-                        <td style={{ textAlign: "right", padding: "4px 0", paddingLeft: "8px" }}>
-                          ${Number(item.product.sellPrice).toFixed(2)}
                         </td>
                       </tr>
                     );
@@ -4604,7 +4703,7 @@ const Dashboard: React.FC = () => {
               Corte parcial registrado exitosamente en base de datos.
             </p>
             
-            <div style={styles.ticketContainer} id="partial-cut-thermal-receipt">
+            <div style={styles.ticketContainer} id="partial-cut-thermal-receipt" className="ticket-print">
               <div style={{ textAlign: "center", borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px", marginBottom: "10px" }}>
                 <strong style={{ fontSize: "14px" }}>LYFRGL POS</strong>
                 <p style={{ fontSize: "11px", margin: "2px 0 0 0" }}>SUCURSAL: {user?.branch.name}</p>
@@ -4661,34 +4760,12 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions">
+            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions no-print" data-no-ticket-print="true">
               <button 
                 onClick={() => {
-                  const printContents = document.getElementById("partial-cut-thermal-receipt")?.innerHTML;
-                  if (printContents) {
-                    const printWindow = window.open("", "_blank");
-                    if (printWindow) {
-                      printWindow.document.write(`
-                        <html>
-                          <head>
-                            <title>Corte Parcial #${partialCutData.cutNumber}</title>
-                            <style>
-                              body { font-family: monospace; padding: 20px; width: 300px; margin: 0 auto; }
-                              table { width: 100%; border-collapse: collapse; }
-                              th, td { text-align: left; padding: 4px; }
-                              .dashed { border-top: 1px dashed #000; margin: 10px 0; }
-                              .total { font-weight: bold; font-size: 14px; border-top: 2px solid #000; padding-top: 5px; }
-                              .center { text-align: center; }
-                            </style>
-                          </head>
-                          <body>
-                            ${printContents}
-                            <script>window.print(); window.close();</script>
-                          </body>
-                        </html>
-                      `);
-                      printWindow.document.close();
-                    }
+                  const printed = printTicketElementById(`Corte Parcial #${partialCutData.cutNumber}`, "partial-cut-thermal-receipt");
+                  if (!printed) {
+                    alert("Habilite las ventanas emergentes para imprimir el comprobante.");
                   }
                 }} 
                 style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
@@ -4771,8 +4848,19 @@ const Dashboard: React.FC = () => {
                   placeholder="Ingrese el conteo físico"
                   value={declaredCash}
                   inputMode="decimal"
-                  onChange={(e) => handleDecimalInputChange(e.target.value, setDeclaredCash)}
+                  onChange={(e) => {
+                    const rawValue = e.target.value.trim();
+                    if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
+                      setDeclaredCashError("El efectivo contado debe ser un monto valido con maximo 3 decimales.");
+                      return;
+                    }
+                    handleDecimalInputChange(rawValue, (value) => {
+                    setDeclaredCash(value);
+                    setDeclaredCashError("");
+                    });
+                  }}
                 />
+                {declaredCashError && <p style={styles.fieldError}>{declaredCashError}</p>}
               </div>
 
               <div style={styles.summaryRow}>
@@ -4829,7 +4917,7 @@ const Dashboard: React.FC = () => {
                 <p style={{ fontSize: "12px", color: "#7f1d1d", margin: 0 }}>
                   Se requiere la validación mediante el PIN de un Gerente o Administrador. El monto de <strong>${Number(cancellingDep.amount).toFixed(2)} MXN</strong> se restará de las salidas de efectivo del turno actual (reversión de cashOut).
                 </p>
-                <form onSubmit={handleCancelDepositSubmit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <form onSubmit={handleCancelDepositSubmit} style={{ display: "flex", flexDirection: "column", gap: "12px" }} noValidate>
                   <div style={styles.inputGroup}>
                     <label style={styles.label}>PIN de Autorización del Gerente:</label>
                     <input
@@ -4839,8 +4927,22 @@ const Dashboard: React.FC = () => {
                       className="input-corporate"
                       placeholder="Ej. ****"
                       value={depCancelPin}
-                      onChange={(e) => setDepCancelPin(e.target.value)}
+                      onChange={(e) => {
+                        const rawValue = e.target.value;
+                        const value = normalizeIntegerInput(rawValue).slice(0, 4);
+                        setDepCancelPin(value);
+                        setDepCancelFieldErrors((prev) => ({
+                          ...prev,
+                          pin:
+                            rawValue !== value
+                              ? "El PIN debe contener 4 digitos."
+                              : value.length === 4
+                                ? undefined
+                                : "El PIN debe contener 4 digitos.",
+                        }));
+                      }}
                     />
+                    {depCancelFieldErrors.pin && <p style={styles.fieldError}>{depCancelFieldErrors.pin}</p>}
                   </div>
                   <div style={styles.inputGroup}>
                     <label style={styles.label}>Motivo de Cancelación:</label>
@@ -4850,8 +4952,16 @@ const Dashboard: React.FC = () => {
                       className="input-corporate"
                       placeholder="Motivo detallado de la cancelación"
                       value={depCancelReason}
-                      onChange={(e) => setDepCancelReason(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setDepCancelReason(value);
+                        setDepCancelFieldErrors((prev) => ({
+                          ...prev,
+                          reason: validateReference(value, "El motivo", { required: true, max: 180 }),
+                        }));
+                      }}
                     />
+                    {depCancelFieldErrors.reason && <p style={styles.fieldError}>{depCancelFieldErrors.reason}</p>}
                   </div>
                   <div style={{ display: "flex", gap: "10px", marginTop: "6px" }} className="pos-cashier-modal-actions">
                     <button
@@ -4860,6 +4970,7 @@ const Dashboard: React.FC = () => {
                         setCancellingDep(null);
                         setDepCancelPin("");
                         setDepCancelReason("");
+                        setDepCancelFieldErrors({});
                       }}
                       style={{ ...styles.modalBtn, backgroundColor: "#64748b", color: "white" }}
                     >
@@ -4978,8 +5089,21 @@ const Dashboard: React.FC = () => {
                             className="input-corporate"
                             placeholder="Ej. 1234567890123456"
                             value={depAccount}
-                            onChange={(e) => setDepAccount(e.target.value)}
+                            onChange={(e) => {
+                              const rawValue = e.target.value;
+                              const value = normalizeIntegerInput(rawValue).slice(0, 16);
+                              setDepAccount(value);
+                              setDepositFieldErrors((prev) => ({
+                                ...prev,
+                                account: rawValue.trim() && rawValue !== value
+                                  ? "La cuenta solo puede contener numeros."
+                                  : value.length > 0 && value.length !== 16
+                                    ? "La cuenta debe tener 16 digitos."
+                                    : "",
+                              }));
+                            }}
                           />
+                          {depositFieldErrors.account && <p style={styles.fieldError}>{depositFieldErrors.account}</p>}
                         </div>
 
                         <div style={styles.inputGroup}>
@@ -4990,8 +5114,16 @@ const Dashboard: React.FC = () => {
                             className="input-corporate"
                             placeholder="Nombre de la persona o banco"
                             value={depName}
-                            onChange={(e) => setDepName(e.target.value)}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setDepName(value);
+                              setDepositFieldErrors((prev) => ({
+                                ...prev,
+                                name: validateSafeText(value, "El beneficiario", { required: true, min: 2, max: 100 }) || "",
+                              }));
+                            }}
                           />
+                          {depositFieldErrors.name && <p style={styles.fieldError}>{depositFieldErrors.name}</p>}
                         </div>
                       </>
                     )}
@@ -5005,8 +5137,19 @@ const Dashboard: React.FC = () => {
                         placeholder={depType.startsWith("MERCADOPAGO_") ? "Monto a depositar en MP" : "Monto a retirar en efectivo"}
                         value={depAmount}
                         inputMode="decimal"
-                        onChange={(e) => handleDecimalInputChange(e.target.value, setDepAmount)}
+                        onChange={(e) => {
+                          const rawValue = e.target.value.trim();
+                          if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
+                            setDepositFieldErrors((prev) => ({ ...prev, amount: "El monto del deposito debe ser un numero valido con maximo 3 decimales." }));
+                            return;
+                          }
+                          handleDecimalInputChange(rawValue, (value) => {
+                            setDepAmount(value);
+                            setDepositFieldErrors((prev) => ({ ...prev, amount: "" }));
+                          });
+                        }}
                       />
+                      {depositFieldErrors.amount && <p style={styles.fieldError}>{depositFieldErrors.amount}</p>}
                     </div>
 
                     <div style={styles.inputGroup}>
@@ -5016,8 +5159,12 @@ const Dashboard: React.FC = () => {
                         className="input-corporate"
                         placeholder="Ej. Número de sucursal, folio de camión blindado, etc."
                         value={depComments}
-                        onChange={(e) => setDepComments(e.target.value)}
+                        onChange={(e) => {
+                          setDepComments(e.target.value);
+                          setDepositFieldErrors((prev) => ({ ...prev, comments: validateReference(e.target.value, "La referencia", { required: false, max: 180 }) || "" }));
+                        }}
                       />
+                      {depositFieldErrors.comments && <p style={styles.fieldError}>{depositFieldErrors.comments}</p>}
                     </div>
 
                     <div style={{ display: "flex", gap: "10px", marginTop: "10px" }} className="pos-cashier-modal-actions">
@@ -5101,7 +5248,7 @@ const Dashboard: React.FC = () => {
                     </div>
 
                     {/* Tabla de Resultados */}
-                    <div style={{ maxHeight: "220px", overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: "6px", marginBottom: "14px" }}>
+                    <div style={{ maxHeight: "220px", overflowX: "auto", overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: "6px", marginBottom: "14px" }} className="pos-cashier-inline-table-scroll">
                       <table style={styles.table}>
                         <thead>
                           <tr style={styles.tableHeaderRow}>
@@ -5256,7 +5403,7 @@ const Dashboard: React.FC = () => {
                 Depósito bancario registrado exitosamente en base de datos.
               </p>
               
-              <div style={styles.ticketContainer} id="deposit-thermal-receipt">
+              <div style={styles.ticketContainer} id="deposit-thermal-receipt" className="ticket-print">
                 <div style={{ textAlign: "center", borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px", marginBottom: "10px" }}>
                   <strong style={{ fontSize: "14px" }}>LYFRGL POS</strong>
                   <p style={{ fontSize: "11px", margin: "2px 0 0 0" }}>{user?.branch.name}</p>
@@ -5396,35 +5543,12 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions">
+              <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions no-print" data-no-ticket-print="true">
                 <button 
                   onClick={() => {
-                    const printContents = document.getElementById("deposit-thermal-receipt")?.innerHTML;
-                    if (printContents) {
-                      const printWindow = window.open("", "_blank");
-                      if (printWindow) {
-                        printWindow.document.write(`
-                          <html>
-                            <head>
-                              <title>Comprobante de Retiro #${lastDeposit.id}</title>
-                              <style>
-                                body { font-family: monospace; padding: 20px; width: 300px; margin: 0 auto; }
-                                table { width: 100%; border-collapse: collapse; }
-                                th, td { text-align: left; padding: 4px; }
-                                .dashed { border-top: 1px dashed #000; margin: 10px 0; }
-                                .total { font-weight: bold; font-size: 14px; border-top: 2px solid #000; padding-top: 5px; }
-                                .center { text-align: center; }
-                                .no-print { display: none !important; }
-                              </style>
-                            </head>
-                            <body>
-                              ${printContents}
-                              <script>window.print(); window.close();</script>
-                            </body>
-                          </html>
-                        `);
-                        printWindow.document.close();
-                      }
+                    const printed = printTicketElementById(`Comprobante de Retiro #${lastDeposit.id}`, "deposit-thermal-receipt");
+                    if (!printed) {
+                      alert("Habilite las ventanas emergentes para imprimir el comprobante.");
                     }
                   }} 
                   style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
@@ -5525,56 +5649,27 @@ const Dashboard: React.FC = () => {
                       placeholder="PIN Gerente"
                       maxLength={4}
                       value={pendingCancelPin}
-                      onChange={(e) => setPendingCancelPin(e.target.value)}
+                      onChange={(e) => handlePendingCancelPinChange(e.target.value)}
                       className="input-corporate"
                       style={{ padding: "6px 10px", fontSize: "12px" }}
                     />
+                    {pendingCancelFieldErrors.pin && <p style={styles.fieldError}>{pendingCancelFieldErrors.pin}</p>}
                   </div>
                   <div style={{ flex: 2 }}>
                     <input
                       type="text"
                       placeholder="Motivo de cancelación"
                       value={pendingCancelReason}
-                      onChange={(e) => setPendingCancelReason(e.target.value)}
+                      onChange={(e) => handlePendingCancelReasonChange(e.target.value)}
                       className="input-corporate"
                       style={{ padding: "6px 10px", fontSize: "12px" }}
                     />
+                    {pendingCancelFieldErrors.reason && <p style={styles.fieldError}>{pendingCancelFieldErrors.reason}</p>}
                   </div>
                 </div>
 
                 <button
-                  onClick={async () => {
-                    if (!pendingCancelPin || !pendingCancelReason) {
-                      showToast("El PIN de gerente y el motivo son obligatorios para cancelar.");
-                      return;
-                    }
-                    setPendingCancelLoading(true);
-                    try {
-                      const res = await api.post("/api/sales/authorize-cancel", {
-                        invoiceNumber: viewingPendingQrSale.invoiceNumber,
-                        pinCode: pendingCancelPin,
-                        reason: pendingCancelReason,
-                      });
-                      
-                      showToast(res.data.message, "success");
-                      
-                      // Eliminar de pendientes localmente
-                      setPendingQrSales(prev => {
-                        const updated = prev.filter(sale => sale.id !== viewingPendingQrSale.id);
-                        localStorage.setItem("pendingQrSales", JSON.stringify(updated));
-                        return updated;
-                      });
-
-                      setViewingPendingQrSale(null);
-                      setPendingCancelPin("");
-                      setPendingCancelReason("");
-                      await loadDashboardData();
-                    } catch (err: any) {
-                      showToast(err.response?.data?.message || "Error al cancelar la venta.");
-                    } finally {
-                      setPendingCancelLoading(false);
-                    }
-                  }}
+                  onClick={handlePendingQrCancel}
                   disabled={pendingCancelLoading}
                   style={{
                     padding: "8px",
@@ -5598,6 +5693,7 @@ const Dashboard: React.FC = () => {
                   setViewingPendingQrSale(null);
                   setPendingCancelPin("");
                   setPendingCancelReason("");
+                  setPendingCancelFieldErrors({});
                 }}
                 style={{ ...styles.modalBtn, backgroundColor: "#64748b", color: "white" }}
               >
@@ -5624,7 +5720,7 @@ const Dashboard: React.FC = () => {
               Corte Z generado exitosamente.
             </p>
 
-            <div style={styles.ticketContainer} id="close-thermal-receipt">
+            <div style={styles.ticketContainer} id="close-thermal-receipt" className="ticket-print">
               <div style={{ textAlign: "center", borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px", marginBottom: "10px" }}>
                 <strong style={{ fontSize: "14px" }}>LYFRGL POS</strong>
                 <p style={{ fontSize: "11px", margin: "2px 0 0 0" }}>{lastClosedStats.session?.branch?.name || user?.branch?.name}</p>
@@ -5723,34 +5819,12 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions">
+            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions no-print" data-no-ticket-print="true">
               <button 
                 onClick={() => {
-                  const printContents = document.getElementById("close-thermal-receipt")?.innerHTML;
-                  if (printContents) {
-                    const printWindow = window.open("", "_blank");
-                    if (printWindow) {
-                      printWindow.document.write(`
-                        <html>
-                          <head>
-                            <title>Corte Z - Sesión #${lastClosedStats.session?.id}</title>
-                            <style>
-                              body { font-family: monospace; padding: 20px; width: 300px; margin: 0 auto; }
-                              table { width: 100%; border-collapse: collapse; }
-                              th, td { text-align: left; padding: 4px; }
-                              .dashed { border-top: 1px dashed #000; margin: 10px 0; }
-                              .total { font-weight: bold; font-size: 14px; border-top: 2px solid #000; padding-top: 5px; }
-                              .center { text-align: center; }
-                            </style>
-                          </head>
-                          <body>
-                            ${printContents}
-                            <script>window.print(); window.close();<\/script>
-                          </body>
-                        </html>
-                      `);
-                      printWindow.document.close();
-                    }
+                  const printed = printTicketElementById(`Corte Z - Sesion #${lastClosedStats.session?.id}`, "close-thermal-receipt");
+                  if (!printed) {
+                    alert("Habilite las ventanas emergentes para imprimir el comprobante.");
                   }
                 }} 
                 style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
@@ -5949,10 +6023,21 @@ const Dashboard: React.FC = () => {
                     className="input-corporate"
                     placeholder="V-XXXXXX"
                     value={returnFolio}
-                    onChange={(e) => setReturnFolio(e.target.value.toUpperCase())}
+                    onChange={(e) => {
+                      const value = e.target.value.toUpperCase();
+                      setReturnFolio(value);
+                      setReturnFieldErrors((prev) => {
+                        const next = { ...prev };
+                        const error = validateReference(value, "El folio de venta", { required: true, max: 40 });
+                        if (error) next.folio = error;
+                        else delete next.folio;
+                        return next;
+                      });
+                    }}
                     onKeyDown={(e) => { if (e.key === "Enter") handleReturnSearch(); }}
                     autoFocus
                   />
+                  {returnFieldErrors.folio && <p style={styles.fieldError}>{returnFieldErrors.folio}</p>}
                 </div>
                 <button
                   onClick={handleReturnSearch}
@@ -6106,8 +6191,19 @@ const Dashboard: React.FC = () => {
                       className="input-corporate"
                       placeholder="Ej: Producto defectuoso, talla incorrecta..."
                       value={returnReason}
-                      onChange={(e) => setReturnReason(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setReturnReason(value);
+                        setReturnFieldErrors((prev) => {
+                          const next = { ...prev };
+                          const error = validateReference(value, "El motivo", { required: true, max: 180 });
+                          if (error) next.reason = error;
+                          else delete next.reason;
+                          return next;
+                        });
+                      }}
                     />
+                    {returnFieldErrors.reason && <p style={styles.fieldError}>{returnFieldErrors.reason}</p>}
                   </div>
                   <div style={styles.inputGroup}>
                     <label style={styles.label}>Método de reembolso:</label>
@@ -6219,10 +6315,21 @@ const Dashboard: React.FC = () => {
                     className="input-corporate"
                     placeholder="Ingrese PIN de Gerente/Admin"
                     value={returnPin}
-                    onChange={(e) => setReturnPin(e.target.value)}
+                    onChange={(e) => {
+                      const value = normalizeIntegerInput(e.target.value).slice(0, 4);
+                      setReturnPin(value);
+                      setReturnFieldErrors((prev) => {
+                        const next = { ...prev };
+                        const error = validateInteger(value, "El PIN", { min: 0 });
+                        if (error || value.length !== 4) next.pin = "El PIN debe contener 4 digitos.";
+                        else delete next.pin;
+                        return next;
+                      });
+                    }}
                     onKeyDown={(e) => { if (e.key === "Enter") handleReturnProcess(); }}
                     style={{ textAlign: "center", letterSpacing: "8px", fontSize: "18px", fontWeight: "700" }}
                   />
+                  {returnFieldErrors.pin && <p style={styles.fieldError}>{returnFieldErrors.pin}</p>}
                 </div>
 
                 <div style={{ display: "flex", gap: "8px" }}>
@@ -6540,8 +6647,16 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   table: {
     width: "100%",
+    minWidth: "700px",
     borderCollapse: "collapse" as const,
     textAlign: "left" as const,
+  },
+  fieldError: {
+    color: "#b91c1c",
+    fontSize: "12px",
+    fontWeight: "600",
+    marginTop: "5px",
+    marginBottom: 0,
   },
   tableHeaderRow: {
     borderBottom: "2px solid #e2e8f0",
@@ -6859,18 +6974,26 @@ const styles: { [key: string]: React.CSSProperties } = {
     boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
   },
   ticketModal: {
-    width: "360px",
+    width: "calc(80mm + 48px)",
+    maxWidth: "95vw",
     backgroundColor: "#ffffff",
     borderRadius: "12px",
     padding: "24px",
     boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
   },
   ticketContainer: {
-    padding: "16px",
-    border: "1px solid #e2e8f0",
-    borderRadius: "8px",
-    backgroundColor: "#fffdf9", // Color de papel
-    fontFamily: "monospace",
+    boxSizing: "border-box",
+    width: "80mm",
+    maxWidth: "80mm",
+    margin: "0 auto",
+    padding: "10px 12px",
+    border: "1px solid #d4d4d4",
+    borderRadius: "4px",
+    backgroundColor: "#ffffff",
+    color: "#111111",
+    fontFamily: '"Courier New", monospace',
+    fontSize: "10px",
+    lineHeight: "1.25",
     maxHeight: "55vh",
     overflowY: "auto",
   },

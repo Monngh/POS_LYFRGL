@@ -2,6 +2,12 @@ import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { X, Plus, Pencil } from "lucide-react";
 import api from "../../services/api";
 import {
+  normalizePhoneInput,
+  validatePhone as validatePhoneFormat,
+  validateReference,
+  validateSafeText,
+} from "../../utils/formValidation";
+import {
   ui,
   type ViewProps,
   Toolbar,
@@ -11,11 +17,6 @@ import {
   SectionHeader,
   fmtDate,
 } from "./shared";
-
-// ---------------------------------------------------------------------------
-// Regex para nombre de sucursal: letras, números, espacios, acentos, puntos y guiones
-// ---------------------------------------------------------------------------
-const NAME_REGEX = /^[a-zA-ZÀ-ÿ0-9 .\-]+$/;
 
 // ---------------------------------------------------------------------------
 // Interfaces
@@ -51,26 +52,18 @@ const emptyErrors: FieldErrors = {};
 // Validadores por campo (puros — reutilizables)
 // ---------------------------------------------------------------------------
 const validateName = (value: string): string | undefined => {
-  const v = value.trim();
-  if (!v) return "El nombre de la sucursal es obligatorio.";
-  if (v.length < 3) return "El nombre debe tener al menos 3 caracteres.";
-  if (v.length > 80) return "El nombre no puede exceder 80 caracteres.";
-  if (!NAME_REGEX.test(v))
-    return "Solo se permiten letras, números, espacios, acentos, puntos y guiones.";
-  return undefined;
+  return validateSafeText(value, "El nombre de la sucursal", { required: true, min: 3, max: 80 });
 };
 
 const validateAddress = (value: string): string | undefined => {
   const v = value.trim();
   if (!v) return "La dirección es obligatoria.";
   if (v.length > 150) return "La dirección no puede exceder 150 caracteres.";
-  return undefined;
+  return validateReference(v, "La direccion", { required: true, max: 150 });
 };
 
 const validatePhone = (value: string): string | undefined => {
-  if (!value) return "El teléfono es obligatorio.";
-  if (!/^\d{10}$/.test(value)) return "El teléfono debe tener exactamente 10 dígitos.";
-  return undefined;
+  return validatePhoneFormat(value, { required: true, minDigits: 10, maxDigits: 15 });
 };
 
 // ---------------------------------------------------------------------------
@@ -225,9 +218,8 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
     setFieldErrors((fe) => ({ ...fe, address: validateAddress(val) }));
   };
 
-  // Solo dígitos — bloquea letras mientras el usuario escribe
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+    const val = normalizePhoneInput(e.target.value).slice(0, 20);
     setForm((f) => ({ ...f, phone: val }));
     setFieldErrors((fe) => ({ ...fe, phone: validatePhone(val) }));
   };
@@ -517,6 +509,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                   </p>
                 ) : (
                   <>
+                    <div style={{ ...ui.tableWrap, boxShadow: "none" }}>
                     <table style={ui.table}>
                       <thead>
                         <tr style={ui.theadRow}>
@@ -563,6 +556,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                         ))}
                       </tbody>
                     </table>
+                    </div>
 
                     {/* Formulario de reasignación */}
                     {reassignId !== null && (
