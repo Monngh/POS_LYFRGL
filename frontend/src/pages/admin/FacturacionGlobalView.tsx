@@ -257,7 +257,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                 </p>
                 <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
                   <a
-                    href={stampResult.pdfUrl}
+                    href={`${api.defaults.baseURL}/api/public/sales/invoice/${stampResult.cfdiUuid}/pdf`}
                     target="_blank"
                     rel="noreferrer"
                     style={downloadBtn}
@@ -265,7 +265,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                     Descargar PDF
                   </a>
                   <a
-                    href={stampResult.xmlUrl}
+                    href={`${api.defaults.baseURL}/api/public/sales/invoice/${stampResult.cfdiUuid}/xml`}
                     target="_blank"
                     rel="noreferrer"
                     style={{ ...downloadBtn, backgroundColor: "#0f172a" }}
