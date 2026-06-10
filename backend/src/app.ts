@@ -34,7 +34,11 @@ app.use((req, res, next) => {
 
 app.use(helmet());
 app.use(cors({
-  origin: ["http://localhost:5173", "https://pos-fmb.vercel.app"], // En producción configurar para los dominios permitidos
+  origin: [
+    "http://localhost:5173",
+    "https://pos-fmb.vercel.app",
+    "https://pos-lyfrgl.vercel.app"
+  ],
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Device-Id"]
 }));
@@ -81,10 +85,6 @@ app.get("/health", async (_req: Request, res: Response) => {
   }
 });
 
-// Servir frontend en producción (o para pruebas con ngrok)
-const frontendDistPath = path.join(__dirname, "../../frontend/dist");
-app.use(express.static(frontendDistPath));
-
 // Manejo global de rutas no encontradas (404) para la API
 app.use("/api/*", (_req: Request, res: Response) => {
   res.status(404).json({
@@ -92,9 +92,14 @@ app.use("/api/*", (_req: Request, res: Response) => {
   });
 });
 
-// Para cualquier otra ruta, servir el index.html de React (Frontend SPA)
-app.get("*", (_req: Request, res: Response) => {
-  res.sendFile(path.join(frontendDistPath, "index.html"));
-});
+// Servir frontend estático solo si la carpeta dist existe
+import fs from "fs";
+const frontendDistPath = path.join(__dirname, "../../frontend/dist");
+if (fs.existsSync(frontendDistPath)) {
+  app.use(express.static(frontendDistPath));
+  app.get("*", (_req: Request, res: Response) => {
+    res.sendFile(path.join(frontendDistPath, "index.html"));
+  });
+}
 
 export default app;
