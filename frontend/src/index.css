@@ -215,6 +215,16 @@ button:disabled {
   animation: toast-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+.autofact-table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+.autofact-table-scroll table {
+  min-width: 700px;
+}
+
 /* ==========================================================================
    Portal Autofacturación — Ajustes responsive
    ========================================================================== */

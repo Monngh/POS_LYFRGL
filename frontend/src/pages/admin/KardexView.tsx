@@ -11,7 +11,7 @@ import {
   SectionHeader,
   fmtDate,
   fmtTime,
-  printHtml,
+  printTicketHtml,
 } from "./shared";
 
 interface KardexRow {
@@ -111,33 +111,37 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const printMovement = (k: KardexRow) => {
     const before = k.balanceAfter - k.quantityChange;
     const signo = k.quantityChange >= 0 ? "+" : "";
+    const safe = (value: unknown) =>
+      String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
     const row = (l: string, v: string) =>
-      `<tr><td style="color:#64748b">${l}</td><td style="text-align:right;font-weight:700">${v}</td></tr>`;
+      `<div class="ticket-row"><span>${l}</span><span class="ticket-value">${v}</span></div>`;
     const body = `
-      <div class="doc-header">
-        <div>
-          <div class="doc-brand">LYFRGL POS</div>
-          <div class="doc-sub">Comprobante de movimiento de inventario</div>
-        </div>
-        <div>
-          <div class="doc-title">KARDEX · MOV. #${k.id}</div>
-          <div class="doc-meta">${fmtDate(k.createdAt)} ${fmtTime(k.createdAt)}</div>
-        </div>
+      <div>
+      <div class="ticket-header">
+        <span class="ticket-store">LYFRGL POS</span>
+        <span class="ticket-muted">Sucursal: ${safe(k.branch)}</span>
+        <span class="ticket-operation">KARDEX - MOV. #${k.id}</span>
       </div>
-      <table style="margin-top:8px">
-        <tbody>
-          ${row("Producto", `${k.product} (${k.sku})`)}
-          ${row("Sucursal", k.branch)}
-          ${row("Tipo de movimiento", movementLabel[k.movementType] ?? k.movementType.replace(/_/g, " "))}
-          ${row("Existencia anterior", String(before))}
-          ${row("Cambio", `${signo}${k.quantityChange}`)}
-          ${row("Existencia final", String(k.balanceAfter))}
-          ${row("Usuario responsable", k.user)}
-          ${row("Referencia / Motivo", k.reason || "—")}
-        </tbody>
-      </table>
+      <div class="ticket-section">
+        ${row("Fecha:", `${fmtDate(k.createdAt)} ${fmtTime(k.createdAt)}`)}
+        ${row("Producto:", `${safe(k.product)} (${safe(k.sku)})`)}
+        ${row("Tipo:", safe(movementLabel[k.movementType] ?? k.movementType.replace(/_/g, " ")))}
+        ${row("Exist. anterior:", String(before))}
+        ${row("Cambio:", `${signo}${k.quantityChange}`)}
+        ${row("Exist. final:", String(k.balanceAfter))}
+        ${row("Usuario:", safe(k.user))}
+        ${row("Referencia:", safe(k.reason || "N/A"))}
+      </div>
+      <div class="ticket-footer">
+        <p>COMPROBANTE DE MOVIMIENTO DE INVENTARIO</p>
+      </div>
+      </div>
     `;
-    printHtml(`Kardex Mov. #${k.id}`, body);
+    printTicketHtml(`Kardex Mov. #${k.id}`, body);
   };
 
   return (

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { X, Eye, Printer, Ban } from "lucide-react";
 import api from "../../services/api";
+import { normalizeIntegerInput, validateInteger, validateReference } from "../../utils/formValidation";
 import {
   ui,
   type ViewProps,
@@ -16,7 +17,7 @@ import {
   fmtTime,
   statusTone,
   payTone,
-  printHtml,
+  printTicketHtml,
 } from "./shared";
 
 interface SaleRow {
@@ -50,36 +51,62 @@ interface SaleDetail {
 
 // Reimpresión: genera el ticket de la venta y abre el diálogo de impresión
 const reprintTicket = (d: SaleDetail) => {
+  const safe = (value: unknown) =>
+    String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   const body = `
-    <div style="max-width:340px;margin:0 auto;font-family:'Courier New',monospace;color:#0f172a;">
-      <div style="text-align:center;border-bottom:1px dashed #94a3b8;padding-bottom:8px;margin-bottom:8px;">
-        <div style="font-size:16px;font-weight:800;">LYFRGL SOLUTIONS</div>
-        <div style="font-size:11px;">${d.branch}</div>
-        <div style="font-size:10px;color:#64748b;">REIMPRESIÓN DE TICKET</div>
+    <div>
+      <div class="ticket-header">
+        <span class="ticket-store">LYFRGL POS</span>
+        <span class="ticket-muted">Sucursal: ${safe(d.branch)}</span>
+        <span class="ticket-operation">VENTA - REIMPRESION</span>
       </div>
-      <div style="font-size:11px;line-height:1.6;">
-        <div><b>Folio:</b> ${d.invoiceNumber}</div>
-        <div><b>Fecha:</b> ${fmtDate(d.createdAt)} ${fmtTime(d.createdAt)}</div>
-        <div><b>Cajero:</b> ${d.cajero}</div>
-        <div><b>Cliente:</b> ${d.customer}</div>
+      <div class="ticket-section">
+        <div class="ticket-row"><span>Folio:</span><span class="ticket-value">${safe(d.invoiceNumber)}</span></div>
+        <div class="ticket-row"><span>Fecha:</span><span class="ticket-value">${fmtDate(d.createdAt)} ${fmtTime(d.createdAt)}</span></div>
+        <div class="ticket-row"><span>Cajero:</span><span class="ticket-value">${safe(d.cajero)}</span></div>
+        <div class="ticket-row"><span>Cliente:</span><span class="ticket-value">${safe(d.customer || "Publico general")}</span></div>
+        <div class="ticket-row"><span>Operacion:</span><span class="ticket-value">VENTA</span></div>
       </div>
-      <table style="width:100%;font-size:11px;border-collapse:collapse;margin:8px 0;border-top:1px dashed #94a3b8;border-bottom:1px dashed #94a3b8;">
-        <thead><tr><th style="text-align:left;padding:4px 0;">Producto</th><th style="text-align:center;">Cant</th><th style="text-align:right;">Importe</th></tr></thead>
-        <tbody>
-          ${d.items.map((it) => `<tr><td style="padding:3px 0;">${it.name}</td><td style="text-align:center;">${it.quantity}</td><td style="text-align:right;">${moneyExact(it.importe)}</td></tr>`).join("")}
-        </tbody>
-      </table>
-      <div style="font-size:11px;line-height:1.7;">
-        <div style="display:flex;justify-content:space-between;"><span>Subtotal:</span><span>${moneyExact(d.subtotal)}</span></div>
-        ${d.discountAmount > 0 ? `<div style="display:flex;justify-content:space-between;"><span>Descuento:</span><span>- ${moneyExact(d.discountAmount)}</span></div>` : ""}
-        <div style="display:flex;justify-content:space-between;"><span>IVA (16%):</span><span>${moneyExact(d.taxAmount)}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:800;font-size:13px;border-top:1px solid #0f172a;margin-top:4px;padding-top:4px;"><span>TOTAL:</span><span>${moneyExact(d.totalAmount)}</span></div>
-        <div style="margin-top:6px;"><b>Pago:</b> ${d.paymentMethod} &nbsp; <b>Estado:</b> ${d.status}</div>
+      <div class="ticket-section">
+        <table>
+          <thead>
+            <tr style="border-bottom:1px dashed #111111;">
+              <th style="width:12%;text-align:left;padding-bottom:4px;">Cant</th>
+              <th style="width:43%;text-align:left;padding-bottom:4px;">Descripcion</th>
+              <th style="width:20%;text-align:right;padding-bottom:4px;">P.Unit</th>
+              <th style="width:25%;text-align:right;padding-bottom:4px;">Importe</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${d.items.map((it) => `
+              <tr>
+                <td style="text-align:left;padding:3px 2px 3px 0;">${Number(it.quantity)}</td>
+                <td style="padding:3px 4px 3px 0;">${safe(it.name)}</td>
+                <td style="text-align:right;padding:3px 4px 3px 0;">${moneyExact(it.unitPrice)}</td>
+                <td style="text-align:right;padding:3px 0;">${moneyExact(it.importe)}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
       </div>
-      <div style="text-align:center;font-size:10px;color:#64748b;margin-top:14px;">¡GRACIAS POR SU COMPRA!</div>
+      <div class="ticket-section">
+        <div class="ticket-row"><span>Subtotal:</span><span class="ticket-value">${moneyExact(d.subtotal)}</span></div>
+        ${d.discountAmount > 0 ? `<div class="ticket-row"><span>Descuento:</span><span class="ticket-value">- ${moneyExact(d.discountAmount)}</span></div>` : ""}
+        <div class="ticket-row"><span>Impuestos:</span><span class="ticket-value">${moneyExact(d.taxAmount)}</span></div>
+        <div class="ticket-row ticket-total"><span>TOTAL:</span><span>${moneyExact(d.totalAmount)}</span></div>
+        <div class="ticket-row"><span>Metodo pago:</span><span class="ticket-value">${safe(d.paymentMethod)}</span></div>
+        <div class="ticket-row"><span>Estado:</span><span class="ticket-value">${safe(d.status)}</span></div>
+      </div>
+      <div class="ticket-footer">
+        <p>GRACIAS POR SU COMPRA</p>
+        <p>REGRESE PRONTO</p>
+      </div>
     </div>
   `;
-  printHtml(`Ticket ${d.invoiceNumber}`, body);
+  printTicketHtml(`Ticket ${d.invoiceNumber}`, body);
 };
 
 const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
@@ -97,6 +124,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [cancelReason, setCancelReason] = useState("");
+  const [cancelFieldErrors, setCancelFieldErrors] = useState<Partial<Record<"pin" | "reason", string>>>({});
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
 
@@ -138,6 +166,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const openPinModal = () => {
     setPinInput("");
     setCancelReason("");
+    setCancelFieldErrors({});
     setCancelError(null);
     setShowPinModal(true);
   };
@@ -146,13 +175,25 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setShowPinModal(false);
     setPinInput("");
     setCancelReason("");
+    setCancelFieldErrors({});
     setCancelError(null);
   };
 
   const handleCancelSale = async () => {
     if (!detail) return;
+    const fieldErrors: Partial<Record<"pin" | "reason", string>> = {};
+    const pinError = validateInteger(pinInput, "El PIN", { min: 0 });
+    if (pinError || pinInput.length !== 4) fieldErrors.pin = "El PIN debe contener 4 digitos.";
+    const reasonError = validateReference(cancelReason, "El motivo", { required: false, max: 180 });
+    if (reasonError) fieldErrors.reason = reasonError;
+    if (Object.keys(fieldErrors).length > 0) {
+      setCancelFieldErrors(fieldErrors);
+      setCancelError(null);
+      return;
+    }
     setCancelLoading(true);
     setCancelError(null);
+    setCancelFieldErrors({});
     try {
       await api.post("/api/sales/authorize-cancel", {
         invoiceNumber: detail.invoiceNumber,
@@ -313,10 +354,18 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   type="password"
                   placeholder="PIN"
                   value={pinInput}
-                  onChange={(e) => setPinInput(e.target.value)}
+                  onChange={(e) => {
+                    const value = normalizeIntegerInput(e.target.value).slice(0, 4);
+                    setPinInput(value);
+                    setCancelFieldErrors((prev) => ({
+                      ...prev,
+                      pin: value.length === 4 ? "" : "El PIN debe contener 4 digitos.",
+                    }));
+                  }}
                   autoFocus
                   onKeyDown={(e) => e.key === "Enter" && !cancelLoading && handleCancelSale()}
                 />
+                {cancelFieldErrors.pin && <p style={ui.fieldError}>{cancelFieldErrors.pin}</p>}
               </div>
 
               <div style={{ marginBottom: 16 }}>
@@ -326,8 +375,16 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   type="text"
                   placeholder="Ej. Error de captura"
                   value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setCancelReason(value);
+                    setCancelFieldErrors((prev) => ({
+                      ...prev,
+                      reason: validateReference(value, "El motivo", { required: false, max: 180 }) || "",
+                    }));
+                  }}
                 />
+                {cancelFieldErrors.reason && <p style={ui.fieldError}>{cancelFieldErrors.reason}</p>}
               </div>
 
               {cancelError && (
@@ -373,7 +430,8 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   <Info label="Método" value={<Badge tone={payTone(detail.paymentMethod)}>{detail.paymentMethod}</Badge>} />
                 </div>
 
-                <table style={{ ...ui.table, marginBottom: 14 }}>
+                <div style={{ ...ui.tableWrap, boxShadow: "none", marginBottom: 14 }}>
+                <table style={ui.table}>
                   <thead>
                     <tr style={ui.theadRow}>
                       <th style={ui.th}>Producto</th>
@@ -396,6 +454,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     ))}
                   </tbody>
                 </table>
+                </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   <Row label="Subtotal" value={moneyExact(detail.subtotal)} />
