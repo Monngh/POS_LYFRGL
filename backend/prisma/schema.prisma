@@ -118,6 +118,7 @@ model CashSession {
   cashIn         Decimal       @default(0) @db.Decimal(18, 2)
   cashOut        Decimal       @default(0) @db.Decimal(18, 2)
   status         String        @default("ABIERTA")
+  deviceId       String?       @db.VarChar(64)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   bankDeposits   BankDeposit[]
@@ -126,6 +127,8 @@ model CashSession {
   user           User          @relation(fields: [userId], references: [id], onUpdate: NoAction)
   sales          Sale[]
   returns        Return[]
+
+  @@index([userId, status])
 }
 
 model Customer {

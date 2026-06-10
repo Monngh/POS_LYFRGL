@@ -36,7 +36,7 @@ app.use(helmet());
 app.use(cors({
   origin: ["http://localhost:5173", "https://pos-fmb.vercel.app"], // En producción configurar para los dominios permitidos
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  allowedHeaders: ["Content-Type", "Authorization", "X-Device-Id"]
 }));
 app.use(express.json({ limit: "15mb" }));
 

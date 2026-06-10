@@ -130,6 +130,12 @@ body {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
+/* Botones deshabilitados: feedback visual global (operaciones en proceso, validaciones) */
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 /* Animaciones sutiles para interacciones táctiles */
 @keyframes pulse-subtle {
   0%, 100% { transform: scale(1); }
