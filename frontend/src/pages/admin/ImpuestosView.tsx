@@ -2,10 +2,12 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { BadgePercent, Pencil, Plus, Power, X } from "lucide-react";
 import api from "../../services/api";
 import {
+  DECIMAL_INPUT_REGEX,
   getDecimalValidationValue,
   handleDecimalInputChange,
   validateDecimalField,
 } from "../../utils/decimalInput";
+import { validateSafeText } from "../../utils/formValidation";
 import {
   ui,
   type ViewProps,
@@ -44,6 +46,8 @@ interface FormState {
   rate: string;
   active: boolean;
 }
+
+type FieldErrors = Partial<Record<keyof FormState, string>>;
 
 const emptyForm: FormState = {
   name: "",
@@ -99,6 +103,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const [editing, setEditing] = useState<"create" | TaxRow | null>(null);
   const [form, setForm] = useState<FormState>({ ...emptyForm });
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
@@ -131,6 +136,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const openCreate = () => {
     setForm({ ...emptyForm });
+    setFieldErrors({});
     setFormError(null);
     setNotice(null);
     setEditing("create");
@@ -143,6 +149,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
       rate: String(normalizeRate(tax.rate)),
       active: tax.active,
     });
+    setFieldErrors({});
     setFormError(null);
     setNotice(null);
     setEditing(tax);
@@ -151,22 +158,29 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
   const closeForm = () => {
     if (!saving) {
       setEditing(null);
+      setFieldErrors({});
       setFormError(null);
     }
   };
 
   const validateForm = () => {
-    if (!form.name.trim()) return "El nombre del impuesto es obligatorio.";
+    const errors: FieldErrors = {};
+
+    const nameError = validateSafeText(form.name, "El nombre del impuesto", { required: true, min: 2, max: 80 });
+    if (nameError) errors.name = nameError;
+
+    const descriptionError = validateSafeText(form.description, "La descripcion", { required: false, max: 180 });
+    if (descriptionError) errors.description = descriptionError;
 
     const rate = validateDecimalField(form.rate, "La tasa del impuesto", {
       invalidMessage: "La tasa debe ser un numero valido con maximo 3 decimales.",
       minMessage: "La tasa no puede ser negativa.",
     });
     if (!rate.ok) {
-      return rate.error;
+      errors.rate = rate.error;
     }
 
-    return null;
+    return errors;
   };
 
   const syncStatus = async (id: number, active: boolean) => {
@@ -177,8 +191,9 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
     e.preventDefault();
 
     const validation = validateForm();
-    if (validation) {
-      setFormError(validation);
+    if (Object.keys(validation).length > 0) {
+      setFieldErrors(validation);
+      setFormError("Revisa los campos marcados antes de guardar.");
       return;
     }
     const rate = validateDecimalField(form.rate, "La tasa del impuesto", {
@@ -198,6 +213,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
 
     setSaving(true);
     setFormError(null);
+    setFieldErrors({});
     try {
       if (rateValue.roundedMessage) {
         alert(rateValue.roundedMessage);
@@ -223,6 +239,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
 
       setEditing(null);
       setForm({ ...emptyForm });
+      setFieldErrors({});
       await load();
     } catch (err: unknown) {
       setFormError(getErrorMessage(err, "No se pudo guardar el impuesto."));
@@ -253,11 +270,45 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const set =
     (key: keyof FormState) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setForm((f) => ({ ...f, [key]: e.target.value }));
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      const value = e.target.value;
+      setForm((f) => ({ ...f, [key]: value }));
+      setFormError(null);
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        const error =
+          key === "name"
+            ? validateSafeText(value, "El nombre del impuesto", { required: true, min: 2, max: 80 })
+            : key === "description"
+              ? validateSafeText(value, "La descripcion", { required: false, max: 180 })
+              : undefined;
+        if (error) next[key] = error;
+        else delete next[key];
+        return next;
+      });
+    };
 
-  const setRate = (e: React.ChangeEvent<HTMLInputElement>) =>
-    handleDecimalInputChange(e.target.value, (nextValue) => setForm((f) => ({ ...f, rate: nextValue })));
+  const setRate = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.trim();
+    if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
+      setFieldErrors((prev) => ({ ...prev, rate: "La tasa debe ser un numero valido con maximo 3 decimales." }));
+      return;
+    }
+    handleDecimalInputChange(rawValue, (nextValue) => {
+      setForm((f) => ({ ...f, rate: nextValue }));
+      setFormError(null);
+      const rate = validateDecimalField(nextValue, "La tasa del impuesto", {
+        invalidMessage: "La tasa debe ser un numero valido con maximo 3 decimales.",
+        minMessage: "La tasa no puede ser negativa.",
+      });
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        if (!rate.ok) next.rate = rate.error;
+        else delete next.rate;
+        return next;
+      });
+    });
+  };
 
   return (
     <div>
@@ -366,6 +417,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
               <div style={{ marginBottom: 14 }}>
                 <label style={ui.fieldLabel}>Nombre *</label>
                 <input style={ui.input} value={form.name} onChange={set("name")} placeholder="IVA" autoFocus />
+                {fieldErrors.name && <p style={styles.fieldError}>{fieldErrors.name}</p>}
               </div>
 
               <div style={{ marginBottom: 14 }}>
@@ -376,12 +428,14 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                   onChange={set("description")}
                   placeholder="Impuesto al valor agregado"
                 />
+                {fieldErrors.description && <p style={styles.fieldError}>{fieldErrors.description}</p>}
               </div>
 
               <div style={{ marginBottom: 14 }}>
                 <label style={ui.fieldLabel}>Tasa decimal *</label>
                 <input type="text" style={ui.input} value={form.rate} onChange={setRate} placeholder="0.16" inputMode="decimal" />
                 <p style={styles.helpText}>Use formato decimal: IVA 16% = 0.16, IEPS 8% = 0.08.</p>
+                {fieldErrors.rate && <p style={styles.fieldError}>{fieldErrors.rate}</p>}
               </div>
 
               <label style={styles.checkRow}>
@@ -435,6 +489,12 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 12,
     fontWeight: 600,
     marginTop: 7,
+  },
+  fieldError: {
+    color: "#b91c1c",
+    fontSize: 12,
+    fontWeight: 600,
+    marginTop: 5,
   },
   checkRow: {
     display: "flex",

@@ -3,11 +3,13 @@ import { Plus, Trash2, CheckCircle2, Package } from "lucide-react";
 import api from "../../services/api";
 import {
   collectRoundedDecimalMessages,
+  DECIMAL_INPUT_REGEX,
   getDecimalValidationValue,
   handleDecimalInputChange,
   type DecimalFieldValue,
   validateDecimalField,
 } from "../../utils/decimalInput";
+import { normalizeIntegerInput, validateInteger, validateReference } from "../../utils/formValidation";
 import {
   ui,
   type ViewProps,
@@ -64,6 +66,9 @@ interface Line {
   unitCost: string;
 }
 
+type TopFieldErrors = Partial<Record<"branchId" | "supplierId" | "reference" | "notes", string>>;
+type LineFieldErrors = Record<number, Partial<Record<keyof Line, string>>>;
+
 interface ProductTaxEntry {
   id: number;
   name: string;
@@ -88,6 +93,8 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<Line[]>([newLine()]);
+  const [fieldErrors, setFieldErrors] = useState<TopFieldErrors>({});
+  const [lineErrors, setLineErrors] = useState<LineFieldErrors>({});
   // Caché de impuestos por productId (se carga al seleccionar)
   const [productTaxes, setProductTaxes] = useState<Record<string, ProductTaxEntry[]>>({});
 
@@ -148,11 +155,34 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
       .finally(() => setLoadingProducts(false));
   }, [supplierId]);
 
-  const setLine = (i: number, k: keyof Line, v: string) =>
-    setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, [k]: v } : l)));
+  const setLine = (i: number, k: keyof Line, v: string) => {
+    const value = k === "quantity" ? normalizeIntegerInput(v) : v;
+    setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, [k]: value } : l)));
+    setLineErrors((prev) => {
+      const next = { ...prev };
+      const invalidInteger = k === "quantity" && v.trim() !== "" && value !== v;
+      if (invalidInteger) {
+        next[i] = { ...(next[i] || {}), quantity: "La cantidad solo puede contener numeros enteros." };
+      } else if (next[i]) {
+        next[i] = { ...next[i] };
+        delete next[i][k];
+      }
+      return next;
+    });
+    setFormError(null);
+  };
 
-  const setDecimalLine = (i: number, k: "unitCost", value: string) =>
-    handleDecimalInputChange(value, (nextValue) => setLine(i, k, nextValue));
+  const setDecimalLine = (i: number, k: "unitCost", value: string) => {
+    const rawValue = value.trim();
+    if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
+      setLineErrors((prev) => ({
+        ...prev,
+        [i]: { ...(prev[i] || {}), unitCost: "El costo unitario debe ser un numero valido con maximo 3 decimales." },
+      }));
+      return;
+    }
+    handleDecimalInputChange(rawValue, (nextValue) => setLine(i, k, nextValue));
+  };
 
   const onPickProduct = (i: number, productId: string) => {
     const pool = supplierId && supplierProducts.length > 0 ? supplierProducts : products;
@@ -164,6 +194,14 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
           : l
       )
     );
+    setLineErrors((prev) => {
+      const next = { ...prev };
+      if (next[i]) {
+        next[i] = { ...next[i] };
+        delete next[i].productId;
+      }
+      return next;
+    });
     // Cargar impuestos del producto si no están en caché
     if (productId && productTaxes[productId] === undefined) {
       api
@@ -183,8 +221,10 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
   };
 
   const addLine = () => setLines((ls) => [...ls, newLine()]);
-  const removeLine = (i: number) =>
+  const removeLine = (i: number) => {
     setLines((ls) => (ls.length === 1 ? ls : ls.filter((_, idx) => idx !== i)));
+    setLineErrors({});
+  };
 
   const computedTotals = (() => {
     let subtotal = 0;
@@ -209,30 +249,35 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
   const submit = async () => {
     setFormError(null);
     setSuccess(null);
+    const nextFieldErrors: TopFieldErrors = {};
+    const nextLineErrors: LineFieldErrors = {};
     if (!branchId) {
-      setFormError("Seleccione la sucursal de destino.");
-      return;
+      nextFieldErrors.branchId = "Seleccione la sucursal de destino.";
     }
     if (!supplierId) {
-      setFormError("Seleccione el proveedor.");
-      return;
+      nextFieldErrors.supplierId = "Seleccione el proveedor.";
     }
-    if (!reference.trim()) {
-      setFormError("Ingrese la referencia o folio de la compra.");
-      return;
+    const referenceError = validateReference(reference, "La referencia", { required: true, max: 80 });
+    if (referenceError) {
+      nextFieldErrors.reference = referenceError;
+    }
+    const notesError = validateReference(notes, "Las notas", { required: false, max: 200 });
+    if (notesError) {
+      nextFieldErrors.notes = notesError;
     }
     const selectedLines = lines.filter((l) => l.productId);
     if (selectedLines.length === 0) {
-      setFormError("Agregue al menos un producto con cantidad mayor a 0.");
-      return;
+      nextLineErrors[0] = { productId: "Agregue al menos un producto." };
     }
     const details: Array<{ productId: number; quantity: number; unitCost: number }> = [];
     const roundedValues: Array<DecimalFieldValue | null> = [];
     for (const [index, line] of selectedLines.entries()) {
+      const originalIndex = lines.indexOf(line);
+      const rowErrors: Partial<Record<keyof Line, string>> = {};
       const quantity = Number(line.quantity);
-      if (!Number.isInteger(quantity) || quantity <= 0) {
-        setFormError(`La cantidad del renglon ${index + 1} debe ser un entero mayor a 0.`);
-        return;
+      const quantityError = validateInteger(line.quantity, `La cantidad del renglon ${index + 1}`, { min: 1 });
+      if (quantityError || !Number.isInteger(quantity) || quantity <= 0) {
+        rowErrors.quantity = `La cantidad del renglon ${index + 1} debe ser un entero mayor a 0.`;
       }
 
       const unitCostValidation = line.unitCost.trim()
@@ -241,8 +286,14 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
           })
         : null;
       if (unitCostValidation && !unitCostValidation.ok) {
-        setFormError(unitCostValidation.error);
-        return;
+        rowErrors.unitCost = unitCostValidation.error;
+      }
+      if (!line.unitCost.trim()) {
+        rowErrors.unitCost = `El costo unitario del renglon ${index + 1} es obligatorio.`;
+      }
+      if (Object.keys(rowErrors).length > 0) {
+        nextLineErrors[originalIndex] = rowErrors;
+        continue;
       }
       const unitCostValue = unitCostValidation ? getDecimalValidationValue(unitCostValidation) : null;
       roundedValues.push(unitCostValue);
@@ -252,9 +303,17 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
         unitCost: unitCostValue?.value ?? 0,
       });
     }
+    if (Object.keys(nextFieldErrors).length > 0 || Object.keys(nextLineErrors).length > 0) {
+      setFieldErrors(nextFieldErrors);
+      setLineErrors(nextLineErrors);
+      setFormError("Revisa los campos marcados antes de guardar.");
+      return;
+    }
     const roundingMessages = collectRoundedDecimalMessages(roundedValues);
 
     setSaving(true);
+    setFieldErrors({});
+    setLineErrors({});
     try {
       if (roundingMessages.length > 0) {
         alert(roundingMessages.join("\n"));
@@ -274,6 +333,8 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
       setSupplierId("");
       setReference("");
       setNotes("");
+      setFieldErrors({});
+      setLineErrors({});
       setProductTaxes({});
       await loadPurchases();
     } catch (err: any) {
@@ -318,7 +379,10 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
             <select
               style={ui.input}
               value={branchId}
-              onChange={(e) => setBranchId(e.target.value)}
+              onChange={(e) => {
+                setBranchId(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, branchId: undefined }));
+              }}
             >
               <option value="">Seleccione...</option>
               {branches.map((b) => (
@@ -327,13 +391,19 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                 </option>
               ))}
             </select>
+            {fieldErrors.branchId && <p style={styles.fieldError}>{fieldErrors.branchId}</p>}
           </div>
           <div>
             <label style={ui.fieldLabel}>Proveedor *</label>
             <select
               style={ui.input}
               value={supplierId}
-              onChange={(e) => { setSupplierId(e.target.value); setLines([newLine()]); }}
+              onChange={(e) => {
+                setSupplierId(e.target.value);
+                setLines([newLine()]);
+                setLineErrors({});
+                setFieldErrors((prev) => ({ ...prev, supplierId: undefined }));
+              }}
             >
               <option value="">Seleccione proveedor...</option>
               {suppliers.map((s) => (
@@ -342,15 +412,20 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                 </option>
               ))}
             </select>
+            {fieldErrors.supplierId && <p style={styles.fieldError}>{fieldErrors.supplierId}</p>}
           </div>
           <div>
             <label style={ui.fieldLabel}>Referencia / Factura *</label>
             <input
               style={ui.input}
               value={reference}
-              onChange={(e) => setReference(e.target.value)}
+              onChange={(e) => {
+                setReference(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, reference: validateReference(e.target.value, "La referencia", { required: true, max: 80 }) }));
+              }}
               placeholder="Folio o nota"
             />
+            {fieldErrors.reference && <p style={styles.fieldError}>{fieldErrors.reference}</p>}
           </div>
         </div>
 
@@ -359,11 +434,16 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
           <textarea
             style={{ ...ui.input, resize: "vertical", minHeight: 52, fontSize: 13 }}
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onChange={(e) => {
+              setNotes(e.target.value);
+              setFieldErrors((prev) => ({ ...prev, notes: validateReference(e.target.value, "Las notas", { required: false, max: 200 }) }));
+            }}
             placeholder="Observaciones sobre la compra..."
           />
+          {fieldErrors.notes && <p style={styles.fieldError}>{fieldErrors.notes}</p>}
         </div>
 
+        <div style={{ ...ui.tableWrap, boxShadow: "none" }}>
         <table style={ui.table}>
           <thead>
             <tr style={ui.theadRow}>
@@ -407,6 +487,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                         : "Sin impuestos"}
                     </div>
                   )}
+                  {lineErrors[i]?.productId && <p style={styles.fieldError}>{lineErrors[i]?.productId}</p>}
                 </td>
                 <td style={ui.td}>
                   <input
@@ -415,6 +496,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                     onChange={(e) => setLine(i, "quantity", e.target.value)}
                     placeholder="0"
                   />
+                  {lineErrors[i]?.quantity && <p style={styles.fieldError}>{lineErrors[i]?.quantity}</p>}
                 </td>
                 <td style={ui.td}>
                   <input
@@ -425,6 +507,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                     onChange={(e) => setDecimalLine(i, "unitCost", e.target.value)}
                     placeholder="0.00"
                   />
+                  {lineErrors[i]?.unitCost && <p style={styles.fieldError}>{lineErrors[i]?.unitCost}</p>}
                 </td>
                 <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>
                   {money((Number(l.quantity) || 0) * (Number(l.unitCost) || 0))}
@@ -442,6 +525,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
             ))}
           </tbody>
         </table>
+        </div>
 
         <div
           style={{
@@ -614,6 +698,15 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
       </div>
     </div>
   );
+};
+
+const styles: { [key: string]: React.CSSProperties } = {
+  fieldError: {
+    color: "#b91c1c",
+    fontSize: 12,
+    fontWeight: 600,
+    marginTop: 5,
+  },
 };
 
 export default ComprasView;
