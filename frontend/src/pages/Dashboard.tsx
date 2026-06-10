@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import "../pos-cashier-responsive.css";
 import { useAuth } from "../context/AuthContext";
-import api from "../services/api";
+import api, { LONG_OPERATION_TIMEOUT } from "../services/api";
 import { ticketPdfFilename } from "../utils/ticketEmailDocument.util";
 import { generateTicketPdfBase64 } from "../utils/ticketPdf.util";
 import AdminDashboard from "./AdminDashboard";
@@ -74,6 +74,14 @@ const getProductId = (product: Product | Record<string, any> | null | undefined)
 };
 
 const getCheckoutErrorMessage = (err: any, fallback: string): string => {
+  // Timeout del cliente: el servidor pudo haber completado la operación aunque no llegó la respuesta
+  if (err?.code === "ECONNABORTED" || /timeout/i.test(err?.message || "")) {
+    return "La operación tardó más de lo esperado y no se recibió respuesta del servidor. " +
+      "IMPORTANTE: la venta pudo haberse registrado. Verifique en el Historial de Tickets antes de volver a cobrar para evitar un cobro duplicado.";
+  }
+  if (!err?.response && err?.request) {
+    return "No hay conexión con el servidor. Verifique su conexión a internet e intente de nuevo.";
+  }
   const data = err?.response?.data;
   const message = typeof data?.message === "string" ? data.message : "";
   const detail = typeof data?.error === "string" && data.error !== message ? data.error : "";
@@ -109,6 +117,8 @@ const Dashboard: React.FC = () => {
   
   // Vistas del Cajero: "dashboard" | "apertura" | "sales-terminal"
   const [view, setView] = useState<"dashboard" | "apertura" | "sales-terminal">("dashboard");
+  // Bloqueo: el turno de caja del usuario está abierto en otro equipo
+  const [cajaLockedByOtherDevice, setCajaLockedByOtherDevice] = useState(false);
   const [session, setSession] = useState<CashSession | null>(null);
   const [sessionStats, setSessionStats] = useState<any>(null);
   const [lastClosedStats, setLastClosedStats] = useState<any>(null);
@@ -301,10 +311,18 @@ const Dashboard: React.FC = () => {
     try {
       const resStatus = await api.get("/api/cash-session/status");
       if (resStatus.data.isOpen) {
+        // La caja está abierta pero vinculada a otra computadora: bloquear la terminal
+        if (resStatus.data.isOwnedByThisDevice === false) {
+          setSession(null);
+          setCajaLockedByOtherDevice(true);
+          return;
+        }
+        setCajaLockedByOtherDevice(false);
         setSession(resStatus.data.session);
         setView("dashboard");
         await loadDashboardData();
       } else {
+        setCajaLockedByOtherDevice(false);
         setSession(null);
         setView("apertura");
       }
@@ -916,7 +934,7 @@ const Dashboard: React.FC = () => {
         await api.post("/api/sales/confirm-qr", {
           invoiceNumber: qrReference,
           paymentId: res.data.paymentId || `mock-${Date.now()}`
-        });
+        }, { timeout: LONG_OPERATION_TIMEOUT });
         alert("Pago aprobado exitosamente.");
         setQrModalOpen(false);
         setCart([]);
@@ -986,6 +1004,8 @@ const Dashboard: React.FC = () => {
   };
 
   const handleCheckoutSubmit = async () => {
+    // Candado: evita doble envío si la petición anterior sigue en curso
+    if (checkoutLoading) return;
     setCheckoutError(null);
 
     let itemsPayload: ReturnType<typeof buildCheckoutItemsPayload>;
@@ -1065,7 +1085,7 @@ const Dashboard: React.FC = () => {
           cashReceived: 0,
           changeGiven: 0,
           discountAmount: 0,
-        });
+        }, { timeout: LONG_OPERATION_TIMEOUT });
 
         const saleInvoice = res.data.invoiceNumber;
         
@@ -1117,7 +1137,7 @@ const Dashboard: React.FC = () => {
         customerId: selectedCustomer ? selectedCustomer.id : undefined,
         pointsRedeemed: (usePoints && selectedCustomer) ? pointsToRedeem : undefined,
         invoiceRequested: selectedCustomer ? invoiceRequested : false,
-      });
+      }, { timeout: LONG_OPERATION_TIMEOUT });
 
       // Guardar info para imprimir ticket
       try {
@@ -2025,6 +2045,65 @@ const Dashboard: React.FC = () => {
   }
 
   // ===========================================================================
+  // RENDER BLOQUEO: TURNO DE CAJA ABIERTO EN OTRO EQUIPO
+  // ===========================================================================
+  if (cajaLockedByOtherDevice) {
+    return (
+      <div style={styles.loadingScreen}>
+        <div style={{
+          maxWidth: "440px",
+          backgroundColor: "#ffffff",
+          borderRadius: "12px",
+          padding: "32px",
+          boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
+          textAlign: "center",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "16px",
+        }}>
+          <div style={{
+            width: "56px",
+            height: "56px",
+            borderRadius: "999px",
+            backgroundColor: "#fef3c7",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
+            <AlertTriangle size={28} color="#d97706" />
+          </div>
+          <h2 style={{ fontSize: "18px", fontWeight: "800", color: "#0f172a", margin: 0 }}>
+            CAJA ABIERTA EN OTRO EQUIPO
+          </h2>
+          <p style={{ fontSize: "14px", color: "#64748b", margin: 0, lineHeight: 1.6 }}>
+            Su turno de caja está activo en otra computadora. Por seguridad, la caja solo puede
+            operarse desde el equipo donde se abrió el turno.
+          </p>
+          <p style={{ fontSize: "13px", color: "#94a3b8", margin: 0, lineHeight: 1.6 }}>
+            Cierre el turno en el equipo original o solicite a un administrador el cierre
+            forzado de la sesión de caja.
+          </p>
+          <div style={{ display: "flex", gap: "10px", width: "100%", marginTop: "8px" }}>
+            <button
+              onClick={logout}
+              style={{ ...styles.modalBtn, backgroundColor: "#e2e8f0", color: "#0f172a" }}
+            >
+              CERRAR SESIÓN
+            </button>
+            <button
+              onClick={() => { setLoading(true); checkSessionStatus(); }}
+              style={{ ...styles.modalBtn, backgroundColor: "#2563eb", color: "white" }}
+            >
+              REINTENTAR
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ===========================================================================
   // RENDER B: APERTURA DE CAJA OBLIGATORIA (Mockup 8)
   // ===========================================================================
   if (view === "apertura") {
@@ -2881,9 +2960,29 @@ const Dashboard: React.FC = () => {
                 </div>
               )}
 
+              {checkoutLoading && (
+                <div style={{
+                  backgroundColor: "#eff6ff",
+                  border: "1px solid #93c5fd",
+                  color: "#1d4ed8",
+                  padding: "10px 12px",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  marginTop: "16px"
+                }}>
+                  <div className="pos-cashier-loading-spinner" style={{ width: "16px", height: "16px", borderWidth: "2px", flexShrink: 0 }} />
+                  <span>Procesando el cobro... Si la venta incluye facturación o puntos puede tardar un poco más. No cierre esta ventana.</span>
+                </div>
+              )}
+
               {/* Botones de Cobro */}
               <div style={{ display: "flex", gap: "10px", marginTop: "24px" }} className="pos-cashier-modal-actions">
                 <button
+                  disabled={checkoutLoading}
                   onClick={() => setCheckoutModalOpen(false)}
                   style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
                 >
@@ -2892,9 +2991,12 @@ const Dashboard: React.FC = () => {
                 <button
                   disabled={checkoutLoading}
                   onClick={handleCheckoutSubmit}
-                  style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
+                  style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
                 >
-                  {checkoutLoading ? "Procesando..." : "COBRAR"}
+                  {checkoutLoading && (
+                    <div className="pos-cashier-loading-spinner" style={{ width: "14px", height: "14px", borderWidth: "2px", borderColor: "rgba(255,255,255,0.4)", borderTopColor: "#ffffff", flexShrink: 0 }} />
+                  )}
+                  {checkoutLoading ? "PROCESANDO..." : "COBRAR"}
                 </button>
               </div>
             </div>
@@ -2938,6 +3040,7 @@ const Dashboard: React.FC = () => {
               </div>
               <div style={{ display: "flex", gap: "10px", marginTop: "24px" }} className="pos-cashier-modal-actions">
                 <button
+                  disabled={qrChecking}
                   onClick={addPendingQrSale}
                   style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
                 >
@@ -2946,8 +3049,11 @@ const Dashboard: React.FC = () => {
                 <button
                   disabled={qrChecking}
                   onClick={checkQrStatus}
-                  style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
+                  style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
                 >
+                  {qrChecking && (
+                    <div className="pos-cashier-loading-spinner" style={{ width: "14px", height: "14px", borderWidth: "2px", borderColor: "rgba(255,255,255,0.4)", borderTopColor: "#ffffff", flexShrink: 0 }} />
+                  )}
                   {qrChecking ? "VERIFICANDO..." : "VERIFICAR ESTADO"}
                 </button>
               </div>

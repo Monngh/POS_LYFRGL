@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../app";
+import { getRequestDeviceId } from "../middlewares/device.middleware";
 
 /**
  * Consultar si el cajero tiene un turno activo en la sucursal actual
@@ -20,9 +22,17 @@ export const getSessionStatus = async (req: Request, res: Response): Promise<voi
       },
     });
 
+    // Indicar si la sesión pertenece al equipo que consulta (sesiones sin
+    // dispositivo vinculado se consideran propias por compatibilidad)
+    const requestDeviceId = getRequestDeviceId(req);
+    const isOwnedByThisDevice = activeSession
+      ? !activeSession.deviceId || activeSession.deviceId === requestDeviceId
+      : null;
+
     res.status(200).json({
       isOpen: !!activeSession,
       session: activeSession,
+      isOwnedByThisDevice,
     });
   } catch (error: any) {
     res.status(500).json({ message: "Error al obtener estado de caja.", error: error.message });
@@ -45,30 +55,49 @@ export const openSession = async (req: Request, res: Response): Promise<void> =>
     return;
   }
 
+  const deviceId = getRequestDeviceId(req);
+  const userId = req.user.userId;
+  const branchId = req.user.branchId;
+
   try {
-    // Verificar si ya tiene una sesión abierta
-    const existingSession = await prisma.cashSession.findFirst({
-      where: {
-        userId: req.user.userId,
-        branchId: req.user.branchId,
-        status: "ABIERTA",
-        closedAt: null,
-      },
-    });
+    // Verificación + creación dentro de una transacción SERIALIZABLE para evitar
+    // la condición de carrera: dos peticiones simultáneas (ej. desde dos
+    // computadoras) no pueden pasar ambas la validación y crear cajas duplicadas.
+    const newSession = await prisma.$transaction(async (tx) => {
+      // Una sola caja abierta por empleado, sin importar la sucursal o el equipo
+      const existingSession = await tx.cashSession.findFirst({
+        where: {
+          userId,
+          status: "ABIERTA",
+          closedAt: null,
+        },
+      });
 
-    if (existingSession) {
-      res.status(400).json({ message: "Ya existe una sesión de caja abierta para este usuario en esta sucursal." });
-      return;
-    }
+      if (existingSession) {
+        const isSameDevice = !existingSession.deviceId || existingSession.deviceId === deviceId;
+        const conflictError: any = new Error(
+          isSameDevice
+            ? "Ya existe una sesión de caja abierta para este usuario."
+            : "Este usuario ya tiene una caja abierta en OTRO equipo. Cierre el turno en ese equipo o solicite a un administrador el cierre forzado de la sesión."
+        );
+        conflictError.isSessionConflict = true;
+        throw conflictError;
+      }
 
-    const newSession = await prisma.cashSession.create({
-      data: {
-        branchId: req.user.branchId,
-        userId: req.user.userId,
-        initialAmount: Number(initialAmount),
-        expectedAmount: Number(initialAmount),
-        status: "ABIERTA",
-      },
+      return tx.cashSession.create({
+        data: {
+          branchId,
+          userId,
+          initialAmount: Number(initialAmount),
+          expectedAmount: Number(initialAmount),
+          status: "ABIERTA",
+          deviceId,
+        },
+      });
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      maxWait: 10000,
+      timeout: 15000,
     });
 
     res.status(201).json({
@@ -76,6 +105,18 @@ export const openSession = async (req: Request, res: Response): Promise<void> =>
       session: newSession,
     });
   } catch (error: any) {
+    if (error.isSessionConflict) {
+      res.status(409).json({ code: "CAJA_YA_ABIERTA", message: error.message });
+      return;
+    }
+    // Deadlock/conflicto de serialización: otra apertura simultánea ganó la transacción
+    if (error.code === "P2034" || /deadlock/i.test(error.message || "")) {
+      res.status(409).json({
+        code: "CAJA_YA_ABIERTA",
+        message: "Se detectó otra apertura de caja en curso para este usuario. Verifique el estado de su turno antes de reintentar.",
+      });
+      return;
+    }
     res.status(500).json({ message: "Error al abrir la caja.", error: error.message });
   }
 };
