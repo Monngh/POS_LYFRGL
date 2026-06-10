@@ -95,27 +95,45 @@ interface CashSession {
   status: string;
 }
 
-// Funciones de validación para el modal de cancelación
+// Funciones de validación para formularios
 const validatePinInput = (value: string): string => {
   // Solo acepta números (0-9)
   return value.replace(/[^0-9]/g, "");
 };
 
-const validateReasonInput = (value: string): string => {
-  // Acepta letras, números y espacios
-  // Elimina emojis y caracteres especiales
+const validateNameInput = (value: string): string => {
+  // Solo letras (a-z, A-Z) y espacios. No números, no emojis, no caracteres especiales
   return value
-    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "") // Emojis
-    .replace(/[^\w\s]/gi, "") // Caracteres especiales (mantiene letras, números, guiones bajos)
-    .replace(/_/g, ""); // Elimina guiones bajos
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "") // Elimina emojis
+    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ\s]/g, ""); // Solo letras y espacios
+};
+
+const validatePhoneInput = (value: string): string => {
+  // Solo dígitos (0-9), máximo 10
+  return value.replace(/[^0-9]/g, "").slice(0, 10);
+};
+
+const validateReasonInput = (value: string): string => {
+  // Acepta texto (letras) y si hay algo, permite números, puntos y comas
+  // Elimina todos los emojis y símbolos raros
+  return value
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "") // Elimina emojis
+    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ0-9\s.,]/g, ""); // Solo letras, números, espacios, puntos y comas
+};
+
+const validateLongTextInput = (value: string): string => {
+  // Para descripciones y textos largos: letras, números, puntos y comas
+  // Sin emojis ni símbolos raros
+  return value
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "") // Elimina emojis
+    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ0-9\s.,]/g, ""); // Solo letras, números, espacios, puntos y comas
 };
 
 const validateTextInput = (value: string): string => {
-  // Acepta letras, números, espacios y algunos caracteres especiales comunes (. , - ')
+  // Para búsquedas y textos cortos: letras, números y espacios
   return value
-    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "") // Emojis
-    .replace(/[^\w\s.\-,']/gi, "") // Mantiene letras, números, espacios, puntos, guiones, comas, apóstrofos
-    .replace(/_/g, ""); // Elimina guiones bajos
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "") // Elimina emojis
+    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ0-9\s]/g, ""); // Solo letras, números y espacios
 };
 
 const Dashboard: React.FC = () => {
@@ -3000,7 +3018,7 @@ const Dashboard: React.FC = () => {
                     className="input-corporate"
                     placeholder="Ej. Juan Pérez"
                     value={newCustomerForm.name}
-                    onChange={(e) => setNewCustomerForm(prev => ({ ...prev, name: validateTextInput(e.target.value) }))}
+                    onChange={(e) => setNewCustomerForm(prev => ({ ...prev, name: validateNameInput(e.target.value) }))}
                   />
                 </div>
                 <div style={styles.inputGroup}>
@@ -3011,7 +3029,7 @@ const Dashboard: React.FC = () => {
                     className="input-corporate"
                     placeholder="Ej. 5551234567"
                     value={newCustomerForm.phone}
-                    onChange={(e) => setNewCustomerForm(prev => ({ ...prev, phone: e.target.value.replace(/\D/g, "") }))}
+                    onChange={(e) => setNewCustomerForm(prev => ({ ...prev, phone: validatePhoneInput(e.target.value) }))}
                   />
                 </div>
                 <div style={styles.inputGroup}>
@@ -5143,7 +5161,7 @@ const Dashboard: React.FC = () => {
                         className="input-corporate"
                         placeholder="Ej. Número de sucursal, folio de camión blindado, etc."
                         value={depComments}
-                        onChange={(e) => setDepComments(validateTextInput(e.target.value))}
+                        onChange={(e) => setDepComments(validateLongTextInput(e.target.value))}
                       />
                     </div>
 
