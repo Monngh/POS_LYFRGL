@@ -77,17 +77,18 @@ async function main() {
   // 4. CLIENTES
   // =========================================================================
   const testCustomers = [
-    { id: 1, name: "Público General", phone: "0000000000", email: "general@fmb.com", taxId: "XAXX010101000", points: 0 },
-    { id: 2, name: "Empresa Facturable SA de CV", phone: "5551234567", email: "facturas@empresa.com", taxId: "EMP900101XYZ", points: 2500, taxRegime: "601", cfdiUse: "G03", zipCode: "06000" },
-    { id: 3, name: "María Gómez", phone: "7721003000", email: "maria.gomez@email.com", taxId: "XAXX010101000", points: 450 },
-    { id: 4, name: "Juan Pérez Frecuente", phone: "5559876543", email: "juan.frecuente@email.com", taxId: "XAXX010101000", points: 1200 },
+    { name: "Público General", phone: "0000000000", email: "general@fmb.com", taxId: "XAXX010101000", points: 0 },
+    { name: "Empresa Facturable SA de CV", phone: "5551234567", email: "facturas@empresa.com", taxId: "EMP900101XYZ", points: 2500, taxRegime: "601", cfdiUse: "G03", zipCode: "06000" },
+    { name: "María Gómez", phone: "7721003000", email: "maria.gomez@email.com", taxId: "XAXX010101000", points: 450 },
+    { name: "Juan Pérez Frecuente", phone: "5559876543", email: "juan.frecuente@email.com", taxId: "XAXX010101000", points: 1200 },
   ];
   for (const c of testCustomers) {
-    await prisma.customer.upsert({
-      where: { id: c.id },
-      update: { name: c.name, points: c.points },
-      create: { id: c.id, name: c.name, phone: c.phone, email: c.email, taxId: c.taxId, points: c.points, taxRegime: c.taxRegime || null, cfdiUse: c.cfdiUse || null, zipCode: c.zipCode || null },
-    });
+    const existing = await prisma.customer.findFirst({ where: { email: c.email } });
+    if (existing) {
+      await prisma.customer.update({ where: { id: existing.id }, data: { name: c.name, points: c.points } });
+    } else {
+      await prisma.customer.create({ data: { name: c.name, phone: c.phone, email: c.email, taxId: c.taxId, points: c.points, taxRegime: c.taxRegime || null, cfdiUse: c.cfdiUse || null, zipCode: c.zipCode || null } });
+    }
   }
   console.log("  ✅ Clientes verificados.");
 
@@ -187,6 +188,9 @@ async function main() {
   const adminId = (await prisma.user.findFirst({ where: { role: "ADMIN" } }))!.id;
   const cashierId = (await prisma.user.findFirst({ where: { role: "CAJERO" } }))!.id;
   const mainBranchId = branchesMap["Sucursal Centro LYFRGL"];
+  
+  const publicCustomerId = (await prisma.customer.findFirst({ where: { email: "general@fmb.com" } }))!.id;
+  const facturableCustomerId = (await prisma.customer.findFirst({ where: { email: "facturas@empresa.com" } }))!.id;
 
   // Generar 3 Órdenes de compra históricas aleatorias
   for(let i = 0; i < 3; i++) {
@@ -253,7 +257,7 @@ async function main() {
 
       // Escoger cliente (80% público general, 20% factura)
       const isFacturable = Math.random() > 0.8;
-      const custId = isFacturable ? 2 : 1;
+      const custId = isFacturable ? facturableCustomerId : publicCustomerId;
       
       // Productos comprados (1 a 5 items)
       const numItems = Math.floor(Math.random() * 5) + 1;
