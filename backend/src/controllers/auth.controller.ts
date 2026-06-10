@@ -55,6 +55,8 @@ export const adminLogin = async (req: Request, res: Response): Promise<void> => 
         branch: {
           id: user.branch.id,
           name: user.branch.name,
+          phone: user.branch.phone,
+          address: user.branch.address,
         },
       },
     });
@@ -114,6 +116,8 @@ export const cashierLogin = async (req: Request, res: Response): Promise<void> =
         branch: {
           id: user.branch.id,
           name: user.branch.name,
+          phone: user.branch.phone,
+          address: user.branch.address,
         },
       },
     });
@@ -152,6 +156,7 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
           id: user.branch.id,
           name: user.branch.name,
           address: user.branch.address,
+          phone: user.branch.phone,
         },
       },
     });

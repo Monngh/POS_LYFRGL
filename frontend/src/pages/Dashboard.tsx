@@ -1183,7 +1183,33 @@ const Dashboard: React.FC = () => {
   // 6. TICKET DE VENTA (Mockup 3)
   // ---------------------------------------------------------------------------
   const handlePrintTicket = () => {
-    window.print();
+    const printContents = document.getElementById("print-area")?.innerHTML;
+    if (printContents) {
+      const printWindow = window.open("", "_blank");
+      if (printWindow) {
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>Ticket de Venta</title>
+              <style>
+                body { font-family: monospace; padding: 20px; width: 300px; margin: 0 auto; }
+                table { width: 100%; border-collapse: collapse; }
+                th, td { text-align: left; padding: 4px; }
+                .dashed { border-top: 1px dashed #000; margin: 10px 0; }
+                .total { font-weight: bold; font-size: 14px; border-top: 2px solid #000; padding-top: 5px; }
+                .center { text-align: center; }
+                .no-print { display: none !important; }
+              </style>
+            </head>
+            <body>
+              ${printContents}
+              <script>window.print(); window.close();</script>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+      }
+    }
   };
 
   const isValidTicketEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -3264,14 +3290,15 @@ const Dashboard: React.FC = () => {
                 <div style={{ textAlign: "center", marginBottom: "14px" }}>
                   <h4 style={{ textTransform: "uppercase", fontWeight: "800" }}>LYFRGL</h4>
                   <p style={{ fontSize: "11px", color: "#475569" }}>SUCURSAL: {user?.branch.name}</p>
-                  <p style={{ fontSize: "10px", color: "#64748b" }}>TEL: 772 100 2000</p>
+                  {user?.branch?.phone && <p style={{ fontSize: "10px", color: "#64748b" }}>TEL: {user.branch.phone}</p>}
+                  {user?.branch?.address && <p style={{ fontSize: "10px", color: "#64748b" }}>{user.branch.address}</p>}
                 </div>
 
                 <div style={{ borderBottom: "1px dashed #cbd5e1", paddingBottom: "8px", marginBottom: "8px", fontSize: "11px" }}>
                   <p><strong>Folio:</strong> {selectedSale.invoiceNumber}</p>
                   <p><strong>Fecha:</strong> {new Date(selectedSale.createdAt).toLocaleDateString()}</p>
                   <p><strong>Hora:</strong> {new Date(selectedSale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                  <p><strong>Cajero:</strong> {user?.name}</p>
+                  <p><strong>Cajero:</strong> {selectedSale?.cajero || user?.name}</p>
                   <p><strong>Artículos:</strong> {selectedSale.items.reduce((sum: number, item: any) => sum + item.quantity, 0)}</p>
                 </div>
 
@@ -4313,21 +4340,7 @@ const Dashboard: React.FC = () => {
         <div style={{ ...styles.modalOverlay, zIndex: ticketEmailModalOpen ? 9998 : 100 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
           <div style={styles.ticketModal} className="pos-cashier-modal">
             <div id="print-area" style={styles.ticketContainer}>
-              {selectedSale.status === "CANCELADA" && (
-                <div style={{
-                  textAlign: "center",
-                  color: "#dc2626",
-                  fontWeight: "900",
-                  fontSize: "16px",
-                  border: "2px solid #dc2626",
-                  padding: "4px",
-                  marginBottom: "12px",
-                  borderRadius: "4px",
-                  textTransform: "uppercase"
-                }}>
-                  *** CANCELADO ***
-                </div>
-              )}
+
               {selectedSale.totalRefunded > 0 && Number(selectedSale.totalRefunded).toFixed(2) === Number(selectedSale.total).toFixed(2) && (
                 <div style={{
                   textAlign: "center",
@@ -4363,14 +4376,15 @@ const Dashboard: React.FC = () => {
               <div style={{ textAlign: "center", marginBottom: "14px" }}>
                 <h4 style={{ textTransform: "uppercase", fontWeight: "800" }}>LYFRGL</h4>
                 <p style={{ fontSize: "11px", color: "#475569" }}>SUCURSAL: {user?.branch.name}</p>
-                <p style={{ fontSize: "10px", color: "#64748b" }}>TEL: 772 100 2000</p>
+                {user?.branch?.phone && <p style={{ fontSize: "10px", color: "#64748b" }}>TEL: {user.branch.phone}</p>}
+                {user?.branch?.address && <p style={{ fontSize: "10px", color: "#64748b" }}>{user.branch.address}</p>}
               </div>
 
               <div style={{ borderBottom: "1px dashed #cbd5e1", paddingBottom: "8px", marginBottom: "8px", fontSize: "11px" }}>
                 <p><strong>Folio:</strong> {selectedSale.invoiceNumber}</p>
                 <p><strong>Fecha:</strong> {new Date(selectedSale.createdAt).toLocaleDateString()}</p>
                 <p><strong>Hora:</strong> {new Date(selectedSale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                <p><strong>Cajero:</strong> {user?.name}</p>
+                <p><strong>Cajero:</strong> {selectedSale?.cajero || user?.name}</p>
                 <p><strong>Artículos:</strong> {selectedSale.items.reduce((sum: number, item: any) => sum + item.quantity, 0)}</p>
               </div>
 
