@@ -638,6 +638,7 @@
   /* Cada celda pasa a ser una fila etiqueta:valor; se anula el ocultamiento previo */
   .pos-cashier-table-card .pos-cashier-table-scroll td {
     display: flex !important;
+    width: 100% !important;
     justify-content: space-between !important;
     align-items: center;
     gap: 14px;
