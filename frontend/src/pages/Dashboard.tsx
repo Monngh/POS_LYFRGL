@@ -157,6 +157,12 @@ const Dashboard: React.FC = () => {
   const [returnPaymentMethod, setReturnPaymentMethod] = useState("EFECTIVO");
   const [returnProcessing, setReturnProcessing] = useState(false);
   const [returnReceipt, setReturnReceipt] = useState<any>(null);
+  const [returnQtyDraft, setReturnQtyDraft] = useState<Record<number, string>>({});
+
+  // Helper para sanitizar textos: permite letras (incluye acentos/ñ), números, espacios, guiones, comas, puntos. Rechaza emojis y símbolos raros.
+  const sanitizeText = (value: string): string => {
+    return value.replace(/[^\p{L}\p{N}\s\-,.]/gu, "");
+  };
 
   // Estados para alertas personalizadas y cobro (Fase 3.5)
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" | "info" } | null>(null);
