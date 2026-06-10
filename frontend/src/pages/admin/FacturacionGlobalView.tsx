@@ -15,10 +15,10 @@ import {
 import { type FieldErrors, normalizeIntegerInput, validateInteger } from "../../utils/formValidation";
 
 const PERIODICIDADES = [
-  { value: "01", label: "Diario" },
-  { value: "02", label: "Semanal" },
-  { value: "03", label: "Quincenal" },
-  { value: "04", label: "Mensual" },
+  { value: "day", label: "Diario" },
+  { value: "week", label: "Semanal" },
+  { value: "fortnight", label: "Quincenal" },
+  { value: "month", label: "Mensual" },
 ];
 
 const MESES = [
@@ -42,7 +42,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
   const todayStr = new Date().toISOString().substring(0, 10);
   const [startDate, setStartDate] = useState(todayStr);
   const [endDate, setEndDate] = useState(todayStr);
-  const [periodicity, setPeriodicity] = useState("01");
+  const [periodicity, setPeriodicity] = useState("day");
   const [month, setMonth] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
   const [year, setYear] = useState(String(new Date().getFullYear()));
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<"year">>({});
