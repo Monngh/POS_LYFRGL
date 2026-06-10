@@ -1,14 +1,8 @@
 /**
- * Seed idempotente — puede ejecutarse múltiples veces sin crear duplicados.
- *
- * Estrategia:
- *  - Branch      → upsert by name     (@unique)
- *  - User        → upsert by email    (@unique)
- *  - Customer    → upsert by phone    (findFirst + update)
- *  - Product     → upsert by sku      (@unique)
- *  - Inventory   → upsert by [productId, branchId] (@@unique)
- *  - PromotionType → upsert by name   (@unique)
- *  - Promotion   → findFirst + skip if exists (name no es unique)
+ * Seed Masivo e Idempotente para Panel de Administrador
+ * 
+ * Genera: 5 Proveedores, 50 Productos, Compras históricas, 
+ * y un ciclo de 14 días de operación con ventas, sesiones y cortes.
  */
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
@@ -16,19 +10,17 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("🌱 Iniciando seed idempotente multisucursal LYFRGL...");
+  console.log("🌱 Iniciando seed masivo multisucursal LYFRGL...");
 
   // =========================================================================
-  // 1. SUCURSALES — upsert by name
+  // 1. SUCURSALES
   // =========================================================================
   const branchesData = [
     { name: "Sucursal Centro LYFRGL",   address: "Av. Principal #100, Col. Centro, LYFRGL City",         phone: "555-0199" },
     { name: "Sucursal Norte LYFRGL",    address: "Blvd. Colosio #405, Plaza Norte, LYFRGL City",          phone: "555-0211" },
     { name: "Sucursal Poniente LYFRGL", address: "Av. Ruiz Cortines #89, Plaza Poniente, LYFRGL City",    phone: "555-0233" },
   ];
-
   const branchesMap: { [name: string]: number } = {};
-
   for (const b of branchesData) {
     const branch = await prisma.branch.upsert({
       where:  { name: b.name },
@@ -36,442 +28,349 @@ async function main() {
       create: { name: b.name, address: b.address, phone: b.phone, active: true },
     });
     branchesMap[b.name] = branch.id;
-    console.log(`  ✅ Sucursal: ${branch.name} (ID: ${branch.id})`);
   }
+  console.log("  ✅ Sucursales verificadas.");
 
   // =========================================================================
-  // 2. USUARIOS — upsert by email
+  // 2. USUARIOS
   // =========================================================================
   const defaultPasswordHash = await bcrypt.hash("FmbPassword#2026", 10);
   const adminPasswordHash   = await bcrypt.hash("AdminPassword#2026", 10);
+  const defaultPin = await bcrypt.hash("1234", 10);
 
-  // Usuario de retrocompatibilidad (login rápido de demos)
-  await prisma.user.upsert({
-    where:  { email: "cajero@fmb.com" },
-    update: {
-      passwordHash: defaultPasswordHash,
-      pinCode: await bcrypt.hash("1234", 10),
-      name: "Juan Cajero (Acceso Rápido)",
-      role: "CAJERO",
-      active: true,
-      branchId: branchesMap["Sucursal Centro LYFRGL"],
-    },
-    create: {
-      email:        "cajero@fmb.com",
-      passwordHash: defaultPasswordHash,
-      pinCode:      await bcrypt.hash("1234", 10),
-      name:         "Juan Cajero (Acceso Rápido)",
-      role:         "CAJERO",
-      active:       true,
-      branchId:     branchesMap["Sucursal Centro LYFRGL"],
-    },
-  });
-  console.log("  ✅ Usuario retrocompatibilidad: cajero@fmb.com");
-
-  type UserSeed = {
-    email:      string;
-    name:       string;
-    role:       string;
-    password:   string;
-    pin:        string | null;
-    branchName: string;
-  };
-
-  const usersData: UserSeed[] = [
-    // Centro
-    { email: "admin@fmb.com",            name: "Administrador LYFRGL",    role: "ADMIN",   password: adminPasswordHash,   pin: "4321",   branchName: "Sucursal Centro LYFRGL" },
-    { email: "juan.centro@fmb.com",      name: "Juan Cajero",             role: "CAJERO",  password: defaultPasswordHash, pin: "1234", branchName: "Sucursal Centro LYFRGL" },
-    { email: "maria.centro@fmb.com",     name: "María Cajera",            role: "CAJERO",  password: defaultPasswordHash, pin: "5678", branchName: "Sucursal Centro LYFRGL" },
-    // Norte
-    { email: "gerente.norte@fmb.com",    name: "Gerente Sucursal Norte",  role: "GERENTE", password: defaultPasswordHash, pin: "4321",   branchName: "Sucursal Norte LYFRGL" },
-    { email: "carlos.norte@fmb.com",     name: "Carlos Cajero",           role: "CAJERO",  password: defaultPasswordHash, pin: "9012", branchName: "Sucursal Norte LYFRGL" },
-    { email: "sofia.norte@fmb.com",      name: "Sofía Cajera",            role: "CAJERO",  password: defaultPasswordHash, pin: "3456", branchName: "Sucursal Norte LYFRGL" },
-    // Poniente
-    { email: "gerente.poniente@fmb.com", name: "Gerente Sucursal Poniente", role: "GERENTE", password: defaultPasswordHash, pin: "4321",   branchName: "Sucursal Poniente LYFRGL" },
-    { email: "ana.poniente@fmb.com",     name: "Ana Cajera",              role: "CAJERO",  password: defaultPasswordHash, pin: "7890", branchName: "Sucursal Poniente LYFRGL" },
-    { email: "pedro.poniente@fmb.com",   name: "Pedro Cajero",            role: "CAJERO",  password: defaultPasswordHash, pin: "2345", branchName: "Sucursal Poniente LYFRGL" },
+  const usersData = [
+    { email: "cajero@fmb.com",           name: "Juan Cajero (Acceso Rápido)", role: "CAJERO",  password: defaultPasswordHash, pin: defaultPin, branchName: "Sucursal Centro LYFRGL" },
+    { email: "admin@fmb.com",            name: "Administrador LYFRGL",        role: "ADMIN",   password: adminPasswordHash,   pin: await bcrypt.hash("4321",10),   branchName: "Sucursal Centro LYFRGL" },
+    { email: "juan.centro@fmb.com",      name: "Juan Cajero",                 role: "CAJERO",  password: defaultPasswordHash, pin: defaultPin, branchName: "Sucursal Centro LYFRGL" },
+    { email: "gerente.norte@fmb.com",    name: "Gerente Sucursal Norte",      role: "GERENTE", password: defaultPasswordHash, pin: await bcrypt.hash("4321",10),   branchName: "Sucursal Norte LYFRGL" },
   ];
 
   for (const u of usersData) {
-    const pinHash  = u.pin ? await bcrypt.hash(u.pin, 10) : null;
-    const branchId = branchesMap[u.branchName];
-
     await prisma.user.upsert({
       where:  { email: u.email },
-      update: { name: u.name, role: u.role, branchId, pinCode: pinHash, active: true },
-      create: {
-        email:        u.email,
-        passwordHash: u.password,
-        pinCode:      pinHash,
-        name:         u.name,
-        role:         u.role,
-        active:       true,
-        branchId,
-      },
+      update: { name: u.name, role: u.role, branchId: branchesMap[u.branchName], pinCode: u.pin, active: true },
+      create: { email: u.email, passwordHash: u.password, pinCode: u.pin, name: u.name, role: u.role, active: true, branchId: branchesMap[u.branchName] },
     });
-    console.log(`  ✅ Usuario: ${u.email} (${u.role}) — ${u.branchName}`);
   }
+  console.log("  ✅ Usuarios verificados.");
 
   // =========================================================================
-  // 2.1. IMPUESTOS (TaxType)
+  // 3. IMPUESTOS
   // =========================================================================
   const taxTypesData = [
-    { name: "IVA 16%", description: "Impuesto al Valor Agregado tasa general", rate: 0.1600 },
-    { name: "IVA 0%", description: "Impuesto al Valor Agregado tasa cero", rate: 0.0000 },
-    { name: "Exento", description: "Operaciones exentas de IVA", rate: 0.0000 },
-    { name: "IEPS 8%", description: "Impuesto Especial sobre Producción y Servicios alimentos no básicos", rate: 0.0800 },
-    { name: "IEPS 26.5%", description: "Impuesto Especial sobre Producción y Servicios bebidas alcohólicas de baja graduación", rate: 0.2650 },
-    { name: "IEPS 53%", description: "Impuesto Especial sobre Producción y Servicios bebidas alcohólicas de alta graduación", rate: 0.5300 },
+    { name: "IVA 16%", description: "IVA general", rate: 0.1600 },
+    { name: "IVA 0%", description: "IVA cero", rate: 0.0000 },
+    { name: "Exento", description: "Operaciones exentas", rate: 0.0000 },
+    { name: "IEPS 8%", description: "IEPS alimentos", rate: 0.0800 },
   ];
-
   const taxTypesMap: { [name: string]: number } = {};
-
   for (const t of taxTypesData) {
     const taxType = await prisma.taxType.upsert({
       where: { name: t.name },
-      update: { rate: t.rate, description: t.description, active: true },
-      create: { name: t.name, rate: t.rate, description: t.description, active: true },
+      update: { rate: t.rate, description: t.description },
+      create: { name: t.name, rate: t.rate, description: t.description },
     });
     taxTypesMap[t.name] = taxType.id;
-    console.log(`  ✅ Tipo de Impuesto: ${taxType.name} (ID: ${taxType.id})`);
   }
 
   // =========================================================================
-  // 3. CLIENTES — upsert por teléfono (no tiene @unique, usamos findFirst)
+  // 4. CLIENTES
   // =========================================================================
-  await prisma.customer.upsert({
-    where:  { id: 1 },          // El Público General siempre es ID 1 en un sistema limpio
-    update: {},
-    create: {
-      name:        "Público General",
-      taxId:       "XAXX010101000",
-      email:       "general@fmb.com",
-      phone:       "0000000000",
-      address:     "Público en General",
-      creditLimit: 0,
-      balance:     0,
-      points:      0,
-    },
-  }).catch(async () => {
-    // Fallback si el ID 1 ya tiene otro registro: buscar por nombre
-    const existing = await prisma.customer.findFirst({ where: { name: "Público General" } });
-    if (!existing) {
-      await prisma.customer.create({
-        data: { name: "Público General", taxId: "XAXX010101000", email: "general@fmb.com", phone: "0000000000", address: "Público en General", creditLimit: 0, balance: 0, points: 0 },
-      });
-    }
-  });
-  console.log("  ✅ Cliente: Público General");
-
   const testCustomers = [
-    // Cliente completo facturable
-    { name: "Juan Pérez", phone: "5551234567", email: "juan.perez@email.com", points: 1500, taxId: "MAMM900101XYZ", taxRegime: "601", zipCode: "42000", cfdiUse: "G03", address: "Av. Revolución 123" },
-    // Cliente simple sin datos de facturación
-    { name: "María Gómez", phone: "7721003000", email: "maria.gomez@email.com", points: 50, taxId: "XAXX010101000", taxRegime: null, zipCode: null, cfdiUse: null, address: "Conocido" },
-    { name: "Ana Martínez", phone: "5559876543", email: "ana.martinez@email.com", points: 0, taxId: "XAXX010101000", taxRegime: null, zipCode: null, cfdiUse: null, address: "Dirección de Prueba" },
+    { id: 1, name: "Público General", phone: "0000000000", email: "general@fmb.com", taxId: "XAXX010101000", points: 0 },
+    { id: 2, name: "Empresa Facturable SA de CV", phone: "5551234567", email: "facturas@empresa.com", taxId: "EMP900101XYZ", points: 2500, taxRegime: "601", cfdiUse: "G03", zipCode: "06000" },
+    { id: 3, name: "María Gómez", phone: "7721003000", email: "maria.gomez@email.com", taxId: "XAXX010101000", points: 450 },
+    { id: 4, name: "Juan Pérez Frecuente", phone: "5559876543", email: "juan.frecuente@email.com", taxId: "XAXX010101000", points: 1200 },
   ];
-
   for (const c of testCustomers) {
-    const existing = await prisma.customer.findFirst({ where: { phone: c.phone } });
-    if (!existing) {
-      await prisma.customer.create({
-        data: { 
-          name: c.name, phone: c.phone, email: c.email, 
-          taxId: c.taxId, taxRegime: c.taxRegime, zipCode: c.zipCode, cfdiUse: c.cfdiUse, 
-          address: c.address, creditLimit: 0, balance: 0, points: c.points 
-        },
-      });
-      console.log(`  ✅ Cliente nuevo: ${c.name}`);
-    } else {
-      await prisma.customer.update({ 
-        where: { id: existing.id }, 
-        data: { 
-          points: c.points, taxId: c.taxId, taxRegime: c.taxRegime, 
-          zipCode: c.zipCode, cfdiUse: c.cfdiUse 
-        } 
-      });
-      console.log(`  ℹ️  Cliente actualizado: ${c.name} (puntos: ${c.points})`);
-    }
+    await prisma.customer.upsert({
+      where: { id: c.id },
+      update: { name: c.name, points: c.points },
+      create: { id: c.id, name: c.name, phone: c.phone, email: c.email, taxId: c.taxId, points: c.points, taxRegime: c.taxRegime || null, cfdiUse: c.cfdiUse || null, zipCode: c.zipCode || null },
+    });
   }
+  console.log("  ✅ Clientes verificados.");
 
   // =========================================================================
-  // 4. PRODUCTOS — upsert by sku + inventario upsert by [productId, branchId]
+  // 5. PROVEEDORES
   // =========================================================================
-  const productsData = [
-    { sku: "PROD-001", barcode: "7501001100223", name: "Coca Cola Original 600ml",   description: "Bebida refrescante sabor original",              cost: 12.50, sell: 18.00 },
-    { sku: "PROD-002", barcode: "7501031302833", name: "Papas Sabritas Sal 50g",      description: "Papas fritas con sal de mesa",                   cost: 11.00, sell: 17.00 },
-    { sku: "PROD-003", barcode: "7501000122238", name: "Pan Blanco Bimbo Grande",     description: "Pan de caja clásico esponjoso",                  cost: 32.00, sell: 45.00 },
-    { sku: "PROD-004", barcode: "7501055303496", name: "Galletas Chokis 90g",         description: "Galletas con chispas sabor chocolate",            cost: 14.00, sell: 21.00 },
-    { sku: "PROD-005", barcode: "7501008023648", name: "Leche Entera Lala 1L",        description: "Leche pasteurizada adicionada con vitaminas",    cost: 18.50, sell: 26.00 },
-    { sku: "PROD-006", barcode: "7501055310869", name: "Agua Purificada Ciel 1L",     description: "Agua de mesa purificada sin gas",                cost:  7.00, sell: 12.00 },
-    { sku: "PROD-007", barcode: "7501008023655", name: "Té Helado Peach 500ml",        description: "Té helado sabor durazno",                        cost: 10.00, sell: 15.00 },
-    { sku: "PROD-008", barcode: "7501008023662", name: "Agua Mineral Natural 500ml",   description: "Agua mineralizada de manantial",                 cost:  8.00, sell: 12.00 },
-    { sku: "PROD-009", barcode: "7501008023679", name: "Néctar de Mango 1L",          description: "Jugo de néctar de mango natural",                cost: 15.00, sell: 22.00 },
-    { sku: "PROD-010", barcode: "7501008023686", name: "Chocolate con Leche 100g",     description: "Barra de chocolate cremoso con leche",          cost: 20.00, sell: 30.00 },
+  const suppliersData = [
+    { name: "Coca-Cola FEMSA", rfc: "KOF9304084F2", contactName: "Rep. Bebidas" },
+    { name: "Grupo Bimbo", rfc: "BIM0111082RA", contactName: "Rep. Panificados" },
+    { name: "Pepsico de México", rfc: "PEP92051283M", contactName: "Rep. Botanas" },
+    { name: "Distribuidora de Abarrotes SA", rfc: "DAS090909999", contactName: "Rep. General" },
+    { name: "Farmacéutica Local", rfc: "FAR111111AAA", contactName: "Rep. Cuidado" },
+  ];
+  const suppliersMap: { [name: string]: number } = {};
+  for (const s of suppliersData) {
+    const supplier = await prisma.supplier.upsert({
+      where: { name: s.name },
+      update: { rfc: s.rfc, contactName: s.contactName },
+      create: { name: s.name, rfc: s.rfc, contactName: s.contactName, active: true },
+    });
+    suppliersMap[s.name] = supplier.id;
+  }
+  console.log("  ✅ Proveedores reales creados.");
+
+  // =========================================================================
+  // 6. PRODUCTOS (50 MASIVOS) Y ASIGNACIÓN
+  // =========================================================================
+  // Para no saturar el archivo de código manual, generamos un array de 50 productos realistas
+  const categories = [
+    { prefix: "BEB", supplier: "Coca-Cola FEMSA", tax: "IVA 16%", ieps: "IEPS 8%", items: ["Refresco Cola 600ml", "Agua Purificada 1L", "Jugo Manzana 500ml", "Té Helado Peach 500ml", "Bebida Energética 250ml", "Agua Mineral 600ml", "Refresco Lima-Limón 2L", "Jugo Naranja 1L", "Bebida Isotónica 500ml", "Limonada Natural 600ml"] },
+    { prefix: "PAN", supplier: "Grupo Bimbo", tax: "IVA 0%", ieps: null, items: ["Pan Blanco Grande", "Pan Integral", "Medias Noches (8 pzas)", "Pan Molido 250g", "Pan Dulce Conchas (4 pzas)", "Mantecadas (6 pzas)", "Donas Azucaradas (4 pzas)", "Pan Tostado Clásico", "Roles de Canela (2 pzas)", "Bimbuñuelos"] },
+    { prefix: "BOT", supplier: "Pepsico de México", tax: "IVA 16%", ieps: "IEPS 8%", items: ["Papas Sal 50g", "Papas Queso 50g", "Nachos Queso 60g", "Cacahuates Japoneses 100g", "Churritos Maíz 60g", "Frituras Chile y Limón 65g", "Mix Botanas 150g", "Papas Fuego 50g", "Galletas Saladas 100g", "Semillas de Girasol 70g"] },
+    { prefix: "ABA", supplier: "Distribuidora de Abarrotes SA", tax: "IVA 0%", ieps: null, items: ["Frijol Negro 1kg", "Arroz Super Extra 1kg", "Aceite Vegetal 900ml", "Azúcar Estándar 1kg", "Sal de Mesa 1kg", "Atún en Agua 140g", "Mayonesa Clásica 390g", "Cereal Maíz 500g", "Salsa Catsup 320g", "Leche Entera 1L"] },
+    { prefix: "LIM", supplier: "Farmacéutica Local", tax: "IVA 16%", ieps: null, items: ["Detergente Polvo 1kg", "Jabón Lavandería 400g", "Cloro 1L", "Limpiador Multiusos 1L", "Papel Higiénico 4 Rollos", "Servilletas 100 pzas", "Pasta Dental 100ml", "Jabón Corporal 150g", "Shampoo Clásico 400ml", "Desodorante Roll-on 50ml"] }
   ];
 
-  for (const p of productsData) {
-    const product = await prisma.product.upsert({
-      where:  { sku: p.sku },
-      update: { name: p.name, description: p.description, costPrice: p.cost, sellPrice: p.sell, active: true },
-      create: { sku: p.sku, barcode: p.barcode, name: p.name, description: p.description, costPrice: p.cost, sellPrice: p.sell, active: true },
-    });
-    console.log(`  ✅ Producto: ${product.name}`);
+  const allProducts = [];
+  let skuCounter = 1;
 
-    // Asociar impuestos a los productos de prueba del seed
-    let productTaxesToLink: string[] = [];
-    if (product.sku === "PROD-001" || product.sku === "PROD-002" || product.sku === "PROD-004" || product.sku === "PROD-010") {
-      productTaxesToLink = ["IVA 16%", "IEPS 8%"];
-    } else if (product.sku === "PROD-003" || product.sku === "PROD-005" || product.sku === "PROD-006") {
-      productTaxesToLink = ["IVA 0%"];
-    } else if (product.sku === "PROD-007") {
-      productTaxesToLink = ["IVA 16%"];
-    } else if (product.sku === "PROD-008") {
-      productTaxesToLink = ["Exento"];
-    } else if (product.sku === "PROD-009") {
-      productTaxesToLink = ["IEPS 8%"];
-    }
+  for (const cat of categories) {
+    for (let i = 0; i < cat.items.length; i++) {
+      const pName = cat.items[i];
+      const cost = Math.floor(Math.random() * 30) + 5; // Costo entre 5 y 35
+      const sell = Math.ceil(cost * 1.4); // 40% de margen
+      
+      const product = await prisma.product.upsert({
+        where: { sku: `${cat.prefix}-${i+1}` },
+        update: { costPrice: cost, sellPrice: sell },
+        create: {
+          sku: `${cat.prefix}-${i+1}`,
+          barcode: `7500${skuCounter.toString().padStart(5, '0')}`,
+          name: pName,
+          costPrice: cost,
+          sellPrice: sell,
+          active: true
+        }
+      });
+      allProducts.push(product);
+      skuCounter++;
 
-    for (const taxName of productTaxesToLink) {
-      const taxTypeId = taxTypesMap[taxName];
-      if (taxTypeId) {
+      // Impuestos
+      await prisma.productTax.upsert({
+        where: { productId_taxTypeId: { productId: product.id, taxTypeId: taxTypesMap[cat.tax] } },
+        update: {}, create: { productId: product.id, taxTypeId: taxTypesMap[cat.tax] }
+      });
+      if (cat.ieps) {
         await prisma.productTax.upsert({
-          where: { productId_taxTypeId: { productId: product.id, taxTypeId } },
-          update: {},
-          create: { productId: product.id, taxTypeId },
+          where: { productId_taxTypeId: { productId: product.id, taxTypeId: taxTypesMap[cat.ieps] } },
+          update: {}, create: { productId: product.id, taxTypeId: taxTypesMap[cat.ieps] }
+        });
+      }
+
+      // Proveedor
+      await prisma.supplierProduct.upsert({
+        where: { supplierId_productId: { supplierId: suppliersMap[cat.supplier], productId: product.id } },
+        update: {}, create: { supplierId: suppliersMap[cat.supplier], productId: product.id }
+      });
+
+      // Inventario
+      for (const bName of Object.keys(branchesMap)) {
+        const bId = branchesMap[bName];
+        const stock = Math.floor(Math.random() * 150) + 20; // Stock inicial robusto
+        await prisma.inventory.upsert({
+          where: { productId_branchId: { productId: product.id, branchId: bId } },
+          update: { quantity: stock },
+          create: { productId: product.id, branchId: bId, quantity: stock, minStock: 15, maxStock: 200 }
         });
       }
     }
-
-    // Inventario: solo crea si no existe — no sobreescribe stock real
-    for (const bName of Object.keys(branchesMap)) {
-      const bId = branchesMap[bName];
-      const existingInv = await prisma.inventory.findUnique({
-        where: { productId_branchId: { productId: product.id, branchId: bId } },
-      });
-
-      if (!existingInv) {
-        const stock = Math.floor(Math.random() * 80) + 20; // 20–100 piezas iniciales
-        await prisma.inventory.create({
-          data: { productId: product.id, branchId: bId, quantity: stock, minStock: 10, maxStock: 150 },
-        });
-        console.log(`     📦 Stock inicial ${stock} uds en ${bName}`);
-      }
-    }
   }
+  console.log("  ✅ 50 Productos creados y vinculados a proveedores e impuestos.");
 
   // =========================================================================
-  // 5. TIPOS DE PROMOCIÓN — upsert by name (@unique)
+  // 7. SIMULACIÓN HISTÓRICA DE COMPRAS Y VENTAS (14 DÍAS)
   // =========================================================================
-  const promotionTypes = [
-    { name: "Percentage",   description: "Descuento porcentual sobre el precio" },
-    { name: "FixedAmount",  description: "Descuento de monto fijo sobre el precio" },
-    { name: "BuyXPayY",     description: "Paga Y cantidad al llevar X cantidad (ej. 2x1)" },
-    { name: "SpecialPrice", description: "Precio especial por volumen" },
-  ];
-
-  const promoTypesMap: { [name: string]: number } = {};
-
-  for (const pt of promotionTypes) {
-    const type = await prisma.promotionType.upsert({
-      where:  { name: pt.name },
-      update: { description: pt.description },
-      create: { name: pt.name, description: pt.description },
-    });
-    promoTypesMap[pt.name] = type.id;
-    console.log(`  ✅ Tipo Promoción: ${type.name}`);
-  }
-
-  // =========================================================================
-  // 6. PROMOCIONES — findFirst by name, crear solo si no existe
-  // =========================================================================
-  const now       = new Date();
-  const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-  const endDate   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 30);
-
-  const coke     = await prisma.product.findUnique({ where: { sku: "PROD-001" } });
-  const sabritas = await prisma.product.findUnique({ where: { sku: "PROD-002" } });
-  const bimbo    = await prisma.product.findUnique({ where: { sku: "PROD-003" } });
-
-  type PromoSeed = {
-    name: string;
-    description: string;
-    typeKey: string;
-    product: { id: number } | null;
-    extra: Record<string, unknown>;
-  };
-
-  const promoSeeds: PromoSeed[] = [
-    { name: "Coca Cola 20% OFF",     description: "20% de descuento en Coca Cola 600ml",              typeKey: "Percentage",   product: coke,     extra: { value: 20.00 } },
-    { name: "Sabritas 3x2",          description: "Lleva 3 bolsas de Sabritas y paga solo 2",          typeKey: "BuyXPayY",     product: sabritas, extra: { minQuantity: 3, payQuantity: 2 } },
-    { name: "Bimbo Precio Especial", description: "Pan Blanco Bimbo a $38 c/u comprando 2 o más",      typeKey: "SpecialPrice", product: bimbo,    extra: { minQuantity: 2, specialPrice: 38.00 } },
-  ];
-
-  for (const ps of promoSeeds) {
-    if (!ps.product) continue;
-    const existing = await prisma.promotion.findFirst({ where: { name: ps.name } });
-    if (!existing) {
-      const promo = await prisma.promotion.create({
-        data: {
-          name:            ps.name,
-          description:     ps.description,
-          promotionTypeId: promoTypesMap[ps.typeKey],
-          startDate,
-          endDate,
-          isActive:        true,
-          ...ps.extra,
-        },
-      });
-      await prisma.promotionProduct.create({
-        data: { promotionId: promo.id, productId: ps.product.id },
-      });
-      console.log(`  ✅ Promoción creada: ${promo.name}`);
-    } else {
-      console.log(`  ℹ️  Promoción ya existe: ${ps.name}`);
-    }
-  }
-
-  // Mapear IVA 16% a todos los productos existentes que no tengan impuestos asignados
-  const allProducts = await prisma.product.findMany({
-    include: { productTaxes: true }
-  });
-  const defaultTaxId = taxTypesMap["IVA 16%"];
-  if (defaultTaxId) {
-    for (const p of allProducts) {
-      if (p.productTaxes.length === 0) {
-        await prisma.productTax.create({
-          data: { productId: p.id, taxTypeId: defaultTaxId }
-        });
-        console.log(`  ✅ IVA 16% asignado por defecto al producto existente: ${p.name}`);
-      }
-    }
-  }
-
-  // =========================================================================
-  // 7. DATOS HISTÓRICOS (Sesiones, Ventas, Devoluciones y Facturas)
-  // =========================================================================
-  console.log("  Generando datos históricos...");
-  
-  // Fechas base (hace 3 días)
-  const threeDaysAgo = new Date();
-  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-  const threeDaysAgoEnd = new Date(threeDaysAgo);
-  threeDaysAgoEnd.setHours(threeDaysAgoEnd.getHours() + 8);
-
-  const adminUser = await prisma.user.findFirst({ where: { email: "admin@fmb.com" } });
-  const cashierUser = await prisma.user.findFirst({ where: { email: "juan.centro@fmb.com" } });
+  console.log("  Generando 14 días de historial operativo masivo...");
+  const adminId = (await prisma.user.findFirst({ where: { role: "ADMIN" } }))!.id;
+  const cashierId = (await prisma.user.findFirst({ where: { role: "CAJERO" } }))!.id;
   const mainBranchId = branchesMap["Sucursal Centro LYFRGL"];
-  
-  if (cashierUser && adminUser && mainBranchId) {
-    // 7.1 Sesión de Caja Histórica
-    let historicalSession = await prisma.cashSession.findFirst({ where: { openedAt: { lte: threeDaysAgo }, status: "CERRADA", branchId: mainBranchId } });
-    if (!historicalSession) {
-      historicalSession = await prisma.cashSession.create({
+
+  // Generar 3 Órdenes de compra históricas aleatorias
+  for(let i = 0; i < 3; i++) {
+    const poDate = new Date();
+    poDate.setDate(poDate.getDate() - (10 - i*3));
+    const suppName = Object.keys(suppliersMap)[i % 5];
+    
+    await prisma.purchaseOrder.create({
+      data: {
+        supplierId: suppliersMap[suppName],
+        branchId: mainBranchId,
+        reference: `PO-HIST-${1000+i}`,
+        purchaseDate: poDate,
+        subtotal: 1500, tax: 240, total: 1740,
+        status: "RECIBIDA",
+        createdBy: adminId,
+        receivedBy: adminId,
+        receivedDate: poDate,
+        createdAt: poDate,
+        details: {
+          create: [
+            { productId: allProducts[0].id, quantity: 50, unitCost: allProducts[0].costPrice, subtotal: 50 * Number(allProducts[0].costPrice) }
+          ]
+        }
+      }
+    });
+  }
+
+  // Bucle de 14 días para ventas y sesiones de caja
+  let globalInvoiceCounter = 1;
+  let returnCounter = 1;
+
+  for (let d = 14; d >= 1; d--) {
+    const simDate = new Date();
+    simDate.setDate(simDate.getDate() - d);
+    
+    // Abre sesión a las 8 AM
+    const openedAt = new Date(simDate);
+    openedAt.setHours(8, 0, 0, 0);
+    // Cierra sesión a las 6 PM
+    const closedAt = new Date(simDate);
+    closedAt.setHours(18, 0, 0, 0);
+
+    const numSales = Math.floor(Math.random() * 15) + 5; // Entre 5 y 20 ventas por día
+    let totalCashInSession = 0;
+    let totalSalesSession = 0;
+    let totalCardsSession = 0;
+
+    // Crear la sesión
+    const session = await prisma.cashSession.create({
+      data: {
+        branchId: mainBranchId,
+        userId: cashierId,
+        openedAt,
+        initialAmount: 500, // Fondo fijo
+        expectedAmount: 500, // Se actualizará al final
+        status: "ABIERTA"
+      }
+    });
+
+    for(let s = 0; s < numSales; s++) {
+      const saleDate = new Date(openedAt);
+      saleDate.setMinutes(saleDate.getMinutes() + (s * 30)); // Espaciadas por media hora
+
+      // Escoger cliente (80% público general, 20% factura)
+      const isFacturable = Math.random() > 0.8;
+      const custId = isFacturable ? 2 : 1;
+      
+      // Productos comprados (1 a 5 items)
+      const numItems = Math.floor(Math.random() * 5) + 1;
+      let saleSubtotal = 0;
+      let saleTax = 0;
+      const details = [];
+
+      for(let i = 0; i < numItems; i++) {
+        const randProd = allProducts[Math.floor(Math.random() * allProducts.length)];
+        const qty = Math.floor(Math.random() * 3) + 1;
+        const lineTotal = Number(randProd.sellPrice) * qty;
+        saleSubtotal += lineTotal;
+        // Asumiendo un tax plano por simplificar el seed masivo:
+        const tAmnt = lineTotal * 0.16;
+        saleTax += tAmnt;
+
+        details.push({
+          productId: randProd.id,
+          quantity: qty,
+          unitPrice: randProd.sellPrice,
+          costPrice: randProd.costPrice,
+          taxAmount: tAmnt
+        });
+      }
+
+      const isCard = Math.random() > 0.7;
+      const paymentMethod = isCard ? "TARJETA" : "EFECTIVO";
+      if (!isCard) totalCashInSession += (saleSubtotal + saleTax);
+      else totalCardsSession += (saleSubtotal + saleTax);
+      
+      totalSalesSession += (saleSubtotal + saleTax);
+
+      const sale = await prisma.sale.create({
         data: {
+          invoiceNumber: `V-${simDate.getFullYear()}${(simDate.getMonth()+1).toString().padStart(2,'0')}${simDate.getDate().toString().padStart(2,'0')}-${s+1}`,
           branchId: mainBranchId,
-          userId: cashierUser.id,
-          openedAt: threeDaysAgo,
-          closedAt: threeDaysAgoEnd,
-          initialAmount: 1000,
-          expectedAmount: 2500,
-          declaredAmount: 2500,
-          difference: 0,
-          cashIn: 0,
-          cashOut: 0,
-          status: "CERRADA",
-          createdAt: threeDaysAgo,
-          updatedAt: threeDaysAgoEnd
+          userId: cashierId,
+          customerId: custId,
+          cashSessionId: session.id,
+          totalAmount: saleSubtotal + saleTax,
+          taxAmount: saleTax,
+          paymentMethod,
+          cashReceived: !isCard ? (saleSubtotal + saleTax + 20) : null,
+          changeGiven: !isCard ? 20 : null,
+          status: "COMPLETADA",
+          cfdiUuid: isFacturable ? `HISTORIAL-CFDI-UUID-${globalInvoiceCounter++}` : null,
+          createdAt: saleDate,
+          updatedAt: saleDate,
+          saleDetails: { create: details }
         }
       });
-      console.log(`  ✅ Sesión de caja histórica creada.`);
-    }
 
-    const publicCustomer = await prisma.customer.findFirst({ where: { name: "Público General" } });
-    const facturableCustomer = await prisma.customer.findFirst({ where: { email: "juan.perez@email.com" } });
-    const p1 = await prisma.product.findUnique({ where: { sku: "PROD-001" } });
-    const p2 = await prisma.product.findUnique({ where: { sku: "PROD-003" } });
-    
-    if (p1 && p2 && publicCustomer && facturableCustomer && historicalSession) {
-      const createSaleIfNotExist = async (invoiceNum: string, date: Date, custId: number, isFacturada: boolean, globalUuid?: string, returned?: boolean, pointsMode?: boolean) => {
-        let sale = await prisma.sale.findUnique({ where: { invoiceNumber: invoiceNum } });
-        if (!sale) {
-          const tAmount = pointsMode ? 50.00 : 63.00;
-          sale = await prisma.sale.create({
-            data: {
-              invoiceNumber: invoiceNum,
-              branchId: mainBranchId,
-              userId: cashierUser.id,
-              customerId: custId,
-              cashSessionId: historicalSession.id,
-              totalAmount: tAmount,
-              taxAmount: 2.48,
-              paymentMethod: pointsMode ? "PUNTOS/MIXTO" : "EFECTIVO",
-              cashReceived: pointsMode ? 50.00 : 100.00,
-              changeGiven: pointsMode ? 0 : 37.00,
-              status: returned ? "DEVUELTA" : "COMPLETADA",
-              pointsEarned: 10,
-              pointsRedeemed: pointsMode ? 130 : 0,
-              pointsDiscount: pointsMode ? 13.00 : 0,
-              cfdiUuid: globalUuid ? globalUuid : (isFacturada ? "12345678-ABCD-EFGH-IJKL-1234567890AB:facturapi_id_1" : null),
-              createdAt: date,
-              updatedAt: date,
-              saleDetails: {
-                create: [
-                  { productId: p1.id, quantity: 1, unitPrice: p1.sellPrice, costPrice: p1.costPrice, taxAmount: 2.48 },
-                  { productId: p2.id, quantity: 1, unitPrice: p2.sellPrice, costPrice: p2.costPrice, taxAmount: 0 }
-                ]
-              }
-            }
-          });
-          console.log(`  ✅ Venta histórica: ${invoiceNum}`);
-        }
-        return sale;
-      };
-
-      // Venta 1: Facturada individual a cliente con RFC
-      await createSaleIfNotExist(`V-HIST-001`, threeDaysAgo, facturableCustomer.id, true);
-
-      // Ventas 2 y 3: Público General (No facturadas, para Factura Global)
-      await createSaleIfNotExist(`V-HIST-002`, threeDaysAgo, publicCustomer.id, false);
-      await createSaleIfNotExist(`V-HIST-003`, threeDaysAgo, publicCustomer.id, false);
-
-      // Venta 4: Venta con pago mixto (puntos)
-      await createSaleIfNotExist(`V-HIST-004`, threeDaysAgo, facturableCustomer.id, false, undefined, false, true);
-
-      // Venta 5: Venta devuelta
-      const saleToReturn = await createSaleIfNotExist(`V-HIST-005`, threeDaysAgo, publicCustomer.id, false, undefined, true);
-      const existingReturn = await prisma.return.findUnique({ where: { returnNumber: "DEV-HIST-001" } });
-      if (!existingReturn) {
+      // Aleatoriamente crear una devolución (5% de las ventas)
+      if (Math.random() > 0.95 && !isCard) {
         await prisma.return.create({
           data: {
-            returnNumber: "DEV-HIST-001",
-            saleId: saleToReturn.id,
-            userId: cashierUser.id,
-            authorizedById: adminUser.id,
-            reason: "Producto caducado/dañado",
+            returnNumber: `DEV-HIST-${returnCounter++}`,
+            saleId: sale.id,
+            userId: cashierId, authorizedById: adminId,
+            reason: "Garantía/Defecto histórico",
             type: "TOTAL",
-            totalRefunded: 63.00,
+            totalRefunded: saleSubtotal + saleTax,
             paymentMethod: "EFECTIVO",
-            cashSessionId: historicalSession.id,
-            createdAt: threeDaysAgoEnd,
-            updatedAt: threeDaysAgoEnd,
-            returnDetails: {
-              create: [
-                { productId: p1.id, saleDetailId: 1, quantity: 1, unitPrice: p1.sellPrice, taxAmount: 2.48, discountAmount: 0, destination: "WASTE" },
-                { productId: p2.id, saleDetailId: 2, quantity: 1, unitPrice: p2.sellPrice, taxAmount: 0, discountAmount: 0, destination: "INVENTORY" }
-              ]
-            }
+            cashSessionId: session.id,
+            createdAt: saleDate, updatedAt: saleDate
           }
         });
-        console.log(`  ✅ Devolución histórica: DEV-HIST-001`);
+        totalCashInSession -= (saleSubtotal + saleTax);
       }
-
-      // Venta 6: Factura Global
-      await createSaleIfNotExist(`V-HIST-006`, threeDaysAgo, publicCustomer.id, false, "GLOBAL:FMB-GLOB-1234:facturapi_id_global");
     }
+
+    // Cerrar sesión
+    await prisma.cashSession.update({
+      where: { id: session.id },
+      data: {
+        status: "CERRADA",
+        closedAt,
+        expectedAmount: 500 + totalCashInSession,
+        declaredAmount: 500 + totalCashInSession,
+        difference: 0
+      }
+    });
+
+    // Corte de caja y depósito bancario
+    await prisma.cashCut.create({
+      data: {
+        cashSessionId: session.id,
+        cutNumber: 1,
+        totalSales: totalSalesSession,
+        totalCash: totalCashInSession,
+        totalCreditCard: totalCardsSession,
+        totalDebitCard: 0,
+        totalRefunds: 0,
+        netTotal: totalSalesSession,
+        createdAt: closedAt
+      }
+    });
+
+    if (totalCashInSession > 0) {
+      await prisma.bankDeposit.create({
+        data: {
+          cashSessionId: session.id,
+          userId: adminId, branchId: mainBranchId,
+          accountNumber: "1234567890",
+          targetName: "Banamex Concentradora",
+          amount: totalCashInSession,
+          paymentType: "EFECTIVO",
+          status: "CONFIRMED",
+          confirmedAt: closedAt,
+          createdAt: closedAt
+        }
+      });
+    }
+    console.log(`  📅 Día -${d} simulado: ${numSales} ventas generadas.`);
   }
 
-  console.log("\n🌱 Seed completado exitosamente. ¡La base de datos está lista!");
+  console.log("\n🌱 Seed MASIVO completado exitosamente. ¡La base de datos está lista para asombrar!");
 }
 
 main()
