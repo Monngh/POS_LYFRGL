@@ -95,6 +95,47 @@ interface CashSession {
   status: string;
 }
 
+// Funciones de validación para formularios
+const validatePinInput = (value: string): string => {
+  // Solo acepta números (0-9)
+  return value.replace(/[^0-9]/g, "");
+};
+
+const validateNameInput = (value: string): string => {
+  // Solo letras (a-z, A-Z) y espacios. No números, no emojis, no caracteres especiales
+  return value
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "") // Elimina emojis
+    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ\s]/g, ""); // Solo letras y espacios
+};
+
+const validatePhoneInput = (value: string): string => {
+  // Solo dígitos (0-9), máximo 10
+  return value.replace(/[^0-9]/g, "").slice(0, 10);
+};
+
+const validateReasonInput = (value: string): string => {
+  // Acepta texto (letras) y si hay algo, permite números, puntos y comas
+  // Elimina todos los emojis y símbolos raros
+  return value
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "") // Elimina emojis
+    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ0-9\s.,]/g, ""); // Solo letras, números, espacios, puntos y comas
+};
+
+const validateLongTextInput = (value: string): string => {
+  // Para descripciones y textos largos: letras, números, puntos y comas
+  // Sin emojis ni símbolos raros
+  return value
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "") // Elimina emojis
+    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ0-9\s.,]/g, ""); // Solo letras, números, espacios, puntos y comas
+};
+
+const validateTextInput = (value: string): string => {
+  // Para búsquedas y textos cortos: letras, números y espacios
+  return value
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "") // Elimina emojis
+    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ0-9\s]/g, ""); // Solo letras, números y espacios
+};
+
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
 
@@ -157,6 +198,12 @@ const Dashboard: React.FC = () => {
   const [returnPaymentMethod, setReturnPaymentMethod] = useState("EFECTIVO");
   const [returnProcessing, setReturnProcessing] = useState(false);
   const [returnReceipt, setReturnReceipt] = useState<any>(null);
+  const [returnQtyDraft, setReturnQtyDraft] = useState<Record<number, string>>({});
+
+  // Helper para sanitizar textos: permite letras (incluye acentos/ñ), números, espacios, guiones, comas, puntos. Rechaza emojis y símbolos raros.
+  const sanitizeText = (value: string): string => {
+    return value.replace(/[^\p{L}\p{N}\s\-,.]/gu, "");
+  };
 
   // Estados para alertas personalizadas y cobro (Fase 3.5)
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" | "info" } | null>(null);
@@ -2140,7 +2187,7 @@ const Dashboard: React.FC = () => {
                     style={{ paddingLeft: "38px" }}
                     placeholder="Ingrese código o nombre del producto..."
                     value={barcodeSearch}
-                    onChange={(e) => setBarcodeSearch(e.target.value)}
+                    onChange={(e) => setBarcodeSearch(validateTextInput(e.target.value))}
                   />
                 </div>
                 <button type="submit" className="btn-primary">
@@ -2207,7 +2254,7 @@ const Dashboard: React.FC = () => {
                         style={{ paddingLeft: "38px" }}
                         placeholder="Buscar cliente por teléfono o nombre..."
                         value={customerSearch}
-                        onChange={(e) => setCustomerSearch(e.target.value)}
+                        onChange={(e) => setCustomerSearch(validateTextInput(e.target.value))}
                         onFocus={() => {
                           if (customerSearch.trim().length > 0) {
                             setIsCustomerDropdownOpen(true);
@@ -2971,7 +3018,7 @@ const Dashboard: React.FC = () => {
                     className="input-corporate"
                     placeholder="Ej. Juan Pérez"
                     value={newCustomerForm.name}
-                    onChange={(e) => setNewCustomerForm(prev => ({ ...prev, name: e.target.value }))}
+                    onChange={(e) => setNewCustomerForm(prev => ({ ...prev, name: validateNameInput(e.target.value) }))}
                   />
                 </div>
                 <div style={styles.inputGroup}>
@@ -2982,7 +3029,7 @@ const Dashboard: React.FC = () => {
                     className="input-corporate"
                     placeholder="Ej. 5551234567"
                     value={newCustomerForm.phone}
-                    onChange={(e) => setNewCustomerForm(prev => ({ ...prev, phone: e.target.value.replace(/\D/g, "") }))}
+                    onChange={(e) => setNewCustomerForm(prev => ({ ...prev, phone: validatePhoneInput(e.target.value) }))}
                   />
                 </div>
                 <div style={styles.inputGroup}>
@@ -2992,7 +3039,7 @@ const Dashboard: React.FC = () => {
                     className="input-corporate"
                     placeholder="Ej. cliente@correo.com"
                     value={newCustomerForm.email}
-                    onChange={(e) => setNewCustomerForm(prev => ({ ...prev, email: e.target.value }))}
+                    onChange={(e) => setNewCustomerForm(prev => ({ ...prev, email: e.target.value.replace(/[\u{1F300}-\u{1F9FF}]/gu, "") }))}
                   />
                 </div>
 
@@ -3525,7 +3572,7 @@ const Dashboard: React.FC = () => {
                         placeholder="PIN Gerente"
                         maxLength={4}
                         value={pendingCancelPin}
-                        onChange={(e) => setPendingCancelPin(e.target.value)}
+                        onChange={(e) => setPendingCancelPin(validatePinInput(e.target.value))}
                         className="input-corporate"
                         style={{ padding: "6px 10px", fontSize: "12px", width: "100%" }}
                       />
@@ -3535,7 +3582,7 @@ const Dashboard: React.FC = () => {
                         type="text"
                         placeholder="Motivo de cancelación"
                         value={pendingCancelReason}
-                        onChange={(e) => setPendingCancelReason(e.target.value)}
+                        onChange={(e) => setPendingCancelReason(validateReasonInput(e.target.value))}
                         className="input-corporate"
                         style={{ padding: "6px 10px", fontSize: "12px", width: "100%" }}
                       />
@@ -4035,7 +4082,7 @@ const Dashboard: React.FC = () => {
                 placeholder="Nombre o id del producto"
                 value={lookupQuery}
                 onKeyDown={handleLookupKeyDown}
-                onChange={(e) => setLookupQuery(e.target.value)}
+                onChange={(e) => setLookupQuery(validateTextInput(e.target.value))}
               />
             </div>
 
@@ -4228,7 +4275,7 @@ const Dashboard: React.FC = () => {
                   className="input-corporate"
                   placeholder="V-XXXXXX"
                   value={cancelInvoice}
-                  onChange={(e) => setCancelInvoice(e.target.value)}
+                  onChange={(e) => setCancelInvoice(validateTextInput(e.target.value))}
                 />
               </div>
 
@@ -4264,7 +4311,7 @@ const Dashboard: React.FC = () => {
                   className="input-corporate"
                   placeholder="PIN de 4 dígitos"
                   value={cancelPin}
-                  onChange={(e) => setCancelPin(e.target.value)}
+                  onChange={(e) => setCancelPin(validatePinInput(e.target.value))}
                 />
               </div>
 
@@ -4277,7 +4324,7 @@ const Dashboard: React.FC = () => {
                   className="input-corporate"
                   placeholder="Ej. Producto equivocado, error de cobro"
                   value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
+                  onChange={(e) => setCancelReason(validateReasonInput(e.target.value))}
                 />
               </div>
 
@@ -4937,7 +4984,7 @@ const Dashboard: React.FC = () => {
                       className="input-corporate"
                       placeholder="Ej. ****"
                       value={depCancelPin}
-                      onChange={(e) => setDepCancelPin(e.target.value)}
+                      onChange={(e) => setDepCancelPin(validatePinInput(e.target.value))}
                     />
                   </div>
                   <div style={styles.inputGroup}>
@@ -4948,7 +4995,7 @@ const Dashboard: React.FC = () => {
                       className="input-corporate"
                       placeholder="Motivo detallado de la cancelación"
                       value={depCancelReason}
-                      onChange={(e) => setDepCancelReason(e.target.value)}
+                      onChange={(e) => setDepCancelReason(validateReasonInput(e.target.value))}
                     />
                   </div>
                   <div style={{ display: "flex", gap: "10px", marginTop: "6px" }} className="pos-cashier-modal-actions">
@@ -5076,7 +5123,7 @@ const Dashboard: React.FC = () => {
                             className="input-corporate"
                             placeholder="Ej. 1234567890123456"
                             value={depAccount}
-                            onChange={(e) => setDepAccount(e.target.value)}
+                            onChange={(e) => setDepAccount(validatePinInput(e.target.value))}
                           />
                         </div>
 
@@ -5088,7 +5135,7 @@ const Dashboard: React.FC = () => {
                             className="input-corporate"
                             placeholder="Nombre de la persona o banco"
                             value={depName}
-                            onChange={(e) => setDepName(e.target.value)}
+                            onChange={(e) => setDepName(validateTextInput(e.target.value))}
                           />
                         </div>
                       </>
@@ -5114,7 +5161,7 @@ const Dashboard: React.FC = () => {
                         className="input-corporate"
                         placeholder="Ej. Número de sucursal, folio de camión blindado, etc."
                         value={depComments}
-                        onChange={(e) => setDepComments(e.target.value)}
+                        onChange={(e) => setDepComments(validateLongTextInput(e.target.value))}
                       />
                     </div>
 
@@ -5623,7 +5670,7 @@ const Dashboard: React.FC = () => {
                       placeholder="PIN Gerente"
                       maxLength={4}
                       value={pendingCancelPin}
-                      onChange={(e) => setPendingCancelPin(e.target.value)}
+                      onChange={(e) => setPendingCancelPin(validatePinInput(e.target.value))}
                       className="input-corporate"
                       style={{ padding: "6px 10px", fontSize: "12px" }}
                     />
@@ -5633,7 +5680,7 @@ const Dashboard: React.FC = () => {
                       type="text"
                       placeholder="Motivo de cancelación"
                       value={pendingCancelReason}
-                      onChange={(e) => setPendingCancelReason(e.target.value)}
+                      onChange={(e) => setPendingCancelReason(validateReasonInput(e.target.value))}
                       className="input-corporate"
                       style={{ padding: "6px 10px", fontSize: "12px" }}
                     />
