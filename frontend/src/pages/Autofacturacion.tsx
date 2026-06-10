@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import axios from "axios";
 import { Search, FileText, CheckCircle2, Download, AlertTriangle, ArrowLeft, Building2 } from "lucide-react";
 
@@ -42,12 +42,33 @@ const USOS_CFDI = [
   { code: "S01", label: "S01 - Sin efectos fiscales" }
 ];
 
+// =========================
+// REGEX PARA VALIDACIONES
+// =========================
+const FOLIO_REGEX = /^[a-zA-Z0-9-]*$/;
+const RFC_REGEX = /^[A-ZÑ&0-9]*$/;
+const NAME_REGEX = /^[a-zA-ZÀ-ÿÑñ\s]*$/;
+const ZIP_REGEX = /^\d*$/;
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
 const Autofacturacion: React.FC = () => {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [invoiceNumber, setInvoiceNumber] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loadingSearch, setLoadingSearch] = useState(false); // 🔥 Separado para búsqueda
+  const [loadingInvoice, setLoadingInvoice] = useState(false); // 🔥 Separado para facturación
   const [error, setError] = useState("");
   const [ticket, setTicket] = useState<TicketData | null>(null);
+
+  // Estados para errores de validación en tiempo real
+  const [folioError, setFolioError] = useState("");
+  const [rfcError, setRfcError] = useState("");
+  const [nameError, setNameError] = useState("");
+  const [zipError, setZipError] = useState("");
+  const [emailError, setEmailError] = useState("");
+
+  // Refs para evitar múltiples clics
+  const searchClickedRef = useRef(false);
+  const invoiceClickedRef = useRef(false);
 
   // Formulario Fiscal
   const [rfc, setRfc] = useState("");
@@ -56,7 +77,7 @@ const Autofacturacion: React.FC = () => {
   const [zip, setZip] = useState("");
   const [email, setEmail] = useState("");
   const [cfdiUse, setCfdiUse] = useState("G03");
-  
+
   // Resultado de facturación
   const [invoiceResult, setInvoiceResult] = useState<{
     uuid: string;
@@ -65,15 +86,123 @@ const Autofacturacion: React.FC = () => {
     mode: string;
   } | null>(null);
 
-  // Buscar Ticket
+  // =========================
+  // FUNCIONES DE VALIDACIÓN
+  // =========================
+  const validateFolio = (value: string): string => {
+    if (!value) return "El folio es obligatorio.";
+    if (!FOLIO_REGEX.test(value)) return "Solo se permiten letras, números y guiones.";
+    if (value.length < 5) return "El folio es muy corto.";
+    return "";
+  };
+
+  const validateRFCField = (value: string): string => {
+    if (!value) return "El RFC es obligatorio.";
+    if (!RFC_REGEX.test(value)) return "Solo letras y números, sin espacios ni caracteres especiales.";
+    if (value.length !== 12 && value.length !== 13) return "El RFC debe tener 12 o 13 caracteres.";
+    return "";
+  };
+
+  const validateLegalName = (value: string): string => {
+    if (!value) return "El nombre o razón social es obligatorio.";
+    if (!NAME_REGEX.test(value)) return "Solo letras y espacios. No se permiten números ni caracteres especiales.";
+    if (value.length < 3) return "Debe tener al menos 3 caracteres.";
+    return "";
+  };
+
+  const validateZipCode = (value: string): string => {
+    if (!value) return "El código postal es obligatorio.";
+    if (!ZIP_REGEX.test(value)) return "Solo se permiten números.";
+    if (value.length !== 5) return "Debe contener exactamente 5 dígitos.";
+    return "";
+  };
+
+  const validateEmailField = (value: string): string => {
+    if (!value) return "El correo electrónico es obligatorio.";
+    if (!EMAIL_REGEX.test(value)) return "Correo electrónico inválido. Ejemplo: usuario@dominio.com";
+    if (/[^\x00-\x7F]/.test(value)) return "El correo no debe contener emojis ni caracteres especiales.";
+    return "";
+  };
+
+  // =========================
+  // HANDLERS CON FILTROS
+  // =========================
+  const handleFolioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    value = value.replace(/[^a-zA-Z0-9-]/g, '');
+    setInvoiceNumber(value);
+
+    const errorMsg = validateFolio(value);
+    setFolioError(errorMsg);
+    if (errorMsg) setError(errorMsg);
+    else if (error === errorMsg) setError("");
+  };
+
+  const handleRfcChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.toUpperCase();
+    value = value.replace(/[^A-Z0-9Ñ&]/g, '');
+    value = value.slice(0, 13);
+    setRfc(value);
+
+    const errorMsg = validateRFCField(value);
+    setRfcError(errorMsg);
+  };
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.toUpperCase();
+    value = value.replace(/[^a-zA-ZÀ-ÿÑñ\s]/g, '');
+    setLegalName(value);
+
+    const errorMsg = validateLegalName(value);
+    setNameError(errorMsg);
+  };
+
+  const handleZipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    value = value.replace(/[^\d]/g, '');
+    value = value.slice(0, 5);
+    setZip(value);
+
+    const errorMsg = validateZipCode(value);
+    setZipError(errorMsg);
+  };
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    value = value.replace(/[^\w\s@.-]/g, '');
+    setEmail(value);
+
+    const errorMsg = validateEmailField(value);
+    setEmailError(errorMsg);
+  };
+
+  // Verificar si el formulario fiscal es válido
+  const isBillingFormValid = () => {
+    return rfc && !validateRFCField(rfc) &&
+      legalName && !validateLegalName(legalName) &&
+      zip && !validateZipCode(zip) &&
+      email && !validateEmailField(email);
+  };
+
+  // Buscar Ticket - CON PROTECCIÓN DE DOBLE CLIC
   const handleSearchTicket = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!invoiceNumber.trim()) {
-      setError("Por favor ingrese el folio de su ticket.");
+
+    // 🔥 PROTECCIÓN: Evitar múltiples búsquedas
+    if (loadingSearch || searchClickedRef.current) {
+      console.log("Ya hay una búsqueda en curso, ignorando...");
       return;
     }
 
-    setLoading(true);
+    const folioValidation = validateFolio(invoiceNumber);
+    if (folioValidation) {
+      setFolioError(folioValidation);
+      setError(folioValidation);
+      return;
+    }
+
+    setLoadingSearch(true);
+    searchClickedRef.current = true;
     setError("");
 
     try {
@@ -83,19 +212,39 @@ const Autofacturacion: React.FC = () => {
     } catch (err: any) {
       setError(err.response?.data?.message || "No se pudo encontrar el ticket especificado.");
     } finally {
-      setLoading(false);
+      setLoadingSearch(false);
+      searchClickedRef.current = false;
     }
   };
 
-  // Solicitar Facturación
+  // Solicitar Facturación - CON PROTECCIÓN DE DOBLE CLIC
   const handleIssueInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!rfc || !legalName || !zip || !email) {
-      setError("Por favor complete todos los datos requeridos.");
+
+    // 🔥 PROTECCIÓN: Evitar múltiples envíos
+    if (loadingInvoice || invoiceClickedRef.current) {
+      console.log("Ya hay una facturación en curso, ignorando...");
       return;
     }
 
-    setLoading(true);
+    // Validar todos los campos antes de enviar
+    const rfcValidation = validateRFCField(rfc);
+    const nameValidation = validateLegalName(legalName);
+    const zipValidation = validateZipCode(zip);
+    const emailValidation = validateEmailField(email);
+
+    setRfcError(rfcValidation);
+    setNameError(nameValidation);
+    setZipError(zipValidation);
+    setEmailError(emailValidation);
+
+    if (rfcValidation || nameValidation || zipValidation || emailValidation) {
+      setError("Por favor corrija los errores antes de continuar.");
+      return;
+    }
+
+    setLoadingInvoice(true);
+    invoiceClickedRef.current = true;
     setError("");
 
     try {
@@ -114,7 +263,8 @@ const Autofacturacion: React.FC = () => {
     } catch (err: any) {
       setError(err.response?.data?.message || "Error al procesar la facturación.");
     } finally {
-      setLoading(false);
+      setLoadingInvoice(false);
+      invoiceClickedRef.current = false;
     }
   };
 
@@ -128,12 +278,16 @@ const Autofacturacion: React.FC = () => {
     setLegalName("");
     setZip("");
     setEmail("");
+    setFolioError("");
+    setRfcError("");
+    setNameError("");
+    setZipError("");
+    setEmailError("");
     setStep(1);
   };
 
   return (
     <div style={styles.pageBackground}>
-      {/* Navbar Premium */}
       <nav style={styles.navbar}>
         <div style={styles.navContainer}>
           <div style={styles.navBrand}>
@@ -144,7 +298,6 @@ const Autofacturacion: React.FC = () => {
         </div>
       </nav>
 
-      {/* Contenido Principal */}
       <div style={styles.mainContainer}>
         {/* Paso 1: Buscar Ticket */}
         {step === 1 && (
@@ -161,21 +314,35 @@ const Autofacturacion: React.FC = () => {
                   type="text"
                   placeholder="Ej: V-123456"
                   value={invoiceNumber}
-                  onChange={(e) => setInvoiceNumber(e.target.value)}
-                  style={styles.searchInput}
-                  disabled={loading}
+                  onChange={handleFolioChange}
+                  style={{
+                    ...styles.searchInput,
+                    borderColor: folioError ? "#dc2626" : "#e2e8f0"
+                  }}
+                  disabled={loadingSearch}
                 />
               </div>
+              {folioError && (
+                <span style={styles.fieldError}>{folioError}</span>
+              )}
 
-              {error && (
+              {error && step === 1 && (
                 <div style={styles.errorAlert}>
                   <AlertTriangle size={18} color="#b91c1c" />
                   <span style={{ fontSize: "14px", fontWeight: "500" }}>{error}</span>
                 </div>
               )}
 
-              <button type="submit" disabled={loading} style={styles.primaryButton}>
-                {loading ? "Buscando..." : "Buscar Ticket ➜"}
+              <button
+                type="submit"
+                disabled={loadingSearch}
+                style={{
+                  ...styles.primaryButton,
+                  opacity: loadingSearch ? 0.6 : 1,
+                  cursor: loadingSearch ? "not-allowed" : "pointer"
+                }}
+              >
+                {loadingSearch ? "Buscando..." : "Buscar Ticket ➜"}
               </button>
             </form>
           </div>
@@ -184,19 +351,23 @@ const Autofacturacion: React.FC = () => {
         {/* Paso 2: Detalles del Ticket y Formulario de Facturación */}
         {step === 2 && ticket && (
           <div style={{ ...styles.card, maxWidth: "800px" }}>
-            <button onClick={() => setStep(1)} style={styles.backButton}>
+            <button
+              onClick={() => setStep(1)}
+              style={styles.backButton}
+              disabled={loadingInvoice}
+            >
               <ArrowLeft size={16} /> Regresar
             </button>
 
             <h2 style={styles.sectionHeader}>Detalles del Ticket</h2>
-            
+
             <div style={styles.ticketDetailsBox}>
               <div style={styles.ticketGrid}>
                 <div><strong>Folio:</strong> {ticket.invoiceNumber}</div>
                 <div><strong>Sucursal:</strong> {ticket.branchName}</div>
                 <div><strong>Fecha:</strong> {new Date(ticket.createdAt).toLocaleString()}</div>
                 <div>
-                  <strong>Total Compra:</strong> 
+                  <strong>Total Compra:</strong>
                   <span style={{ color: "#1e3a8a", fontWeight: "800", marginLeft: "6px" }}>
                     ${ticket.totalAmount.toFixed(2)}
                   </span>
@@ -238,25 +409,35 @@ const Autofacturacion: React.FC = () => {
                   <label style={styles.label}>RFC *</label>
                   <input
                     type="text"
-                    required
                     maxLength={13}
                     placeholder="RFC de 12 o 13 caracteres"
                     value={rfc}
-                    onChange={(e) => setRfc(e.target.value.toUpperCase())}
-                    style={styles.input}
+                    onChange={handleRfcChange}
+                    disabled={loadingInvoice}
+                    style={{
+                      ...styles.input,
+                      borderColor: rfcError ? "#dc2626" : "#cbd5e1",
+                      backgroundColor: loadingInvoice ? "#f3f4f6" : "#ffffff"
+                    }}
                   />
+                  {rfcError && <span style={styles.fieldError}>{rfcError}</span>}
                 </div>
 
                 <div style={styles.formGroup}>
                   <label style={styles.label}>Nombre o Razón Social *</label>
                   <input
                     type="text"
-                    required
                     placeholder="Tal como aparece en el SAT (sin régimen de capital)"
                     value={legalName}
-                    onChange={(e) => setLegalName(e.target.value.toUpperCase())}
-                    style={styles.input}
+                    onChange={handleNameChange}
+                    disabled={loadingInvoice}
+                    style={{
+                      ...styles.input,
+                      borderColor: nameError ? "#dc2626" : "#cbd5e1",
+                      backgroundColor: loadingInvoice ? "#f3f4f6" : "#ffffff"
+                    }}
                   />
+                  {nameError && <span style={styles.fieldError}>{nameError}</span>}
                 </div>
 
                 <div style={styles.formGroup}>
@@ -264,7 +445,11 @@ const Autofacturacion: React.FC = () => {
                   <select
                     value={taxSystem}
                     onChange={(e) => setTaxSystem(e.target.value)}
-                    style={styles.select}
+                    disabled={loadingInvoice}
+                    style={{
+                      ...styles.select,
+                      backgroundColor: loadingInvoice ? "#f3f4f6" : "#ffffff"
+                    }}
                   >
                     {REGIMENES_FISCALES.map((r) => (
                       <option key={r.code} value={r.code}>{r.label}</option>
@@ -276,13 +461,18 @@ const Autofacturacion: React.FC = () => {
                   <label style={styles.label}>Código Postal Fiscal *</label>
                   <input
                     type="text"
-                    required
                     maxLength={5}
                     placeholder="CP de 5 dígitos"
                     value={zip}
-                    onChange={(e) => setZip(e.target.value)}
-                    style={styles.input}
+                    onChange={handleZipChange}
+                    disabled={loadingInvoice}
+                    style={{
+                      ...styles.input,
+                      borderColor: zipError ? "#dc2626" : "#cbd5e1",
+                      backgroundColor: loadingInvoice ? "#f3f4f6" : "#ffffff"
+                    }}
                   />
+                  {zipError && <span style={styles.fieldError}>{zipError}</span>}
                 </div>
 
                 <div style={styles.formGroup}>
@@ -290,7 +480,11 @@ const Autofacturacion: React.FC = () => {
                   <select
                     value={cfdiUse}
                     onChange={(e) => setCfdiUse(e.target.value)}
-                    style={styles.select}
+                    disabled={loadingInvoice}
+                    style={{
+                      ...styles.select,
+                      backgroundColor: loadingInvoice ? "#f3f4f6" : "#ffffff"
+                    }}
                   >
                     {USOS_CFDI.map((u) => (
                       <option key={u.code} value={u.code}>{u.label}</option>
@@ -302,24 +496,37 @@ const Autofacturacion: React.FC = () => {
                   <label style={styles.label}>Correo Electrónico *</label>
                   <input
                     type="email"
-                    required
                     placeholder="Para enviar sus archivos PDF y XML"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    style={styles.input}
+                    onChange={handleEmailChange}
+                    disabled={loadingInvoice}
+                    style={{
+                      ...styles.input,
+                      borderColor: emailError ? "#dc2626" : "#cbd5e1",
+                      backgroundColor: loadingInvoice ? "#f3f4f6" : "#ffffff"
+                    }}
                   />
+                  {emailError && <span style={styles.fieldError}>{emailError}</span>}
                 </div>
               </div>
 
-              {error && (
+              {error && step === 2 && (
                 <div style={{ ...styles.errorAlert, marginTop: "16px" }}>
                   <AlertTriangle size={18} color="#b91c1c" />
                   <span>{error}</span>
                 </div>
               )}
 
-              <button type="submit" disabled={loading} style={styles.successButton}>
-                {loading ? "Timbrando Factura..." : "Emitir Factura SAT"}
+              <button
+                type="submit"
+                disabled={loadingInvoice || !isBillingFormValid()}
+                style={{
+                  ...styles.successButton,
+                  opacity: (!isBillingFormValid() || loadingInvoice) ? 0.6 : 1,
+                  cursor: (!isBillingFormValid() || loadingInvoice) ? "not-allowed" : "pointer"
+                }}
+              >
+                {loadingInvoice ? "Timbrando Factura..." : "Emitir Factura SAT"}
               </button>
             </form>
           </div>
@@ -334,11 +541,11 @@ const Autofacturacion: React.FC = () => {
               </div>
               <h1 style={styles.successTitle}>¡Factura Emitida con Éxito!</h1>
               <p style={styles.successSubtitle}>
-                {invoiceResult.mode === "real" && 
+                {invoiceResult.mode === "real" &&
                   "Su comprobante fiscal ha sido timbrado por el PAC y enviado correctamente por correo."}
-                {invoiceResult.mode === "fallback-simulated" && 
+                {invoiceResult.mode === "fallback-simulated" &&
                   "Nota: El servidor de Facturapi no respondió (error de red/offline). Se generó y guardó la simulación de correo y factura de demostración de respaldo localmente."}
-                {invoiceResult.mode === "simulated" && 
+                {invoiceResult.mode === "simulated" &&
                   "Se ha generado la representación impresa, XML de demostración y simulación de correo exitosamente."}
               </p>
 
@@ -449,7 +656,7 @@ const styles = {
   searchForm: {
     display: "flex",
     flexDirection: "column" as const,
-    gap: "16px"
+    gap: "8px"
   },
   inputWrapper: {
     position: "relative" as const
@@ -561,7 +768,7 @@ const styles = {
   formGroup: {
     display: "flex",
     flexDirection: "column" as const,
-    gap: "6px"
+    gap: "4px"
   },
   label: {
     fontSize: "12px",
@@ -598,6 +805,13 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: "10px"
+  },
+  fieldError: {
+    color: "#dc2626",
+    fontSize: "11px",
+    fontWeight: "500",
+    marginTop: "4px",
+    display: "block"
   },
   successWrapper: {
     display: "flex",
