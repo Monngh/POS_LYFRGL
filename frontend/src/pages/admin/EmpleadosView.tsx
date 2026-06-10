@@ -3,10 +3,19 @@ import { X, Plus, Activity, Pencil } from "lucide-react";
 import api from "../../services/api";
 import {
   collectRoundedDecimalMessages,
+  DECIMAL_INPUT_REGEX,
   getDecimalValidationValue,
   handleDecimalInputChange,
   validateDecimalField,
 } from "../../utils/decimalInput";
+import {
+  normalizeEmailInput,
+  normalizeIntegerInput,
+  normalizePhoneInput,
+  validateEmail,
+  validatePhone,
+  validateSafeText,
+} from "../../utils/formValidation";
 import {
   ui,
   type ViewProps,
@@ -69,6 +78,9 @@ const emptyForm = {
   newPin: "",
 };
 
+type FormState = typeof emptyForm;
+type FieldErrors = Partial<Record<keyof FormState, string>>;
+
 const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [rows, setRows] = useState<EmployeeRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +95,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editActive, setEditActive] = useState(true);
   const [form, setForm] = useState({ ...emptyForm });
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -118,10 +131,54 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     api.get<{ branches: BranchOption[] }>("/api/auth/branches").then((r) => setBranches(r.data.branches)).catch(() => {});
   }, []);
 
+  const validateEmployeeForm = (candidate: FormState = form) => {
+    const errors: FieldErrors = {};
+    const nameError = validateSafeText(candidate.name, "El nombre", { required: true, min: 3, max: 100 });
+    if (nameError) errors.name = nameError;
+
+    const emailError = validateEmail(candidate.email, { required: true });
+    if (emailError) errors.email = emailError;
+
+    const phoneError = validatePhone(candidate.phone, { required: false, minDigits: 10, maxDigits: 15 });
+    if (phoneError) errors.phone = phoneError;
+
+    if (editingId === null) {
+      if (!candidate.password || candidate.password.length < 6) errors.password = "La contrasena debe tener al menos 6 caracteres.";
+      if (!candidate.branchId) errors.branchId = "Seleccione una sucursal.";
+      if (!["CAJERO", "GERENTE", "ADMIN"].includes(candidate.role)) errors.role = "Seleccione un rol valido.";
+      if (candidate.role === "CAJERO") {
+        if (!/^\d{4}$/.test(candidate.pinCode)) errors.pinCode = "Los cajeros requieren un PIN de 4 digitos.";
+      }
+    }
+
+    if (editingId !== null && candidate.newPin) {
+      if (!/^\d{4}$/.test(candidate.newPin)) errors.newPin = "El nuevo PIN debe tener 4 digitos.";
+    }
+
+    const baseSalaryValidation = candidate.baseSalary.trim()
+      ? validateDecimalField(candidate.baseSalary, "El sueldo base", {
+          invalidMessage: "El sueldo base debe ser un numero valido con maximo 3 decimales.",
+        })
+      : null;
+    if (baseSalaryValidation && !baseSalaryValidation.ok) errors.baseSalary = baseSalaryValidation.error;
+
+    const commissionValidation = candidate.commissionRate.trim()
+      ? validateDecimalField(candidate.commissionRate, "La comision de ventas", {
+          max: 100,
+          invalidMessage: "La comision de ventas debe ser un numero valido con maximo 3 decimales.",
+          maxMessage: "La comision de ventas no puede ser mayor a 100.",
+        })
+      : null;
+    if (commissionValidation && !commissionValidation.ok) errors.commissionRate = commissionValidation.error;
+
+    return errors;
+  };
+
   const openCreate = () => {
     setForm({ ...emptyForm });
     setEditingId(null);
     setEditActive(true);
+    setFieldErrors({});
     setFormError(null);
     setShowForm(true);
   };
@@ -141,6 +198,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     });
     setEditingId(u.id);
     setEditActive(u.active);
+    setFieldErrors({});
     setFormError(null);
     setShowForm(true);
   };
@@ -149,27 +207,18 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     if (saving) return;
     setShowForm(false);
     setEditingId(null);
+    setFieldErrors({});
     setFormError(null);
   };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!form.name.trim() || !form.email.trim()) {
-      setFormError("Nombre y correo son obligatorios.");
+    const validation = validateEmployeeForm();
+    if (Object.keys(validation).length > 0) {
+      setFieldErrors(validation);
+      setFormError("Revisa los campos marcados antes de guardar.");
       return;
-    }
-
-    if (editingId === null) {
-      // Validaciones solo para creación
-      if (!form.password || !form.branchId) {
-        setFormError("Contraseña y sucursal son obligatorios.");
-        return;
-      }
-      if (form.role === "CAJERO" && !/^\d{4}$/.test(form.pinCode)) {
-        setFormError("Los cajeros requieren un PIN de 4 dígitos.");
-        return;
-      }
     }
 
     const baseSalaryValidation = form.baseSalary.trim()
@@ -200,6 +249,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
     setSaving(true);
     setFormError(null);
+    setFieldErrors({});
     try {
       if (roundingMessages.length > 0) {
         alert(roundingMessages.join("\n"));
@@ -231,6 +281,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setShowForm(false);
       setForm({ ...emptyForm });
       setEditingId(null);
+      setFieldErrors({});
       await load();
     } catch (err: any) {
       setFormError(err.response?.data?.message || "No se pudo guardar el empleado.");
@@ -252,11 +303,52 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     }
   };
 
-  const set = (k: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set = (k: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const raw = e.target.value;
+    const value =
+      k === "email"
+        ? normalizeEmailInput(raw)
+        : k === "phone"
+          ? normalizePhoneInput(raw).slice(0, 20)
+          : k === "pinCode" || k === "newPin"
+            ? normalizeIntegerInput(raw).slice(0, 4)
+            : raw;
+    const nextForm = { ...form, [k]: value };
+    const validation = validateEmployeeForm(nextForm);
+    setForm(nextForm);
+    setFormError(null);
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      if (validation[k]) next[k] = validation[k];
+      else delete next[k];
+      return next;
+    });
+  };
 
-  const setDecimal = (k: "baseSalary" | "commissionRate") => (e: React.ChangeEvent<HTMLInputElement>) =>
-    handleDecimalInputChange(e.target.value, (nextValue) => setForm((f) => ({ ...f, [k]: nextValue })));
+  const setDecimal = (k: "baseSalary" | "commissionRate") => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.trim();
+    if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        [k]: k === "baseSalary"
+          ? "El sueldo base debe ser un numero valido con maximo 3 decimales."
+          : "La comision de ventas debe ser un numero valido con maximo 3 decimales.",
+      }));
+      return;
+    }
+    handleDecimalInputChange(rawValue, (nextValue) => {
+      const nextForm = { ...form, [k]: nextValue };
+      const validation = validateEmployeeForm(nextForm);
+      setForm(nextForm);
+      setFormError(null);
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        if (validation[k]) next[k] = validation[k];
+        else delete next[k];
+        return next;
+      });
+    });
+  };
 
   return (
     <div>
@@ -351,16 +443,19 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               <div style={{ marginBottom: 14 }}>
                 <label style={ui.fieldLabel}>Nombre completo *</label>
                 <input style={ui.input} value={form.name} onChange={set("name")} placeholder="Nombre del empleado" autoFocus />
+                {fieldErrors.name && <p style={styles.fieldError}>{fieldErrors.name}</p>}
               </div>
               <div style={{ marginBottom: 14 }}>
                 <label style={ui.fieldLabel}>Correo electrónico *</label>
                 <input style={ui.input} value={form.email} onChange={set("email")} placeholder="correo@empresa.com" />
+                {fieldErrors.email && <p style={styles.fieldError}>{fieldErrors.email}</p>}
               </div>
 
               {/* Teléfono */}
               <div style={{ marginBottom: 14 }}>
                 <label style={ui.fieldLabel}>Teléfono</label>
                 <input style={ui.input} value={form.phone} onChange={set("phone")} placeholder="771 000 0000" />
+                {fieldErrors.phone && <p style={styles.fieldError}>{fieldErrors.phone}</p>}
               </div>
 
               {/* Sueldo base + % comisión */}
@@ -368,11 +463,13 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <div>
                   <label style={ui.fieldLabel}>Sueldo base ($)</label>
                   <input style={ui.input} type="text" inputMode="decimal" value={form.baseSalary} onChange={setDecimal("baseSalary")} placeholder="0.00" />
+                  {fieldErrors.baseSalary && <p style={styles.fieldError}>{fieldErrors.baseSalary}</p>}
                 </div>
                 <div>
                   <label style={ui.fieldLabel}>% Comisión de ventas</label>
                   <input style={ui.input} type="text" inputMode="decimal" value={form.commissionRate} onChange={setDecimal("commissionRate")} placeholder="0.00" />
                   <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 3 }}>Ej: 2.5 para 2.5%</p>
+                  {fieldErrors.commissionRate && <p style={styles.fieldError}>{fieldErrors.commissionRate}</p>}
                 </div>
               </div>
 
@@ -387,6 +484,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         <option value="GERENTE">Gerente</option>
                         <option value="ADMIN">Administrador</option>
                       </select>
+                      {fieldErrors.role && <p style={styles.fieldError}>{fieldErrors.role}</p>}
                     </div>
                     <div>
                       <label style={ui.fieldLabel}>Sucursal *</label>
@@ -396,16 +494,19 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           <option key={b.id} value={b.id}>{b.name}</option>
                         ))}
                       </select>
+                      {fieldErrors.branchId && <p style={styles.fieldError}>{fieldErrors.branchId}</p>}
                     </div>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 6 }}>
                     <div>
                       <label style={ui.fieldLabel}>Contraseña *</label>
                       <input style={ui.input} type="password" value={form.password} onChange={set("password")} placeholder="Mínimo 6 caracteres" />
+                      {fieldErrors.password && <p style={styles.fieldError}>{fieldErrors.password}</p>}
                     </div>
                     <div>
                       <label style={ui.fieldLabel}>PIN {form.role === "CAJERO" ? "(4 dígitos) *" : "(opcional)"}</label>
                       <input style={ui.input} value={form.pinCode} onChange={set("pinCode")} maxLength={4} placeholder="0000" />
+                      {fieldErrors.pinCode && <p style={styles.fieldError}>{fieldErrors.pinCode}</p>}
                     </div>
                   </div>
                   <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 8 }}>
@@ -420,6 +521,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   <div style={{ marginBottom: 14 }}>
                     <label style={ui.fieldLabel}>Nuevo PIN (dejar vacío para no cambiar)</label>
                     <input style={ui.input} value={form.newPin} onChange={set("newPin")} maxLength={4} placeholder="0000" />
+                    {fieldErrors.newPin && <p style={styles.fieldError}>{fieldErrors.newPin}</p>}
                     <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 3 }}>4 dígitos numéricos</p>
                   </div>
                   <div style={{ marginBottom: 14 }}>
@@ -479,7 +581,8 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 </div>
 
                 <h4 style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a", marginBottom: 8 }}>Últimas ventas</h4>
-                <table style={{ ...ui.table, marginBottom: 18 }}>
+                <div style={{ ...ui.tableWrap, boxShadow: "none", marginBottom: 18 }}>
+                <table style={ui.table}>
                   <thead>
                     <tr style={ui.theadRow}>
                       <th style={ui.th}>Folio</th>
@@ -526,12 +629,22 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   </tbody>
                 </table>
               </div>
+              </div>
             )}
           </div>
         </div>
       )}
     </div>
   );
+};
+
+const styles: { [key: string]: React.CSSProperties } = {
+  fieldError: {
+    color: "#b91c1c",
+    fontSize: 12,
+    fontWeight: 600,
+    marginTop: 5,
+  },
 };
 
 const Mini: React.FC<{ label: string; value: string; accent?: "blue" | "green" }> = ({ label, value, accent }) => {

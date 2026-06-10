@@ -1,11 +1,10 @@
 import {
   extractFullTicketHtml,
   mountTicketForPdfRender,
+  TICKET_WIDTH_MM,
+  TICKET_WIDTH_PX,
   unmountTicketRender,
 } from "./ticketEmailDocument.util";
-
-const TICKET_WIDTH_MM = 80;
-const TICKET_WIDTH_PX = 360;
 
 const waitForImages = async (root: HTMLElement): Promise<void> => {
   const images = Array.from(root.querySelectorAll("img"));
@@ -66,7 +65,7 @@ const renderTicketElementToPdfBase64 = async (ticket: HTMLElement): Promise<stri
     scale: 2,
     useCORS: true,
     allowTaint: false,
-    backgroundColor: "#fffdf9",
+    backgroundColor: "#ffffff",
     logging: false,
     width: contentWidth,
     height: contentHeight,

@@ -732,6 +732,99 @@ export const getRecentSales = async (req: Request, res: Response): Promise<void>
 };
 
 /**
+ * Obtener las últimas ventas realizadas ÚNICAMENTE por el empleado/cajero autenticado.
+ * Filtra por userId desde el token JWT — el cajero solo ve sus propias ventas.
+ * Soporta los mismos filtros de búsqueda que getRecentSales para el modal de reimpresión.
+ */
+export const getMyRecentSales = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  const { search, customer, phone, dateFrom, dateTo } = req.query;
+
+  try {
+    // Filtro base: solo ventas del empleado autenticado en su sucursal
+    const where: any = {
+      branchId: req.user.branchId,
+      userId: req.user.userId,
+    };
+
+    const hasSearchFilters =
+      (search && typeof search === "string" && search.trim()) ||
+      (customer && typeof customer === "string" && customer.trim()) ||
+      (phone && typeof phone === "string" && phone.trim()) ||
+      dateFrom ||
+      dateTo;
+
+    if (!hasSearchFilters) {
+      const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+      where.createdAt = { gte: fortyEightHoursAgo };
+    } else {
+      if (search && typeof search === "string" && search.trim()) {
+        where.invoiceNumber = { contains: search.trim() };
+      }
+
+      if (
+        (customer && typeof customer === "string" && customer.trim()) ||
+        (phone && typeof phone === "string" && phone.trim())
+      ) {
+        where.customer = {};
+        if (customer && typeof customer === "string" && customer.trim()) {
+          where.customer.name = { contains: customer.trim() };
+        }
+        if (phone && typeof phone === "string" && phone.trim()) {
+          where.customer.phone = { contains: phone.trim() };
+        }
+      }
+
+      if (dateFrom || dateTo) {
+        where.createdAt = {};
+        if (dateFrom) {
+          where.createdAt.gte = new Date(String(dateFrom));
+        }
+        if (dateTo) {
+          const dateToParsed = new Date(String(dateTo));
+          if (String(dateTo).length <= 10) {
+            dateToParsed.setHours(23, 59, 59, 999);
+          }
+          where.createdAt.lte = dateToParsed;
+        }
+      }
+    }
+
+    const mySales = await prisma.sale.findMany({
+      where,
+      take: 50,
+      orderBy: { createdAt: "desc" },
+      include: {
+        user: { select: { name: true } },
+        customer: { select: { name: true, phone: true } },
+      },
+    });
+
+    const mappedSales = mySales.map((s) => ({
+      id: s.id,
+      invoiceNumber: s.invoiceNumber,
+      createdAt: s.createdAt,
+      totalAmount: Number(s.totalAmount),
+      paymentMethod: s.paymentMethod,
+      cardType: s.cardType,
+      status: s.status,
+      refundStatus: s.refundStatus,
+      cajero: s.user.name,
+      customerName: s.customer?.name || null,
+      customerPhone: s.customer?.phone || null,
+    }));
+
+    res.status(200).json({ sales: mappedSales });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al recuperar ventas del empleado.", error: error.message });
+  }
+};
+
+/**
  * Cancelar una venta requiriendo la autorización por PIN de un Administrador o Gerente
  */
 export const authorizeAndCancelSale = async (req: Request, res: Response): Promise<void> => {
@@ -1497,6 +1590,11 @@ export const confirmQrPayment = async (req: Request, res: Response): Promise<voi
     const sale = await prisma.sale.findUnique({ where: { invoiceNumber } });
     if (!sale) {
       res.status(404).json({ message: "Venta no encontrada." });
+      return;
+    }
+
+    if (sale.userId !== req.user.userId) {
+      res.status(403).json({ message: "No autorizado. Esta venta no pertenece a su sesión." });
       return;
     }
 
