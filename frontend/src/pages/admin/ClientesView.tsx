@@ -3,6 +3,7 @@ import { X, Plus, Pencil } from "lucide-react";
 import api from "../../services/api";
 import {
   collectRoundedDecimalMessages,
+  DECIMAL_INPUT_REGEX,
   getDecimalValidationValue,
   handleDecimalInputChange,
   validateDecimalField,
@@ -269,12 +270,14 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const updateFormField = (k: keyof typeof emptyForm, value: string) => {
     const nextValue = k === "taxId" ? value.toUpperCase().replace(/\s+/g, "") : value;
-    setForm((f) => ({ ...f, [k]: nextValue }));
+    const nextForm = { ...form, [k]: nextValue };
+    const validation = validateCustomerForm(nextForm);
+    setForm(nextForm);
     setFormError(null);
     setFieldErrors((prev) => {
-      if (!prev[k]) return prev;
       const next = { ...prev };
-      delete next[k];
+      if (validation.errors[k]) next[k] = validation.errors[k];
+      else delete next[k];
       return next;
     });
   };
@@ -284,8 +287,17 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       updateFormField(k, e.target.value);
 
-  const setCreditLimit = (e: React.ChangeEvent<HTMLInputElement>) =>
-    handleDecimalInputChange(e.target.value, (nextValue) => updateFormField("creditLimit", nextValue));
+  const setCreditLimit = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.trim();
+    if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        creditLimit: "El limite de credito debe ser numerico con maximo 3 decimales.",
+      }));
+      return;
+    }
+    handleDecimalInputChange(rawValue, (nextValue) => updateFormField("creditLimit", nextValue));
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

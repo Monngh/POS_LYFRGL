@@ -2,6 +2,14 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { ShieldCheck, UserCheck, Delete, KeyRound, AlertCircle, RefreshCw } from "lucide-react";
 import api from "../services/api";
+import {
+  type FieldErrors,
+  normalizeEmailInput,
+  normalizeSpaces,
+  validateEmail,
+  validateInteger,
+  validateSearchText,
+} from "../utils/formValidation";
 
 interface Branch {
   id: number;
@@ -50,12 +58,14 @@ const Login: React.FC = () => {
   // Formulario Admin
   const [adminEmail, setAdminEmail] = useState("admin@fmb.com");
   const [adminPassword, setAdminPassword] = useState("AdminPassword#2026");
+  const [adminFieldErrors, setAdminFieldErrors] = useState<FieldErrors<"email" | "password">>({});
 
   // Formulario Cajero (PIN)
   const [cashierEmail, setCashierEmail] = useState("");
   const [pinCode, setPinCode] = useState("");
   const [cashierSearch, setCashierSearch] = useState("");
   const [showCashierDropdown, setShowCashierDropdown] = useState(false);
+  const [cashierFieldErrors, setCashierFieldErrors] = useState<FieldErrors<"cashier" | "pin">>({});
 
   // Cargar sucursales al montar el componente
   useEffect(() => {
@@ -87,6 +97,7 @@ const Login: React.FC = () => {
       setCashiers([]);
       setCashierEmail("");
       setCashierSearch("");
+      setCashierFieldErrors({});
       try {
         const response = await api.get(`/api/auth/cashiers/${selectedBranchId}`);
         const cashierList = response.data.cashiers;
@@ -94,6 +105,7 @@ const Login: React.FC = () => {
         if (cashierList.length > 0) {
           setCashierEmail(cashierList[0].email);
           setCashierSearch(cashierList[0].name); // Inicializar búsqueda con el primer cajero
+          setCashierFieldErrors({});
         }
       } catch (err) {
         console.error("Error al cargar cajeros:", err);
@@ -110,6 +122,38 @@ const Login: React.FC = () => {
   const filteredCashiers = cashiers.filter((c) =>
     c.name.toLowerCase().includes(cashierSearch.toLowerCase())
   );
+
+  const hasErrors = (errors: FieldErrors) => Object.values(errors).some(Boolean);
+
+  const validateAdminForm = () => ({
+    email: validateEmail(adminEmail, { required: true }),
+    password: normalizeSpaces(adminPassword) ? undefined : "La contrasena es obligatoria.",
+  });
+
+  const validateCashierForm = () => ({
+    cashier:
+      validateSearchText(cashierSearch, "La busqueda", { max: 80 }) ||
+      (cashierEmail ? undefined : "Seleccione un cajero valido."),
+    pin: validateInteger(pinCode, "El PIN", { min: 0, max: 9999 }) || (pinCode.length === 4 ? undefined : "El PIN debe tener 4 digitos."),
+  });
+
+  const setAdminField = (field: "email" | "password", value: string) => {
+    const next = field === "email" ? normalizeEmailInput(value) : value;
+    if (field === "email") setAdminEmail(next);
+    if (field === "password") setAdminPassword(next);
+    setAdminFieldErrors((prev) => ({
+      ...prev,
+      [field]: field === "email" ? validateEmail(next, { required: true }) : normalizeSpaces(next) ? undefined : "La contrasena es obligatoria.",
+    }));
+  };
+
+  const setCashierSearchField = (value: string) => {
+    const error = validateSearchText(value, "La busqueda", { max: 80 });
+    setCashierSearch(value);
+    setShowCashierDropdown(true);
+    setCashierEmail("");
+    setCashierFieldErrors((prev) => ({ ...prev, cashier: error }));
+  };
 
   // Escuchar teclado físico para el ingreso del PIN de cajero
   useEffect(() => {
@@ -129,10 +173,12 @@ const Login: React.FC = () => {
         e.preventDefault();
         setError(null);
         setPinCode((prev) => (prev.length < 4 ? prev + e.key : prev));
+        setCashierFieldErrors((prev) => ({ ...prev, pin: undefined }));
       } else if (e.key === "Backspace" || e.key === "Delete") {
         e.preventDefault();
         setError(null);
         setPinCode((prev) => prev.slice(0, -1));
+        setCashierFieldErrors((prev) => ({ ...prev, pin: undefined }));
       } else if (e.key === "Enter") {
         e.preventDefault();
         if (pinCode.length === 4 && cashierEmail) {
@@ -150,9 +196,14 @@ const Login: React.FC = () => {
   const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    const errors = validateAdminForm();
+    setAdminFieldErrors(errors);
+    if (hasErrors(errors)) return;
+
     setLoading(true);
     try {
-      await loginAsAdmin(adminEmail, adminPassword);
+      await loginAsAdmin(normalizeEmailInput(adminEmail), adminPassword);
     } catch (err: any) {
       setError(err.message || "Credenciales inválidas.");
     } finally {
@@ -164,23 +215,21 @@ const Login: React.FC = () => {
     setError(null);
     if (pinCode.length < 4) {
       setPinCode((prev) => prev + num);
+      setCashierFieldErrors((prev) => ({ ...prev, pin: undefined }));
     }
   };
 
   const handleClearPin = () => {
     setPinCode("");
     setError(null);
+    setCashierFieldErrors((prev) => ({ ...prev, pin: "El PIN es obligatorio." }));
   };
 
   const handleCashierSubmit = async () => {
-    if (!cashierEmail) {
-      setError("Por favor seleccione un cajero.");
-      return;
-    }
-    if (pinCode.length < 4) {
-      setError("El PIN debe tener 4 dígitos.");
-      return;
-    }
+    const errors = validateCashierForm();
+    setCashierFieldErrors(errors);
+    if (hasErrors(errors)) return;
+
     setError(null);
     setLoading(true);
     try {
@@ -246,6 +295,7 @@ const Login: React.FC = () => {
           onClick={() => {
             setActiveTab("cashier");
             setError(null);
+            setAdminFieldErrors({});
           }}
         >
           <UserCheck size={16} />
@@ -259,6 +309,7 @@ const Login: React.FC = () => {
           onClick={() => {
             setActiveTab("admin");
             setError(null);
+            setCashierFieldErrors({});
           }}
         >
           <ShieldCheck size={16} />
@@ -276,7 +327,7 @@ const Login: React.FC = () => {
 
       {/* Formulario Administradores */}
       {activeTab === "admin" && (
-        <form onSubmit={handleAdminSubmit} style={formStyle}>
+        <form onSubmit={handleAdminSubmit} style={formStyle} noValidate>
           <div style={styles.inputGroup}>
             <label style={styles.label}>Usuario / Correo</label>
             <input
@@ -285,8 +336,11 @@ const Login: React.FC = () => {
               className="input-corporate"
               placeholder="admin@fmb.com"
               value={adminEmail}
-              onChange={(e) => setAdminEmail(e.target.value)}
+              onChange={(e) => setAdminField("email", e.target.value)}
+              onBlur={() => setAdminFieldErrors((prev) => ({ ...prev, email: validateEmail(adminEmail, { required: true }) }))}
+              style={adminFieldErrors.email ? styles.inputInvalid : undefined}
             />
+            {adminFieldErrors.email && <p style={styles.fieldError}>{adminFieldErrors.email}</p>}
           </div>
           <div style={styles.inputGroup}>
             <label style={styles.label}>Contraseña</label>
@@ -296,8 +350,11 @@ const Login: React.FC = () => {
               className="input-corporate"
               placeholder="••••••••"
               value={adminPassword}
-              onChange={(e) => setAdminPassword(e.target.value)}
+              onChange={(e) => setAdminField("password", e.target.value)}
+              onBlur={() => setAdminFieldErrors((prev) => ({ ...prev, password: normalizeSpaces(adminPassword) ? undefined : "La contrasena es obligatoria." }))}
+              style={adminFieldErrors.password ? styles.inputInvalid : undefined}
             />
+            {adminFieldErrors.password && <p style={styles.fieldError}>{adminFieldErrors.password}</p>}
           </div>
           <button
             type="submit"
@@ -350,14 +407,25 @@ const Login: React.FC = () => {
                   className="input-corporate"
                   value={cashierSearch}
                   onChange={(e) => {
-                    setCashierSearch(e.target.value);
-                    setShowCashierDropdown(true);
-                    setCashierEmail("");
+                    setCashierSearchField(e.target.value);
                   }}
                   onFocus={() => setShowCashierDropdown(true)}
-                  onBlur={() => setTimeout(() => setShowCashierDropdown(false), 200)}
-                  style={{ width: "100%", padding: "10px 14px", fontSize: "14px", borderRadius: "6px", border: "1px solid #cbd5e1" }}
+                  onBlur={() => {
+                    setCashierFieldErrors((prev) => ({
+                      ...prev,
+                      cashier: validateSearchText(cashierSearch, "La busqueda", { max: 80 }) || (cashierEmail ? undefined : "Seleccione un cajero valido."),
+                    }));
+                    setTimeout(() => setShowCashierDropdown(false), 200);
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    fontSize: "14px",
+                    borderRadius: "6px",
+                    border: cashierFieldErrors.cashier ? "1px solid #ef4444" : "1px solid #cbd5e1",
+                  }}
                 />
+                {cashierFieldErrors.cashier && <p style={styles.fieldError}>{cashierFieldErrors.cashier}</p>}
                 {showCashierDropdown && (
                   <div style={styles.autocompleteDropdown}>
                     {filteredCashiers.map((c) => (
@@ -375,6 +443,7 @@ const Login: React.FC = () => {
                         onMouseDown={() => {
                           setCashierEmail(c.email);
                           setCashierSearch(c.name);
+                          setCashierFieldErrors((prev) => ({ ...prev, cashier: undefined }));
                           setShowCashierDropdown(false);
                         }}
                         className="autocomplete-item-hover"
@@ -408,6 +477,8 @@ const Login: React.FC = () => {
               ))}
             </div>
           </div>
+
+          {cashierFieldErrors.pin && <p style={styles.fieldError}>{cashierFieldErrors.pin}</p>}
 
           {/* PIN Pad */}
           <div style={pinPadStyle}>
@@ -685,6 +756,17 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: "13px",
     fontWeight: "500",
     color: "#991b1b",
+  },
+  fieldError: {
+    margin: "2px 0 0",
+    color: "#b91c1c",
+    fontSize: "11px",
+    fontWeight: "600",
+    lineHeight: "1.35",
+  },
+  inputInvalid: {
+    borderColor: "#ef4444",
+    boxShadow: "0 0 0 2px rgba(239, 68, 68, 0.12)",
   },
   form: {
     display: "flex",
