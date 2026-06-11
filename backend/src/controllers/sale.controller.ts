@@ -1508,13 +1508,7 @@ export const confirmQrPayment = async (req: Request, res: Response): Promise<voi
         }
       });
 
-      // 2. Sumar el total a expectedAmount de la sesión
-      if (sale.cashSessionId) {
-        await tx.cashSession.update({
-          where: { id: sale.cashSessionId },
-          data: { expectedAmount: { increment: Number(sale.totalAmount) } }
-        });
-      }
+      // 2. No sumamos el total a expectedAmount de la sesión ya que es un pago no-efectivo (QR)
       return updated;
     });
 
