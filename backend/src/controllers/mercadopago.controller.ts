@@ -30,6 +30,7 @@ export const createQRPreference = async (req: Request, res: Response): Promise<v
     const client = getMercadoPagoClient();
     const preference = new Preference(client);
 
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
     const result = await preference.create({
       body: {
         items: [
@@ -42,6 +43,9 @@ export const createQRPreference = async (req: Request, res: Response): Promise<v
           }
         ],
         external_reference: externalReference,
+        expires: true,
+        expiration_date_from: new Date().toISOString(),
+        expiration_date_to: expiresAt,
         payment_methods: {
           excluded_payment_types: [
             { id: 'ticket' },
@@ -60,7 +64,8 @@ export const createQRPreference = async (req: Request, res: Response): Promise<v
       success: true,
       preferenceId: result.id,
       initPoint: initPoint,
-      externalReference
+      externalReference,
+      expiresAt: expiresAt
     });
   } catch (error: any) {
     console.error("Error al crear preferencia de Mercado Pago:", error);
