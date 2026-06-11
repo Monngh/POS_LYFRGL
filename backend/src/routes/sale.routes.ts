@@ -8,6 +8,7 @@ import {
   createBankDeposit,
   getRecentDeposits,
   confirmQrPayment,
+  retryQrPayment,
   searchDeposits,
   getDepositById,
   confirmDeposit,
@@ -40,6 +41,7 @@ router.post("/deposits/:id/confirm", enforceCajaDevice, confirmDeposit);
 router.post("/deposits/:id/cancel", enforceCajaDevice, cancelDeposit);
 router.post("/deposits/:id/sync", enforceCajaDevice, syncDepositStatus);
 router.post("/confirm-qr", enforceCajaDevice, confirmQrPayment);
+router.post("/retry-qr", enforceCajaDevice, retryQrPayment);
 router.get("/detail", getSaleDetailForCashier);
 router.post("/send-ticket-email", sendTicketByEmail);
 
