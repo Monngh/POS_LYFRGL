@@ -1,0 +1,136 @@
+import React, { useEffect, useState } from "react";
+import { ArrowLeft, ChevronRight } from "lucide-react";
+import api from "../../services/api";
+import { ui, type ViewProps, SectionHeader, Badge } from "./shared";
+import { REPORTS, REPORT_CATEGORIES, type ReportDef } from "./reports/reportConfig";
+import ReportRunner from "./reports/ReportRunner";
+import ResumenReport from "./reports/ResumenReport";
+
+interface BranchOption {
+  id: number;
+  name: string;
+}
+
+const ReportesView: React.FC<ViewProps> = ({ branchId }) => {
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [branches, setBranches] = useState<BranchOption[]>([]);
+
+  useEffect(() => {
+    api.get<{ branches: BranchOption[] }>("/api/auth/branches").then((r) => setBranches(r.data.branches)).catch(() => {});
+  }, []);
+
+  const branchLabel =
+    branchId === "all" ? "Todas las sucursales" : branches.find((b) => String(b.id) === branchId)?.name || `Sucursal #${branchId}`;
+
+  const selected = selectedKey ? REPORTS.find((r) => r.key === selectedKey) ?? null : null;
+
+  // ---------------- Vista de un reporte seleccionado ----------------
+  if (selected) {
+    return (
+      <div>
+        <button style={{ ...ui.ghostBtn, marginBottom: 16 }} className="active-tap" onClick={() => setSelectedKey(null)}>
+          <ArrowLeft size={15} /> Catálogo de reportes
+        </button>
+        <SectionHeader
+          title={selected.title}
+          subtitle={selected.description}
+          right={
+            selected.branchScoped ? (
+              <span style={{ fontSize: 13, color: "#64748b", fontWeight: 600 }}>
+                Sucursal: <span style={{ color: "#1e3a8a", fontWeight: 700 }}>{branchLabel}</span>
+              </span>
+            ) : undefined
+          }
+        />
+        {selected.kind === "summary" ? (
+          <ResumenReport branchId={branchId} branchLabel={branchLabel} />
+        ) : (
+          <ReportRunner def={selected} branchId={branchId} branchLabel={branchLabel} />
+        )}
+      </div>
+    );
+  }
+
+  // ---------------- Catálogo ----------------
+  return (
+    <div>
+      <SectionHeader title="Reportes" subtitle="Centro de reportes — seleccione el documento que desea generar" />
+
+      {REPORT_CATEGORIES.map((category) => {
+        const items = REPORTS.filter((r) => r.category === category);
+        if (items.length === 0) return null;
+        return (
+          <div key={category} style={{ marginBottom: 28 }}>
+            <div style={styles.catLabel}>{category}</div>
+            <div style={styles.grid}>
+              {items.map((def) => (
+                <ReportCard key={def.key} def={def} onClick={() => setSelectedKey(def.key)} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+const ReportCard: React.FC<{ def: ReportDef; onClick: () => void }> = ({ def, onClick }) => {
+  const Icon = def.icon;
+  return (
+    <button onClick={onClick} className="active-tap" style={styles.card}>
+      <div style={styles.cardHead}>
+        <div style={styles.cardIcon}>
+          <Icon size={20} color="#2563eb" />
+        </div>
+        {!def.available && <Badge tone="amber">Próximamente</Badge>}
+        <ChevronRight size={16} color="#cbd5e1" style={{ marginLeft: "auto" }} />
+      </div>
+      <div style={styles.cardTitle}>{def.title}</div>
+      <div style={styles.cardDesc}>{def.description}</div>
+    </button>
+  );
+};
+
+const styles: { [k: string]: React.CSSProperties } = {
+  catLabel: {
+    fontSize: 12,
+    fontWeight: 800,
+    color: "#94a3b8",
+    textTransform: "uppercase",
+    letterSpacing: "0.6px",
+    marginBottom: 12,
+  },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+    gap: 16,
+  },
+  card: {
+    textAlign: "left",
+    backgroundColor: "#ffffff",
+    border: "1px solid #e2e8f0",
+    borderRadius: 12,
+    padding: 18,
+    cursor: "pointer",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+    transition: "border-color 0.15s ease, box-shadow 0.15s ease",
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    fontFamily: "inherit",
+  },
+  cardHead: { display: "flex", alignItems: "center", gap: 10 },
+  cardIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#eff6ff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardTitle: { fontSize: 15, fontWeight: 800, color: "#0f172a", marginTop: 2 },
+  cardDesc: { fontSize: 12.5, color: "#64748b", lineHeight: 1.5 },
+};
+
+export default ReportesView;

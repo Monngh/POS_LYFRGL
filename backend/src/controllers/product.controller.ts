@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { prisma } from "../app";
+import { normalizeSearchText, parseSearchWords } from "../utils/search.util";
 
 /**
  * Buscar productos por código de barras, SKU o nombre y retornar su inventario en la sucursal actual
@@ -14,6 +15,8 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
 
   try {
     const qStr = query ? String(query).trim() : "";
+    const rawWords = qStr ? qStr.split(/\s+/).filter((w) => w.length > 0) : [];
+    const searchWords = qStr ? parseSearchWords(qStr) : [];
 
     // Si la búsqueda es vacía, retornar listado de prueba rápido (ej. top 10 productos)
     const whereCondition = qStr
@@ -22,24 +25,88 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
           OR: [
             { sku: { contains: qStr } },
             { barcode: { contains: qStr } },
-            { name: { contains: qStr } },
+            ...(rawWords.length > 0 ? [{ name: { contains: rawWords[0] } }] : []),
           ],
         }
       : { active: true };
 
-    const products = await prisma.product.findMany({
+    const productsRaw = await prisma.product.findMany({
       where: whereCondition,
-      take: 15,
+      take: rawWords.length > 1 ? 40 : 15,
       include: {
         inventories: {
           where: { branchId: req.user.branchId },
         },
+        productTaxes: {
+          include: {
+            taxType: true,
+          },
+        },
+        promotionProducts: {
+          include: {
+            promotion: {
+              include: {
+                promotionType: true
+              }
+            }
+          }
+        }
       },
     });
 
-    // Mapear el resultado para retornar un formato plano con stock fácil de leer por el frontend
+    const products = qStr
+      ? productsRaw
+          .filter((p) => {
+            const normQuery = normalizeSearchText(qStr);
+            const normSku = normalizeSearchText(p.sku);
+            const normBarcode = p.barcode ? normalizeSearchText(p.barcode) : "";
+
+            if (normSku.includes(normQuery) || normBarcode.includes(normQuery)) {
+              return true;
+            }
+
+            if (searchWords.length === 0) return true;
+
+            const normName = normalizeSearchText(p.name);
+            return searchWords.every((word) => normName.includes(word));
+          })
+          .slice(0, 15)
+      : productsRaw;
+
+    const today = new Date();
+
+    // Mapear el resultado para retornar un formato plano con stock fácil de leer por el frontend y promociones activas
     const mappedProducts = products.map((p) => {
       const branchInventory = p.inventories[0];
+      
+      // Encontrar promoción activa
+      const activePP = p.promotionProducts.find(pp => 
+        pp.promotion.isActive &&
+        pp.promotion.startDate <= today &&
+        pp.promotion.endDate >= today
+      );
+
+      const activePromo = activePP ? {
+        id: activePP.promotion.id,
+        name: activePP.promotion.name,
+        type: activePP.promotion.promotionType.name,
+        value: activePP.promotion.value ? Number(activePP.promotion.value) : null,
+        minQuantity: activePP.promotion.minQuantity,
+        payQuantity: activePP.promotion.payQuantity,
+        specialPrice: activePP.promotion.specialPrice ? Number(activePP.promotion.specialPrice) : null,
+      } : null;
+
+      const taxes = p.productTaxes
+        ? p.productTaxes
+            .map((pt) => pt.taxType)
+            .filter((t) => t.active)
+            .map((t) => ({
+              id: t.id,
+              name: t.name,
+              rate: Number(t.rate),
+            }))
+        : [];
+
       return {
         id: p.id,
         sku: p.sku,
@@ -50,6 +117,8 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
         sellPrice: Number(p.sellPrice),
         stock: branchInventory ? branchInventory.quantity : 0,
         minStock: branchInventory ? branchInventory.minStock : 5,
+        activePromotion: activePromo,
+        taxes,
       };
     });
 

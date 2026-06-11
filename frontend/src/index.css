@@ -130,6 +130,12 @@ body {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
+/* Botones deshabilitados: feedback visual global (operaciones en proceso, validaciones) */
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 /* Animaciones sutiles para interacciones táctiles */
 @keyframes pulse-subtle {
   0%, 100% { transform: scale(1); }
@@ -158,3 +164,153 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+
+/* Scrollbar del menú lateral del panel admin:
+   fino y con track transparente para que combine con el fondo navy
+   (evita la franja vertical clara que rompía la simetría). */
+.admin-sidebar-nav {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+.admin-sidebar-nav::-webkit-scrollbar {
+  width: 6px;
+}
+.admin-sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+.admin-sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 3px;
+}
+.admin-sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* Encabezado fijo en tablas con scroll vertical */
+.table-sticky-head thead th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  z-index: 2;
+}
+
+/* Efectos de Hover para Autocomplete Dropdown */
+.autocomplete-item-hover:hover {
+  background-color: #f1f5f9 !important;
+}
+
+/* Notificaciones Toast Premium */
+@keyframes toast-slide-in {
+  from {
+    transform: translateY(30px) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.toast-premium {
+  animation: toast-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.autofact-table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+.autofact-table-scroll table {
+  min-width: 700px;
+}
+
+/* ==========================================================================
+   Portal Autofacturación — Ajustes responsive
+   ========================================================================== */
+@media (max-width: 768px) {
+  .autofact-card {
+    padding: 20px 16px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .autofact-form-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  
+  .autofact-form-grid > div {
+    grid-column: span 1 !important;
+  }
+  
+  .autofact-table-scroll {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    margin-top: 12px !important;
+  }
+  
+  .autofact-table-scroll table {
+    min-width: 580px !important;
+  }
+  
+  .autofact-table-scroll table td {
+    white-space: nowrap !important;
+    padding: 10px 8px !important;
+  }
+}
+
+/* Responsive Grid Utility Classes */
+.grid {
+  display: grid;
+}
+.gap-4 {
+  gap: 16px;
+}
+.grid-cols-1 {
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+@media (min-width: 640px) {
+  .sm\:grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  .lg\:grid-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ==========================================================================
+   Facturación Global — Ajustes responsive
+   ========================================================================== */
+.fact-global-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.fact-global-layout > div {
+  min-width: 0;
+}
+
+.fact-global-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 1024px) {
+  .fact-global-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .fact-global-stats {
+    grid-template-columns: 1fr;
+  }
+}
+

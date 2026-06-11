@@ -1,172 +1,444 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "sqlserver"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 model Branch {
-  id           Int           @id @default(autoincrement())
-  name         String
-  address      String?
-  phone        String?
-  active       Boolean       @default(true)
-  users        User[]
-  inventories  Inventory[]
-  kardexEntries Kardex[]
-  sales        Sale[]
-  cashSessions CashSession[]
-  bankDeposits BankDeposit[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id             Int             @id @default(autoincrement())
+  name           String          @unique
+  address        String?
+  phone          String?
+  active         Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  bankDeposits   BankDeposit[]
+  cashSessions   CashSession[]
+  inventories    Inventory[]
+  kardexEntries  Kardex[]
+  sales          Sale[]
+  users          User[]
+  purchaseOrders PurchaseOrder[] @relation("purchaseOrdersBranch")
 }
 
 model User {
-  id           Int           @id @default(autoincrement())
-  email        String        @unique
-  passwordHash String
-  pinCode      String?       // PIN de 4 dígitos para cajeros (cifrado/plano)
-  name         String
-  role         String        // 'ADMIN', 'GERENTE', 'CAJERO'
-  active       Boolean       @default(true)
-  branchId     Int
-  branch       Branch        @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  kardexEntries Kardex[]
-  sales        Sale[]
-  cashSessions CashSession[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id                     Int             @id @default(autoincrement())
+  email                  String          @unique
+  passwordHash           String
+  pinCode                String?
+  name                   String
+  role                   String
+  active                 Boolean         @default(true)
+  phone                  String?
+  baseSalary             Decimal?        @db.Decimal(18, 2)
+  commissionRate         Decimal?        @db.Decimal(18, 4)
+  branchId               Int
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  bankDeposits           BankDeposit[]
+  cashSessions           CashSession[]
+  kardexEntries          Kardex[]
+  returns                Return[]        @relation("UserReturns")
+  authorizedReturns      Return[]        @relation("UserAuthorizedReturns")
+  sales                  Sale[]
+  branch                 Branch          @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+  purchaseOrdersCreated  PurchaseOrder[] @relation("purchaseCreatedBy")
+  purchaseOrdersReceived PurchaseOrder[] @relation("purchaseReceivedBy")
 }
 
 model Product {
-  id           Int           @id @default(autoincrement())
-  sku          String        @unique
-  barcode      String?       @unique
-  name         String
-  description  String?
-  costPrice    Decimal       @db.Decimal(18, 2)
-  sellPrice    Decimal       @db.Decimal(18, 2)
-  active       Boolean       @default(true)
-  inventories  Inventory[]
-  kardexEntries Kardex[]
-  saleDetails  SaleDetail[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id                Int                @id @default(autoincrement())
+  sku               String             @unique
+  barcode           String?            @unique
+  name              String
+  description       String?
+  costPrice         Decimal            @db.Decimal(18, 2)
+  sellPrice         Decimal            @db.Decimal(18, 2)
+  active            Boolean            @default(true)
+  isReturnable      Boolean            @default(true)
+  returnWindowDays  Int                @default(30)
+  trackingType      String             @default("NONE")
+  satProductKey     String             @default("01010101")
+  satUnitKey        String             @default("H87")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  inventories       Inventory[]
+  kardexEntries     Kardex[]
+  promotionProducts PromotionProduct[]
+  saleDetails       SaleDetail[]
+  returnDetails     ReturnDetail[]
+  productTaxes      ProductTax[]
+  purchaseDetails   PurchaseDetail[]   @relation("purchaseDetails")
+  suppliers         SupplierProduct[]
 }
 
 model Inventory {
-  id        Int      @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   productId Int
-  product   Product  @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   branchId  Int
-  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  quantity  Int      @default(0) // Piezas (enteros)
-  minStock  Int      @default(5)
-  maxStock  Int      @default(100)
-  
+  quantity  Int     @default(0)
+  minStock  Int     @default(5)
+  maxStock  Int     @default(100)
+  branch    Branch  @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+  product   Product @relation(fields: [productId], references: [id], onUpdate: NoAction)
+
   @@unique([productId, branchId])
 }
 
 model Kardex {
-  id             Int      @id @default(autoincrement())
-  productId      Int
-  product        Product  @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  branchId       Int
-  branch         Branch   @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  userId         Int
-  user           User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  quantityChange Int      // Cantidad de piezas añadidas (+) o restadas (-)
-  balanceAfter   Int      // Stock final después del movimiento
-  movementType   String   // 'COMPRA', 'VENTA', 'DEVOLUCION', 'TRASPASO_ENTRADA', 'TRASPASO_SALIDA', 'AJUSTE_MERMA', 'AJUSTE_INVENTARIO'
-  reason         String?
-  createdAt      DateTime @default(now())
+  id              Int            @id @default(autoincrement())
+  productId       Int
+  branchId        Int
+  userId          Int
+  quantityChange  Int
+  balanceAfter    Int
+  movementType    String
+  reason          String?
+  purchaseOrderId Int?
+  createdAt       DateTime       @default(now())
+  branch          Branch         @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+  product         Product        @relation(fields: [productId], references: [id], onUpdate: NoAction)
+  user            User           @relation(fields: [userId], references: [id], onUpdate: NoAction)
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onUpdate: NoAction, onDelete: SetNull)
 }
 
 model CashSession {
-  id             Int       @id @default(autoincrement())
+  id             Int           @id @default(autoincrement())
   branchId       Int
-  branch         Branch    @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   userId         Int
-  user           User      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  openedAt       DateTime  @default(now())
+  openedAt       DateTime      @default(now())
   closedAt       DateTime?
-  initialAmount  Decimal   @db.Decimal(18, 2)
-  expectedAmount Decimal   @db.Decimal(18, 2)
-  declaredAmount Decimal?  @db.Decimal(18, 2)
-  difference     Decimal?  @db.Decimal(18, 2)
-  cashIn         Decimal   @default(0) @db.Decimal(18, 2)
-  cashOut        Decimal   @default(0) @db.Decimal(18, 2)
-  status         String    @default("ABIERTA") // 'ABIERTA', 'CERRADA'
-  sales          Sale[]
+  initialAmount  Decimal       @db.Decimal(18, 2)
+  expectedAmount Decimal       @db.Decimal(18, 2)
+  declaredAmount Decimal?      @db.Decimal(18, 2)
+  difference     Decimal?      @db.Decimal(18, 2)
+  cashIn         Decimal       @default(0) @db.Decimal(18, 2)
+  cashOut        Decimal       @default(0) @db.Decimal(18, 2)
+  status         String        @default("ABIERTA")
+  deviceId       String?       @db.VarChar(64)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
   bankDeposits   BankDeposit[]
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  cuts           CashCut[]
+  branch         Branch        @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+  user           User          @relation(fields: [userId], references: [id], onUpdate: NoAction)
+  sales          Sale[]
+  returns        Return[]
+
+  @@index([userId, status])
 }
 
 model Customer {
-  id          Int      @id @default(autoincrement())
-  name        String
-  email       String?
-  phone       String?
-  taxId       String?  // RFC o equivalente fiscal
-  address     String?
-  creditLimit Decimal  @default(0) @db.Decimal(18, 2)
-  balance     Decimal  @default(0) @db.Decimal(18, 2) // Saldo pendiente
-  sales       Sale[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           Int           @id @default(autoincrement())
+  name         String
+  email        String?
+  phone        String?
+  passwordHash String?
+  taxId        String?
+  address      String?
+  creditLimit  Decimal       @default(0) @db.Decimal(18, 2)
+  balance      Decimal       @default(0) @db.Decimal(18, 2)
+  points       Int           @default(0)
+  zipCode      String?
+  taxRegime    String?
+  cfdiUse      String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  sales        Sale[]
+  storeCredits StoreCredit[]
+
+  @@index([taxId])
 }
 
 model Sale {
-  id             Int          @id @default(autoincrement())
-  invoiceNumber  String       @unique // Folio de venta único
-  branchId       Int
-  branch         Branch       @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  userId         Int
-  user           User         @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  customerId     Int?
-  customer       Customer?    @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  cashSessionId  Int?
-  cashSession    CashSession? @relation(fields: [cashSessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  totalAmount    Decimal      @db.Decimal(18, 2)
-  taxAmount      Decimal      @db.Decimal(18, 2)
-  discountAmount Decimal      @default(0) @db.Decimal(18, 2)
-  paymentMethod  String       // 'EFECTIVO', 'TARJETA', 'CREDITO', 'MIXTO'
-  cashReceived   Decimal?     @db.Decimal(18, 2)
-  changeGiven    Decimal?     @db.Decimal(18, 2)
-  status         String       @default("COMPLETADA") // 'COMPLETADA', 'CANCELADA'
-  cfdiUuid       String?      // Folio fiscal de facturación SAT (si ya se autofacturó)
-  cfdiEmail      String?      // Correo al que se envió la factura timbrada
-  saleDetails    SaleDetail[]
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id                   Int           @id @default(autoincrement())
+  invoiceNumber        String        @unique
+  branchId             Int
+  userId               Int
+  customerId           Int?
+  cashSessionId        Int?
+  totalAmount          Decimal       @db.Decimal(18, 2)
+  taxAmount            Decimal       @db.Decimal(18, 2)
+  discountAmount       Decimal       @default(0) @db.Decimal(18, 2)
+  paymentMethod        String
+  cashReceived         Decimal?      @db.Decimal(18, 2)
+  changeGiven          Decimal?      @db.Decimal(18, 2)
+  status               String        @default("COMPLETADA")
+  pointsEarned         Int           @default(0)
+  pointsRedeemed       Int           @default(0)
+  pointsDiscount       Decimal       @default(0) @db.Decimal(18, 2)
+  cfdiEmail            String?
+  cfdiUuid             String?
+  cardType             String?
+  mercadoPagoPaymentId String?
+  mercadoPagoReference String?
+  mercadoPagoStatus    String?
+  mercadoPagoQrData    String?       @db.VarChar(Max)
+  refundStatus         String?
+  refundId             String?
+  refundDate           DateTime?
+  refundAmount         Decimal?      @db.Decimal(18, 2)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  branch               Branch        @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+  cashSession          CashSession?  @relation(fields: [cashSessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customer             Customer?     @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user                 User          @relation(fields: [userId], references: [id], onUpdate: NoAction)
+  saleDetails          SaleDetail[]
+  returns              Return[]
 }
 
 model SaleDetail {
-  id             Int     @id @default(autoincrement())
-  saleId         Int
-  sale           Sale    @relation(fields: [saleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  productId      Int
-  product        Product @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  quantity       Int     // Piezas enteras vendidas
-  unitPrice      Decimal @db.Decimal(18, 2)
-  costPrice      Decimal @db.Decimal(18, 2) // Para reportes de margen neto
-  taxAmount      Decimal @db.Decimal(18, 2)
-  discountAmount Decimal @default(0) @db.Decimal(18, 2)
+  id              Int             @id @default(autoincrement())
+  saleId          Int
+  productId       Int
+  quantity        Int
+  unitPrice       Decimal         @db.Decimal(18, 2)
+  costPrice       Decimal         @db.Decimal(18, 2)
+  taxAmount       Decimal         @db.Decimal(18, 2)
+  discountAmount  Decimal         @default(0) @db.Decimal(18, 2)
+  promotionId     Int?
+  promotionLabel  String?
+  serialNumber    String?
+  batchNumber     String?
+  product         Product         @relation(fields: [productId], references: [id], onUpdate: NoAction)
+  sale            Sale            @relation(fields: [saleId], references: [id], onUpdate: NoAction)
+  returnDetails   ReturnDetail[]
+  saleDetailTaxes SaleDetailTax[]
 }
 
 model BankDeposit {
-  id            Int         @id @default(autoincrement())
-  accountNumber String
-  targetName    String
-  amount        Decimal     @db.Decimal(18, 2)
-  paymentType   String      // 'EFECTIVO', 'TARJETA'
-  comments      String?
-  cashSessionId Int
-  cashSession   CashSession @relation(fields: [cashSessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  branchId      Int
-  branch        Branch      @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  createdAt     DateTime    @default(now())
+  id                   Int         @id @default(autoincrement())
+  accountNumber        String
+  targetName           String
+  amount               Decimal     @db.Decimal(18, 2)
+  paymentType          String
+  comments             String?
+  reference            String?
+  status               String      @default("PENDING")
+  mercadoPagoPaymentId String?
+  mercadoPagoStatus    String?
+  ticketUrl            String?     @db.VarChar(Max)
+  cashSessionId        Int
+  userId               Int
+  branchId             Int
+  confirmedAt          DateTime?
+  cancelledAt          DateTime?
+  cancelReason         String?
+  createdAt            DateTime    @default(now())
+  branch               Branch      @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cashSession          CashSession @relation(fields: [cashSessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user                 User        @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model PromotionType {
+  id          Int         @id @default(autoincrement())
+  name        String      @unique
+  description String?
+  promotions  Promotion[]
+}
+
+model Promotion {
+  id              Int                @id @default(autoincrement())
+  name            String             
+  description     String?
+  promotionTypeId Int
+  startDate       DateTime
+  endDate         DateTime
+  isActive        Boolean            @default(true)
+  value           Decimal?           @db.Decimal(18, 2)
+  minQuantity     Int?
+  payQuantity     Int?
+  specialPrice    Decimal?           @db.Decimal(18, 2)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  promotionType   PromotionType      @relation(fields: [promotionTypeId], references: [id], onUpdate: NoAction)
+  products        PromotionProduct[]
+}
+
+model PromotionProduct {
+  id          Int       @id @default(autoincrement())
+  promotionId Int
+  productId   Int
+  product     Product   @relation(fields: [productId], references: [id], onUpdate: NoAction)
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onUpdate: NoAction)
+
+  @@unique([promotionId, productId])
+}
+
+model CashCut {
+  id              Int         @id @default(autoincrement())
+  cashSessionId   Int
+  createdAt       DateTime    @default(now(), map: "DF__CashCut__created__4B7734FF")
+  totalSales      Decimal     @db.Decimal(18, 2)
+  totalCash       Decimal     @db.Decimal(18, 2)
+  totalCreditCard Decimal     @db.Decimal(18, 2)
+  totalDebitCard  Decimal     @db.Decimal(18, 2)
+  totalRefunds    Decimal     @db.Decimal(18, 2)
+  netTotal        Decimal     @db.Decimal(18, 2)
+  cutNumber       Int
+  cashSession     CashSession @relation(fields: [cashSessionId], references: [id], onUpdate: NoAction)
+}
+
+model Return {
+  id             Int            @id @default(autoincrement())
+  returnNumber   String         @unique
+  saleId         Int
+  userId         Int
+  authorizedById Int
+  reason         String
+  type           String
+  totalRefunded  Decimal        @db.Decimal(18, 2)
+  paymentMethod  String
+  cashSessionId  Int?
+  cfdiUuid       String?
+  exchangeSaleId Int?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  sale           Sale           @relation(fields: [saleId], references: [id], onUpdate: NoAction)
+  user           User           @relation("UserReturns", fields: [userId], references: [id], onUpdate: NoAction)
+  authorizedBy   User           @relation("UserAuthorizedReturns", fields: [authorizedById], references: [id], onUpdate: NoAction)
+  cashSession    CashSession?   @relation(fields: [cashSessionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  returnDetails  ReturnDetail[]
+}
+
+model ReturnDetail {
+  id             Int        @id @default(autoincrement())
+  returnId       Int
+  productId      Int
+  saleDetailId   Int
+  quantity       Int
+  unitPrice      Decimal    @db.Decimal(18, 2)
+  taxAmount      Decimal    @db.Decimal(18, 2)
+  discountAmount Decimal    @db.Decimal(18, 2)
+  destination    String
+  serialNumber   String?
+  batchNumber    String?
+  return         Return     @relation(fields: [returnId], references: [id], onUpdate: NoAction)
+  product        Product    @relation(fields: [productId], references: [id], onUpdate: NoAction)
+  saleDetail     SaleDetail @relation(fields: [saleDetailId], references: [id], onUpdate: NoAction)
+}
+
+model StoreCredit {
+  id         Int       @id @default(autoincrement())
+  code       String    @unique
+  amount     Decimal   @db.Decimal(18, 2)
+  remaining  Decimal   @db.Decimal(18, 2)
+  active     Boolean   @default(true)
+  customerId Int?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model TaxType {
+  id              Int             @id @default(autoincrement())
+  name            String          @unique
+  description     String?
+  rate            Decimal         @db.Decimal(18, 4)
+  active          Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  productTaxes    ProductTax[]
+  saleDetailTaxes SaleDetailTax[]
+}
+
+model ProductTax {
+  id        Int     @id @default(autoincrement())
+  productId Int
+  taxTypeId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  taxType   TaxType @relation(fields: [taxTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([productId, taxTypeId])
+}
+
+model SaleDetailTax {
+  id           Int        @id @default(autoincrement())
+  saleDetailId Int
+  taxTypeId    Int
+  taxName      String
+  taxRate      Decimal    @db.Decimal(18, 4)
+  taxAmount    Decimal    @db.Decimal(18, 2)
+  saleDetail   SaleDetail @relation(fields: [saleDetailId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  taxType      TaxType    @relation(fields: [taxTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model Supplier {
+  id             Int               @id @default(autoincrement())
+  name           String            @unique
+  rfc            String?
+  email          String?
+  phone          String?
+  address        String?
+  city           String?
+  state          String?
+  zipCode        String?
+  contactName    String?
+  active         Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  purchaseOrders PurchaseOrder[]
+  products       SupplierProduct[]
+
+  @@index([name])
+}
+
+model SupplierProduct {
+  id         Int      @id @default(autoincrement())
+  supplierId Int
+  productId  Int
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([supplierId, productId])
+  @@index([productId])
+}
+
+model PurchaseOrder {
+  id             Int              @id @default(autoincrement())
+  supplierId     Int
+  branchId       Int
+  reference      String
+  purchaseDate   DateTime         @default(now())
+  expectedDate   DateTime?
+  subtotal       Decimal          @db.Decimal(18, 2) @default(0)
+  tax            Decimal          @db.Decimal(18, 2) @default(0)
+  total          Decimal          @db.Decimal(18, 2) @default(0)
+  status         String           @default("PENDIENTE")
+  notes          String?
+  createdBy      Int
+  receivedBy     Int?
+  receivedDate   DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  supplier       Supplier         @relation(fields: [supplierId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  branch         Branch           @relation("purchaseOrdersBranch", fields: [branchId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  createdByUser  User             @relation("purchaseCreatedBy", fields: [createdBy], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  receivedByUser User?            @relation("purchaseReceivedBy", fields: [receivedBy], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  details        PurchaseDetail[]
+  kardexEntries  Kardex[]
+
+  @@index([supplierId])
+  @@index([branchId])
+  @@index([status])
+}
+
+model PurchaseDetail {
+  id              Int           @id @default(autoincrement())
+  purchaseOrderId Int
+  productId       Int
+  quantity        Int
+  unitCost        Decimal       @db.Decimal(18, 2)
+  subtotal        Decimal       @db.Decimal(18, 2)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product         Product       @relation("purchaseDetails", fields: [productId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([purchaseOrderId])
+  @@index([productId])
 }

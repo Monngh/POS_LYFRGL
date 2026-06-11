@@ -1,23 +1,49 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
 
-// URL base de la API REST backend (configurable en variables de entorno de Vite)
-const API_BASE_URL = (import.meta.env.VITE_API_URL as string) || "http://localhost:4000";
+// URL base de la API REST backend
+// Si corre en Vite (5173/5174) usa localhost:4000, si corre desde ngrok/producción usa rutas relativas
+const isVite = window.location.port === "5173" || window.location.port === "5174";
+export const API_BASE_URL = (import.meta.env.VITE_API_URL as string) || (isVite ? "http://localhost:4000" : "");
+
+// Tiempo de espera extendido para operaciones pesadas (ej. cobro con timbrado de factura
+// ante el PAC/Facturapi o canje de puntos), que pueden superar con facilidad los 10s.
+// Usar por petición: api.post(url, data, { timeout: LONG_OPERATION_TIMEOUT })
+export const LONG_OPERATION_TIMEOUT = 90000; // 90 segundos
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
-  timeout: 10000, // 10 segundos de límite de espera
+  timeout: 30000, // 30 segundos de límite de espera general
 });
 
+// Identificador único y persistente de este equipo/navegador.
+// Se usa para vincular el turno de caja a un solo dispositivo: si la caja se
+// abrió en esta computadora, no podrá operarse desde otra.
+const DEVICE_ID_KEY = "fmb_pos_device_id";
+
+export const getDeviceId = (): string => {
+  let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+  if (!deviceId) {
+    deviceId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `dev-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    localStorage.setItem(DEVICE_ID_KEY, deviceId);
+  }
+  return deviceId;
+};
+
 // Interceptor de Solicitudes (Request Interceptor)
-// Inyecta el token de autenticación JWT si existe en el almacenamiento local
+// Inyecta el token de autenticación JWT y el identificador del dispositivo
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem("fmb_pos_token");
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    if (config.headers) {
+      config.headers["X-Device-Id"] = getDeviceId();
     }
     return config;
   },
@@ -32,9 +58,12 @@ api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response) {
-      const { status } = error.response;
+      const { status, config } = error.response;
       
-      if (status === 401) {
+      // Evitar desloguear si es una verificación de PIN fallida (el supervisor ingresó PIN incorrecto)
+      const isPinVerification = config.url?.endsWith("/verify-pin") || config.url?.endsWith("/authorize-cancel");
+
+      if (status === 401 && !isPinVerification) {
         console.warn("Sesión expirada o no autorizada. Redirigiendo a inicio de sesión...");
         localStorage.removeItem("fmb_pos_token");
         localStorage.removeItem("fmb_pos_user");
