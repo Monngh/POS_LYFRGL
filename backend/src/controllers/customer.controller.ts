@@ -56,7 +56,8 @@ export const registerCustomerAccount = async (req: Request, res: Response): Prom
       message: "Cuenta registrada exitosamente. Ahora puedes iniciar sesión con tu teléfono y contraseña."
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al registrar la cuenta.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al registrar la cuenta." });
   }
 };
 
@@ -114,7 +115,8 @@ export const loginCustomer = async (req: Request, res: Response): Promise<void> 
       }
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al iniciar sesión.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al iniciar sesión." });
   }
 };
 
@@ -152,7 +154,8 @@ export const getCustomerProfile = async (req: Request, res: Response): Promise<v
       }
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al recuperar el perfil.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al recuperar el perfil." });
   }
 };
 
@@ -197,7 +200,8 @@ export const updateCustomerProfile = async (req: Request, res: Response): Promis
       }
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al actualizar los datos fiscales.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al actualizar los datos fiscales." });
   }
 };
 
@@ -241,6 +245,7 @@ export const getCustomerInvoices = async (req: Request, res: Response): Promise<
 
     res.status(200).json({ invoices: formattedInvoices });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al obtener el historial de facturas.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener el historial de facturas." });
   }
 };

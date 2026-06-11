@@ -723,7 +723,8 @@ export const getRecentSales = async (req: Request, res: Response): Promise<void>
 
     res.status(200).json({ sales: mappedSales });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al recuperar ventas recientes.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al recuperar ventas recientes." });
   }
 };
 
@@ -816,7 +817,8 @@ export const getMyRecentSales = async (req: Request, res: Response): Promise<voi
 
     res.status(200).json({ sales: mappedSales });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al recuperar ventas del empleado.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al recuperar ventas del empleado." });
   }
 };
 
@@ -1028,7 +1030,8 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
       approver: approver.name,
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al cancelar la venta.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al cancelar la venta." });
   }
 };
 
@@ -1217,7 +1220,8 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
       },
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al procesar el depósito bancario.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al procesar el depósito bancario." });
   }
 };
 
@@ -1265,7 +1269,8 @@ export const getRecentDeposits = async (req: Request, res: Response): Promise<vo
 
     res.status(200).json({ deposits: mappedDeposits });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al obtener depósitos recientes.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener depósitos recientes." });
   }
 };
 
@@ -1345,7 +1350,8 @@ export const searchDeposits = async (req: Request, res: Response): Promise<void>
 
     res.status(200).json({ deposits: mappedDeposits });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al buscar depósitos.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al buscar depósitos." });
   }
 };
 
@@ -1402,7 +1408,8 @@ export const getDepositById = async (req: Request, res: Response): Promise<void>
       },
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al obtener el depósito.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener el depósito." });
   }
 };
 
@@ -1451,7 +1458,8 @@ export const confirmDeposit = async (req: Request, res: Response): Promise<void>
       deposit: updated,
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al confirmar el depósito.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al confirmar el depósito." });
   }
 };
 
@@ -1558,7 +1566,8 @@ export const cancelDeposit = async (req: Request, res: Response): Promise<void> 
       deposit: updatedDeposit,
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al cancelar el depósito.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al cancelar el depósito." });
   }
 };
 
@@ -1619,7 +1628,7 @@ export const confirmQrPayment = async (req: Request, res: Response): Promise<voi
     res.status(200).json({ message: "Pago confirmado exitosamente.", saleId: updatedSale.id });
   } catch (error: any) {
     console.error("Error al confirmar pago QR:", error);
-    res.status(500).json({ message: "Error al confirmar el pago QR.", error: error.message });
+    res.status(500).json({ message: "Error al confirmar el pago QR." });
   }
 };
 
@@ -1654,7 +1663,8 @@ export const searchCustomers = async (req: Request, res: Response): Promise<void
 
     res.status(200).json({ customers });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al buscar clientes.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al buscar clientes." });
   }
 };
 
@@ -1711,7 +1721,8 @@ export const registerCustomer = async (req: Request, res: Response): Promise<voi
       customer,
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al registrar el cliente.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al registrar el cliente." });
   }
 };
 
@@ -1872,7 +1883,8 @@ export const getSaleDetailForCashier = async (req: Request, res: Response): Prom
 
     res.status(200).json({ sale: mapped });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al obtener los detalles de la venta.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener los detalles de la venta." });
   }
 };
 

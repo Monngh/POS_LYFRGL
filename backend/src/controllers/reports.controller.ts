@@ -84,7 +84,8 @@ export const reportSales = async (req: Request, res: Response): Promise<void> =>
 
     res.status(200).json({ rows, totals });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al generar el reporte de ventas.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al generar el reporte de ventas." });
   }
 };
 
@@ -152,7 +153,8 @@ export const reportProductsSold = async (req: Request, res: Response): Promise<v
 
     res.status(200).json({ rows, summary });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al generar el reporte de artículos vendidos.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al generar el reporte de artículos vendidos." });
   }
 };
 
@@ -253,7 +255,8 @@ export const reportBySeller = async (req: Request, res: Response): Promise<void>
 
     res.status(200).json({ rows });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al generar el reporte por vendedor.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al generar el reporte por vendedor." });
   }
 };
 
@@ -307,6 +310,7 @@ export const reportReceivables = async (_req: Request, res: Response): Promise<v
 
     res.status(200).json({ rows, totals });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al generar el reporte de cobranza.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al generar el reporte de cobranza." });
   }
 };

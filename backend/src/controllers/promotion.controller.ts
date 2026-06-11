@@ -11,7 +11,8 @@ export class PromotionController {
       const promotions = await PromotionService.getActivePromotions();
       res.json(promotions);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Error al obtener promociones" });
+      console.error(error);
+      res.status(500).json({ message: "Error interno del servidor." });
     }
   }
 
@@ -30,7 +31,8 @@ export class PromotionController {
       const result = await PromotionService.calculatePromotions(items);
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Error al calcular promociones" });
+      console.error(error);
+      res.status(500).json({ message: "Error interno del servidor." });
     }
   }
 }
