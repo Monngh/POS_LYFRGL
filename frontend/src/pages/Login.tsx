@@ -66,6 +66,7 @@ const Login: React.FC = () => {
   const [cashierSearch, setCashierSearch] = useState("");
   const [showCashierDropdown, setShowCashierDropdown] = useState(false);
   const [cashierFieldErrors, setCashierFieldErrors] = useState<FieldErrors<"cashier" | "pin">>({});
+  const [focusedCashierIndex, setFocusedCashierIndex] = useState(-1);
 
   // Cargar sucursales al montar el componente
   useEffect(() => {
@@ -103,8 +104,8 @@ const Login: React.FC = () => {
         const cashierList = response.data.cashiers;
         setCashiers(cashierList);
         if (cashierList.length > 0) {
-          setCashierEmail(cashierList[0].email);
-          setCashierSearch(cashierList[0].name); // Inicializar búsqueda con el primer cajero
+          setCashierEmail("");
+          setCashierSearch(""); 
           setCashierFieldErrors({});
         }
       } catch (err) {
@@ -152,6 +153,7 @@ const Login: React.FC = () => {
     setCashierSearch(value);
     setShowCashierDropdown(true);
     setCashierEmail("");
+    setFocusedCashierIndex(-1);
     setCashierFieldErrors((prev) => ({ ...prev, cashier: error }));
   };
 
@@ -410,6 +412,26 @@ const Login: React.FC = () => {
                     setCashierSearchField(e.target.value);
                   }}
                   onFocus={() => setShowCashierDropdown(true)}
+                  onKeyDown={(e) => {
+                    if (!showCashierDropdown || filteredCashiers.length === 0) return;
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setFocusedCashierIndex((prev) => (prev < filteredCashiers.length - 1 ? prev + 1 : prev));
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setFocusedCashierIndex((prev) => (prev > 0 ? prev - 1 : 0));
+                    } else if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (focusedCashierIndex >= 0 && focusedCashierIndex < filteredCashiers.length) {
+                        const c = filteredCashiers[focusedCashierIndex];
+                        setCashierEmail(c.email);
+                        setCashierSearch(c.name);
+                        setCashierFieldErrors((prev) => ({ ...prev, cashier: undefined }));
+                        setShowCashierDropdown(false);
+                        e.currentTarget.blur();
+                      }
+                    }
+                  }}
                   onBlur={() => {
                     setCashierFieldErrors((prev) => ({
                       ...prev,
@@ -428,15 +450,15 @@ const Login: React.FC = () => {
                 {cashierFieldErrors.cashier && <p style={styles.fieldError}>{cashierFieldErrors.cashier}</p>}
                 {showCashierDropdown && (
                   <div style={styles.autocompleteDropdown}>
-                    {filteredCashiers.map((c) => (
+                    {filteredCashiers.map((c, idx) => (
                       <div
                         key={c.id}
                         style={{
                           padding: "10px 14px",
                           cursor: "pointer",
                           fontSize: "14px",
-                          backgroundColor: cashierEmail === c.email ? "#eff6ff" : "#ffffff",
-                          color: cashierEmail === c.email ? "#1e3a8a" : "#0f172a",
+                          backgroundColor: (cashierEmail === c.email || focusedCashierIndex === idx) ? "#eff6ff" : "#ffffff",
+                          color: (cashierEmail === c.email || focusedCashierIndex === idx) ? "#1e3a8a" : "#0f172a",
                           fontWeight: cashierEmail === c.email ? "600" : "500",
                           transition: "background-color 0.15s ease",
                         }}
