@@ -1,5 +1,33 @@
 import { Request, Response } from "express";
 import { prisma } from "../app";
+import fs from "fs";
+import path from "path";
+
+const MAPPING_FILE = path.join(__dirname, "../../../session-devices.json");
+
+interface SessionDeviceMappings {
+  [sessionId: number]: string;
+}
+
+const getMappings = (): SessionDeviceMappings => {
+  try {
+    if (fs.existsSync(MAPPING_FILE)) {
+      const data = fs.readFileSync(MAPPING_FILE, "utf-8");
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error("Error al leer session-devices.json:", error);
+  }
+  return {};
+};
+
+const saveMappings = (mappings: SessionDeviceMappings) => {
+  try {
+    fs.writeFileSync(MAPPING_FILE, JSON.stringify(mappings, null, 2), "utf-8");
+  } catch (error) {
+    console.error("Error al escribir session-devices.json:", error);
+  }
+};
 
 /**
  * Consultar si el cajero tiene un turno activo en la sucursal actual
@@ -9,6 +37,8 @@ export const getSessionStatus = async (req: Request, res: Response): Promise<voi
     res.status(401).json({ message: "No autenticado." });
     return;
   }
+
+  const deviceId = req.query.deviceId as string;
 
   try {
     const activeSession = await prisma.cashSession.findFirst({
@@ -20,9 +50,22 @@ export const getSessionStatus = async (req: Request, res: Response): Promise<voi
       },
     });
 
+    let deviceMismatch = false;
+
+    if (activeSession && deviceId) {
+      const mappings = getMappings();
+      if (!mappings[activeSession.id]) {
+        mappings[activeSession.id] = deviceId;
+        saveMappings(mappings);
+      } else if (mappings[activeSession.id] !== deviceId) {
+        deviceMismatch = true;
+      }
+    }
+
     res.status(200).json({
       isOpen: !!activeSession,
       session: activeSession,
+      deviceMismatch,
     });
   } catch (error: any) {
     res.status(500).json({ message: "Error al obtener estado de caja.", error: error.message });
@@ -38,7 +81,7 @@ export const openSession = async (req: Request, res: Response): Promise<void> =>
     return;
   }
 
-  const { initialAmount } = req.body;
+  const { initialAmount, deviceId } = req.body;
 
   if (initialAmount === undefined || initialAmount === null || isNaN(Number(initialAmount))) {
     res.status(400).json({ message: "El monto del fondo inicial es requerido y debe ser numérico." });
@@ -57,6 +100,15 @@ export const openSession = async (req: Request, res: Response): Promise<void> =>
     });
 
     if (existingSession) {
+      const mappings = getMappings();
+      const storedDevice = mappings[existingSession.id];
+      if (deviceId && storedDevice && storedDevice !== deviceId) {
+        res.status(409).json({ 
+          message: "La caja ya está abierta en otro dispositivo. Cierre el turno en esa caja para poder abrir uno nuevo.",
+          deviceMismatch: true 
+        });
+        return;
+      }
       res.status(400).json({ message: "Ya existe una sesión de caja abierta para este usuario en esta sucursal." });
       return;
     }
@@ -70,6 +122,12 @@ export const openSession = async (req: Request, res: Response): Promise<void> =>
         status: "ABIERTA",
       },
     });
+
+    if (deviceId) {
+      const mappings = getMappings();
+      mappings[newSession.id] = deviceId;
+      saveMappings(mappings);
+    }
 
     res.status(201).json({
       message: "Caja abierta exitosamente.",
@@ -202,6 +260,17 @@ export const closeSession = async (req: Request, res: Response): Promise<void> =
         }
       }
     });
+
+    // Limpiar mapeo de dispositivo al cerrar
+    try {
+      const mappings = getMappings();
+      if (mappings[activeSession.id]) {
+        delete mappings[activeSession.id];
+        saveMappings(mappings);
+      }
+    } catch (e) {
+      console.error("Error al limpiar mapeo de dispositivo en cierre:", e);
+    }
 
     res.status(200).json({
       message: "Caja cerrada y arqueada exitosamente.",
