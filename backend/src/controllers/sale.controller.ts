@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { executeRefund, createMercadoPagoCashPayment, syncDepositStatus as mpSyncDepositStatus } from "./mercadopago.controller";
 import { PromotionService } from "../services/promotion.service";
 import { BillingService } from "../services/billing.service";
+import { MercadoPagoConfig, Preference } from "mercadopago";
 
 const SALE_PAYMENT_METHODS = ["EFECTIVO", "TARJETA", "MIXTO", "QR_MERCADOPAGO"] as const;
 type SalePaymentMethod = typeof SALE_PAYMENT_METHODS[number];
@@ -1615,13 +1616,7 @@ export const confirmQrPayment = async (req: Request, res: Response): Promise<voi
         }
       });
 
-      // 2. Sumar el total a expectedAmount de la sesión
-      if (sale.cashSessionId) {
-        await tx.cashSession.update({
-          where: { id: sale.cashSessionId },
-          data: { expectedAmount: { increment: Number(sale.totalAmount) } }
-        });
-      }
+      // 2. No sumamos el total a expectedAmount de la sesión ya que es un pago no-efectivo (QR)
       return updated;
     });
 
@@ -1893,4 +1888,109 @@ export const getSaleDetailForCashier = async (req: Request, res: Response): Prom
  */
 export const syncDepositStatus = async (req: Request, res: Response): Promise<void> => {
   return mpSyncDepositStatus(req, res);
+};
+
+/**
+ * Regenerar preferencia de Mercado Pago para una venta existente en estado PENDIENTE.
+ */
+export const retryQrPayment = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  const { invoiceNumber } = req.body;
+
+  if (!invoiceNumber) {
+    res.status(400).json({ message: "invoiceNumber es requerido." });
+    return;
+  }
+
+  try {
+    const sale = await prisma.sale.findUnique({
+      where: { invoiceNumber }
+    });
+
+    if (!sale) {
+      res.status(404).json({ message: "Venta no encontrada." });
+      return;
+    }
+
+    if (sale.status !== "PENDIENTE") {
+      res.status(400).json({ message: `La venta ya no está pendiente. Estado actual: ${sale.status}` });
+      return;
+    }
+
+    if (sale.paymentMethod !== "QR_MERCADOPAGO") {
+      res.status(400).json({ message: "La venta no fue registrada con método de pago QR_MERCADOPAGO." });
+      return;
+    }
+
+    const token = process.env.MERCADOPAGO_ACCESS_TOKEN;
+    if (!token) {
+      res.status(400).json({ message: "MERCADOPAGO_ACCESS_TOKEN no está configurado en el archivo .env" });
+      return;
+    }
+
+    // Configurar cliente de Mercado Pago
+    const client = new MercadoPagoConfig({ accessToken: token });
+    const preference = new Preference(client);
+
+    // Generar la preferencia con expiración a 15 minutos
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    
+    // El externalReference que usamos es el folio de la factura
+    const externalReference = sale.invoiceNumber;
+
+    const result = await preference.create({
+      body: {
+        items: [
+          {
+            id: externalReference,
+            title: `Venta POS ${externalReference}`,
+            quantity: 1,
+            unit_price: Number(sale.totalAmount),
+            currency_id: 'MXN'
+          }
+        ],
+        external_reference: externalReference,
+        expires: true,
+        expiration_date_from: new Date().toISOString(),
+        expiration_date_to: expiresAt,
+        payment_methods: {
+          excluded_payment_types: [
+            { id: 'ticket' },
+          ],
+          installments: 1
+        },
+        notification_url: `${process.env.WEBHOOK_BASE_URL || 'https://tuservidor.com'}/api/mercadopago/webhook`,
+      }
+    });
+
+    // Seleccionar automáticamente sandbox o producción según la configuración o el tipo de token
+    const isSandbox = process.env.MERCADOPAGO_SANDBOX === "true" || token.startsWith("TEST-");
+    const initPoint = isSandbox ? result.sandbox_init_point : result.init_point;
+
+    // Actualizar la venta con la nueva referencia de Mercado Pago
+    await prisma.sale.update({
+      where: { id: sale.id },
+      data: {
+        mercadoPagoReference: result.id
+      }
+    });
+
+    res.json({
+      success: true,
+      preferenceId: result.id,
+      initPoint: initPoint,
+      externalReference,
+      expiresAt: expiresAt
+    });
+  } catch (error: any) {
+    console.error("Error al regenerar preferencia de Mercado Pago:", error);
+    res.status(500).json({
+      message: "Error al regenerar el cobro QR en Mercado Pago",
+      error: error.message
+    });
+  }
 };

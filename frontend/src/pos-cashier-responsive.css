@@ -605,28 +605,28 @@
 @media (max-width: 768px) {
   /* Cada tabla-tarjeta queda contenida y hace scroll vertical interno
      para que la vista no se haga enorme con muchas filas */
-  .pos-cashier-table-card .pos-cashier-table-scroll {
+  .pos-cashier-table-card .pos-cashier-table-scroll--dashboard-deposits {
     overflow-x: auto !important;
     overflow-y: auto !important;
     max-height: 360px !important;
     -webkit-overflow-scrolling: touch;
   }
 
-  .pos-cashier-table-card .pos-cashier-table-scroll table {
+  .pos-cashier-table-card .pos-cashier-table-scroll--dashboard-deposits table {
     display: block !important;
     min-width: 0 !important;
     width: 100% !important;
   }
 
-  .pos-cashier-table-card .pos-cashier-table-scroll thead {
+  .pos-cashier-table-card .pos-cashier-table-scroll--dashboard-deposits thead {
     display: none !important;
   }
 
-  .pos-cashier-table-card .pos-cashier-table-scroll tbody {
+  .pos-cashier-table-card .pos-cashier-table-scroll--dashboard-deposits tbody {
     display: block !important;
   }
 
-  .pos-cashier-table-card .pos-cashier-table-scroll tbody tr {
+  .pos-cashier-table-card .pos-cashier-table-scroll--dashboard-deposits tbody tr {
     display: block !important;
     border: 1px solid #e2e8f0;
     border-radius: 8px;
@@ -636,7 +636,7 @@
   }
 
   /* Cada celda pasa a ser una fila etiqueta:valor; se anula el ocultamiento previo */
-  .pos-cashier-table-card .pos-cashier-table-scroll td {
+  .pos-cashier-table-card .pos-cashier-table-scroll--dashboard-deposits td {
     display: flex !important;
     width: 100% !important;
     justify-content: space-between !important;
@@ -650,11 +650,11 @@
     font-size: 13px;
   }
 
-  .pos-cashier-table-card .pos-cashier-table-scroll td:last-child {
+  .pos-cashier-table-card .pos-cashier-table-scroll--dashboard-deposits td:last-child {
     border-bottom: none !important;
   }
 
-  .pos-cashier-table-card .pos-cashier-table-scroll td::before {
+  .pos-cashier-table-card .pos-cashier-table-scroll--dashboard-deposits td::before {
     content: attr(data-label);
     font-weight: 700;
     font-size: 11px;
@@ -666,7 +666,7 @@
   }
 
   /* En formato tarjeta ya no se usan las filas de detalle/expandir */
-  .pos-cashier-table-card .pos-cashier-table-details-row {
+  .pos-cashier-table-card .pos-cashier-table-scroll--dashboard-deposits .pos-cashier-table-details-row {
     display: none !important;
   }
 }
@@ -1013,7 +1013,7 @@
     z-index: 80;
     min-width: 150px;
     margin-top: 6px;
-    background: #ffffff;
+    background: #f1f5f9;
     border: 1px solid #cbd5e1;
     border-radius: 6px;
     box-shadow: 0 10px 18px rgba(15, 23, 42, 0.14);
@@ -1024,7 +1024,7 @@
   .pos-cashier-row-menu button {
     width: 100%;
     border: 0;
-    background: #ffffff;
+    background: #f1f5f9;
     color: #0f172a;
     cursor: pointer;
     display: block;
@@ -1035,11 +1035,11 @@
   }
 
   .pos-cashier-row-menu button + button {
-    border-top: 1px solid #f1f5f9;
+    border-top: 1px solid #e2e8f0;
   }
 
   .pos-cashier-row-menu button:hover {
-    background: #f8fafc;
+    background: #e2e8f0;
   }
 
   .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-details-row,
@@ -1068,6 +1068,148 @@
   .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-details-content:nth-of-type(4),
   .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-details .pos-cashier-table-expand-btn,
   .pos-cashier-table-scroll--dashboard-deposits .pos-cashier-table-details .pos-cashier-table-expand-btn {
+    display: none !important;
+  }
+}
+
+/* Ajustes adicionales para tablet (769px-1024px): mantener tabla compacta */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .pos-cashier-table-card .pos-cashier-table-scroll table {
+    min-width: 0 !important;
+  }
+
+  .pos-cashier-table-card .pos-cashier-table-scroll td {
+    white-space: normal !important;
+  }
+}
+
+/* Asegurar que en 768px y menos se usen las tarjetas correctamente */
+@media (max-width: 768px) {
+  .pos-cashier-table-scroll--dashboard-deposits table {
+    display: block !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-deposits thead {
+    display: none !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-deposits tbody {
+    display: block !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-deposits tr {
+    display: block !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px;
+    padding: 4px 12px !important;
+    margin-bottom: 10px;
+    background: #ffffff;
+  }
+
+  .pos-cashier-table-scroll--dashboard-deposits th,
+  .pos-cashier-table-scroll--dashboard-deposits td {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 0 !important;
+    border: none !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+    white-space: normal !important;
+    text-align: right;
+    font-size: 13px;
+  }
+
+  .pos-cashier-table-scroll--dashboard-deposits td:last-child {
+    border-bottom: none !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-deposits th::before,
+  .pos-cashier-table-scroll--dashboard-deposits td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    font-size: 11px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    text-align: left;
+    flex-shrink: 0;
+  }
+
+  /* Ventas conserva el layout de tabla con 4 columnas */
+  .pos-cashier-table-scroll--dashboard-sales th:nth-child(4),
+  .pos-cashier-table-scroll--dashboard-sales th:nth-child(5),
+  .pos-cashier-table-scroll--dashboard-sales th:nth-child(6),
+  .pos-cashier-table-scroll--dashboard-sales th:nth-child(8),
+  .pos-cashier-table-scroll--dashboard-sales td:nth-child(4),
+  .pos-cashier-table-scroll--dashboard-sales td:nth-child(5),
+  .pos-cashier-table-scroll--dashboard-sales td:nth-child(6),
+  .pos-cashier-table-scroll--dashboard-sales td:nth-child(7) {
+    display: none !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales th.pos-cashier-responsive-menu-head,
+  .pos-cashier-table-scroll--dashboard-sales td.pos-cashier-responsive-menu-cell {
+    display: table-cell !important;
+    width: 46px;
+    overflow: visible;
+    position: relative;
+    text-align: center;
+    border: none !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales td.pos-cashier-responsive-menu-cell::before {
+    display: none !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-details-row,
+  .pos-cashier-table-scroll--dashboard-deposits .pos-cashier-table-details-row {
+    display: none !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-row-expanded + .pos-cashier-table-details-row {
+    display: table-row !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-row-expanded + .pos-cashier-table-details-row > td {
+    display: table-cell !important;
+    padding: 0 !important;
+    border: none !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-details {
+    display: block !important;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-details-content {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 13px;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-details-content:last-of-type {
+    border-bottom: none;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-details-label {
+    font-weight: 700;
+    font-size: 11px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-details-value {
+    font-weight: 600;
+    color: #0f172a;
+    text-align: right;
+  }
+
+  .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-details-content:nth-of-type(4),
+  .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-details .pos-cashier-table-expand-btn {
     display: none !important;
   }
 }
