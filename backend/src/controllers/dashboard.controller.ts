@@ -193,6 +193,7 @@ export const getAdminMetrics = async (req: Request, res: Response): Promise<void
       branches,
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al cargar las métricas administrativas.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al cargar las métricas administrativas." });
   }
 };

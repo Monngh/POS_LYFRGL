@@ -62,7 +62,8 @@ export const adminLogin = async (req: Request, res: Response): Promise<void> => 
       },
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error interno del servidor.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error interno del servidor." });
   }
 };
 
@@ -137,7 +138,8 @@ export const cashierLogin = async (req: Request, res: Response): Promise<void> =
       },
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error interno del servidor.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error interno del servidor." });
   }
 };
 
@@ -176,7 +178,8 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
       },
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error interno del servidor.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error interno del servidor." });
   }
 };
 
@@ -191,7 +194,8 @@ export const getBranches = async (_req: Request, res: Response): Promise<void> =
     });
     res.status(200).json({ branches });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al obtener sucursales.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener sucursales." });
   }
 };
 
@@ -221,7 +225,8 @@ export const getCashiersByBranch = async (req: Request, res: Response): Promise<
     });
     res.status(200).json({ cashiers });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al obtener cajeros de la sucursal.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener cajeros de la sucursal." });
   }
 };
 
@@ -265,6 +270,7 @@ export const verifyManagerPin = async (req: Request, res: Response): Promise<voi
       name: approver.name,
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al validar el PIN.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al validar el PIN." });
   }
 };

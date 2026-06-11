@@ -114,12 +114,7 @@ export const checkPaymentStatus = async (req: Request, res: Response): Promise<v
     }
   } catch (error: any) {
     console.error("Error al verificar estado de pago:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Error al verificar el estado de pago en Mercado Pago",
-      error: error.message,
-      detail: error.cause || error
-    });
+    res.status(500).json({ success: false, message: "Error al verificar el estado de pago en Mercado Pago." });
   }
 };
 
@@ -467,6 +462,6 @@ export const syncDepositStatus = async (req: Request, res: Response): Promise<vo
 
   } catch (error: any) {
     console.error("Error al sincronizar estado de depósito:", error);
-    res.status(500).json({ message: "Error al sincronizar el estado con Mercado Pago.", error: error.message });
+    res.status(500).json({ message: "Error al sincronizar el estado con Mercado Pago." });
   }
 };

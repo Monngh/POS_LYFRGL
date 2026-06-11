@@ -1,7 +1,10 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key_for_fmb_pos_enterprise_2026";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("[FATAL] JWT_SECRET no está definido en las variables de entorno. El servidor no puede iniciar.");
+}
 const JWT_EXPIRE = process.env.JWT_EXPIRE || "8h";
 
 /**

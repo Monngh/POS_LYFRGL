@@ -154,7 +154,8 @@ export const getTicketDetails = async (req: Request, res: Response): Promise<voi
       }))
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al recuperar detalles del ticket.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al recuperar detalles del ticket." });
   }
 };
 
@@ -215,7 +216,8 @@ export const issueTicketInvoice = async (req: Request, res: Response): Promise<v
       ...result
     });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error interno del servidor." });
   }
 };
 

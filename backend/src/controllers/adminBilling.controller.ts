@@ -43,7 +43,7 @@ export const createGlobalInvoiceController = async (req: Request, res: Response)
     });
   } catch (error: any) {
     console.error("Error al procesar Factura Global:", error);
-    res.status(500).json({ message: error.message || "Error al generar Factura Global.", error: error.message });
+    res.status(500).json({ message: "Error al generar la factura global." });
   }
 };
 

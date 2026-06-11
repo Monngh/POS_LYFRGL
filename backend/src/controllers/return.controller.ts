@@ -130,7 +130,8 @@ export const getReturnEligibility = async (req: Request, res: Response): Promise
       items: eligibleItems
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al verificar la elegibilidad de la venta.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al verificar la elegibilidad de la venta." });
   }
 };
 
@@ -807,7 +808,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
     });
   } catch (error: any) {
     console.error("Error al procesar devolución:", error);
-    res.status(500).json({ message: error.message || "Error al procesar la devolución.", error: error.message });
+    res.status(500).json({ message: "Error al procesar la devolución." });
   }
 };
 
@@ -888,7 +889,8 @@ export const getAdminReturns = async (req: Request, res: Response): Promise<void
       },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: "Error al obtener las devoluciones.", error: error.message });
+    console.error(error);
+    res.status(500).json({ success: false, message: "Error al obtener las devoluciones." });
   }
 };
 
@@ -995,7 +997,8 @@ export const getAdminReturnDetail = async (req: Request, res: Response): Promise
       },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: "Error al obtener el detalle.", error: error.message });
+    console.error(error);
+    res.status(500).json({ success: false, message: "Error al obtener el detalle." });
   }
 };
 
@@ -1044,7 +1047,8 @@ export const retryReturnRefund = async (req: Request, res: Response): Promise<vo
 
     res.status(200).json({ success: true, message: "Reembolso procesado exitosamente." });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al reintentar el reembolso.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al reintentar el reembolso." });
   }
 };
 

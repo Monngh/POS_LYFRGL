@@ -123,7 +123,8 @@ export const listSales = async (req: Request, res: Response): Promise<void> => {
 
     res.status(200).json({ sales: mapped });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al listar ventas.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al listar ventas." });
   }
 };
 
@@ -174,7 +175,8 @@ export const getSaleDetail = async (req: Request, res: Response): Promise<void> 
       },
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al obtener el detalle de la venta.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener el detalle de la venta." });
   }
 };
 
@@ -220,7 +222,8 @@ export const listInventory = async (req: Request, res: Response): Promise<void> 
 
     res.status(200).json({ products: mapped });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al listar inventario.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al listar inventario." });
   }
 };
 
@@ -395,7 +398,8 @@ export const listCustomers = async (req: Request, res: Response): Promise<void> 
 
     res.status(200).json({ customers: mapped });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al listar clientes.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al listar clientes." });
   }
 };
 
@@ -469,7 +473,8 @@ export const createCustomer = async (req: Request, res: Response): Promise<void>
       },
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al registrar el cliente.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al registrar el cliente." });
   }
 };
 
@@ -548,7 +553,8 @@ export const updateCustomer = async (req: Request, res: Response): Promise<void>
       },
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al actualizar el cliente.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al actualizar el cliente." });
   }
 };
 
@@ -607,7 +613,8 @@ export const listCashSessions = async (req: Request, res: Response): Promise<voi
 
     res.status(200).json({ sessions: mapped });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al listar las sesiones de caja.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al listar las sesiones de caja." });
   }
 };
 
@@ -659,7 +666,8 @@ export const listEmployees = async (req: Request, res: Response): Promise<void> 
 
     res.status(200).json({ employees: mapped });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al listar empleados.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al listar empleados." });
   }
 };
 
@@ -692,7 +700,8 @@ export const listBranches = async (req: Request, res: Response): Promise<void> =
 
     res.status(200).json({ branches: mapped });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al listar sucursales.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al listar sucursales." });
   }
 };
 
@@ -752,7 +761,7 @@ export const createBranch = async (req: Request, res: Response): Promise<void> =
       res.status(409).json({ message: "Ya existe una sucursal con ese nombre." });
       return;
     }
-    res.status(500).json({ message: "Error al registrar la sucursal.", error: error.message });
+    res.status(500).json({ message: "Error al registrar la sucursal." });
   }
 };
 
@@ -838,7 +847,7 @@ export const updateBranch = async (req: Request, res: Response): Promise<void> =
       res.status(404).json({ message: "Sucursal no encontrada." });
       return;
     }
-    res.status(500).json({ message: "Error al actualizar la sucursal.", error: error.message });
+    res.status(500).json({ message: "Error al actualizar la sucursal." });
   }
 };
 
@@ -1077,7 +1086,8 @@ export const getReports = async (req: Request, res: Response): Promise<void> => 
       salesList,
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al generar los reportes.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al generar los reportes." });
   }
 };
 
@@ -1162,7 +1172,7 @@ export const createEmployee = async (req: Request, res: Response): Promise<void>
       res.status(409).json({ message: "Ya existe un usuario registrado con ese correo electrónico." });
       return;
     }
-    res.status(500).json({ message: "Error al registrar el empleado.", error: error.message });
+    res.status(500).json({ message: "Error al registrar el empleado." });
   }
 };
 
@@ -1247,7 +1257,7 @@ export const updateEmployee = async (req: Request, res: Response): Promise<void>
       res.status(404).json({ message: "Empleado no encontrado." });
       return;
     }
-    res.status(500).json({ message: "Error al actualizar el empleado.", error: error.message });
+    res.status(500).json({ message: "Error al actualizar el empleado." });
   }
 };
 
@@ -1334,7 +1344,8 @@ export const getEmployeeOperations = async (req: Request, res: Response): Promis
       })),
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al obtener las operaciones del empleado.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener las operaciones del empleado." });
   }
 };
 
@@ -1387,7 +1398,8 @@ export const listKardex = async (req: Request, res: Response): Promise<void> => 
       })),
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al listar el kardex.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al listar el kardex." });
   }
 };
 
@@ -1453,7 +1465,7 @@ export const listBankDeposits = async (req: Request, res: Response): Promise<voi
     });
   } catch (error: any) {
     console.error("Error en listBankDeposits:", error);
-    res.status(500).json({ message: "Error al listar los depósitos bancarios.", error: error.message });
+    res.status(500).json({ message: "Error al listar los depósitos bancarios." });
   }
 };
 
@@ -1552,7 +1564,8 @@ export const registerPurchase = async (req: Request, res: Response): Promise<voi
       ...result,
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al registrar la compra.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al registrar la compra." });
   }
 };
 
@@ -2101,7 +2114,8 @@ export const listPurchases = async (req: Request, res: Response): Promise<void> 
     });
     res.json(purchases);
   } catch (error: any) {
-    res.status(500).json({ message: "Error al listar compras.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al listar compras." });
   }
 };
 
@@ -2202,7 +2216,8 @@ export const createPurchase = async (req: Request, res: Response): Promise<void>
 
     res.status(201).json(purchase);
   } catch (error: any) {
-    res.status(500).json({ message: "Error al crear la orden de compra.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al crear la orden de compra." });
   }
 };
 
@@ -2280,7 +2295,8 @@ export const receivePurchase = async (req: Request, res: Response): Promise<void
 
     res.json(updated);
   } catch (error: any) {
-    res.status(500).json({ message: "Error al recibir la orden de compra.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al recibir la orden de compra." });
   }
 };
 
@@ -2425,7 +2441,8 @@ export const getCashSessionDetail = async (req: Request, res: Response): Promise
       movements,
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al cargar el detalle de la sesión.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al cargar el detalle de la sesión." });
   }
 };
 
@@ -2474,7 +2491,8 @@ export const forceCloseCashSession = async (req: Request, res: Response): Promis
       session: updated,
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al cerrar la caja forzadamente.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al cerrar la caja forzadamente." });
   }
 };
 
@@ -2626,7 +2644,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       res.status(409).json({ message: "El código de barras ingresado ya está registrado." });
       return;
     }
-    res.status(500).json({ message: "Error al registrar el producto.", error: error.message });
+    res.status(500).json({ message: "Error al registrar el producto." });
   }
 };
 
@@ -2671,7 +2689,8 @@ export const listProducts = async (req: Request, res: Response): Promise<void> =
 
     res.status(200).json({ products: mapped });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al listar productos.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al listar productos." });
   }
 };
 
@@ -2740,7 +2759,8 @@ export const getProductDetail = async (req: Request, res: Response): Promise<voi
       },
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al obtener el detalle del producto.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener el detalle del producto." });
   }
 };
 
@@ -2878,7 +2898,8 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
       }
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al actualizar el producto.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al actualizar el producto." });
   }
 };
 
@@ -2934,7 +2955,8 @@ export const adjustInventory = async (req: Request, res: Response): Promise<void
 
     res.status(200).json({ message: "Ajuste aplicado exitosamente.", newQuantity });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al aplicar ajuste de inventario.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al aplicar ajuste de inventario." });
   }
 };
 
@@ -3014,7 +3036,8 @@ export const transferInventory = async (req: Request, res: Response): Promise<vo
 
     res.status(200).json({ message: "Traslado aplicado exitosamente." });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al aplicar traslado.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al aplicar traslado." });
   }
 };
 
@@ -3047,7 +3070,8 @@ export const getSupplierProducts = async (req: Request, res: Response): Promise<
       }))
     );
   } catch (error: any) {
-    res.status(500).json({ message: "Error al obtener productos del proveedor.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener productos del proveedor." });
   }
 };
 
@@ -3076,7 +3100,8 @@ export const assignProductToSupplier = async (req: Request, res: Response): Prom
 
     res.status(201).json({ message: "Producto asignado al proveedor exitosamente.", record });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al asignar producto al proveedor.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al asignar producto al proveedor." });
   }
 };
 
@@ -3096,7 +3121,8 @@ export const removeProductFromSupplier = async (req: Request, res: Response): Pr
 
     res.status(200).json({ message: "Producto removido del proveedor exitosamente." });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al remover producto del proveedor.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al remover producto del proveedor." });
   }
 };
 
@@ -3115,7 +3141,8 @@ export const getProductSuppliers = async (req: Request, res: Response): Promise<
 
     res.status(200).json(records.map((sp) => sp.supplier));
   } catch (error: any) {
-    res.status(500).json({ message: "Error al obtener proveedores del producto.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener proveedores del producto." });
   }
 };
 
@@ -3154,6 +3181,7 @@ export const deleteProduct = async (req: Request, res: Response): Promise<void> 
     });
 
   } catch (error: any) {
-    res.status(500).json({ message: "Error al desactivar el producto.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al desactivar el producto." });
   }
 };
