@@ -420,7 +420,7 @@ const Autofacturacion: React.FC = () => {
     setError("");
 
     try {
-      const response = await axios.get(`http://localhost:4000/api/public/sales/ticket/${invoiceNumber.trim().toUpperCase()}`);
+      const response = await axios.get(`${API_BASE_URL}/api/public/sales/ticket/${invoiceNumber.trim().toUpperCase()}`);
       setTicket(response.data);
       
       // Si el cliente está logueado, pre-rellenar con sus datos actuales del perfil
@@ -888,7 +888,7 @@ const Autofacturacion: React.FC = () => {
 
                   <div style={styles.downloadGrid}>
                     <a
-                      href={`http://localhost:4000/api/public/sales/invoice/${invoiceResult.uuid}/pdf`}
+                      href={`${API_BASE_URL}/api/public/sales/invoice/${invoiceResult.uuid}/pdf`}
                       target="_blank"
                       rel="noreferrer"
                       style={styles.downloadButton}
@@ -897,7 +897,7 @@ const Autofacturacion: React.FC = () => {
                     </a>
 
                     <a
-                      href={`http://localhost:4000/api/public/sales/invoice/${invoiceResult.uuid}/xml`}
+                      href={`${API_BASE_URL}/api/public/sales/invoice/${invoiceResult.uuid}/xml`}
                       download={`factura-${invoiceResult.uuid}.xml`}
                       style={{ ...styles.downloadButton, backgroundColor: "#1e293b" }}
                     >
@@ -969,7 +969,7 @@ const Autofacturacion: React.FC = () => {
                           {inv.cfdiUuid ? (
                             <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
                               <a 
-                                href={`http://localhost:4000/api/public/sales/invoice/${inv.cfdiUuid}/pdf`} 
+                                href={`${API_BASE_URL}/api/public/sales/invoice/${inv.cfdiUuid}/pdf`} 
                                 target="_blank" 
                                 rel="noreferrer" 
                                 style={styles.actionIconBtn} 
@@ -978,7 +978,7 @@ const Autofacturacion: React.FC = () => {
                                 <FileText size={14} color="#1e3a8a" />
                               </a>
                               <a 
-                                href={`http://localhost:4000/api/public/sales/invoice/${inv.cfdiUuid}/xml`} 
+                                href={`${API_BASE_URL}/api/public/sales/invoice/${inv.cfdiUuid}/xml`} 
                                 download={`factura-${inv.cfdiUuid}.xml`} 
                                 style={styles.actionIconBtn} 
                                 title="Descargar XML"
@@ -1000,7 +1000,7 @@ const Autofacturacion: React.FC = () => {
                                   items: [] // se cargará al buscar
                                 });
                                 // Buscar ticket completo
-                                axios.get(`http://localhost:4000/api/public/sales/ticket/${inv.invoiceNumber}`).then(res => {
+                                axios.get(`${API_BASE_URL}/api/public/sales/ticket/${inv.invoiceNumber}`).then(res => {
                                   setTicket(res.data);
                                   setRfc(profileRfc);
                                   setLegalName(profileLegalName);
