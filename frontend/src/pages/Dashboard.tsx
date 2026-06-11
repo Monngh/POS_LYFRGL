@@ -289,6 +289,35 @@ const Dashboard: React.FC = () => {
   // ---------------------------------------------------------------------------
   // 1. CARGA DE DATOS DE SESIÓN Y VISTA INICIAL
   // ---------------------------------------------------------------------------
+  const syncPendingQrSales = async (pendingSales: any[]) => {
+    if (!pendingSales || pendingSales.length === 0) return;
+    try {
+      let updatedPendingSales = [...pendingSales];
+      let changed = false;
+      for (const pendingSale of pendingSales) {
+        try {
+          const res = await api.get(`/api/sales/detail?invoiceNumber=${pendingSale.invoiceNumber}`);
+          const dbSale = res.data?.sale;
+          if (dbSale && dbSale.status !== "PENDIENTE") {
+            updatedPendingSales = updatedPendingSales.filter(s => s.invoiceNumber !== pendingSale.invoiceNumber);
+            changed = true;
+          }
+        } catch (err: any) {
+          if (err.response?.status === 404) {
+            updatedPendingSales = updatedPendingSales.filter(s => s.invoiceNumber !== pendingSale.invoiceNumber);
+            changed = true;
+          }
+        }
+      }
+      if (changed) {
+        setPendingQrSales(updatedPendingSales);
+        localStorage.setItem("pendingQrSales", JSON.stringify(updatedPendingSales));
+      }
+    } catch (e) {
+      console.error("Error syncing pending QR sales:", e);
+    }
+  };
+
   const checkSessionStatus = async () => {
     if (!user) return;
     
@@ -304,6 +333,10 @@ const Dashboard: React.FC = () => {
         setSession(resStatus.data.session);
         setView("dashboard");
         await loadDashboardData();
+        // Sincronizar ventas QR pendientes al iniciar
+        const saved = localStorage.getItem("pendingQrSales");
+        const pendingSales = saved ? JSON.parse(saved) : [];
+        await syncPendingQrSales(pendingSales);
       } else {
         setSession(null);
         setView("apertura");
@@ -934,6 +967,8 @@ const Dashboard: React.FC = () => {
         }
 
         setActiveModal("ticket-view");
+        setQrUrl("");
+        setQrReference("");
       } else if (res.data.status === "rejected") {
         alert("Pago rechazado.");
       } else {
@@ -1675,7 +1710,7 @@ const Dashboard: React.FC = () => {
       return updated;
     });
     
-    // Limpiar el carrito de compras
+    // Limpiar el carrito de compras y los estados del QR
     setCart([]);
     setSelectedCustomer(null);
     setUsePoints(false);
@@ -1684,6 +1719,8 @@ const Dashboard: React.FC = () => {
     setCashReceived("");
     setPaymentMethod("EFECTIVO");
     setQrModalOpen(false);
+    setQrUrl("");
+    setQrReference("");
     showToast("Venta enviada a pagos pendientes. Puedes seguir vendiendo.");
   };
 
@@ -1756,6 +1793,55 @@ const Dashboard: React.FC = () => {
       showToast("Error al verificar: " + (err.response?.data?.message || err.message));
     } finally {
       setPendingQrChecking(null);
+    }
+  };
+
+  const handleCancelPendingQrSale = async (actionType: "other_method" | "cancel_def") => {
+    if (!viewingPendingQrSale) return;
+    if (!pendingCancelPin || !pendingCancelReason) {
+      showToast("El PIN de gerente y el motivo son obligatorios para cancelar.");
+      return;
+    }
+    setPendingCancelLoading(true);
+    try {
+      const res = await api.post("/api/sales/authorize-cancel", {
+        invoiceNumber: viewingPendingQrSale.invoiceNumber,
+        pinCode: pendingCancelPin,
+        reason: pendingCancelReason,
+      });
+      
+      showToast(res.data.message, "success");
+      
+      // Eliminar de pendientes localmente
+      setPendingQrSales(prev => {
+        const updated = prev.filter(sale => sale.id !== viewingPendingQrSale.id);
+        localStorage.setItem("pendingQrSales", JSON.stringify(updated));
+        return updated;
+      });
+
+      if (actionType === "other_method") {
+        // Restaurar productos, importes y cliente
+        setCart(viewingPendingQrSale.items);
+        setSelectedCustomer(viewingPendingQrSale.customer || null);
+        
+        // Reabrir el modal de cobro y volver a la terminal de ventas
+        setView("sales-terminal");
+        setCheckoutModalOpen(true);
+      } else {
+        // Cancelar definitivamente: limpiar el carrito y volver al dashboard
+        setCart([]);
+        setSelectedCustomer(null);
+        setView("dashboard");
+      }
+
+      setViewingPendingQrSale(null);
+      setPendingCancelPin("");
+      setPendingCancelReason("");
+      await loadDashboardData();
+    } catch (err: any) {
+      showToast(err.response?.data?.message || "Error al procesar la cancelación de la venta.");
+    } finally {
+      setPendingCancelLoading(false);
     }
   };
 
@@ -2938,6 +3024,32 @@ const Dashboard: React.FC = () => {
               </div>
               <div style={{ display: "flex", gap: "10px", marginTop: "24px" }} className="pos-cashier-modal-actions">
                 <button
+                  onClick={() => {
+                    const newPending = {
+                      id: Date.now(),
+                      invoiceNumber: qrReference,
+                      amount: cartTotal,
+                      date: new Date().toISOString(),
+                      qrUrl: qrUrl,
+                      items: [...cart],
+                      customer: selectedCustomer,
+                      status: "pending"
+                    };
+                    setPendingQrSales(prev => {
+                      const updated = [...prev, newPending];
+                      localStorage.setItem("pendingQrSales", JSON.stringify(updated));
+                      return updated;
+                    });
+                    setQrModalOpen(false);
+                    setViewingPendingQrSale(newPending);
+                    setQrUrl("");
+                    setQrReference("");
+                  }}
+                  style={{ ...styles.modalBtn, backgroundColor: "#64748b", color: "white" }}
+                >
+                  CANCELAR / OTRO MÉTODO
+                </button>
+                <button
                   onClick={addPendingQrSale}
                   style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
                 >
@@ -3515,9 +3627,7 @@ const Dashboard: React.FC = () => {
                   flexDirection: "column",
                   gap: "10px"
                 }}>
-                  <div style={{ fontSize: "11px", fontWeight: "700", color: "#dc2626", textTransform: "uppercase" }}>
-                    ⚠️ Cancelar Venta (Revertir Stock)
-                  </div>
+                  
                   <div style={{ display: "flex", gap: "8px" }}>
                     <div style={{ flex: 1 }}>
                       <input
@@ -3533,57 +3643,58 @@ const Dashboard: React.FC = () => {
                     <div style={{ flex: 2 }}>
                       <input
                         type="text"
-                        placeholder="Motivo de cancelación"
+                        placeholder="Motivo de cancelación (solo letras)"
                         value={pendingCancelReason}
-                        onChange={(e) => setPendingCancelReason(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñÜü\s]/g, "");
+                          setPendingCancelReason(val);
+                        }}
                         className="input-corporate"
                         style={{ padding: "6px 10px", fontSize: "12px", width: "100%" }}
                       />
                     </div>
                   </div>
-                  <button
-                    onClick={async () => {
-                      if (!pendingCancelPin || !pendingCancelReason) {
-                        showToast("El PIN de gerente y el motivo son obligatorios para cancelar.");
-                        return;
-                      }
-                      setPendingCancelLoading(true);
-                      try {
-                        const res = await api.post("/api/sales/authorize-cancel", {
-                          invoiceNumber: viewingPendingQrSale.invoiceNumber,
-                          pinCode: pendingCancelPin,
-                          reason: pendingCancelReason,
-                        });
-                        showToast(res.data.message, "success");
-                        setPendingQrSales(prev => {
-                          const updated = prev.filter(sale => sale.id !== viewingPendingQrSale.id);
-                          localStorage.setItem("pendingQrSales", JSON.stringify(updated));
-                          return updated;
-                        });
-                        setViewingPendingQrSale(null);
-                        setPendingCancelPin("");
-                        setPendingCancelReason("");
-                        await loadDashboardData();
-                      } catch (err: any) {
-                        showToast(err.response?.data?.message || "Error al cancelar la venta.");
-                      } finally {
-                        setPendingCancelLoading(false);
-                      }
-                    }}
-                    disabled={pendingCancelLoading}
-                    style={{
-                      padding: "8px",
-                      borderRadius: "6px",
-                      border: "none",
-                      backgroundColor: "#dc2626",
-                      color: "white",
-                      fontWeight: "700",
-                      fontSize: "12px",
-                      cursor: pendingCancelLoading ? "default" : "pointer"
-                    }}
-                  >
-                    {pendingCancelLoading ? "CANCELANDO..." : "CONFIRMAR CANCELACIÓN"}
-                  </button>
+                  {(!pendingCancelPin || !pendingCancelReason) && (
+                    <p style={{ fontSize: "11px", color: "#dc2626", margin: "2px 0 0 0", fontWeight: "600", textAlign: "center" }}>
+                      * Ingrese PIN de Gerente y el Motivo para autorizar las acciones.
+                    </p>
+                  )}
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <button
+                      onClick={() => handleCancelPendingQrSale("other_method")}
+                      disabled={pendingCancelLoading}
+                      style={{
+                        flex: 1,
+                        padding: "10px 8px",
+                        borderRadius: "6px",
+                        border: "none",
+                        backgroundColor: "#598ffbff",
+                        color: "white",
+                        fontWeight: "700",
+                        fontSize: "11px",
+                        cursor: pendingCancelLoading ? "default" : "pointer"
+                      }}
+                    >
+                      PAGAR CON OTRO MÉTODO
+                    </button>
+                    <button
+                      onClick={() => handleCancelPendingQrSale("cancel_def")}
+                      disabled={pendingCancelLoading}
+                      style={{
+                        flex: 1,
+                        padding: "10px 8px",
+                        borderRadius: "6px",
+                        border: "none",
+                        backgroundColor: "#dc2626",
+                        color: "white",
+                        fontWeight: "700",
+                        fontSize: "11px",
+                        cursor: pendingCancelLoading ? "default" : "pointer"
+                      }}
+                    >
+                      CANCELAR DEFINITIVAMENTE
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -3815,11 +3926,11 @@ const Dashboard: React.FC = () => {
                             <td data-label="Cajero" style={styles.td}>{sale.cajero}</td>
                             <td data-label="Estado" style={styles.td}>
                               <span style={{
-                                color: sale.status === "CANCELADA" ? "#dc2626" : "#059669",
+                                color: sale.status === "CANCELADA" ? "#dc2626" : sale.status === "PENDIENTE" ? "#d97706" : "#059669",
                                 fontWeight: "700",
                                 fontSize: "12px"
                               }}>
-                                {sale.status === "CANCELADA" ? "Cancelado" : "Activo"}
+                                {sale.status === "CANCELADA" ? "Cancelado" : sale.status === "PENDIENTE" ? "Pendiente" : "Completado"}
                               </span>
                             </td>
                             <td data-label="Acción" style={styles.td}>
@@ -3837,7 +3948,7 @@ const Dashboard: React.FC = () => {
                                 {isExpanded ? "Ocultar detalles" : "Ver detalles"}
                               </button>
                             </td>
-                            <td style={styles.td} className="pos-cashier-responsive-menu-cell">
+                            <td data-label="Más" style={styles.td} className="pos-cashier-responsive-menu-cell">
                               <button
                                 type="button"
                                 className="pos-cashier-kebab-btn"
@@ -3850,19 +3961,22 @@ const Dashboard: React.FC = () => {
                                 <div className="pos-cashier-row-menu">
                                   <button
                                     type="button"
-                                    disabled={dashboardTicketLoadingId === sale.id}
-                                    onClick={() => handleOpenDashboardSaleTicket(sale)}
-                                  >
-                                    Ver Ticket
-                                  </button>
-                                  <button
-                                    type="button"
                                     onClick={() => {
                                       toggleSalesRow(sale.id);
                                       setOpenDashboardTableMenu(null);
                                     }}
                                   >
-                                    {isExpanded ? "Ocultar detalles" : "Ver mas detalles"}
+                                    {isExpanded ? "Ocultar detalles" : "Ver más"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={dashboardTicketLoadingId === sale.id}
+                                    onClick={() => {
+                                      handleOpenDashboardSaleTicket(sale);
+                                      setOpenDashboardTableMenu(null);
+                                    }}
+                                  >
+                                    Ver ticket
                                   </button>
                                 </div>
                               )}
@@ -4322,6 +4436,22 @@ const Dashboard: React.FC = () => {
                   *** CANCELADO ***
                 </div>
               )}
+              {selectedSale.status === "PENDIENTE" && (
+                <div style={{
+                  textAlign: "center",
+                  color: "#d97706",
+                  fontWeight: "900",
+                  fontSize: "16px",
+                  border: "2px solid #d97706",
+                  padding: "4px",
+                  marginBottom: "12px",
+                  borderRadius: "4px",
+                  textTransform: "uppercase",
+                  backgroundColor: "#fffbeb"
+                }}>
+                  *** PAGO PENDIENTE ***
+                </div>
+              )}
               {selectedSale.totalRefunded > 0 && Number(selectedSale.totalRefunded).toFixed(2) === Number(selectedSale.total).toFixed(2) && (
                 <div style={{
                   textAlign: "center",
@@ -4658,6 +4788,10 @@ const Dashboard: React.FC = () => {
                 <span style={{ fontWeight: "600", color: "#0d9488" }}>${sessionStats?.debitCardTotal?.toFixed(2) || "0.00"}</span>
               </div>
               <div style={styles.summaryRow}>
+                <span>Total Mercado Pago QR:</span>
+                <span style={{ fontWeight: "600", color: "#0d9488" }}>${sessionStats?.mercadoPagoTotal?.toFixed(2) || "0.00"}</span>
+              </div>
+              <div style={styles.summaryRow}>
                 <span>Cancelaciones:</span>
                 <span style={{ fontWeight: "600", color: "#dc2626" }}>${sessionStats?.totalRefunds?.toFixed(2) || "0.00"}</span>
               </div>
@@ -4836,6 +4970,10 @@ const Dashboard: React.FC = () => {
                 <span style={{ fontWeight: "600", color: "#0d9488" }}>${sessionStats?.creditCardTotal?.toFixed(2) || "0.00"}</span>
               </div>
               <div style={styles.summaryRow}>
+                <span>Ventas Mercado Pago QR:</span>
+                <span style={{ fontWeight: "600", color: "#0d9488" }}>${sessionStats?.mercadoPagoTotal?.toFixed(2) || "0.00"}</span>
+              </div>
+              <div style={styles.summaryRow}>
                 <span>&nbsp;&nbsp;&nbsp;↳ Pendientes (Resguardo):</span>
                 <span style={{ fontWeight: "600", color: "#d97706" }}>${sessionStats?.pendingDeposits?.toFixed(2) || "0.00"}</span>
               </div>
@@ -4855,7 +4993,27 @@ const Dashboard: React.FC = () => {
                 <span>Devoluciones de Producto (-):</span>
                 <span style={{ fontWeight: "600", color: "#dc2626" }}>${sessionStats?.totalReturnsAmount?.toFixed(2) || "0.00"}</span>
               </div>
-              <div style={{ ...styles.summaryRow, borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px" }}>
+              
+              {pendingQrSales.length > 0 && (
+                <div style={{ marginTop: "6px", border: "1px solid #fca5a5", borderRadius: "6px", padding: "10px", backgroundColor: "#fef2f2" }}>
+                  <span style={{ fontWeight: "700", color: "#991b1b", fontSize: "11px", display: "block", marginBottom: "4px" }}>
+                    ⚠️ PAGOS QR PENDIENTES DE CONFIRMAR (x{pendingQrSales.length}):
+                  </span>
+                  <div style={{ maxHeight: "60px", overflowY: "auto", fontSize: "10px", color: "#7f1d1d" }}>
+                    {pendingQrSales.map((sale) => (
+                      <div key={sale.id} style={{ display: "flex", justifyContent: "space-between", marginBottom: "2px" }}>
+                        <span>{sale.invoiceNumber} ({new Date(sale.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})</span>
+                        <span style={{ fontWeight: "700" }}>${Number(sale.amount).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <span style={{ fontSize: "9px", color: "#991b1b", fontStyle: "italic", display: "block", marginTop: "4px" }}>
+                    (No sumados a efectivo esperado ni ingresos reales)
+                  </span>
+                </div>
+              )}
+
+              <div style={{ ...styles.summaryRow, borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px", marginTop: "6px" }}>
                 <span>Efectivo Esperado en Caja:</span>
                 <span style={{ fontWeight: "800", color: "#1e3a8a" }}>${sessionStats?.expectedAmount.toFixed(2)}</span>
               </div>
@@ -5613,7 +5771,7 @@ const Dashboard: React.FC = () => {
                 gap: "10px"
               }}>
                 <div style={{ fontSize: "11px", fontWeight: "700", color: "#dc2626", textTransform: "uppercase" }}>
-                  ⚠️ Cancelar Venta (Revertir Stock)
+                
                 </div>
                 
                 <div style={{ display: "flex", gap: "8px" }}>
@@ -5631,62 +5789,59 @@ const Dashboard: React.FC = () => {
                   <div style={{ flex: 2 }}>
                     <input
                       type="text"
-                      placeholder="Motivo de cancelación"
+                      placeholder="Motivo de cancelación (solo letras)"
                       value={pendingCancelReason}
-                      onChange={(e) => setPendingCancelReason(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñÜü\s]/g, "");
+                        setPendingCancelReason(val);
+                      }}
                       className="input-corporate"
                       style={{ padding: "6px 10px", fontSize: "12px" }}
                     />
                   </div>
                 </div>
+                {(!pendingCancelPin || !pendingCancelReason) && (
+                  <p style={{ fontSize: "11px", color: "#dc2626", margin: "2px 0 0 0", fontWeight: "600", textAlign: "center" }}>
+                    * Ingrese PIN de Gerente y el Motivo para autorizar las acciones.
+                  </p>
+                )}
 
-                <button
-                  onClick={async () => {
-                    if (!pendingCancelPin || !pendingCancelReason) {
-                      showToast("El PIN de gerente y el motivo son obligatorios para cancelar.");
-                      return;
-                    }
-                    setPendingCancelLoading(true);
-                    try {
-                      const res = await api.post("/api/sales/authorize-cancel", {
-                        invoiceNumber: viewingPendingQrSale.invoiceNumber,
-                        pinCode: pendingCancelPin,
-                        reason: pendingCancelReason,
-                      });
-                      
-                      showToast(res.data.message, "success");
-                      
-                      // Eliminar de pendientes localmente
-                      setPendingQrSales(prev => {
-                        const updated = prev.filter(sale => sale.id !== viewingPendingQrSale.id);
-                        localStorage.setItem("pendingQrSales", JSON.stringify(updated));
-                        return updated;
-                      });
-
-                      setViewingPendingQrSale(null);
-                      setPendingCancelPin("");
-                      setPendingCancelReason("");
-                      await loadDashboardData();
-                    } catch (err: any) {
-                      showToast(err.response?.data?.message || "Error al cancelar la venta.");
-                    } finally {
-                      setPendingCancelLoading(false);
-                    }
-                  }}
-                  disabled={pendingCancelLoading}
-                  style={{
-                    padding: "8px",
-                    borderRadius: "6px",
-                    border: "none",
-                    backgroundColor: "#dc2626",
-                    color: "white",
-                    fontWeight: "700",
-                    fontSize: "12px",
-                    cursor: pendingCancelLoading ? "default" : "pointer"
-                  }}
-                >
-                  {pendingCancelLoading ? "CANCELANDO..." : "CONFIRMAR CANCELACIÓN"}
-                </button>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <button
+                      onClick={() => handleCancelPendingQrSale("other_method")}
+                      disabled={pendingCancelLoading}
+                      style={{
+                        flex: 1,
+                        padding: "10px 8px",
+                        borderRadius: "6px",
+                        border: "none",
+                        backgroundColor: "#598ffbff",
+                        color: "white",
+                        fontWeight: "700",
+                        fontSize: "11px",
+                        cursor: pendingCancelLoading ? "default" : "pointer"
+                      }}
+                    >
+                      PAGAR CON OTRO MÉTODO
+                    </button>
+                    <button
+                      onClick={() => handleCancelPendingQrSale("cancel_def")}
+                      disabled={pendingCancelLoading}
+                      style={{
+                        flex: 1,
+                        padding: "10px 8px",
+                        borderRadius: "6px",
+                        border: "none",
+                        backgroundColor: "#dc2626",
+                        color: "white",
+                        fontWeight: "700",
+                        fontSize: "11px",
+                        cursor: pendingCancelLoading ? "default" : "pointer"
+                      }}
+                    >
+                      CANCELAR DEFINITIVAMENTE
+                    </button>
+                  </div>
               </div>
             )}
 
