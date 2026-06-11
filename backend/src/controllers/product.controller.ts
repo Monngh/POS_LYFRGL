@@ -124,6 +124,7 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
 
     res.status(200).json({ products: mappedProducts });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al buscar productos.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al buscar productos." });
   }
 };

@@ -9,17 +9,20 @@ import {
     getProductTaxes,
     syncProductTaxes,
 } from "../controllers/adminTax.controller"
-import { authenticateJWT } from "../middlewares/auth.middleware";
+import { authenticateJWT, authorizeRoles } from "../middlewares/auth.middleware";
 
 const router = Router()
 
-router.get("/taxes", authenticateJWT, getTaxes)
-router.post("/taxes", authenticateJWT, createTax)
-router.put("/taxes", authenticateJWT, updateTax)
-router.put("/taxes/status", authenticateJWT, updateTaxStatus)
-router.get("/products/:productId/taxes", authenticateJWT, getProductTaxes)
-router.put("/products/:productId/taxes", authenticateJWT, syncProductTaxes)
-router.post("/taxes/product", authenticateJWT, createProductTax)
-router.delete("/taxes/product", authenticateJWT, deleteProductTax)
+router.use(authenticateJWT)
+router.use(authorizeRoles(["ADMIN", "GERENTE"]))
+
+router.get("/taxes", getTaxes)
+router.post("/taxes", createTax)
+router.put("/taxes", updateTax)
+router.put("/taxes/status", updateTaxStatus)
+router.get("/products/:productId/taxes", getProductTaxes)
+router.put("/products/:productId/taxes", syncProductTaxes)
+router.post("/taxes/product", createProductTax)
+router.delete("/taxes/product", deleteProductTax)
 
 export default router;

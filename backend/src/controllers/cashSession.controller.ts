@@ -35,7 +35,8 @@ export const getSessionStatus = async (req: Request, res: Response): Promise<voi
       isOwnedByThisDevice,
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al obtener estado de caja.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener estado de caja." });
   }
 };
 
@@ -106,7 +107,7 @@ export const openSession = async (req: Request, res: Response): Promise<void> =>
     });
   } catch (error: any) {
     if (error.isSessionConflict) {
-      res.status(409).json({ code: "CAJA_YA_ABIERTA", message: error.message });
+      res.status(409).json({ code: "CAJA_YA_ABIERTA", message: "Ya tienes una sesión de caja activa. Verifica el estado de tu turno antes de abrir una nueva." });
       return;
     }
     // Deadlock/conflicto de serialización: otra apertura simultánea ganó la transacción
@@ -117,7 +118,7 @@ export const openSession = async (req: Request, res: Response): Promise<void> =>
       });
       return;
     }
-    res.status(500).json({ message: "Error al abrir la caja.", error: error.message });
+    res.status(500).json({ message: "Error al abrir la caja." });
   }
 };
 
@@ -268,7 +269,8 @@ export const closeSession = async (req: Request, res: Response): Promise<void> =
       }
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al cerrar la caja.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al cerrar la caja." });
   }
 };
 
@@ -406,7 +408,8 @@ export const getSessionStats = async (req: Request, res: Response): Promise<void
       }
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al cargar estadísticas de turno.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al cargar estadísticas de turno." });
   }
 };
 
@@ -520,7 +523,8 @@ export const createPartialCut = async (req: Request, res: Response): Promise<voi
       },
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al generar corte parcial.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al generar corte parcial." });
   }
 };
 
@@ -591,7 +595,8 @@ export const getPartialCuts = async (req: Request, res: Response): Promise<void>
 
     res.status(200).json({ cuts: cutsWithReturns });
   } catch (error: any) {
-    res.status(500).json({ message: "Error al cargar historial de cortes.", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Error al cargar historial de cortes." });
   }
 };
 
