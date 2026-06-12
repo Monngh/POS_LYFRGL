@@ -1,31 +1,29 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from '../services/api';
-import { 
-  Search, 
-  FileText, 
-  CheckCircle2, 
-  Download, 
-  AlertTriangle, 
-  ArrowLeft, 
-  Building2, 
-  User, 
-  Lock, 
-  LogOut, 
-  LogIn, 
-  Sparkles, 
-  ClipboardList, 
-  Check, 
-  FileCode 
+import {
+  Search,
+  FileText,
+  CheckCircle2,
+  Download,
+  AlertTriangle,
+  ArrowLeft,
+  Building2,
+  User,
+  Lock,
+  LogOut,
+  LogIn,
+  Sparkles,
+  ClipboardList,
+  Check,
+  FileCode
 } from "lucide-react";
 import {
   type FieldErrors,
-  normalizeEmailInput,
   normalizeIntegerInput,
   normalizePhoneInput,
   normalizeRfcInput,
   normalizeSpaces,
-  validateEmail,
   validateInteger,
   validatePhone,
   validateReference,
@@ -45,6 +43,7 @@ interface TicketData {
   id: number;
   invoiceNumber: string;
   createdAt: string;
+  invoiceDeadline?: string;
   totalAmount: number;
   taxAmount: number;
   branchName: string;
@@ -67,7 +66,7 @@ interface InvoiceHistoryItem {
 type InvoiceFormField = "rfc" | "legalName" | "zip" | "email";
 type ProfileFormField = "profileRfc" | "profileLegalName" | "profileZip" | "profileEmail" | "profileAddress";
 type LoginFormField = "loginPhone" | "loginPassword";
-type RegisterFormField = "registerPhone" | "registerInvoiceNumber" | "registerPassword" | "registerConfirmPassword";
+type RegisterFormField = "registerPhone" | "registerEmail" | "registerInvoiceNumber" | "registerPassword" | "registerConfirmPassword";
 
 const REGIMENES_FISCALES = [
   { code: "601", label: "601 - General de Ley Personas Morales" },
@@ -91,6 +90,20 @@ const USOS_CFDI = [
   { code: "S01", label: "S01 - Sin efectos fiscales" }
 ];
 
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+const EMAIL_FORMAT_ERROR = "El correo electrónico no tiene un formato válido.";
+
+const cleanEmailInput = (value: string) => value.trim().toLowerCase();
+
+const validateAutofactEmail = (value: string, options: { required?: boolean } = {}) => {
+  const trimmed = value.trim();
+  if (!trimmed) return options.required ? "El correo es obligatorio." : undefined;
+  if (trimmed !== value || !EMAIL_REGEX.test(trimmed)) {
+    return EMAIL_FORMAT_ERROR;
+  }
+  return undefined;
+};
+
 const Autofacturacion: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"facturar" | "facturas" | "datos">("facturar");
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -109,7 +122,7 @@ const Autofacturacion: React.FC = () => {
   const [cfdiUse, setCfdiUse] = useState("G03");
   const [ticketFieldErrors, setTicketFieldErrors] = useState<FieldErrors<"invoiceNumber">>({});
   const [invoiceFieldErrors, setInvoiceFieldErrors] = useState<FieldErrors<InvoiceFormField>>({});
-  
+
   // Resultado de facturación
   const [invoiceResult, setInvoiceResult] = useState<{
     uuid: string;
@@ -121,18 +134,19 @@ const Autofacturacion: React.FC = () => {
   // Autenticación de Clientes
   const [customerToken, setCustomerToken] = useState<string | null>(null);
   const [customerInfo, setCustomerInfo] = useState<{ id: number; name: string; phone: string; email: string | null; points?: number } | null>(null);
-  
+
   // Modales
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  
+
   // Campos Login
   const [loginPhone, setLoginPhone] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginFieldErrors, setLoginFieldErrors] = useState<FieldErrors<LoginFormField>>({});
-  
+
   // Campos Registro (Reclamar cuenta)
   const [registerPhone, setRegisterPhone] = useState("");
+  const [registerEmail, setRegisterEmail] = useState("");
   const [registerInvoiceNumber, setRegisterInvoiceNumber] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
@@ -168,7 +182,7 @@ const Autofacturacion: React.FC = () => {
     if (field === "rfc") return validateRfc(value, { required: true });
     if (field === "legalName") return validateSafeText(value, "La razon social", { required: true, min: 3, max: 160 });
     if (field === "zip") return validateZipCode(value);
-    if (field === "email") return validateEmail(value, { required: true });
+    if (field === "email") return validateAutofactEmail(value, { required: true });
     return undefined;
   };
 
@@ -183,7 +197,7 @@ const Autofacturacion: React.FC = () => {
     if (field === "profileRfc") return validateRfc(value, { required: true });
     if (field === "profileLegalName") return validateSafeText(value, "La razon social", { required: true, min: 3, max: 160 });
     if (field === "profileZip") return validateZipCode(value);
-    if (field === "profileEmail") return validateEmail(value, { required: true });
+    if (field === "profileEmail") return validateAutofactEmail(value, { required: true });
     if (field === "profileAddress") return validateSafeText(value, "La direccion", { required: false, max: 180 });
     return undefined;
   };
@@ -203,6 +217,7 @@ const Autofacturacion: React.FC = () => {
 
   const validateRegisterForm = () => ({
     registerPhone: validatePhone(registerPhone, { required: true, minDigits: 10, maxDigits: 15 }),
+    registerEmail: validateAutofactEmail(registerEmail, { required: true }),
     registerInvoiceNumber: validateReference(registerInvoiceNumber, "El folio", { required: true, max: 40 }),
     registerPassword:
       registerPassword.length >= 6 ? undefined : "La contrasena debe tener al menos 6 caracteres.",
@@ -294,14 +309,14 @@ const Autofacturacion: React.FC = () => {
       const { token, customer } = response.data;
       localStorage.setItem("customer_token", token);
       localStorage.setItem("customer", JSON.stringify(customer));
-      
+
       setCustomerToken(token);
       setCustomerInfo(customer);
       setShowLoginModal(false);
       setLoginPhone("");
       setLoginPassword("");
       setLoginFieldErrors({});
-      
+
       await fetchProfile(token);
       setSuccessMessage("¡Bienvenido de nuevo!");
       setTimeout(() => setSuccessMessage(""), 4000);
@@ -326,6 +341,7 @@ const Autofacturacion: React.FC = () => {
     try {
       const response = await axios.post(`${API_BASE_URL}/api/customers/register`, {
         phone: normalizePhoneInput(registerPhone),
+        email: cleanEmailInput(registerEmail),
         invoiceNumber: registerInvoiceNumber.trim().toUpperCase(),
         password: registerPassword
       });
@@ -334,11 +350,12 @@ const Autofacturacion: React.FC = () => {
       setShowLoginModal(true);
       setLoginPhone(registerPhone);
       setRegisterPhone("");
+      setRegisterEmail("");
       setRegisterInvoiceNumber("");
       setRegisterPassword("");
       setRegisterConfirmPassword("");
       setRegisterFieldErrors({});
-      
+
       alert(response.data.message);
     } catch (err: any) {
       setError(err.response?.data?.message || "Error al registrar cuenta. Verifique sus datos e intente de nuevo.");
@@ -357,7 +374,7 @@ const Autofacturacion: React.FC = () => {
     setStep(1);
     setTicket(null);
     setInvoiceResult(null);
-    
+
     // Vaciar campos
     setRfc("");
     setLegalName("");
@@ -390,7 +407,7 @@ const Autofacturacion: React.FC = () => {
         name: normalizeSpaces(profileLegalName).toUpperCase(),
         taxRegime: profileTaxSystem,
         zipCode: normalizeIntegerInput(profileZip),
-        email: normalizeEmailInput(profileEmail),
+        email: cleanEmailInput(profileEmail),
         cfdiUse: profileCfdiUse,
         address: normalizeSpaces(profileAddress)
       }, {
@@ -422,7 +439,7 @@ const Autofacturacion: React.FC = () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/public/sales/ticket/${invoiceNumber.trim().toUpperCase()}`);
       setTicket(response.data);
-      
+
       // Si el cliente está logueado, pre-rellenar con sus datos actuales del perfil
       if (customerInfo) {
         setRfc(profileRfc);
@@ -432,7 +449,7 @@ const Autofacturacion: React.FC = () => {
         setEmail(profileEmail);
         setCfdiUse(profileCfdiUse);
       }
-      
+
       setStep(2);
     } catch (err: any) {
       setError(err.response?.data?.message || "No se pudo encontrar el ticket especificado.");
@@ -458,7 +475,7 @@ const Autofacturacion: React.FC = () => {
         legalName: normalizeSpaces(legalName).toUpperCase(),
         taxSystem,
         zip: normalizeIntegerInput(zip),
-        email: normalizeEmailInput(email),
+        email: cleanEmailInput(email),
         cfdiUse
       });
 
@@ -512,7 +529,6 @@ const Autofacturacion: React.FC = () => {
       setZip(next);
     }
     if (field === "email") {
-      next = normalizeEmailInput(rawValue);
       setEmail(next);
     }
     setInvoiceFieldErrors((prev) => ({
@@ -539,7 +555,6 @@ const Autofacturacion: React.FC = () => {
       setProfileZip(next);
     }
     if (field === "profileEmail") {
-      next = normalizeEmailInput(rawValue);
       setProfileEmail(next);
     }
     if (field === "profileAddress") {
@@ -574,6 +589,10 @@ const Autofacturacion: React.FC = () => {
       if (rawValue !== next) error = "El telefono solo puede contener numeros, espacios, +, - y parentesis.";
       setRegisterPhone(next);
       error ||= validatePhone(next, { required: true, minDigits: 10, maxDigits: 15 });
+    }
+    if (field === "registerEmail") {
+      setRegisterEmail(next);
+      error = validateAutofactEmail(next, { required: true });
     }
     if (field === "registerInvoiceNumber") {
       next = rawValue.toUpperCase();
@@ -639,19 +658,19 @@ const Autofacturacion: React.FC = () => {
       {customerInfo && (
         <div style={styles.tabsBar}>
           <div style={styles.tabsContainer}>
-            <button 
+            <button
               onClick={() => { setActiveTab("facturar"); setStep(1); setError(""); }}
               style={activeTab === "facturar" ? styles.activeTab : styles.tab}
             >
               <Search size={16} style={{ marginRight: "6px" }} /> Facturar Nuevo Ticket
             </button>
-            <button 
+            <button
               onClick={() => { setActiveTab("facturas"); setError(""); loadInvoices(); }}
               style={activeTab === "facturas" ? styles.activeTab : styles.tab}
             >
               <ClipboardList size={16} style={{ marginRight: "6px" }} /> Mis Facturas
             </button>
-            <button 
+            <button
               onClick={() => { setActiveTab("datos"); setError(""); }}
               style={activeTab === "datos" ? styles.activeTab : styles.tab}
             >
@@ -719,14 +738,17 @@ const Autofacturacion: React.FC = () => {
                 </button>
 
                 <h2 style={styles.sectionHeader}>Detalles del Ticket</h2>
-                
+
                 <div style={styles.ticketDetailsBox}>
                   <div style={styles.ticketGrid}>
                     <div><strong>Folio:</strong> {ticket.invoiceNumber}</div>
                     <div><strong>Sucursal:</strong> {ticket.branchName}</div>
                     <div><strong>Fecha:</strong> {new Date(ticket.createdAt).toLocaleString()}</div>
+                    {ticket.invoiceDeadline && (
+                      <div><strong>Puede facturarse hasta:</strong> {new Date(`${ticket.invoiceDeadline}T00:00:00`).toLocaleDateString()}</div>
+                    )}
                     <div>
-                      <strong>Total Compra:</strong> 
+                      <strong>Total Compra:</strong>
                       <span style={{ color: "#1e3a8a", fontWeight: "800", marginLeft: "6px" }}>
                         ${ticket.totalAmount.toFixed(2)}
                       </span>
@@ -839,6 +861,10 @@ const Autofacturacion: React.FC = () => {
                       <label style={styles.label}>Correo Electrónico *</label>
                       <input
                         type="email"
+                        inputMode="email"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
                         required
                         placeholder="Para enviar sus archivos PDF y XML"
                         value={email}
@@ -873,11 +899,11 @@ const Autofacturacion: React.FC = () => {
                   </div>
                   <h1 style={styles.successTitle}>¡Factura Emitida con Éxito!</h1>
                   <p style={styles.successSubtitle}>
-                    {invoiceResult.mode === "real" && 
+                    {invoiceResult.mode === "real" &&
                       "Su comprobante fiscal ha sido timbrado por el PAC y enviado correctamente por correo."}
-                    {invoiceResult.mode === "fallback-simulated" && 
+                    {invoiceResult.mode === "fallback-simulated" &&
                       "Nota: El servidor de Facturapi no respondió (error de red/offline). Se generó y guardó la simulación de correo y factura de demostración de respaldo localmente."}
-                    {invoiceResult.mode === "simulated" && 
+                    {invoiceResult.mode === "simulated" &&
                       "Se ha generado la representación impresa, XML de demostración y simulación de correo exitosamente."}
                   </p>
 
@@ -968,26 +994,26 @@ const Autofacturacion: React.FC = () => {
                         <td style={{ ...styles.td }}>
                           {inv.cfdiUuid ? (
                             <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
-                              <a 
-                                href={`${API_BASE_URL}/api/public/sales/invoice/${inv.cfdiUuid}/pdf`} 
-                                target="_blank" 
-                                rel="noreferrer" 
-                                style={styles.actionIconBtn} 
+                              <a
+                                href={`${API_BASE_URL}/api/public/sales/invoice/${inv.cfdiUuid}/pdf`}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={styles.actionIconBtn}
                                 title="Ver PDF"
                               >
                                 <FileText size={14} color="#1e3a8a" />
                               </a>
-                              <a 
-                                href={`${API_BASE_URL}/api/public/sales/invoice/${inv.cfdiUuid}/xml`} 
-                                download={`factura-${inv.cfdiUuid}.xml`} 
-                                style={styles.actionIconBtn} 
+                              <a
+                                href={`${API_BASE_URL}/api/public/sales/invoice/${inv.cfdiUuid}/xml`}
+                                download={`factura-${inv.cfdiUuid}.xml`}
+                                style={styles.actionIconBtn}
                                 title="Descargar XML"
                               >
                                 <FileCode size={14} color="#475569" />
                               </a>
                             </div>
                           ) : (
-                            <button 
+                            <button
                               onClick={() => {
                                 setInvoiceNumber(inv.invoiceNumber);
                                 setTicket({
@@ -1011,7 +1037,7 @@ const Autofacturacion: React.FC = () => {
                                   setStep(2);
                                   setActiveTab("facturar");
                                 });
-                              }} 
+                              }}
                               style={styles.billingShortcutBtn}
                             >
                               Facturar ahora
@@ -1117,6 +1143,10 @@ const Autofacturacion: React.FC = () => {
                   <label style={styles.label}>Correo de Envío *</label>
                   <input
                     type="email"
+                    inputMode="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     required
                     placeholder="Correo de facturación"
                     value={profileEmail}
@@ -1213,7 +1243,7 @@ const Autofacturacion: React.FC = () => {
 
             <div style={styles.modalFooter}>
               ¿Aún no tienes contraseña?{" "}
-              <button 
+              <button
                 onClick={() => { setShowLoginModal(false); setShowRegisterModal(true); }}
                 style={styles.footerLink}
               >
@@ -1247,6 +1277,24 @@ const Autofacturacion: React.FC = () => {
                   style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerPhone ? styles.inputError : {}) }}
                 />
                 {registerFieldErrors.registerPhone && <p style={styles.fieldError}>{registerFieldErrors.registerPhone}</p>}
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Correo Electrónico *</label>
+                <input
+                  type="email"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  required
+                  placeholder="Ej: micorreo@gmail.com"
+                  value={registerEmail}
+                  onChange={(e) => setRegisterField("registerEmail", e.target.value)}
+                  onBlur={() => setRegisterFieldErrors((prev) => ({ ...prev, registerEmail: validateAutofactEmail(registerEmail, { required: true }) }))}
+                  style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerEmail ? styles.inputError : {}) }}
+                />
+                {registerFieldErrors.registerEmail && <p style={styles.fieldError}>{registerFieldErrors.registerEmail}</p>}
               </div>
 
               <div style={styles.formGroup}>
@@ -1305,7 +1353,7 @@ const Autofacturacion: React.FC = () => {
 
             <div style={styles.modalFooter}>
               ¿Ya tienes cuenta?{" "}
-              <button 
+              <button
                 onClick={() => { setShowRegisterModal(false); setShowLoginModal(true); }}
                 style={styles.footerLink}
               >

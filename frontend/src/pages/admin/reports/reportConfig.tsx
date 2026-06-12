@@ -253,13 +253,14 @@ export const REPORTS: ReportDef[] = [
     endpoint: "/api/admin/purchases",
     rows: (r) => (Array.isArray(r) ? r : r.rows ?? []),
     branchScoped: false,
-    filters: ["status"],
+    filters: ["dateRange", "status"],
     statusOptions: [
       { value: "all", label: "Todos los estados" },
       { value: "PENDIENTE", label: "Pendientes" },
       { value: "RECIBIDA", label: "Recibidas" },
       { value: "CANCELADA", label: "Canceladas" },
     ],
+    params: (f) => ({ ...rangeParam(f) }),
     clientFilter: (rows, f) => (f.status === "all" ? rows : rows.filter((r) => r.status === f.status)),
     columns: [
       { key: "reference", label: "Folio" },
