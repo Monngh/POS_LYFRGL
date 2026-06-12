@@ -196,7 +196,11 @@ export const simulateSale = async (req: Request, res: Response): Promise<void> =
       }
     }
 
-    simulation.total = simulation.subtotal - simulation.totalDiscount + simulation.totalTax;
+    const exactTotal = simulation.subtotal - simulation.totalDiscount + simulation.totalTax;
+    
+    // REDONDEO DE TICKET (Opción A): Redondear a la fracción de .50 más cercana
+    // Ej: 11.16 -> 11.00, 11.36 -> 11.50, 11.85 -> 12.00
+    simulation.total = Math.round(exactTotal * 2) / 2;
 
     res.json(simulation);
   } catch (err: any) {
@@ -410,7 +414,10 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     const discount = promoCalc.totalDiscount; // Se sobreescribe con el descuento real de promociones
     const finalSubtotal = promoCalc.totalFinal;
     const finalTax = Number(totalTaxAmount.toFixed(2));
-    const finalTotal = finalSubtotal + finalTax;
+    
+    // REDONDEO DE TICKET (Opción A): Redondear a la fracción de .50 más cercana
+    const exactTotal = finalSubtotal + finalTax;
+    const finalTotal = Math.round(exactTotal * 2) / 2;
 
     // Lógica de Lealtad (Puntos FMB)
     let pointsDiscount = 0;

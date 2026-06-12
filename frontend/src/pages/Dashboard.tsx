@@ -3066,6 +3066,14 @@ const Dashboard: React.FC = () => {
                     <span style={{ fontWeight: "600" }}>${cartTax.toFixed(2)}</span>
                   </div>
                 )}
+                {Math.abs(cartTotal - (cartSubtotal + cartTax)) > 0.01 && (
+                  <div style={styles.summaryRow}>
+                    <span>Ajuste por Redondeo:</span>
+                    <span style={{ fontWeight: "600", color: (cartTotal - (cartSubtotal + cartTax)) < 0 ? "#059669" : "#dc2626" }}>
+                      {cartTotal - (cartSubtotal + cartTax) > 0 ? "+" : ""}{(cartTotal - (cartSubtotal + cartTax)).toFixed(2)}
+                    </span>
+                  </div>
+                )}
                 <div style={{ ...styles.summaryRow, ...styles.summaryTotal }}>
                   <span>Total:</span>
                   <span style={{ color: "#dc2626", fontWeight: "800" }}>${cartTotal.toFixed(2)}</span>
@@ -3756,6 +3764,15 @@ const Dashboard: React.FC = () => {
                         <span>${(Number(selectedSale.total) - Number(selectedSale.totalRefunded)).toFixed(2)}</span>
                       </div>
                     </>
+                  )}
+                  {Math.abs(selectedSale.total - (selectedSale.subtotal + selectedSale.tax - (selectedSale.discountAmount || 0) - (selectedSale.pointsDiscount || 0))) > 0.01 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", fontStyle: "italic", color: (selectedSale.total - (selectedSale.subtotal + selectedSale.tax - (selectedSale.discountAmount || 0) - (selectedSale.pointsDiscount || 0))) < 0 ? "#059669" : "#dc2626" }}>
+                      <span>Ajuste por Redondeo:</span>
+                      <span>
+                        {(selectedSale.total - (selectedSale.subtotal + selectedSale.tax - (selectedSale.discountAmount || 0) - (selectedSale.pointsDiscount || 0))) > 0 ? "+" : ""}
+                        {(selectedSale.total - (selectedSale.subtotal + selectedSale.tax - (selectedSale.discountAmount || 0) - (selectedSale.pointsDiscount || 0))).toFixed(2)}
+                      </span>
+                    </div>
                   )}
                   <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "800", fontSize: "12px" }}>
                     <span>TOTAL:</span>
