@@ -1097,6 +1097,7 @@ const Dashboard: React.FC = () => {
   const [qrReference, setQrReference] = useState("");
   const [qrChecking, setQrChecking] = useState(false);
   const [qrExpiresAt, setQrExpiresAt] = useState("");
+  const [countdownText, setCountdownText] = useState("");
 
   const isQrExpired = (sale: any) => {
     if (!sale || !sale.qrExpiresAt) return false;
@@ -1293,7 +1294,6 @@ const Dashboard: React.FC = () => {
 
         setQrUrl(qrRes.data.initPoint);
         setQrReference(saleInvoice);
-        setQrExpiresAt(qrRes.data.expiresAt);
         setCheckoutModalOpen(false);
         setQrModalOpen(true);
       } catch(err: any) {
@@ -1988,23 +1988,6 @@ const Dashboard: React.FC = () => {
       return updated;
     });
     
-    // Preparar el ticket para imprimir como PENDIENTE
-    setSelectedSale({
-      invoiceNumber: qrReference,
-      items: [...cart],
-      subtotal: cartSubtotal,
-      tax: cartTax,
-      total: cartTotal,
-      paymentMethod: "QR_MERCADOPAGO",
-      cashReceived: 0,
-      changeGiven: 0,
-      createdAt: new Date().toISOString(),
-      isNewSale: true,
-      status: "PENDING",
-      qrUrl: qrUrl,
-      customerName: selectedCustomer?.name || undefined
-    });
-    
     // Limpiar el carrito de compras
     setCart([]);
     setSelectedCustomer(null);
@@ -2014,9 +1997,6 @@ const Dashboard: React.FC = () => {
     setCashReceived("");
     setPaymentMethod("EFECTIVO");
     setQrModalOpen(false);
-    
-    // Abrir el ticket para imprimir
-    setActiveModal("ticket-view");
   };
 
   const handleRegenerateQr = async (sale: any) => {
@@ -4572,22 +4552,6 @@ const Dashboard: React.FC = () => {
         <div style={{ ...styles.modalOverlay, zIndex: ticketEmailModalOpen ? 9998 : 100 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
           <div style={styles.ticketModal} className="pos-cashier-modal">
             <div id="print-area" style={styles.ticketContainer} className="ticket-print">
-              {selectedSale.status === "PENDING" && (
-                <div style={{
-                  textAlign: "center",
-                  color: "#d97706",
-                  fontWeight: "900",
-                  fontSize: "14px",
-                  border: "2px dashed #d97706",
-                  padding: "4px",
-                  marginBottom: "12px",
-                  borderRadius: "4px",
-                  textTransform: "uppercase",
-                  backgroundColor: "#fffbeb"
-                }}>
-                  *** PENDIENTE DE PAGO ***
-                </div>
-              )}
               {selectedSale.status === "CANCELADA" && (
                 <div style={{
                   textAlign: "center",
@@ -4601,6 +4565,22 @@ const Dashboard: React.FC = () => {
                   textTransform: "uppercase"
                 }}>
                   *** CANCELADO ***
+                </div>
+              )}
+              {selectedSale.status === "PENDIENTE" && (
+                <div style={{
+                  textAlign: "center",
+                  color: "#d97706",
+                  fontWeight: "900",
+                  fontSize: "16px",
+                  border: "2px solid #d97706",
+                  padding: "4px",
+                  marginBottom: "12px",
+                  borderRadius: "4px",
+                  textTransform: "uppercase",
+                  backgroundColor: "#fffbeb"
+                }}>
+                  *** PAGO PENDIENTE ***
                 </div>
               )}
               {selectedSale.totalRefunded > 0 && Number(selectedSale.totalRefunded).toFixed(2) === Number(selectedSale.total).toFixed(2) && (
@@ -4810,18 +4790,6 @@ const Dashboard: React.FC = () => {
                   </div>
                 )}
               </div>
-
-              {selectedSale.status === "PENDING" && selectedSale.qrUrl && (
-                <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "12px", paddingTop: "8px", fontSize: "11px", textAlign: "center", color: "#1e3a8a", lineHeight: "1.4", display: "flex", flexDirection: "column", alignItems: "center" }}>
-                  <p style={{ fontWeight: "bold" }}>PAGO PENDIENTE CON QR</p>
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(selectedSale.qrUrl)}`}
-                    alt="QR Mercado Pago"
-                    style={{ width: "140px", height: "140px", marginTop: "8px", marginBottom: "8px" }}
-                  />
-                  <p>Escanea este código para completar el pago</p>
-                </div>
-              )}
 
               <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "12px", paddingTop: "8px", fontSize: "9px", textAlign: "center", color: "#64748b", lineHeight: "1.4", display: "flex", flexDirection: "column", alignItems: "center" }}>
                 <p>Portal de Autofacturación:</p>
