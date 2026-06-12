@@ -37,7 +37,7 @@ router.post("/bank-deposit", enforceCajaDevice, createBankDeposit);
 router.get("/deposits", getRecentDeposits);
 router.get("/deposits/search", searchDeposits);
 router.get("/deposits/:id", getDepositById);
-router.post("/deposits/:id/confirm", enforceCajaDevice, confirmDeposit);
+router.post("/deposits/:id/confirm", confirmDeposit);
 router.post("/deposits/:id/cancel", enforceCajaDevice, cancelDeposit);
 router.post("/deposits/:id/sync", enforceCajaDevice, syncDepositStatus);
 router.post("/confirm-qr", enforceCajaDevice, confirmQrPayment);
