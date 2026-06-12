@@ -88,8 +88,9 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     try {
       await api.post(`/api/sales/deposits/${depositId}/confirm`);
       await load();
-    } catch (err) {
-      setError("Error al confirmar depósito");
+    } catch (error: any) {
+      console.error("Error confirmando depósito:", error?.response?.status, error?.response?.data);
+      setError(error?.response?.data?.message || "Error al confirmar depósito");
     } finally {
       setConfirmingDepositId(null);
     }
