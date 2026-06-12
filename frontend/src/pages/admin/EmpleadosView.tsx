@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { X, Plus, Activity, Pencil } from "lucide-react";
 import api from "../../services/api";
 import {
@@ -29,10 +29,12 @@ interface EmployeeRow {
   baseSalary?: number | null;
   commissionRate?: number | null;
 }
+
 interface BranchOption {
   id: number;
   name: string;
 }
+
 interface Operations {
   employee: { id: number; name: string; email: string; role: string; active: boolean; branch: string };
   summary: {
@@ -63,24 +65,31 @@ const emptyForm = {
   newPin: "",
 };
 
+type FormState = typeof emptyForm;
+type FieldErrors = Partial<Record<keyof FormState, string>>;
+
+const PHONE_PATTERN = /^\d{10}$/;
+const NAME_PATTERN = /^[A-Za-z\u00C0-\u017F\s]+$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [rows, setRows] = useState<EmployeeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("all");
-
   const [branches, setBranches] = useState<BranchOption[]>([]);
 
-  // Alta / edición de empleado
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editActive, setEditActive] = useState(true);
   const [form, setForm] = useState({ ...emptyForm });
+  const [originalForm, setOriginalForm] = useState<FormState | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Operaciones del vendedor
+  const submitClickedRef = useRef(false);
   const [ops, setOps] = useState<Operations | null>(null);
   const [opsLoading, setOpsLoading] = useState(false);
 
@@ -109,32 +118,197 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   }, [load]);
 
   useEffect(() => {
-    api.get<{ branches: BranchOption[] }>("/api/auth/branches").then((r) => setBranches(r.data.branches)).catch(() => {});
+    api.get<{ branches: BranchOption[] }>("/api/auth/branches").then((r) => setBranches(r.data.branches)).catch(() => { });
   }, []);
+
+  // 🔥 Verificar si hay cambios reales en edición
+  const hasChanges = (): boolean => {
+    if (!originalForm) return true;
+
+    const compareCurrent = {
+      name: form.name.trim(),
+      email: form.email.trim(),
+      role: form.role,
+      branchId: form.branchId,
+      phone: form.phone,
+      baseSalary: form.baseSalary,
+      commissionRate: form.commissionRate,
+      active: editActive,
+    };
+    const compareOriginal = {
+      name: originalForm.name?.trim() || "",
+      email: originalForm.email?.trim() || "",
+      role: originalForm.role || "",
+      branchId: originalForm.branchId || "",
+      phone: originalForm.phone || "",
+      baseSalary: originalForm.baseSalary || "",
+      commissionRate: originalForm.commissionRate || "",
+      active: editActive,
+    };
+
+    return JSON.stringify(compareCurrent) !== JSON.stringify(compareOriginal);
+  };
+
+  // 🔥 Validar formulario
+  const validateForm = (): boolean => {
+    const errors: FieldErrors = {};
+    let isValid = true;
+
+    // Nombre
+    if (!form.name.trim()) {
+      errors.name = "El nombre es obligatorio.";
+      isValid = false;
+    } else if (form.name.length < 3) {
+      errors.name = "Mínimo 3 caracteres.";
+      isValid = false;
+    } else if (!NAME_PATTERN.test(form.name)) {
+      errors.name = "Solo letras y espacios.";
+      isValid = false;
+    }
+
+    // Email
+    if (!form.email.trim()) {
+      errors.email = "El correo es obligatorio.";
+      isValid = false;
+    } else if (!EMAIL_PATTERN.test(form.email)) {
+      errors.email = "Correo inválido.";
+      isValid = false;
+    }
+
+    // Teléfono (opcional)
+    if (form.phone) {
+      const phoneDigits = form.phone.replace(/\D/g, "");
+      if (!PHONE_PATTERN.test(phoneDigits)) {
+        errors.phone = "Debe tener 10 dígitos.";
+        isValid = false;
+      }
+    }
+
+    // Rol
+    if (!form.role) {
+      errors.role = "Seleccione un rol.";
+      isValid = false;
+    }
+
+    // Sucursal
+    if (!form.branchId) {
+      errors.branchId = "Seleccione una sucursal.";
+      isValid = false;
+    }
+
+    // Contraseña (solo en creación)
+    if (!editingId && (!form.password || form.password.length < 6)) {
+      errors.password = "Mínimo 6 caracteres.";
+      isValid = false;
+    }
+
+    // PIN para cajeros (solo en creación)
+    if (!editingId && form.role === "CAJERO" && (!form.pinCode || form.pinCode.length !== 4)) {
+      errors.pinCode = "PIN de 4 dígitos requerido.";
+      isValid = false;
+    }
+
+    // Nuevo PIN (edición)
+    if (editingId && form.newPin && !/^\d{4}$/.test(form.newPin)) {
+      errors.newPin = "PIN debe tener 4 dígitos.";
+      isValid = false;
+    }
+
+    // Sueldo base
+    if (form.baseSalary && isNaN(parseFloat(form.baseSalary))) {
+      errors.baseSalary = "Número inválido.";
+      isValid = false;
+    }
+
+    // Comisión
+    if (form.commissionRate) {
+      const num = parseFloat(form.commissionRate);
+      if (isNaN(num)) {
+        errors.commissionRate = "Número inválido.";
+        isValid = false;
+      } else if (num > 100) {
+        errors.commissionRate = "No puede ser mayor a 100.";
+        isValid = false;
+      }
+    }
+
+    setFieldErrors(errors);
+    return isValid;
+  };
+
+  // 🔥 Verificar si el botón debe estar habilitado
+  const isSaveEnabled = () => {
+    if (saving) return false;
+
+    // Validar campos obligatorios
+    if (!form.name.trim()) return false;
+    if (!form.email.trim()) return false;
+    if (!form.role) return false;
+    if (!form.branchId) return false;
+
+    // En creación, validar contraseña
+    if (!editingId) {
+      if (!form.password || form.password.length < 6) return false;
+      if (form.role === "CAJERO" && (!form.pinCode || form.pinCode.length !== 4)) return false;
+    }
+
+    // En edición, solo habilitar si HAY CAMBIOS
+    if (editingId && !hasChanges()) return false;
+
+    // Si hay errores, no habilitar
+    if (Object.keys(fieldErrors).length > 0) return false;
+
+    return true;
+  };
+
+  const updateField = (k: keyof typeof emptyForm, value: string) => {
+    let nextValue = value;
+    if (k === "phone") nextValue = value.replace(/\D/g, "").slice(0, 10);
+    if (k === "pinCode" || k === "newPin") nextValue = value.replace(/\D/g, "").slice(0, 4);
+    if (k === "name") nextValue = value.replace(/[^A-Za-z\u00C0-\u017F\s]/g, '');
+
+    const newForm = { ...form, [k]: nextValue };
+    setForm(newForm);
+    setFieldErrors({ ...fieldErrors, [k]: undefined });
+
+    // Limpiar mensaje de "no hubo cambios" cuando el usuario empieza a editar
+    if (formError === "No hubo cambios para guardar.") {
+      setFormError(null);
+    }
+  };
+
+  const setField = (k: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    updateField(k, e.target.value);
 
   const openCreate = () => {
     setForm({ ...emptyForm });
+    setOriginalForm(null);
     setEditingId(null);
     setEditActive(true);
+    setFieldErrors({});
     setFormError(null);
     setShowForm(true);
   };
 
   const openEdit = (u: EmployeeRow) => {
-    setForm({
+    const branch = branches.find(b => b.name === u.branch);
+    const editForm = {
       name: u.name,
       email: u.email,
       password: "",
       role: u.role,
-      branchId: "",
+      branchId: branch ? String(branch.id) : "",
       pinCode: "",
       phone: u.phone || "",
       baseSalary: u.baseSalary != null ? String(u.baseSalary) : "",
       commissionRate: u.commissionRate != null ? String(u.commissionRate) : "",
       newPin: "",
-    });
+    };
+    setForm(editForm);
+    setOriginalForm(JSON.parse(JSON.stringify(editForm)));
     setEditingId(u.id);
     setEditActive(u.active);
+    setFieldErrors({});
     setFormError(null);
     setShowForm(true);
   };
@@ -143,63 +317,76 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     if (saving) return;
     setShowForm(false);
     setEditingId(null);
+    setOriginalForm(null);
+    setFieldErrors({});
     setFormError(null);
+  };
+
+  // 🔥 IMPORTANTE: El overlay NO cierra el modal al hacer clic fuera
+  const handleOverlayClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
   };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!form.name.trim() || !form.email.trim()) {
-      setFormError("Nombre y correo son obligatorios.");
+    if (saving || submitClickedRef.current) return;
+
+    // 🔥 Verificar cambios en edición ANTES de validar
+    if (editingId && !hasChanges()) {
+      setFormError("No hubo cambios para guardar.");
       return;
     }
 
-    if (editingId === null) {
-      // Validaciones solo para creación
-      if (!form.password || !form.branchId) {
-        setFormError("Contraseña y sucursal son obligatorios.");
-        return;
-      }
-      if (form.role === "CAJERO" && !/^\d{4}$/.test(form.pinCode)) {
-        setFormError("Los cajeros requieren un PIN de 4 dígitos.");
-        return;
-      }
+    if (!validateForm()) {
+      setFormError("Revisa los campos marcados.");
+      return;
     }
 
     setSaving(true);
+    submitClickedRef.current = true;
     setFormError(null);
+
     try {
-      if (editingId !== null) {
+      const baseSalaryValue = form.baseSalary ? parseFloat(form.baseSalary) : undefined;
+      const commissionValue = form.commissionRate ? parseFloat(form.commissionRate) : undefined;
+
+      if (editingId) {
         await api.put(`/api/admin/employees/${editingId}`, {
-          name: form.name,
-          email: form.email,
+          name: form.name.trim(),
+          email: form.email.trim().toLowerCase(),
           phone: form.phone || undefined,
-          baseSalary: form.baseSalary || undefined,
-          commissionRate: form.commissionRate || undefined,
+          role: form.role,
+          branchId: Number(form.branchId),
+          baseSalary: baseSalaryValue,
+          commissionRate: commissionValue,
           active: editActive,
           newPin: form.newPin || undefined,
         });
       } else {
         await api.post("/api/admin/employees", {
-          name: form.name,
-          email: form.email,
+          name: form.name.trim(),
+          email: form.email.trim().toLowerCase(),
           password: form.password,
           role: form.role,
           branchId: Number(form.branchId),
           pinCode: form.pinCode || undefined,
           phone: form.phone || undefined,
-          baseSalary: form.baseSalary || undefined,
-          commissionRate: form.commissionRate || undefined,
+          baseSalary: baseSalaryValue,
+          commissionRate: commissionValue,
         });
       }
       setShowForm(false);
       setForm({ ...emptyForm });
+      setOriginalForm(null);
       setEditingId(null);
+      setFieldErrors({});
       await load();
     } catch (err: any) {
-      setFormError(err.response?.data?.message || "No se pudo guardar el empleado.");
+      setFormError(err.response?.data?.message || "Error al guardar.");
     } finally {
       setSaving(false);
+      submitClickedRef.current = false;
     }
   };
 
@@ -215,9 +402,6 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setOpsLoading(false);
     }
   };
-
-  const set = (k: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.value }));
 
   return (
     <div>
@@ -248,7 +432,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         </span>
       </Toolbar>
 
-      <div style={ui.tableWrap}>
+      <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
         <table style={ui.table}>
           <thead>
             <tr style={ui.theadRow}>
@@ -264,146 +448,244 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           </thead>
           <tbody>
             <TableState colSpan={8} loading={loading} error={error} empty={!loading && rows.length === 0} />
-            {!loading &&
-              !error &&
-              rows.map((u) => (
-                <tr key={u.id}>
-                  <td style={{ ...ui.td, fontWeight: 700, color: "#0f172a", whiteSpace: "normal" }}>{u.name}</td>
-                  <td style={{ ...ui.td, color: "#475569" }}>{u.email}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <Badge tone={roleTone(u.role)}>{u.role}</Badge>
-                  </td>
-                  <td style={ui.td}>{u.branch}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <Badge tone={u.active ? "green" : "red"}>{u.active ? "Activo" : "Inactivo"}</Badge>
-                  </td>
-                  <td style={{ ...ui.td, color: "#64748b" }}>{fmtDate(u.createdAt)}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <button style={ui.linkBtn} className="active-tap" onClick={() => openOps(u.id)}>
-                      <Activity size={14} style={{ verticalAlign: "-2px" }} /> Ver
-                    </button>
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <button
-                      onClick={() => openEdit(u)}
-                      style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 4, color: "#1e3a8a" }}
-                      title="Editar empleado"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+            {!loading && !error && rows.map((u) => (
+              <tr key={u.id}>
+                <td style={{ ...ui.td, fontWeight: 700, color: "#0f172a", whiteSpace: "normal" }}>{u.name}</td>
+                <td style={{ ...ui.td, color: "#475569" }}>{u.email}</td>
+                <td style={{ ...ui.td, textAlign: "center" }}>
+                  <Badge tone={roleTone(u.role)}>{u.role}</Badge>
+                </td>
+                <td style={ui.td}>{u.branch}</td>
+                <td style={{ ...ui.td, textAlign: "center" }}>
+                  <Badge tone={u.active ? "green" : "red"}>{u.active ? "Activo" : "Inactivo"}</Badge>
+                </td>
+                <td style={{ ...ui.td, color: "#64748b" }}>{fmtDate(u.createdAt)}</td>
+                <td style={{ ...ui.td, textAlign: "center" }}>
+                  <button style={ui.linkBtn} className="active-tap" onClick={() => openOps(u.id)}>
+                    <Activity size={14} style={{ verticalAlign: "-2px" }} /> Ver
+                  </button>
+                </td>
+                <td style={{ ...ui.td, textAlign: "center" }}>
+                  <button
+                    onClick={() => openEdit(u)}
+                    style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 4, color: "#1e3a8a" }}
+                    title="Editar empleado"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
 
-      {/* Modal alta / edición de empleado */}
+      {/* Modal - NO se cierra al hacer clic fuera */}
       {showForm && (
-        <div style={ui.overlay} onClick={closeForm}>
-          <form style={ui.modal} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+        <div style={ui.overlay} onClick={handleOverlayClick}>
+          <form
+            style={{
+              ...ui.modal,
+              maxWidth: 700,
+              width: "90%",
+              maxHeight: "90vh",
+              overflowY: "auto"
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={submit}
+          >
             <div style={ui.modalHeader}>
               <span style={ui.modalTitle}>{editingId !== null ? "Editar empleado" : "Registrar nuevo empleado"}</span>
-              <button type="button" style={ui.linkBtn} onClick={closeForm}>
+              <button type="button" style={ui.linkBtn} onClick={closeForm} disabled={saving}>
                 <X size={18} color="#64748b" />
               </button>
             </div>
             <div style={ui.modalBody}>
-              <div style={{ marginBottom: 14 }}>
+              {/* Fila 1: Nombre completo */}
+              <div style={{ marginBottom: 16 }}>
                 <label style={ui.fieldLabel}>Nombre completo *</label>
-                <input style={ui.input} value={form.name} onChange={set("name")} placeholder="Nombre del empleado" autoFocus />
-              </div>
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Correo electrónico *</label>
-                <input style={ui.input} value={form.email} onChange={set("email")} placeholder="correo@empresa.com" />
-              </div>
-
-              {/* Teléfono */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Teléfono</label>
-                <input style={ui.input} value={form.phone} onChange={set("phone")} placeholder="771 000 0000" />
+                <input
+                  style={{ ...ui.input, borderColor: fieldErrors.name ? "#dc2626" : "#d1d5db" }}
+                  value={form.name}
+                  onChange={setField("name")}
+                  placeholder="Nombre del empleado"
+                  autoFocus
+                  disabled={saving}
+                />
+                {fieldErrors.name && <p style={{ color: "#b91c1c", fontSize: 12, marginTop: 5 }}>{fieldErrors.name}</p>}
               </div>
 
-              {/* Sueldo base + % comisión */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+              {/* Fila 2: Correo + Teléfono */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+                <div>
+                  <label style={ui.fieldLabel}>Correo electrónico *</label>
+                  <input
+                    style={{ ...ui.input, borderColor: fieldErrors.email ? "#dc2626" : "#d1d5db" }}
+                    value={form.email}
+                    onChange={setField("email")}
+                    placeholder="correo@empresa.com"
+                    disabled={saving}
+                  />
+                  {fieldErrors.email && <p style={{ color: "#b91c1c", fontSize: 12, marginTop: 5 }}>{fieldErrors.email}</p>}
+                </div>
+                <div>
+                  <label style={ui.fieldLabel}>Teléfono</label>
+                  <input
+                    style={{ ...ui.input, borderColor: fieldErrors.phone ? "#dc2626" : "#d1d5db" }}
+                    value={form.phone}
+                    onChange={setField("phone")}
+                    placeholder="7710000000"
+                    maxLength={10}
+                    disabled={saving}
+                  />
+                  {fieldErrors.phone && <p style={{ color: "#b91c1c", fontSize: 12, marginTop: 5 }}>{fieldErrors.phone}</p>}
+                  <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 3 }}>10 dígitos (opcional)</p>
+                </div>
+              </div>
+
+              {/* Fila 3: Rol + Sucursal */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+                <div>
+                  <label style={ui.fieldLabel}>Rol *</label>
+                  <select
+                    style={{ ...ui.input, borderColor: fieldErrors.role ? "#dc2626" : "#d1d5db" }}
+                    value={form.role}
+                    onChange={setField("role")}
+                    disabled={saving}
+                  >
+                    <option value="CAJERO">Cajero</option>
+                    <option value="GERENTE">Gerente</option>
+                    <option value="ADMIN">Administrador</option>
+                  </select>
+                  {fieldErrors.role && <p style={{ color: "#b91c1c", fontSize: 12, marginTop: 5 }}>{fieldErrors.role}</p>}
+                </div>
+                <div>
+                  <label style={ui.fieldLabel}>Sucursal *</label>
+                  <select
+                    style={{ ...ui.input, borderColor: fieldErrors.branchId ? "#dc2626" : "#d1d5db" }}
+                    value={form.branchId}
+                    onChange={setField("branchId")}
+                    disabled={saving}
+                  >
+                    <option value="">Seleccione...</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                  {fieldErrors.branchId && <p style={{ color: "#b91c1c", fontSize: 12, marginTop: 5 }}>{fieldErrors.branchId}</p>}
+                </div>
+              </div>
+
+              {/* Fila 4: Sueldo base + % Comisión */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                 <div>
                   <label style={ui.fieldLabel}>Sueldo base ($)</label>
-                  <input style={ui.input} type="number" step="0.01" min="0" value={form.baseSalary} onChange={set("baseSalary")} placeholder="0.00" />
+                  <input
+                    style={ui.input}
+                    type="text"
+                    inputMode="decimal"
+                    value={form.baseSalary}
+                    onChange={setField("baseSalary")}
+                    placeholder="0.00"
+                    disabled={saving}
+                  />
+                  {fieldErrors.baseSalary && <p style={{ color: "#b91c1c", fontSize: 12, marginTop: 5 }}>{fieldErrors.baseSalary}</p>}
                 </div>
                 <div>
                   <label style={ui.fieldLabel}>% Comisión de ventas</label>
-                  <input style={ui.input} type="number" step="0.01" min="0" max="100" value={form.commissionRate} onChange={set("commissionRate")} placeholder="0.00" />
-                  <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 3 }}>Ej: 2.5 para 2.5%</p>
+                  <input
+                    style={ui.input}
+                    type="text"
+                    inputMode="decimal"
+                    value={form.commissionRate}
+                    onChange={setField("commissionRate")}
+                    placeholder="0.00"
+                    disabled={saving}
+                  />
+                  <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 3 }}>Ej: 2.5 = 2.5%</p>
+                  {fieldErrors.commissionRate && <p style={{ color: "#b91c1c", fontSize: 12, marginTop: 5 }}>{fieldErrors.commissionRate}</p>}
                 </div>
               </div>
 
-              {/* Solo en creación: rol, sucursal, contraseña, PIN */}
-              {editingId === null && (
-                <>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-                    <div>
-                      <label style={ui.fieldLabel}>Rol *</label>
-                      <select style={ui.input} value={form.role} onChange={set("role")}>
-                        <option value="CAJERO">Cajero</option>
-                        <option value="GERENTE">Gerente</option>
-                        <option value="ADMIN">Administrador</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={ui.fieldLabel}>Sucursal *</label>
-                      <select style={ui.input} value={form.branchId} onChange={set("branchId")}>
-                        <option value="">Seleccione...</option>
-                        {branches.map((b) => (
-                          <option key={b.id} value={b.id}>{b.name}</option>
-                        ))}
-                      </select>
-                    </div>
+              {/* Sección CREACIÓN (solo para nuevo empleado) */}
+              {!editingId && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+                  <div>
+                    <label style={ui.fieldLabel}>Contraseña *</label>
+                    <input
+                      style={{ ...ui.input, borderColor: fieldErrors.password ? "#dc2626" : "#d1d5db" }}
+                      type="password"
+                      value={form.password}
+                      onChange={setField("password")}
+                      placeholder="Mínimo 6 caracteres"
+                      disabled={saving}
+                    />
+                    {fieldErrors.password && <p style={{ color: "#b91c1c", fontSize: 12, marginTop: 5 }}>{fieldErrors.password}</p>}
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 6 }}>
-                    <div>
-                      <label style={ui.fieldLabel}>Contraseña *</label>
-                      <input style={ui.input} type="password" value={form.password} onChange={set("password")} placeholder="Mínimo 6 caracteres" />
-                    </div>
-                    <div>
-                      <label style={ui.fieldLabel}>PIN {form.role === "CAJERO" ? "(4 dígitos) *" : "(opcional)"}</label>
-                      <input style={ui.input} value={form.pinCode} onChange={set("pinCode")} maxLength={4} placeholder="0000" />
-                    </div>
+                  <div>
+                    <label style={ui.fieldLabel}>PIN {form.role === "CAJERO" ? "(4 dígitos) *" : "(opcional)"}</label>
+                    <input
+                      style={{ ...ui.input, borderColor: fieldErrors.pinCode ? "#dc2626" : "#d1d5db" }}
+                      value={form.pinCode}
+                      onChange={setField("pinCode")}
+                      maxLength={4}
+                      placeholder="0000"
+                      disabled={saving}
+                    />
+                    {fieldErrors.pinCode && <p style={{ color: "#b91c1c", fontSize: 12, marginTop: 5 }}>{fieldErrors.pinCode}</p>}
                   </div>
-                  <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 8 }}>
-                    Los cajeros acceden con correo + PIN; administradores y gerentes con correo + contraseña.
-                  </p>
-                </>
+                </div>
               )}
 
-              {/* Solo en edición: nuevo PIN + estado activo */}
-              {editingId !== null && (
-                <>
-                  <div style={{ marginBottom: 14 }}>
-                    <label style={ui.fieldLabel}>Nuevo PIN (dejar vacío para no cambiar)</label>
-                    <input style={ui.input} value={form.newPin} onChange={set("newPin")} maxLength={4} placeholder="0000" />
+              {/* Sección EDICIÓN */}
+              {editingId && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+                  <div>
+                    <label style={ui.fieldLabel}>Nuevo PIN (dejar vacío)</label>
+                    <input
+                      style={{ ...ui.input, borderColor: fieldErrors.newPin ? "#dc2626" : "#d1d5db" }}
+                      value={form.newPin}
+                      onChange={setField("newPin")}
+                      maxLength={4}
+                      placeholder="0000"
+                      disabled={saving}
+                    />
+                    {fieldErrors.newPin && <p style={{ color: "#b91c1c", fontSize: 12, marginTop: 5 }}>{fieldErrors.newPin}</p>}
                     <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 3 }}>4 dígitos numéricos</p>
                   </div>
-                  <div style={{ marginBottom: 14 }}>
+                  <div>
                     <label style={ui.fieldLabel}>Estado del empleado</label>
                     <select
                       style={ui.input}
                       value={editActive ? "true" : "false"}
                       onChange={(e) => setEditActive(e.target.value === "true")}
+                      disabled={saving}
                     >
                       <option value="true">Activo</option>
                       <option value="false">Inactivo (baja lógica)</option>
                     </select>
                   </div>
-                </>
+                </div>
               )}
 
               {formError && <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 10 }}>{formError}</p>}
 
-              <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-                <button type="button" style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={closeForm}>
+              {/* Botones */}
+              <div style={{ display: "flex", gap: 10, marginTop: 24, borderTop: "1px solid #e2e8f0", paddingTop: 20 }}>
+                <button type="button" style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={closeForm} disabled={saving}>
                   Cancelar
                 </button>
-                <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
+                <button
+                  type="submit"
+                  disabled={!isSaveEnabled()}
+                  style={{
+                    ...ui.primaryBtn,
+                    flex: 1,
+                    justifyContent: "center",
+                    opacity: isSaveEnabled() ? 1 : 0.6,
+                    cursor: isSaveEnabled() ? "pointer" : "not-allowed"
+                  }}
+                >
                   {saving ? "Guardando..." : editingId !== null ? "Actualizar empleado" : "Registrar empleado"}
                 </button>
               </div>
@@ -440,27 +722,29 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 </div>
 
                 <h4 style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a", marginBottom: 8 }}>Últimas ventas</h4>
-                <table style={{ ...ui.table, marginBottom: 18 }}>
-                  <thead>
-                    <tr style={ui.theadRow}>
-                      <th style={ui.th}>Folio</th>
-                      <th style={ui.th}>Fecha</th>
-                      <th style={{ ...ui.th, textAlign: "right" }}>Total</th>
-                      <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ops.recentSales.length === 0 && <TableState colSpan={4} empty emptyText="Sin ventas registradas." />}
-                    {ops.recentSales.map((s) => (
-                      <tr key={s.id}>
-                        <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.invoiceNumber}</td>
-                        <td style={ui.td}>{fmtDate(s.createdAt)} {fmtTime(s.createdAt)}</td>
-                        <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{money(s.totalAmount)}</td>
-                        <td style={{ ...ui.td, textAlign: "center" }}><Badge tone={statusTone(s.status)}>{s.status}</Badge></td>
+                <div style={{ ...ui.tableWrap, boxShadow: "none", marginBottom: 18 }}>
+                  <table style={ui.table}>
+                    <thead>
+                      <tr style={ui.theadRow}>
+                        <th style={ui.th}>Folio</th>
+                        <th style={ui.th}>Fecha</th>
+                        <th style={{ ...ui.th, textAlign: "right" }}>Total</th>
+                        <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {ops.recentSales.length === 0 && <TableState colSpan={4} empty emptyText="Sin ventas registradas." />}
+                      {ops.recentSales.map((s) => (
+                        <tr key={s.id}>
+                          <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.invoiceNumber}</td>
+                          <td style={ui.td}>{fmtDate(s.createdAt)} {fmtTime(s.createdAt)}</td>
+                          <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{money(s.totalAmount)}</td>
+                          <td style={{ ...ui.td, textAlign: "center" }}><Badge tone={statusTone(s.status)}>{s.status}</Badge></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
                 <h4 style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a", marginBottom: 8 }}>Últimos turnos de caja</h4>
                 <table style={ui.table}>
