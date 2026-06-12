@@ -1295,7 +1295,10 @@ const Dashboard: React.FC = () => {
           paymentMethod: "QR_MERCADOPAGO",
           cashReceived: 0,
           changeGiven: 0,
-          discountAmount: 0,
+          discountAmount: cartDiscount,
+          customerId: selectedCustomer ? selectedCustomer.id : undefined,
+          pointsRedeemed: (usePoints && selectedCustomer) ? pointsToRedeem : undefined,
+          invoiceRequested: selectedCustomer ? invoiceRequested : false,
         }, { timeout: LONG_OPERATION_TIMEOUT });
 
         const saleInvoice = res.data.invoiceNumber;
