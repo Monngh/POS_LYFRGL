@@ -118,6 +118,38 @@ interface CashSession {
   status: string;
 }
 
+// Filtros inline de mafer (review-p2/p3): bloquean caracteres inválidos mientras el usuario escribe.
+// Trabajan como pre-filtros antes de los handlers de submit que ya tiene main.
+const validateNameInput = (value: string): string =>
+  value
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
+    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ\s]/g, "");
+
+const validateTextInput = (value: string): string =>
+  value
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
+    .replace(/[^\p{L}\p{N}\s\-,.]/gu, "");
+
+const validateReasonInput = (value: string): string =>
+  value
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
+    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ0-9\s.,]/g, "");
+
+const validateLongTextInput = (value: string): string =>
+  value
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
+    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ0-9\s.,]/g, "");
+
+const validateFolioInput = (value: string): string =>
+  value
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
+    .replace(/[^a-zA-Z0-9\-]/g, "");
+
+const validateMotivoDevoluccion = (value: string): string =>
+  value
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
+    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ0-9\s.,\-']/g, "");
+
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
 
@@ -184,12 +216,6 @@ const Dashboard: React.FC = () => {
   const [returnPaymentMethod, setReturnPaymentMethod] = useState("EFECTIVO");
   const [returnProcessing, setReturnProcessing] = useState(false);
   const [returnReceipt, setReturnReceipt] = useState<any>(null);
-  // const [returnQtyDraft, setReturnQtyDraft] = useState<Record<number, string>>({});
-
-  // Helper para sanitizar textos: permite letras (incluye acentos/ñ), números, espacios, guiones, comas, puntos. Rechaza emojis y símbolos raros.
-  // const sanitizeText = (value: string): string => {
-  //   return value.replace(/[^\p{L}\p{N}\s\-,.]/gu, "");
-  // };
 
   // Estados para alertas personalizadas y cobro (Fase 3.5)
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" | "info" } | null>(null);
@@ -649,7 +675,9 @@ const Dashboard: React.FC = () => {
           ? normalizePhoneInput(value).slice(0, 20)
           : field === "email"
             ? normalizeEmailInput(value)
-            : value;
+            : field === "name"
+              ? validateNameInput(value)
+              : value;
       setNewCustomerForm((prev) => ({ ...prev, [field]: nextValue }));
       setNewCustomerError(null);
       setNewCustomerFieldErrors((prev) => {
@@ -1699,7 +1727,11 @@ const Dashboard: React.FC = () => {
   };
 
   const setCancelField = (field: "invoice" | "pin" | "reason", value: string) => {
-    const nextValue = field === "pin" ? normalizeIntegerInput(value).slice(0, 4) : value;
+    const nextValue =
+      field === "pin" ? normalizeIntegerInput(value).slice(0, 4) :
+      field === "invoice" ? validateFolioInput(value) :
+      field === "reason" ? validateReasonInput(value) :
+      value;
     if (field === "invoice") setCancelInvoice(nextValue);
     if (field === "pin") setCancelPin(nextValue);
     if (field === "reason") setCancelReason(nextValue);
@@ -2131,10 +2163,11 @@ const Dashboard: React.FC = () => {
   };
 
   const handlePendingCancelReasonChange = (value: string) => {
-    setPendingCancelReason(value);
+    const filtered = validateReasonInput(value);
+    setPendingCancelReason(filtered);
     setPendingCancelFieldErrors((prev) => ({
       ...prev,
-      reason: validateReference(value, "El motivo", { required: true, max: 180 }),
+      reason: validateReference(filtered, "El motivo", { required: true, max: 180 }),
     }));
   };
 
@@ -2629,7 +2662,7 @@ const Dashboard: React.FC = () => {
                     style={{ paddingLeft: "38px" }}
                     placeholder="Ingrese código o nombre del producto..."
                     value={barcodeSearch}
-                    onChange={(e) => setBarcodeSearch(e.target.value)}
+                    onChange={(e) => setBarcodeSearch(validateTextInput(e.target.value))}
                   />
                   {barcodeSearchError && <p style={styles.fieldError}>{barcodeSearchError}</p>}
                 </div>
@@ -2697,7 +2730,7 @@ const Dashboard: React.FC = () => {
                         style={{ paddingLeft: "38px" }}
                         placeholder="Buscar cliente por teléfono o nombre..."
                         value={customerSearch}
-                        onChange={(e) => setCustomerSearch(e.target.value)}
+                        onChange={(e) => setCustomerSearch(validateTextInput(e.target.value))}
                         onFocus={() => {
                           if (customerSearch.trim().length > 0) {
                             setIsCustomerDropdownOpen(true);
@@ -4415,7 +4448,7 @@ const Dashboard: React.FC = () => {
                 placeholder="Nombre o id del producto"
                 value={lookupQuery}
                 onKeyDown={handleLookupKeyDown}
-                onChange={(e) => setLookupQuery(e.target.value)}
+                onChange={(e) => setLookupQuery(validateTextInput(e.target.value))}
               />
             </div>
 
@@ -5213,7 +5246,7 @@ const Dashboard: React.FC = () => {
                       placeholder="Motivo detallado de la cancelación"
                       value={depCancelReason}
                       onChange={(e) => {
-                        const value = e.target.value;
+                        const value = validateReasonInput(e.target.value);
                         setDepCancelReason(value);
                         setDepCancelFieldErrors((prev) => ({
                           ...prev,
@@ -5375,7 +5408,7 @@ const Dashboard: React.FC = () => {
                             placeholder="Nombre de la persona o banco"
                             value={depName}
                             onChange={(e) => {
-                              const value = e.target.value;
+                              const value = validateNameInput(e.target.value);
                               setDepName(value);
                               setDepositFieldErrors((prev) => ({
                                 ...prev,
@@ -5420,8 +5453,9 @@ const Dashboard: React.FC = () => {
                         placeholder="Ej. Número de sucursal, folio de camión blindado, etc."
                         value={depComments}
                         onChange={(e) => {
-                          setDepComments(e.target.value);
-                          setDepositFieldErrors((prev) => ({ ...prev, comments: validateReference(e.target.value, "La referencia", { required: false, max: 180 }) || "" }));
+                          const value = validateLongTextInput(e.target.value);
+                          setDepComments(value);
+                          setDepositFieldErrors((prev) => ({ ...prev, comments: validateReference(value, "La referencia", { required: false, max: 180 }) || "" }));
                         }}
                       />
                       {depositFieldErrors.comments && <p style={styles.fieldError}>{depositFieldErrors.comments}</p>}
@@ -5455,7 +5489,7 @@ const Dashboard: React.FC = () => {
                            className="input-corporate"
                            placeholder="DEP-..."
                            value={searchDepRef}
-                           onChange={(e) => setSearchDepRef(e.target.value)}
+                           onChange={(e) => setSearchDepRef(normalizeIntegerInput(e.target.value))}
                         />
                       </div>
                       <div style={styles.inputGroup}>
@@ -6129,7 +6163,7 @@ const Dashboard: React.FC = () => {
                   className="input-corporate"
                   placeholder="Buscar por folio de venta (V-XXXXXX)..."
                   value={ticketSearch}
-                  onChange={(e) => setTicketSearch(e.target.value)}
+                  onChange={(e) => setTicketSearch(validateFolioInput(e.target.value).toUpperCase())}
                 />
               </div>
               <div style={styles.inputGroup}>
@@ -6139,7 +6173,7 @@ const Dashboard: React.FC = () => {
                   className="input-corporate"
                   placeholder="Coincidencia parcial..."
                   value={ticketCustomer}
-                  onChange={(e) => setTicketCustomer(e.target.value)}
+                  onChange={(e) => setTicketCustomer(validateNameInput(e.target.value))}
                 />
               </div>
               <div style={styles.inputGroup}>
@@ -6149,7 +6183,7 @@ const Dashboard: React.FC = () => {
                   className="input-corporate"
                   placeholder="Coincidencia parcial..."
                   value={ticketPhone}
-                  onChange={(e) => setTicketPhone(e.target.value)}
+                  onChange={(e) => setTicketPhone(normalizeIntegerInput(e.target.value).slice(0, 10))}
                 />
               </div>
               <div style={styles.inputGroup}>
@@ -6311,7 +6345,7 @@ const Dashboard: React.FC = () => {
                     placeholder="V-XXXXXX"
                     value={returnFolio}
                     onChange={(e) => {
-                      const value = e.target.value.toUpperCase();
+                      const value = validateFolioInput(e.target.value).toUpperCase();
                       setReturnFolio(value);
                       setReturnFieldErrors((prev) => {
                         const next = { ...prev };
@@ -6479,7 +6513,7 @@ const Dashboard: React.FC = () => {
                       placeholder="Ej: Producto defectuoso, talla incorrecta..."
                       value={returnReason}
                       onChange={(e) => {
-                        const value = e.target.value;
+                        const value = validateMotivoDevoluccion(e.target.value);
                         setReturnReason(value);
                         setReturnFieldErrors((prev) => {
                           const next = { ...prev };
