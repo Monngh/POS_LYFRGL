@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import { prisma } from "../app";
 import { comparePassword, generateToken } from "../utils/auth";
-import { getRequestDeviceId, findActiveSessionForUser } from "../middlewares/device.middleware";
 
 /**
  * Login clásico para Administradores y Gerentes (Email + Contraseña)
