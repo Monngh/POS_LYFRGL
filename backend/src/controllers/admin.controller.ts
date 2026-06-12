@@ -2459,7 +2459,23 @@ export const forceCloseCashSession = async (req: Request, res: Response): Promis
       return;
     }
 
-    const session = await prisma.cashSession.findUnique({ where: { id } });
+    const session = await prisma.cashSession.findUnique({
+      where: { id },
+      include: {
+        sales: {
+          select: {
+            id: true,
+            totalAmount: true,
+            paymentMethod: true,
+            cardType: true,
+            cashReceived: true,
+            changeGiven: true,
+            status: true,
+          },
+        },
+      },
+    });
+
     if (!session) {
       res.status(404).json({ message: "Sesión de caja no encontrada." });
       return;
@@ -2469,31 +2485,85 @@ export const forceCloseCashSession = async (req: Request, res: Response): Promis
       return;
     }
 
+    // Calcular totales por método de pago (igual que cierre normal)
+    let totalSales = 0;
+    let totalRefunds = 0;
+    let totalCash = 0;
+    let totalCreditCard = 0;
+    let totalDebitCard = 0;
+    let totalMercadoPago = 0;
+
+    for (const sale of session.sales) {
+      const amount = Number(sale.totalAmount);
+      if (sale.status === "CANCELADA") {
+        totalRefunds += amount;
+      } else if (sale.status === "COMPLETADA") {
+        totalSales += amount;
+        if (sale.paymentMethod === "EFECTIVO") {
+          totalCash += amount;
+        } else if (sale.paymentMethod === "TARJETA") {
+          if (sale.cardType === "CREDITO") totalCreditCard += amount;
+          else totalDebitCard += amount;
+        } else if (sale.paymentMethod === "QR_MERCADOPAGO") {
+          totalMercadoPago += amount;
+        } else if (sale.paymentMethod === "MIXTO") {
+          const cashPortion = Number(sale.cashReceived || 0) - Number(sale.changeGiven || 0);
+          const cardPortion = amount - cashPortion;
+          totalCash += Math.max(0, cashPortion);
+          if (sale.cardType === "CREDITO") totalCreditCard += Math.max(0, cardPortion);
+          else totalDebitCard += Math.max(0, cardPortion);
+        }
+      }
+    }
+
     const expected =
       Number(session.initialAmount) + Number(session.cashIn) - Number(session.cashOut);
 
-    const updateData = {
-      status: "CERRADA",
-      closedAt: new Date(),
-      expectedAmount: expected,
-      forceCloseReason: reason.trim(),
-      forcedByUserId: forcedBy ? Number(forcedBy) : null,
-    };
+    const cutNumber = (await prisma.cashCut.count({ where: { cashSessionId: id } })) + 1;
 
-    const updated = await prisma.cashSession.update({
-      where: { id },
-      data: updateData,
+    // Todo en una transacción: crear el corte Z + cerrar la sesión
+    const result = await prisma.$transaction(async (tx) => {
+      const cut = await tx.cashCut.create({
+        data: {
+          cashSessionId: id,
+          totalSales: totalSales + totalRefunds,
+          totalCash,
+          totalCreditCard,
+          totalDebitCard,
+          totalRefunds,
+          netTotal: totalSales,
+          cutNumber,
+        },
+      });
+
+      const closedSession = await tx.cashSession.update({
+        where: { id },
+        data: {
+          status: "CERRADA",
+          closedAt: new Date(),
+          expectedAmount: expected,
+          forceCloseReason: reason.trim(),
+          forcedByUserId: forcedBy ? Number(forcedBy) : null,
+        },
+      });
+
+      return { cut, closedSession };
     });
 
     res.status(200).json({
-      message: "Caja cerrada forzadamente.",
-      session: updated,
+      message: "Caja cerrada forzadamente. Se generó el reporte de corte Z.",
+      session: result.closedSession,
+      cut: {
+        ...result.cut,
+        totalMercadoPago,
+      },
     });
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ message: "Error al cerrar la caja forzadamente." });
   }
 };
+
 
 // ===========================================================================
 // PRODUCTOS — CRUD completo (admin)
