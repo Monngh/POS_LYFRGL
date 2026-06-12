@@ -2433,55 +2433,23 @@ const Dashboard: React.FC = () => {
   // ===========================================================================
   if (cajaLockedByOtherDevice) {
     return (
-      <div style={styles.loadingScreen}>
-        <div style={{
-          maxWidth: "440px",
-          backgroundColor: "#ffffff",
-          borderRadius: "12px",
-          padding: "32px",
-          boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
-          textAlign: "center",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "16px",
-        }}>
-          <div style={{
-            width: "56px",
-            height: "56px",
-            borderRadius: "999px",
-            backgroundColor: "#fef3c7",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}>
-            <AlertTriangle size={28} color="#d97706" />
+      <div id="device-conflict-screen" style={styles.conflictScreen}>
+        <div style={styles.conflictCard}>
+          <div style={styles.conflictIconContainer}>
+            <AlertTriangle size={36} color="#ef4444" />
           </div>
-          <h2 style={{ fontSize: "18px", fontWeight: "800", color: "#0f172a", margin: 0 }}>
-            CAJA ABIERTA EN OTRO EQUIPO
-          </h2>
-          <p style={{ fontSize: "14px", color: "#64748b", margin: 0, lineHeight: 1.6 }}>
-            Su turno de caja está activo en otra computadora. Por seguridad, la caja solo puede
-            operarse desde el equipo donde se abrió el turno.
+          <h2 style={styles.conflictTitle}>Caja abierta en otro dispositivo</h2>
+          <p style={styles.conflictText}>
+            El turno/caja ya se encuentra abierto en otra computadora. Cierre el turno en esa caja para poder abrir uno nuevo.
           </p>
-          <p style={{ fontSize: "13px", color: "#94a3b8", margin: 0, lineHeight: 1.6 }}>
-            Cierre el turno en el equipo original o solicite a un administrador el cierre
-            forzado de la sesión de caja.
-          </p>
-          <div style={{ display: "flex", gap: "10px", width: "100%", marginTop: "8px" }}>
-            <button
-              onClick={logout}
-              style={{ ...styles.modalBtn, backgroundColor: "#e2e8f0", color: "#0f172a" }}
-            >
-              CERRAR SESIÓN
-            </button>
-            <button
-              onClick={() => { setLoading(true); checkSessionStatus(); }}
-              style={{ ...styles.modalBtn, backgroundColor: "#2563eb", color: "white" }}
-            >
-              REINTENTAR
-            </button>
-          </div>
+          <button
+            id="conflict-back-button"
+            onClick={logout}
+            className="btn-primary active-tap"
+            style={styles.conflictButton}
+          >
+            Regresar al Login
+          </button>
         </div>
       </div>
     );
@@ -7232,6 +7200,72 @@ const styles: { [key: string]: React.CSSProperties } = {
     lineHeight: "1.25",
     maxHeight: "55vh",
     overflowY: "auto",
+  },
+  conflictScreen: {
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: "100vh",
+    width: "100vw",
+    backgroundColor: "#f8fafc",
+    padding: "20px",
+    boxSizing: "border-box",
+    position: "fixed",
+    top: 0,
+    left: 0,
+    zIndex: 9999,
+  },
+  conflictCard: {
+    width: "440px",
+    maxWidth: "100%",
+    backgroundColor: "#ffffff",
+    borderRadius: "16px",
+    padding: "48px 32px 36px 32px",
+    boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+    textAlign: "center",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    border: "1px solid #f1f5f9",
+  },
+  conflictIconContainer: {
+    width: "72px",
+    height: "72px",
+    borderRadius: "50%",
+    backgroundColor: "#fef2f2",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: "28px",
+  },
+  conflictTitle: {
+    color: "#0f172a",
+    fontSize: "22px",
+    fontWeight: "700",
+    margin: "0 0 16px 0",
+    fontFamily: "'Outfit', 'Inter', sans-serif",
+    letterSpacing: "-0.5px",
+  },
+  conflictText: {
+    color: "#475569",
+    fontSize: "14px",
+    lineHeight: "1.6",
+    margin: "0 0 32px 0",
+    fontFamily: "'Inter', sans-serif",
+    maxWidth: "340px",
+  },
+  conflictButton: {
+    width: "100%",
+    padding: "14px 20px",
+    fontSize: "15px",
+    fontWeight: "600",
+    borderRadius: "10px",
+    backgroundColor: "#598ffbff",
+    color: "#ffffff",
+    border: "none",
+    cursor: "pointer",
+    transition: "background-color 0.2s, transform 0.1s",
+    boxShadow: "0 4px 6px -1px rgba(89, 143, 251, 0.2)",
   },
   select: {
     width: "100%",
