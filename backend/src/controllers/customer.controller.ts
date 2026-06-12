@@ -2,11 +2,13 @@ import { Request, Response } from "express";
 import { prisma } from "../app";
 import { hashPassword, comparePassword, generateToken } from "../utils/auth";
 
+const CUSTOMER_ACCOUNT_EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
 /**
  * Registro y reclamo de cuenta para clientes pre-registrados en tienda
  */
 export const registerCustomerAccount = async (req: Request, res: Response): Promise<void> => {
-  const { phone, invoiceNumber, password } = req.body;
+  const { phone, invoiceNumber, password, email } = req.body;
 
   if (!phone || !invoiceNumber || !password) {
     res.status(400).json({ message: "El teléfono, folio de ticket y la contraseña son requeridos." });
@@ -44,12 +46,21 @@ export const registerCustomerAccount = async (req: Request, res: Response): Prom
       return;
     }
 
+    const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+    if (!cleanEmail || !CUSTOMER_ACCOUNT_EMAIL_REGEX.test(cleanEmail)) {
+      res.status(400).json({ message: "El correo electrónico no tiene un formato válido." });
+      return;
+    }
+
     // Cifrar contraseña y guardar
     const hashedPassword = await hashPassword(password);
 
     await prisma.customer.update({
       where: { id: sale.customer.id },
-      data: { passwordHash: hashedPassword }
+      data: {
+        passwordHash: hashedPassword,
+        email: cleanEmail
+      }
     });
 
     res.status(200).json({
