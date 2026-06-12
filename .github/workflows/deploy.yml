@@ -1,0 +1,41 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # Ajustar la ruta si es diferente a ~/POS_LYFRGL
+            cd ~/POS_LYFRGL
+            
+            # Obtener los ultimos cambios de main
+            git reset --hard origin/main
+            git pull origin main
+            
+            # Construir backend y reiniciar pm2
+            cd backend
+            npm install
+            npm run build
+            # Usar pm2 para recargar (zero downtime si se usa cluster mode, que está en ecosystem.config.js)
+            npx pm2 reload ecosystem.config.js --env production
+            
+            # Construir frontend
+            cd ../frontend
+            npm install
+            npm run build
+            
+            echo "¡Despliegue completado con éxito!"

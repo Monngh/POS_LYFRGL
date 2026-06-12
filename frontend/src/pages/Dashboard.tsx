@@ -3765,15 +3765,6 @@ const Dashboard: React.FC = () => {
                       </div>
                     </>
                   )}
-                  {Math.abs(selectedSale.total - (selectedSale.subtotal + selectedSale.tax - (selectedSale.discountAmount || 0) - (selectedSale.pointsDiscount || 0))) > 0.01 && (
-                    <div style={{ display: "flex", justifyContent: "space-between", fontStyle: "italic", color: (selectedSale.total - (selectedSale.subtotal + selectedSale.tax - (selectedSale.discountAmount || 0) - (selectedSale.pointsDiscount || 0))) < 0 ? "#059669" : "#dc2626" }}>
-                      <span>Ajuste por Redondeo:</span>
-                      <span>
-                        {(selectedSale.total - (selectedSale.subtotal + selectedSale.tax - (selectedSale.discountAmount || 0) - (selectedSale.pointsDiscount || 0))) > 0 ? "+" : ""}
-                        {(selectedSale.total - (selectedSale.subtotal + selectedSale.tax - (selectedSale.discountAmount || 0) - (selectedSale.pointsDiscount || 0))).toFixed(2)}
-                      </span>
-                    </div>
-                  )}
                   <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "800", fontSize: "12px" }}>
                     <span>TOTAL:</span>
                     <span>${selectedSale.total.toFixed(2)}</span>
