@@ -100,20 +100,6 @@ export const cashierLogin = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Bloquear el acceso desde otro equipo si el cajero tiene un turno de caja
-    // abierto vinculado a un dispositivo distinto (una caja = un equipo)
-    const activeSession = await findActiveSessionForUser(user.id);
-    if (activeSession && activeSession.deviceId) {
-      const requestDeviceId = getRequestDeviceId(req);
-      if (!requestDeviceId || requestDeviceId !== activeSession.deviceId) {
-        res.status(409).json({
-          code: "CAJA_EN_OTRO_EQUIPO",
-          message: "Este usuario tiene un turno de caja abierto en otro equipo. Cierre el turno en ese equipo o solicite a un administrador el cierre forzado de la sesión.",
-        });
-        return;
-      }
-    }
-
     const token = generateToken({
       userId: user.id,
       email: user.email,
