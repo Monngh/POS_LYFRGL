@@ -2170,7 +2170,7 @@ const Dashboard: React.FC = () => {
     }));
   };
 
-  const handlePendingQrCancel = async () => {
+  const handlePendingQrCancel = async (actionType: "other_method" | "cancel_def" = "cancel_def") => {
     if (!viewingPendingQrSale) return;
     const errors = validatePendingCancelFields();
     setPendingCancelFieldErrors(errors);
@@ -2190,6 +2190,21 @@ const Dashboard: React.FC = () => {
         localStorage.setItem(QR_KEY, JSON.stringify(updated));
         return updated;
       });
+
+      if (actionType === "other_method") {
+        // Restaurar productos, importes y cliente
+        setCart(viewingPendingQrSale.items || []);
+        setSelectedCustomer(viewingPendingQrSale.customer || null);
+
+        // Reabrir el modal de cobro y volver a la terminal de ventas
+        setView("sales-terminal");
+        setCheckoutModalOpen(true);
+      } else {
+        // Cancelar definitivamente: limpiar el carrito y volver al dashboard
+        setCart([]);
+        setSelectedCustomer(null);
+        setView("dashboard");
+      }
 
       setViewingPendingQrSale(null);
       setPendingCancelPin("");
@@ -2700,13 +2715,11 @@ const Dashboard: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        setCart([]);
                         setSelectedCustomer(null);
                         setUsePoints(false);
                         setPointsToRedeem(0);
                         setInvoiceRequested(false);
-                        localStorage.removeItem(DRAFT_KEY);
-                        showToast("Carrito vaciado correctamente.", "info");
+                        showToast("Cliente removido del carrito.", "info");
                       }}
                       style={{
                         border: "none",
@@ -3968,22 +3981,42 @@ const Dashboard: React.FC = () => {
                       {pendingCancelFieldErrors.reason && <p style={styles.fieldError}>{pendingCancelFieldErrors.reason}</p>}
                     </div>
                   </div>
-                  <button
-                    onClick={handlePendingQrCancel}
-                    disabled={pendingCancelLoading}
-                    style={{
-                      padding: "8px",
-                      borderRadius: "6px",
-                      border: "none",
-                      backgroundColor: "#dc2626",
-                      color: "white",
-                      fontWeight: "700",
-                      fontSize: "12px",
-                      cursor: pendingCancelLoading ? "default" : "pointer"
-                    }}
-                  >
-                    {pendingCancelLoading ? "CANCELANDO..." : "CONFIRMAR CANCELACIÓN"}
-                  </button>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <button
+                      onClick={() => handlePendingQrCancel("other_method")}
+                      disabled={pendingCancelLoading}
+                      style={{
+                        flex: 1,
+                        padding: "10px 8px",
+                        borderRadius: "6px",
+                        border: "none",
+                        backgroundColor: "#598ffbff",
+                        color: "white",
+                        fontWeight: "700",
+                        fontSize: "11px",
+                        cursor: pendingCancelLoading ? "default" : "pointer"
+                      }}
+                    >
+                      PAGAR CON OTRO MÉTODO
+                    </button>
+                    <button
+                      onClick={() => handlePendingQrCancel("cancel_def")}
+                      disabled={pendingCancelLoading}
+                      style={{
+                        flex: 1,
+                        padding: "10px 8px",
+                        borderRadius: "6px",
+                        border: "none",
+                        backgroundColor: "#dc2626",
+                        color: "white",
+                        fontWeight: "700",
+                        fontSize: "11px",
+                        cursor: pendingCancelLoading ? "default" : "pointer"
+                      }}
+                    >
+                      CANCELAR DEFINITIVAMENTE
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -5961,22 +5994,42 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
 
-                <button
-                  onClick={handlePendingQrCancel}
-                  disabled={pendingCancelLoading}
-                  style={{
-                    padding: "8px",
-                    borderRadius: "6px",
-                    border: "none",
-                    backgroundColor: "#dc2626",
-                    color: "white",
-                    fontWeight: "700",
-                    fontSize: "12px",
-                    cursor: pendingCancelLoading ? "default" : "pointer"
-                  }}
-                >
-                  {pendingCancelLoading ? "CANCELANDO..." : "CONFIRMAR CANCELACIÓN"}
-                </button>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <button
+                      onClick={() => handlePendingQrCancel("other_method")}
+                      disabled={pendingCancelLoading}
+                      style={{
+                        flex: 1,
+                        padding: "10px 8px",
+                        borderRadius: "6px",
+                        border: "none",
+                        backgroundColor: "#598ffbff",
+                        color: "white",
+                        fontWeight: "700",
+                        fontSize: "11px",
+                        cursor: pendingCancelLoading ? "default" : "pointer"
+                      }}
+                    >
+                      PAGAR CON OTRO MÉTODO
+                    </button>
+                    <button
+                      onClick={() => handlePendingQrCancel("cancel_def")}
+                      disabled={pendingCancelLoading}
+                      style={{
+                        flex: 1,
+                        padding: "10px 8px",
+                        borderRadius: "6px",
+                        border: "none",
+                        backgroundColor: "#dc2626",
+                        color: "white",
+                        fontWeight: "700",
+                        fontSize: "11px",
+                        cursor: pendingCancelLoading ? "default" : "pointer"
+                      }}
+                    >
+                      CANCELAR DEFINITIVAMENTE
+                    </button>
+                  </div>
               </div>
             )}
 
@@ -6449,7 +6502,19 @@ const Dashboard: React.FC = () => {
                               onClick={() => handleReturnQtyChange(idx, item.qtyToReturn - 1)}
                               style={{ width: "24px", height: "24px", border: "1px solid #cbd5e1", borderRadius: "4px", backgroundColor: "#f8fafc", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                             ><Minus size={12} /></button>
-                            <span style={{ fontSize: "13px", fontWeight: "700", minWidth: "24px", textAlign: "center" }}>{item.qtyToReturn}</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={item.maxReturnableQty}
+                              value={item.qtyToReturn}
+                              onChange={(e) => {
+                                const raw = (e.target.value || "").toString().replace(/[^0-9]/g, "");
+                                const parsed = Math.max(0, parseInt(raw || "0", 10));
+                                const val = Math.min(item.maxReturnableQty, parsed);
+                                handleReturnQtyChange(idx, val);
+                              }}
+                              style={{ fontSize: "13px", fontWeight: "700", width: "50px", textAlign: "center", border: "1px solid #cbd5e1", borderRadius: "4px", padding: "4px" }}
+                            />
                             <button
                               onClick={() => handleReturnQtyChange(idx, item.qtyToReturn + 1)}
                               style={{ width: "24px", height: "24px", border: "1px solid #cbd5e1", borderRadius: "4px", backgroundColor: "#f8fafc", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
