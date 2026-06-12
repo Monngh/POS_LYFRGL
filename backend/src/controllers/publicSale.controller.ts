@@ -9,6 +9,18 @@ const RFC_REGEX = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
 const NAME_REGEX = /^[a-zA-ZÀ-ÿÑñ\s]+$/;
 const ZIP_REGEX = /^\d{5}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const INVOICE_ALREADY_MESSAGE = "Esta compra ya fue facturada. Puedes consultar o descargar tu factura buscando el folio del ticket en el apartado de Mis facturas.";
+const INVOICE_EXPIRED_MESSAGE = "El periodo para facturar esta compra ha vencido. Solo se puede facturar dentro de los 30 días naturales posteriores a la emisión del ticket.";
+
+const getInvoiceDeadline = (purchaseDate: Date) => {
+  const limitDate = new Date(purchaseDate);
+  limitDate.setDate(limitDate.getDate() + 30);
+  return limitDate;
+};
+
+const formatDateOnly = (date: Date) => date.toISOString().split("T")[0];
+
+const isCancelledSale = (status: string) => status.toUpperCase().includes("CANCEL");
 
 /**
  * Validar RFC
@@ -111,30 +123,34 @@ export const getTicketDetails = async (req: Request, res: Response): Promise<voi
     });
 
     if (!sale) {
-      res.status(404).json({ message: "No se encontró ningún ticket de venta con ese folio." });
+      res.status(404).json({ success: false, message: "No se encontró una compra con el folio proporcionado." });
       return;
     }
 
-    if (sale.status === "CANCELADA") {
-      res.status(400).json({ message: "Este ticket de venta fue cancelado y no puede ser facturado." });
+    if (isCancelledSale(sale.status)) {
+      res.status(400).json({ success: false, message: "No se puede facturar una compra cancelada." });
+      return;
+    }
+
+    if (sale.status !== "COMPLETADA") {
+      res.status(400).json({ success: false, message: "Solo se pueden facturar compras completadas." });
       return;
     }
 
     if (sale.cfdiUuid) {
       const satUuid = sale.cfdiUuid.split(":")[0];
       res.status(400).json({
-        message: "Este ticket ya ha sido facturado anteriormente.",
+        success: false,
+        message: INVOICE_ALREADY_MESSAGE,
         cfdiUuid: satUuid,
         cfdiEmail: sale.cfdiEmail
       });
       return;
     }
 
-    // Validar antigüedad del ticket (máximo 30 días)
-    const limitDate = new Date();
-    limitDate.setDate(limitDate.getDate() - 30);
-    if (sale.createdAt < limitDate) {
-      res.status(400).json({ message: "El periodo de facturación para este ticket ha vencido (máximo 30 días desde la compra)." });
+    const invoiceDeadline = getInvoiceDeadline(sale.createdAt);
+    if (new Date() > invoiceDeadline) {
+      res.status(400).json({ success: false, message: INVOICE_EXPIRED_MESSAGE });
       return;
     }
 
@@ -142,6 +158,7 @@ export const getTicketDetails = async (req: Request, res: Response): Promise<voi
       id: sale.id,
       invoiceNumber: sale.invoiceNumber,
       createdAt: sale.createdAt,
+      invoiceDeadline: formatDateOnly(invoiceDeadline),
       totalAmount: Number(sale.totalAmount),
       taxAmount: Number(sale.taxAmount),
       branchName: sale.branch.name,
@@ -163,59 +180,121 @@ export const getTicketDetails = async (req: Request, res: Response): Promise<voi
  */
 export const issueTicketInvoice = async (req: Request, res: Response): Promise<void> => {
   const { saleId, rfc, legalName, taxSystem, zip, email, cfdiUse } = req.body;
+  const numericSaleId = Number(saleId);
 
-  // Validar que todos los campos estén presentes
-  if (!saleId || !rfc || !legalName || !taxSystem || !zip || !email || !cfdiUse) {
-    res.status(400).json({ message: "Todos los campos de facturación son requeridos." });
-    return;
-  }
-
-  // Validar RFC
-  const rfcValidation = validateRFCBackend(rfc);
-  if (!rfcValidation.valid) {
-    res.status(400).json({ message: rfcValidation.message });
-    return;
-  }
-
-  // Validar Nombre/Razón Social
-  const nameValidation = validateNameBackend(legalName);
-  if (!nameValidation.valid) {
-    res.status(400).json({ message: nameValidation.message });
-    return;
-  }
-
-  // Validar Código Postal
-  const zipValidation = validateZipBackend(zip);
-  if (!zipValidation.valid) {
-    res.status(400).json({ message: zipValidation.message });
-    return;
-  }
-
-  // Validar Email
-  const emailValidation = validateEmailBackend(email);
-  if (!emailValidation.valid) {
-    res.status(400).json({ message: emailValidation.message });
+  if (!Number.isInteger(numericSaleId) || numericSaleId <= 0) {
+    res.status(404).json({
+      success: false,
+      message: "No se encontró una compra con el folio proporcionado."
+    });
     return;
   }
 
   try {
-    const result = await BillingService.createInvoice(Number(saleId), {
+    const sale = await prisma.sale.findUnique({
+      where: { id: numericSaleId },
+      select: {
+        id: true,
+        status: true,
+        cfdiUuid: true,
+        createdAt: true,
+      }
+    });
+
+    if (!sale) {
+      res.status(404).json({
+        success: false,
+        message: "No se encontró una compra con el folio proporcionado."
+      });
+      return;
+    }
+
+    if (isCancelledSale(sale.status)) {
+      res.status(400).json({
+        success: false,
+        message: "No se puede facturar una compra cancelada."
+      });
+      return;
+    }
+
+    if (sale.status !== "COMPLETADA") {
+      res.status(400).json({
+        success: false,
+        message: "Solo se pueden facturar compras completadas."
+      });
+      return;
+    }
+
+    if (sale.cfdiUuid) {
+      res.status(400).json({
+        success: false,
+        message: INVOICE_ALREADY_MESSAGE
+      });
+      return;
+    }
+
+    const invoiceDeadline = getInvoiceDeadline(sale.createdAt);
+    if (new Date() > invoiceDeadline) {
+      res.status(400).json({
+        success: false,
+        message: INVOICE_EXPIRED_MESSAGE
+      });
+      return;
+    }
+
+    // Validar que todos los campos estén presentes
+    if (!rfc || !legalName || !taxSystem || !zip || !email || !cfdiUse) {
+      res.status(400).json({ success: false, message: "Todos los campos de facturación son requeridos." });
+      return;
+    }
+
+    // Validar RFC
+    const rfcValidation = validateRFCBackend(rfc);
+    if (!rfcValidation.valid) {
+      res.status(400).json({ success: false, message: rfcValidation.message });
+      return;
+    }
+
+    // Validar Nombre/Razón Social
+    const nameValidation = validateNameBackend(legalName);
+    if (!nameValidation.valid) {
+      res.status(400).json({ success: false, message: nameValidation.message });
+      return;
+    }
+
+    // Validar Código Postal
+    const zipValidation = validateZipBackend(zip);
+    if (!zipValidation.valid) {
+      res.status(400).json({ success: false, message: zipValidation.message });
+      return;
+    }
+
+    // Validar Email
+    const emailValidation = validateEmailBackend(email);
+    if (!emailValidation.valid) {
+      res.status(400).json({ success: false, message: emailValidation.message });
+      return;
+    }
+
+    const result = await BillingService.createInvoice(sale.id, {
       rfc: rfc.trim().toUpperCase(),
       legalName: legalName.trim().toUpperCase(),
       taxSystem,
       zip: zip.trim(),
-      email: email.trim(),
+      email: email.trim().toLowerCase(),
       cfdiUse
     });
 
     res.status(200).json({
+      ...result,
+      success: true,
       message: result.mode === "real"
         ? "Factura timbrada exitosamente y enviada al correo del cliente."
         : "Factura simulada exitosamente (Modo Demo). Descarga tus archivos abajo.",
-      ...result
+      invoiceDeadline: formatDateOnly(invoiceDeadline),
     });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 

@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../app";
 import bcrypt from "bcryptjs";
+import { parseOptionalDateRange, parseReportDateRange } from "../utils/dateRange.util";
 
 /**
  * Controlador del Panel Administrativo Central (módulos de gestión).
@@ -848,14 +849,12 @@ export const updateBranch = async (req: Request, res: Response): Promise<void> =
 export const getReports = async (req: Request, res: Response): Promise<void> => {
   try {
     const branchId = parseBranch(req);
-    const fromStr = trimQuery(req.query.from);
-    const toStr = trimQuery(req.query.to);
-
-    const now = new Date();
-    const from = fromStr
-      ? new Date(`${fromStr}T00:00:00`)
-      : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
-    const to = toStr ? new Date(`${toStr}T23:59:59`) : now;
+    const range = parseReportDateRange(req.query);
+    if (range.errorStatus) {
+      res.status(range.errorStatus).json({ message: range.errorMessage });
+      return;
+    }
+    const { from, to } = range;
 
     const rangeFilter = { createdAt: { gte: from, lte: to } };
     const branchFilter = branchId ? { branchId } : {};
@@ -1347,19 +1346,17 @@ export const listKardex = async (req: Request, res: Response): Promise<void> => 
     const movementType = req.query.movementType as string | undefined;
     const search = trimQuery(req.query.search);
 
-    const from = req.query.from as string | undefined;
-    const to = req.query.to as string | undefined;
+    const range = parseOptionalDateRange(req.query);
+    if (range.errorStatus) {
+      res.status(range.errorStatus).json({ message: range.errorMessage });
+      return;
+    }
 
     const where: any = {};
     if (branchId) where.branchId = branchId;
     if (movementType && movementType !== "all") where.movementType = movementType;
     if (search) where.product = { OR: [{ name: { contains: search } }, { sku: { contains: search } }] };
-    if (from && to) {
-      where.createdAt = {
-        gte: new Date(from),
-        lte: new Date(to + "T23:59:59"),
-      };
-    }
+    if (range.from || range.to) where.createdAt = { ...(range.from ? { gte: range.from } : {}), ...(range.to ? { lte: range.to } : {}) };
 
     const entries = await prisma.kardex.findMany({
       where,
@@ -2075,17 +2072,19 @@ export const updateSupplier = async (
 
 export const listPurchases = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { branchId, status, supplierId, from, to } = req.query;
+    const { branchId, status, supplierId } = req.query;
+    const range = parseOptionalDateRange(req.query);
+    if (range.errorStatus) {
+      res.status(range.errorStatus).json({ message: range.errorMessage });
+      return;
+    }
+
     const where: any = {};
     if (branchId && branchId !== "all") where.branchId = Number(branchId);
     if (status && status !== "all") where.status = String(status);
     if (supplierId) where.supplierId = Number(supplierId);
-    if (from && to) {
-      where.purchaseDate = {
-        gte: new Date(String(from)),
-        lte: new Date(String(to)),
-      };
-    }
+    if (range.from || range.to) where.purchaseDate = { ...(range.from ? { gte: range.from } : {}), ...(range.to ? { lte: range.to } : {}) };
+
     const purchases = await prisma.purchaseOrder.findMany({
       where,
       include: {

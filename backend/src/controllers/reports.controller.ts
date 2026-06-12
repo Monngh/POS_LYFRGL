@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { prisma } from "../app";
+import { parseReportDateRange, type ValidatedDateRange } from "../utils/dateRange.util";
 
 /**
  * Controlador de Reportes del Panel Administrativo Central.
@@ -14,14 +15,39 @@ const parseBranchId = (req: Request): number | undefined => {
   return b && b !== "all" && !isNaN(Number(b)) ? Number(b) : undefined;
 };
 
-const parseRange = (req: Request): { from: Date; to: Date } => {
+export const parseAndValidateRange = (req: Request): ValidatedDateRange => {
+  const startDateParam = req.query.startDate || req.query.from;
+  const endDateParam = req.query.endDate || req.query.to;
+
+  if (startDateParam !== undefined) {
+    if (typeof startDateParam !== "string" || !startDateParam || isNaN(Date.parse(startDateParam))) {
+      return { from: new Date(), to: new Date(), errorStatus: 400, errorMessage: "Fecha inicial o fecha final inválida." };
+    }
+  }
+
+  if (endDateParam !== undefined) {
+    if (typeof endDateParam !== "string" || !endDateParam || isNaN(Date.parse(endDateParam))) {
+      return { from: new Date(), to: new Date(), errorStatus: 400, errorMessage: "Fecha inicial o fecha final inválida." };
+    }
+  }
+
   const now = new Date();
-  const fromStr = typeof req.query.from === "string" && req.query.from ? req.query.from : null;
-  const toStr = typeof req.query.to === "string" && req.query.to ? req.query.to : null;
+  const fromStr = typeof startDateParam === "string" && startDateParam ? startDateParam : null;
+  const toStr = typeof endDateParam === "string" && endDateParam ? endDateParam : null;
+
   const from = fromStr
     ? new Date(`${fromStr}T00:00:00`)
     : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
   const to = toStr ? new Date(`${toStr}T23:59:59`) : now;
+
+  if (isNaN(from.getTime()) || isNaN(to.getTime())) {
+    return { from, to, errorStatus: 400, errorMessage: "Fecha inicial o fecha final inválida." };
+  }
+
+  if (from.getTime() > to.getTime()) {
+    return { from, to, errorStatus: 400, errorMessage: "La fecha inicial no puede ser mayor que la fecha final." };
+  }
+
   return { from, to };
 };
 
@@ -31,27 +57,64 @@ const parseRange = (req: Request): { from: Date; to: Date } => {
 export const reportSales = async (req: Request, res: Response): Promise<void> => {
   try {
     const branchId = parseBranchId(req);
-    const { from, to } = parseRange(req);
+    const range = parseReportDateRange(req.query);
+    if (range.errorStatus) {
+      res.status(range.errorStatus).json({ success: false, message: range.errorMessage });
+      return;
+    }
+    const { from, to } = range;
     const status = req.query.status as string | undefined;
 
     const where: any = { createdAt: { gte: from, lte: to } };
     if (branchId) where.branchId = branchId;
     if (status && status !== "all") where.status = status;
 
-    const sales = await prisma.sale.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      take: 500,
-      include: {
-        branch: { select: { name: true } },
-        user: { select: { name: true } },
-        customer: { select: { name: true } },
-        _count: { select: { saleDetails: true } },
-      },
-    });
+    const pageQuery = req.query.page;
+    const pageSizeQuery = req.query.pageSize;
+
+    let page = 1;
+    let pageSize = 50;
+
+    if (pageQuery !== undefined) {
+      const parsedPage = Number(pageQuery);
+      if (isNaN(parsedPage) || !Number.isInteger(parsedPage) || parsedPage < 1) {
+        res.status(400).json({ success: false, message: "El parámetro page debe ser un número entero mayor o igual a 1." });
+        return;
+      }
+      page = parsedPage;
+    }
+
+    if (pageSizeQuery !== undefined) {
+      const parsedPageSize = Number(pageSizeQuery);
+      if (isNaN(parsedPageSize) || !Number.isInteger(parsedPageSize) || parsedPageSize < 1) {
+        res.status(400).json({ success: false, message: "El parámetro pageSize debe ser un número entero mayor o igual a 1." });
+        return;
+      }
+      pageSize = parsedPageSize;
+    }
+
+    const safePage = page;
+    const safePageSize = Math.min(100, pageSize);
+    const skip = (safePage - 1) * safePageSize;
+
+    const [sales, total] = await Promise.all([
+      prisma.sale.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: safePageSize,
+        skip,
+        include: {
+          branch: { select: { name: true } },
+          user: { select: { name: true } },
+          customer: { select: { name: true } },
+          _count: { select: { saleDetails: true } },
+        },
+      }),
+      prisma.sale.count({ where })
+    ]);
 
     const rows = sales.map((s) => {
-      const total = Number(s.totalAmount);
+      const totalAmount = Number(s.totalAmount);
       const tax = Number(s.taxAmount);
       return {
         id: s.id,
@@ -62,10 +125,10 @@ export const reportSales = async (req: Request, res: Response): Promise<void> =>
         customer: s.customer?.name ?? "Público General",
         items: s._count.saleDetails,
         paymentMethod: s.paymentMethod,
-        subtotal: total - tax,
+        subtotal: totalAmount - tax,
         taxAmount: tax,
         discountAmount: Number(s.discountAmount),
-        totalAmount: total,
+        totalAmount: totalAmount,
         status: s.status,
       };
     });
@@ -82,7 +145,19 @@ export const reportSales = async (req: Request, res: Response): Promise<void> =>
       canceladas: rows.filter((r) => r.status === "CANCELADA").length,
     };
 
-    res.status(200).json({ rows, totals });
+    res.status(200).json({
+      rows,
+      data: rows,
+      totals,
+      pagination: {
+        page: safePage,
+        pageSize: safePageSize,
+        total,
+        totalPages: Math.ceil(total / safePageSize),
+        hasNextPage: safePage * safePageSize < total,
+        hasPreviousPage: safePage > 1
+      }
+    });
   } catch (error: any) {
     res.status(500).json({ message: "Error al generar el reporte de ventas.", error: error.message });
   }
@@ -94,7 +169,12 @@ export const reportSales = async (req: Request, res: Response): Promise<void> =>
 export const reportProductsSold = async (req: Request, res: Response): Promise<void> => {
   try {
     const branchId = parseBranchId(req);
-    const { from, to } = parseRange(req);
+    const range = parseReportDateRange(req.query);
+    if (range.errorStatus) {
+      res.status(range.errorStatus).json({ success: false, message: range.errorMessage });
+      return;
+    }
+    const { from, to } = range;
 
     const saleWhere: any = { status: "COMPLETADA", createdAt: { gte: from, lte: to } };
     if (branchId) saleWhere.branchId = branchId;
@@ -162,7 +242,12 @@ export const reportProductsSold = async (req: Request, res: Response): Promise<v
 export const reportBySeller = async (req: Request, res: Response): Promise<void> => {
   try {
     const branchId = parseBranchId(req);
-    const { from, to } = parseRange(req);
+    const range = parseReportDateRange(req.query);
+    if (range.errorStatus) {
+      res.status(range.errorStatus).json({ success: false, message: range.errorMessage });
+      return;
+    }
+    const { from, to } = range;
 
     const baseWhere: any = { createdAt: { gte: from, lte: to } };
     if (branchId) baseWhere.branchId = branchId;
