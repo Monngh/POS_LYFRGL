@@ -2,6 +2,15 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Printer } from "lucide-react";
 import api from "../../../services/api";
 import { ui, Panel, TableState, Badge, money, moneyExact, payTone, statusTone, fmtDate, printHtml } from "../shared";
+import {
+  CUSTOM_REPORT_PERIOD,
+  REPORT_PERIOD_OPTIONS,
+  daysAgoInputValue,
+  formatReportRangeLabel,
+  getReportDateRange,
+  validateReportDateRange,
+  type ReportPeriod,
+} from "./reportPeriods";
 
 interface ReportData {
   range: { from: string; to: string };
@@ -25,15 +34,10 @@ interface ReportData {
   salesList: { id: number; invoiceNumber: string; createdAt: string; subtotal: number; taxAmount: number; totalAmount: number; status: string }[];
 }
 
-const toInput = (d: Date) => d.toISOString().slice(0, 10);
-
 const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ branchId, branchLabel }) => {
-  const today = new Date();
-  const monthAgo = new Date();
-  monthAgo.setDate(today.getDate() - 29);
-
-  const [from, setFrom] = useState(toInput(monthAgo));
-  const [to, setTo] = useState(toInput(today));
+  const [from, setFrom] = useState(daysAgoInputValue(29));
+  const [to, setTo] = useState(daysAgoInputValue(0));
+  const [period, setPeriod] = useState<ReportPeriod>(CUSTOM_REPORT_PERIOD);
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +46,13 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
     setLoading(true);
     setError(null);
     try {
+      const currentDateRangeError = validateReportDateRange(from, to);
+      if (currentDateRangeError) {
+        setData(null);
+        setError(currentDateRangeError);
+        return;
+      }
+
       const res = await api.get<ReportData>("/api/admin/reports", {
         params: { from, to, ...(branchId !== "all" ? { branchId } : {}) },
       });
@@ -72,6 +83,24 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
 
   const maxPay = Math.max(1, ...(data?.byPaymentMethod.map((p) => p.total) ?? [0]));
   const maxBranch = Math.max(1, ...(data?.byBranch.map((b) => b.total) ?? [0]));
+  const dateRangeError = validateReportDateRange(from, to);
+
+  const handlePeriodChange = (value: string) => {
+    const nextPeriod = value as ReportPeriod;
+    setPeriod(nextPeriod);
+
+    if (nextPeriod === CUSTOM_REPORT_PERIOD) return;
+
+    const { startDate, endDate } = getReportDateRange(nextPeriod);
+    setFrom(startDate);
+    setTo(endDate);
+  };
+
+  const handleDateChange = (field: "from" | "to", value: string) => {
+    setPeriod(CUSTOM_REPORT_PERIOD);
+    if (field === "from") setFrom(value);
+    else setTo(value);
+  };
 
   const handlePrint = () => {
     if (!data) return;
@@ -84,7 +113,7 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
         </div>
         <div>
           <div class="doc-title">RESUMEN EJECUTIVO</div>
-          <div class="doc-meta">Periodo: ${fmtDate(data.range.from)} — ${fmtDate(data.range.to)}</div>
+          <div class="doc-meta">Periodo: ${formatReportRangeLabel(from, to)}</div>
           <div class="doc-meta">${branchLabel}</div>
         </div>
       </div>
@@ -126,14 +155,49 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
     <div>
       <div style={ui.toolbar}>
         <div>
+          <label style={ui.fieldLabel}>Periodo del reporte</label>
+          <select style={{ ...ui.filterSelect, minWidth: 180 }} value={period} onChange={(e) => handlePeriodChange(e.target.value)}>
+            {REPORT_PERIOD_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
           <label style={ui.fieldLabel}>Desde</label>
-          <input type="date" style={{ ...ui.filterSelect, height: 38 }} value={from} onChange={(e) => setFrom(e.target.value)} />
+          <input
+            type="date"
+            style={{ ...ui.filterSelect, height: 38, ...(dateRangeError ? { borderColor: "#fca5a5" } : {}) }}
+            value={from}
+            onChange={(e) => handleDateChange("from", e.target.value)}
+            aria-invalid={Boolean(dateRangeError)}
+          />
         </div>
         <div>
           <label style={ui.fieldLabel}>Hasta</label>
-          <input type="date" style={{ ...ui.filterSelect, height: 38 }} value={to} onChange={(e) => setTo(e.target.value)} />
+          <input
+            type="date"
+            style={{ ...ui.filterSelect, height: 38, ...(dateRangeError ? { borderColor: "#fca5a5" } : {}) }}
+            value={to}
+            onChange={(e) => handleDateChange("to", e.target.value)}
+            aria-invalid={Boolean(dateRangeError)}
+          />
         </div>
-        <button style={{ ...ui.primaryBtn, marginTop: 18 }} className="active-tap" onClick={load} disabled={loading}>
+        <span
+          style={{
+            alignSelf: "flex-end",
+            height: 38,
+            display: "inline-flex",
+            alignItems: "center",
+            fontSize: 12,
+            color: dateRangeError ? "#b91c1c" : "#64748b",
+            fontWeight: 700,
+          }}
+        >
+          {dateRangeError || `Periodo seleccionado: ${formatReportRangeLabel(from, to)}`}
+        </span>
+        <button style={{ ...ui.primaryBtn, marginTop: 18 }} className="active-tap" onClick={load} disabled={loading || Boolean(dateRangeError)}>
           {loading ? "Generando..." : "Generar reporte"}
         </button>
         <button style={{ ...ui.ghostBtn, marginTop: 18, height: 38, opacity: data ? 1 : 0.5 }} className="active-tap" onClick={handlePrint} disabled={!data || loading}>

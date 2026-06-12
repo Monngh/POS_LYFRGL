@@ -13,26 +13,31 @@ import {
   printHtml,
 } from "../shared";
 import { type ReportDef, type ReportFilters, type Column, formatForPrint } from "./reportConfig";
-
-const todayStr = () => new Date().toISOString().slice(0, 10);
-const daysAgoStr = (n: number) => {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
-};
+import {
+  CUSTOM_REPORT_PERIOD,
+  REPORT_PERIOD_OPTIONS,
+  daysAgoInputValue,
+  formatReportRangeLabel,
+  getReportDateRange,
+  validateReportDateRange,
+  type ReportPeriod,
+} from "./reportPeriods";
 
 const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: string }> = ({ def, branchId, branchLabel }) => {
   const [filters, setFilters] = useState<ReportFilters>({
-    from: daysAgoStr(29),
-    to: todayStr(),
+    from: daysAgoInputValue(29),
+    to: daysAgoInputValue(0),
     status: "all",
     movementType: "all",
     search: "",
   });
+  const [period, setPeriod] = useState<ReportPeriod>(CUSTOM_REPORT_PERIOD);
   const [res, setRes] = useState<any>(null);
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
 
   const has = (f: string) => def.filters?.includes(f as any);
 
@@ -44,7 +49,21 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
     setLoading(true);
     setError(null);
     try {
+      const currentDateRangeError = def.filters?.includes("dateRange")
+        ? validateReportDateRange(filters.from, filters.to)
+        : null;
+      if (currentDateRangeError) {
+        setRes(null);
+        setRows([]);
+        setError(currentDateRangeError);
+        return;
+      }
+
       const params = def.params ? def.params(filters, branchId) : {};
+      if (def.endpoint === "/api/admin/reports/sales") {
+        params.page = page;
+        params.pageSize = pageSize;
+      }
       const r = await api.get(def.endpoint, { params });
       setRes(r.data);
       let extracted = def.rows ? def.rows(r.data) : [];
@@ -57,17 +76,41 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [def, branchId, filters.from, filters.to, filters.status, filters.movementType, filters.search]);
+  }, [def, branchId, filters.from, filters.to, filters.status, filters.movementType, filters.search, page, pageSize]);
 
   useEffect(() => {
     const t = setTimeout(load, has("search") ? 300 : 0);
     return () => clearTimeout(t);
   }, [load]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [branchId, def]);
+
   const kpis = def.kpis && res ? def.kpis(res, rows) : [];
   const cols = def.columns ?? [];
+  const dateRangeError = has("dateRange") ? validateReportDateRange(filters.from, filters.to) : null;
 
-  const set = (k: keyof ReportFilters, v: string) => setFilters((f) => ({ ...f, [k]: v }));
+  const setFilter = (k: keyof ReportFilters, v: string) => {
+    setPage(1);
+    setFilters((f) => ({ ...f, [k]: v }));
+  };
+
+  const setDateFilter = (k: "from" | "to", v: string) => {
+    setPeriod(CUSTOM_REPORT_PERIOD);
+    setFilter(k, v);
+  };
+
+  const handlePeriodChange = (value: string) => {
+    const nextPeriod = value as ReportPeriod;
+    setPeriod(nextPeriod);
+    setPage(1);
+
+    if (nextPeriod === CUSTOM_REPORT_PERIOD) return;
+
+    const { startDate, endDate } = getReportDateRange(nextPeriod);
+    setFilters((f) => ({ ...f, from: startDate, to: endDate }));
+  };
 
   // -------- Reporte no disponible --------
   if (!def.available) {
@@ -124,7 +167,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
 
   const handlePrint = () => {
     const cls = (c: Column) => (c.align === "right" ? "r" : c.align === "center" ? "c" : "");
-    const periodLine = has("dateRange") ? `<div class="doc-meta">Periodo: ${fmtDate(filters.from)} — ${fmtDate(filters.to)}</div>` : "";
+    const periodLine = has("dateRange") ? `<div class="doc-meta">Periodo: ${formatReportRangeLabel(filters.from, filters.to)}</div>` : "";
     const body = `
       <div class="doc-header">
         <div>
@@ -156,24 +199,59 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
         {has("dateRange") && (
           <>
             <div>
+              <label style={ui.fieldLabel}>Periodo del reporte</label>
+              <select style={{ ...ui.filterSelect, minWidth: 180 }} value={period} onChange={(e) => handlePeriodChange(e.target.value)}>
+                {REPORT_PERIOD_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label style={ui.fieldLabel}>Desde</label>
-              <input type="date" style={{ ...ui.filterSelect, height: 38 }} value={filters.from} onChange={(e) => set("from", e.target.value)} />
+              <input
+                type="date"
+                style={{ ...ui.filterSelect, height: 38, ...(dateRangeError ? { borderColor: "#fca5a5" } : {}) }}
+                value={filters.from}
+                onChange={(e) => setDateFilter("from", e.target.value)}
+                aria-invalid={Boolean(dateRangeError)}
+              />
             </div>
             <div>
               <label style={ui.fieldLabel}>Hasta</label>
-              <input type="date" style={{ ...ui.filterSelect, height: 38 }} value={filters.to} onChange={(e) => set("to", e.target.value)} />
+              <input
+                type="date"
+                style={{ ...ui.filterSelect, height: 38, ...(dateRangeError ? { borderColor: "#fca5a5" } : {}) }}
+                value={filters.to}
+                onChange={(e) => setDateFilter("to", e.target.value)}
+                aria-invalid={Boolean(dateRangeError)}
+              />
             </div>
+            <span
+              style={{
+                alignSelf: "flex-end",
+                height: 38,
+                display: "inline-flex",
+                alignItems: "center",
+                fontSize: 12,
+                color: dateRangeError ? "#b91c1c" : "#64748b",
+                fontWeight: 700,
+              }}
+            >
+              {dateRangeError || `Periodo seleccionado: ${formatReportRangeLabel(filters.from, filters.to)}`}
+            </span>
           </>
         )}
         {has("status") && def.statusOptions && (
-          <FilterSelect value={filters.status} onChange={(v) => set("status", v)} options={def.statusOptions} />
+          <FilterSelect value={filters.status} onChange={(v) => setFilter("status", v)} options={def.statusOptions} />
         )}
         {has("movementType") && def.movementOptions && (
-          <FilterSelect value={filters.movementType} onChange={(v) => set("movementType", v)} options={def.movementOptions} />
+          <FilterSelect value={filters.movementType} onChange={(v) => setFilter("movementType", v)} options={def.movementOptions} />
         )}
-        {has("search") && <SearchInput value={filters.search} onChange={(v) => set("search", v)} placeholder="Buscar..." />}
+        {has("search") && <SearchInput value={filters.search} onChange={(v) => setFilter("search", v)} placeholder="Buscar..." />}
 
-        <button style={{ ...ui.primaryBtn }} className="active-tap" onClick={load} disabled={loading} title="Actualizar">
+        <button style={{ ...ui.primaryBtn }} className="active-tap" onClick={load} disabled={loading || Boolean(dateRangeError)} title="Actualizar">
           <RefreshCw size={15} /> {loading ? "Generando..." : "Generar"}
         </button>
         <button
@@ -230,6 +308,87 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
           </tbody>
         </table>
       </div>
+
+      {/* Paginación */}
+      {res?.pagination && (
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 16px",
+          backgroundColor: "#ffffff",
+          border: "1px solid #e2e8f0",
+          borderTop: "none",
+          borderBottomLeftRadius: 12,
+          borderBottomRightRadius: 12,
+          fontSize: 13,
+          color: "#475569"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span>Mostrar</span>
+            <select
+              style={{
+                padding: "4px 8px",
+                borderRadius: 4,
+                border: "1px solid #cbd5e1",
+                backgroundColor: "#ffffff",
+                fontSize: 13,
+                cursor: "pointer"
+              }}
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+            >
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <span>registros por página</span>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ marginRight: 16 }}>
+              Mostrando página <strong>{res.pagination.page}</strong> de <strong>{res.pagination.totalPages || 1}</strong> ({res.pagination.total} registros en total)
+            </span>
+            <button
+              style={{
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "1px solid #cbd5e1",
+                backgroundColor: res.pagination.hasPreviousPage ? "#ffffff" : "#f1f5f9",
+                color: res.pagination.hasPreviousPage ? "#0f172a" : "#94a3b8",
+                cursor: res.pagination.hasPreviousPage ? "pointer" : "default",
+                fontSize: 13,
+                fontWeight: 600,
+                outline: "none"
+              }}
+              disabled={!res.pagination.hasPreviousPage || loading}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Anterior
+            </button>
+            <button
+              style={{
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "1px solid #cbd5e1",
+                backgroundColor: res.pagination.hasNextPage ? "#ffffff" : "#f1f5f9",
+                color: res.pagination.hasNextPage ? "#0f172a" : "#94a3b8",
+                cursor: res.pagination.hasNextPage ? "pointer" : "default",
+                fontSize: 13,
+                fontWeight: 600,
+                outline: "none"
+              }}
+              disabled={!res.pagination.hasNextPage || loading}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Siguiente
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

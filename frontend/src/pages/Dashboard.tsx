@@ -326,8 +326,8 @@ const Dashboard: React.FC = () => {
   const checkSessionStatus = async () => {
     if (!user) return;
     
-    // Si es Administrador, va directo al Dashboard admin
-    if (user.role === "ADMIN") {
+    // Si es Administrador o Gerente, va directo al Dashboard admin
+    if (user.role === "ADMIN" || user.role === "GERENTE") {
       setLoading(false);
       return;
     }
@@ -2470,7 +2470,7 @@ const Dashboard: React.FC = () => {
   // ===========================================================================
   // RENDER A: PANEL ADMINISTRATIVO CENTRAL (Dashboard de métricas)
   // ===========================================================================
-  if (user && user.role === "ADMIN") {
+  if (user && (user.role === "ADMIN" || user.role === "GERENTE")) {
     return <AdminDashboard />;
   }
 
