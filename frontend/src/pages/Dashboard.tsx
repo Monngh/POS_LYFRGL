@@ -1096,8 +1096,20 @@ const Dashboard: React.FC = () => {
   const [qrUrl, setQrUrl] = useState("");
   const [qrReference, setQrReference] = useState("");
   const [qrChecking, setQrChecking] = useState(false);
+  const [qrExpiresAt, setQrExpiresAt] = useState("");
+  const [countdownText, setCountdownText] = useState("");
+
+  const isQrExpired = (sale: any) => {
+    if (!sale || !sale.qrExpiresAt) return false;
+    return new Date(sale.qrExpiresAt).getTime() < Date.now();
+  };
 
   const checkQrStatus = async () => {
+    if (qrExpiresAt && new Date(qrExpiresAt).getTime() < Date.now()) {
+      showToast("El código QR ha expirado. Por favor, cancela e intenta de nuevo o guarda la venta en pagos pendientes.");
+      return;
+    }
+    setQrChecking(true);
     setQrChecking(true);
     try {
       const res = await api.get(`/api/mercadopago/status/${qrReference}`);
@@ -1985,10 +1997,44 @@ const Dashboard: React.FC = () => {
     setCashReceived("");
     setPaymentMethod("EFECTIVO");
     setQrModalOpen(false);
-    showToast("Venta enviada a pagos pendientes. Puedes seguir vendiendo.");
+  };
+
+  const handleRegenerateQr = async (sale: any) => {
+    try {
+      const res = await api.post("/api/sales/retry-qr", {
+        invoiceNumber: sale.invoiceNumber
+      });
+
+      if (res.data.success) {
+        const updatedSale = {
+          ...sale,
+          qrUrl: res.data.initPoint,
+          qrExpiresAt: res.data.expiresAt,
+          status: "pending"
+        };
+
+        setPendingQrSales(prev => {
+          const updated = prev.map(s => s.invoiceNumber === sale.invoiceNumber ? updatedSale : s);
+          localStorage.setItem("pendingQrSales", JSON.stringify(updated));
+          return updated;
+        });
+
+        setViewingPendingQrSale(updatedSale);
+        showToast("El QR anterior venció. Se ha generado un nuevo código QR.", "success");
+      } else {
+        showToast("No se pudo regenerar el código QR.");
+      }
+    } catch (err: any) {
+      showToast("Error al regenerar el QR: " + (err.response?.data?.message || err.message));
+    }
   };
 
   const checkPendingQrStatus = async (invoiceNumber: string) => {
+    const salePending = pendingQrSales.find(s => s.invoiceNumber === invoiceNumber);
+    if (isQrExpired(salePending)) {
+      showToast("El código QR ha expirado. Por favor genera un nuevo código QR.");
+      return;
+    }
     setPendingQrChecking(invoiceNumber);
     try {
       const res = await api.get(`/api/mercadopago/status/${invoiceNumber}`);
@@ -3921,13 +3967,24 @@ const Dashboard: React.FC = () => {
                 >
                   CERRAR
                 </button>
-                <button
-                  onClick={() => checkPendingQrStatus(viewingPendingQrSale.invoiceNumber)}
-                  disabled={pendingQrChecking === viewingPendingQrSale.invoiceNumber}
-                  style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
-                >
-                  {pendingQrChecking === viewingPendingQrSale.invoiceNumber ? "VERIFICANDO..." : "VERIFICAR ESTADO"}
-                </button>
+                {isQrExpired(viewingPendingQrSale) && viewingPendingQrSale.status !== "approved" && viewingPendingQrSale.status !== "rejected" ? (
+                  <button
+                    onClick={() => handleRegenerateQr(viewingPendingQrSale)}
+                    style={{ ...styles.modalBtn, backgroundColor: "#2563eb", color: "white" }}
+                  >
+                    🔄 GENERAR NUEVO QR
+                  </button>
+                ) : (
+                  viewingPendingQrSale.status !== "approved" && (
+                    <button
+                      onClick={() => checkPendingQrStatus(viewingPendingQrSale.invoiceNumber)}
+                      disabled={pendingQrChecking === viewingPendingQrSale.invoiceNumber}
+                      style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
+                    >
+                      {pendingQrChecking === viewingPendingQrSale.invoiceNumber ? "VERIFICANDO..." : "VERIFICAR ESTADO"}
+                    </button>
+                  )
+                )}
               </div>
             </div>
           </div>
@@ -5886,13 +5943,23 @@ const Dashboard: React.FC = () => {
               >
                 CERRAR
               </button>
-              
-              <button
-                onClick={() => checkPendingQrStatus(viewingPendingQrSale.invoiceNumber)}
-                style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
-              >
-                VERIFICAR ESTADO
-              </button>
+              {isQrExpired(viewingPendingQrSale) && viewingPendingQrSale.status !== "approved" && viewingPendingQrSale.status !== "rejected" ? (
+                <button
+                  onClick={() => handleRegenerateQr(viewingPendingQrSale)}
+                  style={{ ...styles.modalBtn, backgroundColor: "#2563eb", color: "white" }}
+                >
+                  🔄 GENERAR NUEVO QR
+                </button>
+              ) : (
+                viewingPendingQrSale.status !== "approved" && (
+                  <button
+                    onClick={() => checkPendingQrStatus(viewingPendingQrSale.invoiceNumber)}
+                    style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
+                  >
+                    VERIFICAR ESTADO
+                  </button>
+                )
+              )}
             </div>
           </div>
         </div>
