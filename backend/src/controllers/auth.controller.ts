@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../app";
 import { comparePassword, generateToken } from "../utils/auth";
+import { getRequestDeviceId, findActiveSessionForUser } from "../middlewares/device.middleware";
 
 /**
  * Login clásico para Administradores y Gerentes (Email + Contraseña)
@@ -97,6 +98,18 @@ export const cashierLogin = async (req: Request, res: Response): Promise<void> =
     if (!isPinMatch) {
       res.status(401).json({ message: "Código PIN incorrecto." });
       return;
+    }
+
+    const activeSession = await findActiveSessionForUser(user.id);
+    if (activeSession && activeSession.deviceId) {
+      const requestDeviceId = getRequestDeviceId(req);
+      if (!requestDeviceId || requestDeviceId !== activeSession.deviceId) {
+        res.status(409).json({
+          code: "CAJA_EN_OTRO_EQUIPO",
+          message: "Este usuario tiene un turno de caja abierto en otro equipo. Cierre el turno en ese equipo o solicite a un administrador el cierre forzado de la sesión.",
+        });
+        return;
+      }
     }
 
     const token = generateToken({
