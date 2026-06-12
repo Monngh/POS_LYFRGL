@@ -915,7 +915,6 @@ export const getReports = async (req: Request, res: Response): Promise<void> => 
     res.status(500).json({ message: "Error al generar los reportes.", error: error.message });
   }
 };
-
 // ===========================================================================
 // ALTA DE EMPLEADO (reutiliza la tabla User; cifra password y PIN)
 // ===========================================================================
@@ -967,7 +966,7 @@ export const createEmployee = async (req: Request, res: Response): Promise<void>
 
     const user = await prisma.user.create({
       data: {
-        name: name.trim().toUpperCase(),
+        name: name.trim(),
         email: email.trim().toLowerCase(),
         passwordHash,
         pinCode: pinHash,
@@ -1038,7 +1037,7 @@ export const updateEmployee = async (req: Request, res: Response): Promise<void>
     }
 
     const updateData: any = {};
-    if (name && String(name).trim() !== "") updateData.name = String(name).trim().toUpperCase();
+    if (name && String(name).trim() !== "") updateData.name = String(name).trim();
     if (email && String(email).trim() !== "") updateData.email = String(email).trim().toLowerCase();
     if (phone !== undefined) updateData.phone = phone ? String(phone).trim() : null;
     if (baseSalary !== undefined) updateData.baseSalary = baseSalary !== "" && baseSalary !== null ? parseFloat(String(baseSalary)) : null;
@@ -1085,7 +1084,6 @@ export const updateEmployee = async (req: Request, res: Response): Promise<void>
     res.status(500).json({ message: "Error al actualizar el empleado.", error: error.message });
   }
 };
-
 // ===========================================================================
 // OPERACIONES DEL VENDEDOR (actividad consolidada de un empleado)
 // ===========================================================================
