@@ -78,8 +78,19 @@ const REGIMENES_FISCALES = [
   { code: "612", label: "612 - Personas Físicas con Actividades Empresariales y Profesionales" },
   { code: "621", label: "621 - Incorporación Fiscal" },
   { code: "625", label: "625 - Régimen de las Actividades Empresariales con ingresos a través de Plataformas Tecnológicas" },
-  { code: "626", label: "626 - Régimen Simplificado de Confianza (RESICO)" }
+  { code: "626", label: "626 - Regimen Simplificado de Confianza" },
 ];
+
+const getAvailableTaxSystems = (rfcValue: string) => {
+  if (!rfcValue) return REGIMENES_FISCALES;
+  if (rfcValue.length === 12) {
+    return REGIMENES_FISCALES.filter(r => ["601", "603", "622", "623", "624", "626", "628"].includes(r.code));
+  }
+  if (rfcValue.length === 13) {
+    return REGIMENES_FISCALES.filter(r => ["605", "606", "608", "611", "612", "614", "615", "616", "621", "625", "626"].includes(r.code));
+  }
+  return REGIMENES_FISCALES;
+};
 
 const USOS_CFDI = [
   { code: "G01", label: "G01 - Adquisición de mercancías" },
@@ -798,12 +809,23 @@ const Autofacturacion: React.FC = () => {
                       <select
                         value={taxSystem}
                         onChange={(e) => setTaxSystem(e.target.value)}
-                        style={styles.select}
+                        style={{
+                          ...styles.select,
+                          backgroundColor: loading || !rfc ? "#f3f4f6" : "#ffffff",
+                          cursor: !rfc ? "not-allowed" : "pointer"
+                        }}
+                        disabled={loading || !rfc || (rfc.length !== 12 && rfc.length !== 13)}
                       >
-                        {REGIMENES_FISCALES.map((r) => (
+                        <option value="">Seleccione un régimen fiscal</option>
+                        {getAvailableTaxSystems(rfc).map((r) => (
                           <option key={r.code} value={r.code}>{r.label}</option>
                         ))}
                       </select>
+                      {!rfc && (
+                        <span style={{ fontSize: "11px", color: "#f59e0b", marginTop: "2px" }}>
+                          ⚠️ Primero ingrese el RFC para ver los regímenes disponibles
+                        </span>
+                      )}
                     </div>
 
                     <div style={styles.formGroup}>
@@ -857,7 +879,15 @@ const Autofacturacion: React.FC = () => {
                     </div>
                   )}
 
-                  <button type="submit" disabled={loading} style={styles.successButton}>
+                  <button 
+                    type="submit" 
+                    disabled={loading || hasErrors(invoiceFieldErrors) || !rfc || !legalName || !zip || !email} 
+                    style={{
+                      ...styles.successButton,
+                      opacity: (loading || hasErrors(invoiceFieldErrors) || !rfc || !legalName || !zip || !email) ? 0.6 : 1,
+                      cursor: (loading || hasErrors(invoiceFieldErrors) || !rfc || !legalName || !zip || !email) ? "not-allowed" : "pointer"
+                    }}
+                  >
                     {loading ? "Timbrando Factura..." : "Emitir Factura SAT"}
                   </button>
                 </form>
@@ -1076,12 +1106,23 @@ const Autofacturacion: React.FC = () => {
                   <select
                     value={profileTaxSystem}
                     onChange={(e) => setProfileTaxSystem(e.target.value)}
-                    style={styles.select}
+                    style={{
+                      ...styles.select,
+                      backgroundColor: loading || !profileRfc ? "#f3f4f6" : "#ffffff",
+                      cursor: !profileRfc ? "not-allowed" : "pointer"
+                    }}
+                    disabled={loading || !profileRfc || (profileRfc.length !== 12 && profileRfc.length !== 13)}
                   >
-                    {REGIMENES_FISCALES.map((r) => (
+                    <option value="">Seleccione un régimen fiscal</option>
+                    {getAvailableTaxSystems(profileRfc).map((r) => (
                       <option key={r.code} value={r.code}>{r.label}</option>
                     ))}
                   </select>
+                  {!profileRfc && (
+                    <span style={{ fontSize: "11px", color: "#f59e0b", marginTop: "2px" }}>
+                      ⚠️ Primero ingrese el RFC para ver los regímenes disponibles
+                    </span>
+                  )}
                 </div>
 
                 <div style={styles.formGroup}>
