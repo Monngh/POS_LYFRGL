@@ -1096,6 +1096,7 @@ const Dashboard: React.FC = () => {
   const [qrUrl, setQrUrl] = useState("");
   const [qrReference, setQrReference] = useState("");
   const [qrChecking, setQrChecking] = useState(false);
+  const [qrExpiresAt, setQrExpiresAt] = useState("");
 
   const isQrExpired = (sale: any) => {
     if (!sale || !sale.qrExpiresAt) return false;
@@ -1292,6 +1293,7 @@ const Dashboard: React.FC = () => {
 
         setQrUrl(qrRes.data.initPoint);
         setQrReference(saleInvoice);
+        setQrExpiresAt(qrRes.data.expiresAt);
         setCheckoutModalOpen(false);
         setQrModalOpen(true);
       } catch(err: any) {
