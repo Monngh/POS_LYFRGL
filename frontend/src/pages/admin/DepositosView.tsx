@@ -16,6 +16,30 @@ interface DepositRow {
   status: string;
 }
 
+const renderComments = (raw: string | null | undefined) => {
+  if (!raw) return <span>Sin comentarios</span>;
+  try {
+    const parsed = JSON.parse(raw);
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        {parsed.convenio && <span><strong>Convenio:</strong> {parsed.convenio}</span>}
+        {parsed.barcode && <span><strong>Código de barras:</strong> {parsed.barcode}</span>}
+        {parsed.expirationDate && <span><strong>Vence:</strong> {new Date(parsed.expirationDate).toLocaleString('es-MX')}</span>}
+        {parsed.ticketUrl && (
+          <span><strong>Ticket:</strong>{' '}
+            <a href={parsed.ticketUrl} target="_blank" rel="noopener noreferrer">
+              Ver ticket
+            </a>
+          </span>
+        )}
+        {parsed.userComments && <span><strong>Comentario:</strong> {parsed.userComments}</span>}
+      </div>
+    );
+  } catch {
+    return <span>{raw}</span>;
+  }
+};
+
 const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [rows, setRows] = useState<DepositRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,22 +58,9 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     try {
       const params: Record<string, any> = branchId !== "all" ? { branchId } : {};
 
-      // 🔧 CONVERTIR FECHAS DE DD/MM/YYYY a YYYY-MM-DD
-      if (from) {
-        const [day, month, year] = from.split('/');
-        const formattedFrom = `${year}-${month}-${day}`;
-        params.from = formattedFrom;
-      }
-
-      if (to) {
-        const [day, month, year] = to.split('/');
-        const formattedTo = `${year}-${month}-${day}`;
-        params.to = formattedTo;
-      }
-
+      if (from) params.from = from;
+      if (to) params.to = to;
       if (account) params.account = account;
-
-      console.log("Fechas enviadas (formato ISO):", { from: params.from, to: params.to });
 
       const res = await api.get<{ deposits: DepositRow[] }>("/api/admin/bank-deposits", { params });
       setRows(res.data.deposits);
@@ -117,7 +128,21 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           <div class="ticket-row"><span>Tipo:</span><span class="ticket-value">${safe(deposit.paymentType)}</span></div>
           <div class="ticket-row"><span>Referencia:</span><span class="ticket-value">${safe(deposit.reference || "N/A")}</span></div>
           <div class="ticket-row"><span>Estado:</span><span class="ticket-value">${safe(deposit.status)}</span></div>
-          <div class="ticket-row"><span>Comentarios:</span><span class="ticket-value">${safe(deposit.comments || "Sin comentarios")}</span></div>
+          <div class="ticket-row"><span>Comentarios:</span><span class="ticket-value">${(() => {
+            if (!deposit.comments) return "Sin comentarios";
+            try {
+              const p = JSON.parse(deposit.comments);
+              const parts: string[] = [];
+              if (p.convenio) parts.push(`Convenio: ${safe(p.convenio)}`);
+              if (p.barcode) parts.push(`Código: ${safe(p.barcode)}`);
+              if (p.expirationDate) parts.push(`Vence: ${new Date(p.expirationDate).toLocaleString('es-MX')}`);
+              if (p.ticketUrl) parts.push(`Ticket: ${safe(p.ticketUrl)}`);
+              if (p.userComments) parts.push(`Comentario: ${safe(p.userComments)}`);
+              return parts.length ? parts.join(' | ') : "Sin comentarios";
+            } catch {
+              return safe(deposit.comments);
+            }
+          })()}</span></div>
           <div class="ticket-row ticket-total"><span>Monto:</span><span>-$${Number(deposit.amount).toFixed(2)}</span></div>
         </div>
         <div class="ticket-footer">
@@ -334,7 +359,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 </span>
               </p>
               <p style={{ margin: "8px 0" }}>
-                <strong>Comentarios:</strong> {selectedDeposit.comments || "Sin comentarios"}
+                <strong>Comentarios:</strong> {renderComments(selectedDeposit.comments)}
               </p>
             </div>
 
