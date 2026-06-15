@@ -834,7 +834,9 @@ export const getAdminReturns = async (req: Request, res: Response): Promise<void
       if (endDate) where.createdAt.lte = new Date(`${endDate}T23:59:59.999`);
     }
 
-    if (branchId && branchId !== "all") {
+    if (req.user && req.user.role === "GERENTE") {
+      where.sale = { branchId: req.user.branchId };
+    } else if (branchId && branchId !== "all") {
       where.sale = { branchId: parseInt(branchId as string) };
     }
 
@@ -934,6 +936,11 @@ export const getAdminReturnDetail = async (req: Request, res: Response): Promise
       return;
     }
 
+    if (req.user && req.user.role === "GERENTE" && returnData.sale.branchId !== req.user.branchId) {
+      res.status(403).json({ message: "Acceso denegado. Esta devolución pertenece a otra sucursal." });
+      return;
+    }
+
     let exchangeSaleData = null;
     if (returnData.exchangeSaleId) {
       exchangeSaleData = await prisma.sale.findUnique({
@@ -1020,11 +1027,16 @@ export const retryReturnRefund = async (req: Request, res: Response): Promise<vo
 
     const returnData = await prisma.return.findUnique({
       where: { id: returnId },
-      include: { sale: { select: { mercadoPagoPaymentId: true } } },
+      include: { sale: { select: { mercadoPagoPaymentId: true, branchId: true } } },
     });
 
     if (!returnData) {
       res.status(404).json({ message: "Devolución no encontrada." });
+      return;
+    }
+
+    if (req.user && req.user.role === "GERENTE" && returnData.sale.branchId !== req.user.branchId) {
+      res.status(403).json({ message: "Acceso denegado. Esta devolución pertenece a otra sucursal." });
       return;
     }
 
@@ -1074,11 +1086,17 @@ export const createReturnCfdi = async (req: Request, res: Response): Promise<voi
         returnDetails: {
           include: { product: { select: { name: true } } },
         },
+        sale: { select: { branchId: true } },
       },
     });
 
     if (!returnData) {
       res.status(404).json({ message: "Devolución no encontrada." });
+      return;
+    }
+
+    if (req.user && req.user.role === "GERENTE" && returnData.sale.branchId !== req.user.branchId) {
+      res.status(403).json({ message: "Acceso denegado. Esta devolución pertenece a otra sucursal." });
       return;
     }
 
