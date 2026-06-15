@@ -21,6 +21,7 @@ import {
   BadgePercent,
   Tags,
   RotateCcw,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -41,6 +42,7 @@ import PromocionesView from "./admin/PromocionesView";
 import DevolucionesView from "./admin/DevolucionesView";
 import FacturacionGlobalView from "./admin/FacturacionGlobalView";
 import HistorialFacturasView from "./admin/HistorialFacturasView";
+import ReportAuditLogView from "./admin/ReportAuditLogView";
 import type { ViewProps } from "./admin/shared";
 
 interface BranchOption {
@@ -63,7 +65,7 @@ function useMediaQuery(query: string): boolean {
   return matches;
 }
 
-const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<ViewProps>; branchScoped: boolean }[] = [
+const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<ViewProps>; branchScoped: boolean; adminOnly?: boolean }[] = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, view: DashboardView, branchScoped: true },
   { key: "ventas", label: "Ventas", icon: ShoppingCart, view: VentasView, branchScoped: true },
   { key: "devoluciones", label: "Devoluciones", icon: RotateCcw, view: DevolucionesView, branchScoped: true },
@@ -81,6 +83,7 @@ const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<
   { key: "reportes", label: "Reportes", icon: BarChart3, view: ReportesView, branchScoped: true },
   { key: "facturacion-global", label: "Factura Global", icon: BadgePercent, view: FacturacionGlobalView, branchScoped: true },
   { key: "historial-facturas", label: "Historial Facturas", icon: ClipboardList, view: HistorialFacturasView, branchScoped: false },
+  { key: "auditoria-reportes", label: "Auditoría Reportes", icon: ShieldCheck, view: ReportAuditLogView, branchScoped: false, adminOnly: true },
 ];
 
 const NAV_SECTIONS: { label: string; items: string[] }[] = [
@@ -89,7 +92,7 @@ const NAV_SECTIONS: { label: string; items: string[] }[] = [
   { label: "Caja y finanzas", items: ["cajas", "depositos", "facturacion-global", "historial-facturas"] },
   { label: "Inventario", items: ["inventario"] },
   { label: "Catálogos", items: ["clientes", "empleados", "sucursales", "proveedores", "impuestos", "promociones"] },
-  { label: "Reportes", items: ["reportes"] },
+  { label: "Reportes", items: ["reportes", "auditoria-reportes"] },
 ];
 
 const AdminDashboard: React.FC = () => {
@@ -180,6 +183,7 @@ const AdminDashboard: React.FC = () => {
               )}
               {section.items.map((key) => {
                 const item = NAV_ITEMS.find((n) => n.key === key)!;
+                if (item.adminOnly && user?.role !== "ADMIN") return null;
                 const Icon = item.icon;
                 const isActive = activeNav === item.key;
                 return (

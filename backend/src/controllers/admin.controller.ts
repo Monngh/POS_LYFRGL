@@ -3254,3 +3254,38 @@ export const deleteProduct = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({ message: "Error al desactivar el producto." });
   }
 };
+
+export const getReportAuditLogs = async (req: Request, res: Response) => {
+  try {
+    const { from, to, userId, reportType } = req.query;
+
+    const where: any = {};
+
+    if (from || to) {
+      where.createdAt = {};
+      if (from) where.createdAt.gte = new Date(from as string);
+      if (to) {
+        const toDate = new Date(to as string);
+        toDate.setHours(23, 59, 59, 999);
+        where.createdAt.lte = toDate;
+      }
+    }
+    if (userId) where.userId = Number(userId);
+    if (reportType) where.reportType = reportType as string;
+
+    const logs = await prisma.reportAuditLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: 500,
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        branch: { select: { id: true, name: true } },
+      },
+    });
+
+    res.json({ logs });
+  } catch (err) {
+    console.error("[getReportAuditLogs]", err);
+    res.status(500).json({ message: "Error al obtener logs de auditoría" });
+  }
+};
