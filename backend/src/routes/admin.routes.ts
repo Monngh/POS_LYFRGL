@@ -36,7 +36,9 @@ import {
   removeProductFromSupplier,
   getProductSuppliers,
   deleteProduct,
+  getReportAuditLogs,
 } from "../controllers/admin.controller";
+import { auditReport } from "../middlewares/audit.middleware";
 import {
   reportSales,
   reportProductsSold,
@@ -63,7 +65,7 @@ router.get("/sales", listSales);
 router.get("/sales/:id", getSaleDetail);
 
 // Inventario
-router.get("/inventory", listInventory);
+router.get("/inventory", auditReport("Existencias", "INVENTARIO"), listInventory);
 router.post("/inventory/adjust", adjustInventory);
 router.post("/inventory/transfer", transferInventory);
 
@@ -92,7 +94,7 @@ router.put("/employees/:id", updateEmployee);
 router.get("/employees/:id/operations", getEmployeeOperations);
 
 // Kardex (movimientos de inventario)
-router.get("/kardex", listKardex);
+router.get("/kardex", auditReport("Kardex", "INVENTARIO"), listKardex);
 
 // Proveedores
 router.get("/suppliers", listSuppliers);
@@ -103,7 +105,7 @@ router.post("/suppliers/products/assign", assignProductToSupplier);
 router.post("/suppliers/products/remove", removeProductFromSupplier);
 
 // Compras (órdenes de compra — nueva arquitectura)
-router.get("/purchases", listPurchases);
+router.get("/purchases", auditReport("Compras", "COMPRAS"), listPurchases);
 router.post("/purchases", createPurchase);
 router.put("/purchases/:id/receive", receivePurchase);
 
@@ -116,11 +118,12 @@ router.post("/branches", createBranch);
 router.put("/branches/:id", updateBranch);
 
 // Reportes
-router.get("/reports", getReports);
-router.get("/reports/sales", reportSales);
-router.get("/reports/products-sold", reportProductsSold);
-router.get("/reports/by-seller", reportBySeller);
-router.get("/reports/receivables", reportReceivables);
+router.get("/reports", auditReport("Resumen Ejecutivo", "VENTAS"), getReports);
+router.get("/reports/sales", auditReport("Venta", "VENTAS"), reportSales);
+router.get("/reports/products-sold", auditReport("Artículos Vendidos", "VENTAS"), reportProductsSold);
+router.get("/reports/by-seller", auditReport("Operaciones por Vendedor", "PERSONAL"), reportBySeller);
+router.get("/reports/receivables", auditReport("Cobranza", "VENTAS"), reportReceivables);
+router.get("/reports/audit-logs", authorizeRoles(["ADMIN"]), getReportAuditLogs);
 
 // Devoluciones (admin)
 router.get("/returns", getAdminReturns);
