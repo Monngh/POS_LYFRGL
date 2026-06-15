@@ -1,9 +1,24 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Autofacturacion from "./pages/Autofacturacion";
+
+const Login = lazy(() => import("./pages/Login"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Autofacturacion = lazy(() => import("./pages/Autofacturacion"));
+
+const PageLoader = () => (
+  <div style={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    height: "100vh",
+    background: "#f9fafb",
+  }}>
+    <div style={{ textAlign: "center", color: "#6b7280" }}>
+      <p>Cargando...</p>
+    </div>
+  </div>
+);
 
 // Componente para proteger Rutas Privadas
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -32,32 +47,34 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 const AppContent: React.FC = () => {
   return (
-    <Routes>
-      {/* Rutas Públicas */}
-      <Route
-        path="/login"
-        element={
-          <PublicRoute>
-            <Login />
-          </PublicRoute>
-        }
-      />
-      <Route path="/autofacturacion" element={<Autofacturacion />} />
-      <Route path="/facturar" element={<Autofacturacion />} />
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        {/* Rutas Públicas */}
+        <Route
+          path="/login"
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          }
+        />
+        <Route path="/autofacturacion" element={<Autofacturacion />} />
+        <Route path="/facturar" element={<Autofacturacion />} />
 
-      {/* Rutas Privadas Protegidas por JWT */}
-      <Route
-        path="/dashboard"
-        element={
-          <PrivateRoute>
-            <Dashboard />
-          </PrivateRoute>
-        }
-      />
+        {/* Rutas Privadas Protegidas por JWT */}
+        <Route
+          path="/dashboard"
+          element={
+            <PrivateRoute>
+              <Dashboard />
+            </PrivateRoute>
+          }
+        />
 
-      {/* Redirección por defecto */}
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
-    </Routes>
+        {/* Redirección por defecto */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </Suspense>
   );
 };
 

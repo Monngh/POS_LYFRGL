@@ -1,5 +1,3 @@
-import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
 import {
   extractFullTicketHtml,
   mountTicketForPdfRender,
@@ -52,6 +50,9 @@ const inlineExternalImages = async (root: HTMLElement): Promise<void> => {
 };
 
 const renderTicketElementToPdfBase64 = async (ticket: HTMLElement): Promise<string> => {
+  const { default: html2canvas } = await import("html2canvas");
+  const { jsPDF } = await import("jspdf");
+
   await waitForImages(ticket);
   await inlineExternalImages(ticket);
 
