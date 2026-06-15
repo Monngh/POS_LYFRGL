@@ -37,16 +37,16 @@ model User {
   baseSalary             Decimal?          @db.Decimal(18, 2)
   commissionRate         Decimal?          @db.Decimal(18, 4)
   branchId               Int
-  createdAt              DateTime          @default(now())
-  updatedAt              DateTime          @updatedAt
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
   // Segundo factor WebAuthn (Windows Hello / huella / llave de seguridad) para ADMIN/GERENTE.
   // Aditivo y opcional: usuarios sin credencial registrada la enrolan en su próximo inicio de sesión.
-  webauthnCredentialId   String?           @db.VarChar(500)
-  webauthnPublicKey      String?           @db.VarChar(1000)
-  webauthnCounter        Int?              @default(0)
-  webauthnTransports     String?           @db.VarChar(200)
+  webauthnCredentialId   String?         @db.VarChar(500)
+  webauthnPublicKey      String?         @db.VarChar(1000)
+  webauthnCounter        Int?            @default(0)
+  webauthnTransports     String?         @db.VarChar(200)
   webauthnRegisteredAt   DateTime?
-  otpCode                String?           @db.NVarChar(6)
+  otpCode                String?   @db.NVarChar(6)
   otpExpiresAt           DateTime?
   bankDeposits           BankDeposit[]
   cashSessions           CashSession[]

@@ -135,7 +135,7 @@ const Login: React.FC = () => {
         setCashiers(cashierList);
         if (cashierList.length > 0) {
           setCashierEmail("");
-          setCashierSearch(""); 
+          setCashierSearch("");
           setCashierFieldErrors({});
         }
       } catch (err) {
