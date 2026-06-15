@@ -3508,7 +3508,7 @@ const Dashboard: React.FC = () => {
                  <p style={{marginBottom: "10px", fontSize: "14px", color: "#475569"}}>Escanea el siguiente código para pagar <strong>${cartTotal.toFixed(2)}</strong></p>
                  {qrUrl ? (
                    <>
-                     <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" width="200" height="200" />
+                     <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" width="200" height="200" loading="lazy" />
                      <div style={{ marginTop: "12px" }}>
                        <a 
                          href={qrUrl} 
@@ -5925,11 +5925,12 @@ const Dashboard: React.FC = () => {
                </p>
                {viewingPendingQrSale.qrUrl ? (
                  <>
-                   <img 
-                     src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(viewingPendingQrSale.qrUrl)}`} 
-                     alt="QR Code" 
-                     width="180" 
-                     height="180" 
+                   <img
+                     src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(viewingPendingQrSale.qrUrl)}`}
+                     alt="QR Code"
+                     width="180"
+                     height="180"
+                     loading="lazy"
                    />
                    <div style={{ marginTop: "10px" }}>
                      <a 
