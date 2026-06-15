@@ -63,7 +63,15 @@ api.interceptors.response.use(
       // Evitar desloguear si es una verificación de PIN fallida (el supervisor ingresó PIN incorrecto)
       const isPinVerification = config.url?.endsWith("/verify-pin") || config.url?.endsWith("/authorize-cancel");
 
-      if (status === 401 && !isPinVerification) {
+      // Un 4xx en los endpoints de LOGIN es un fallo de credenciales normal, NO una
+      // sesión expirada: no se debe disparar logout ni borrar el almacenamiento.
+      const url = config.url || "";
+      const isLoginAttempt =
+        url.endsWith("/admin-login") ||
+        url.endsWith("/cashier-login") ||
+        url.includes("/webauthn/");
+
+      if (status === 401 && !isPinVerification && !isLoginAttempt) {
         console.warn("Sesión expirada o no autorizada. Redirigiendo a inicio de sesión...");
         localStorage.removeItem("fmb_pos_token");
         localStorage.removeItem("fmb_pos_user");

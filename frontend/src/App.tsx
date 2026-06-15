@@ -25,7 +25,11 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token, loading } = useAuth();
 
-  if (loading) return null;
+  // Solo esperar (sin renderizar) cuando hay un token que se está validando al
+  // cargar la app. Durante un intento de login NO hay token, por lo que NO se
+  // debe desmontar el Login: si lo hiciéramos, se perderían sus avisos
+  // (PIN incorrecto, intentos restantes, bloqueo) al re-montarse al fallar.
+  if (loading && token) return null;
 
   return !token ? <>{children}</> : <Navigate to="/dashboard" replace />;
 };
