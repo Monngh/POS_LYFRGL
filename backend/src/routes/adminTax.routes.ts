@@ -14,7 +14,7 @@ import { authenticateJWT, authorizeRoles } from "../middlewares/auth.middleware"
 const router = Router()
 
 router.use(authenticateJWT)
-router.use(authorizeRoles(["ADMIN", "GERENTE"]))
+router.use(authorizeRoles(["ADMIN"]))
 
 router.get("/taxes", getTaxes)
 router.post("/taxes", createTax)
