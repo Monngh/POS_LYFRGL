@@ -83,6 +83,16 @@ const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<
   { key: "historial-facturas", label: "Historial Facturas", icon: ClipboardList, view: HistorialFacturasView, branchScoped: false },
 ];
 
+const RESTRICTED_KEYS_GERENTE = [
+  "compras",
+  "sucursales",
+  "proveedores",
+  "impuestos",
+  "promociones",
+  "facturacion-global",
+  "historial-facturas",
+];
+
 const NAV_SECTIONS: { label: string; items: string[] }[] = [
   { label: "Inicio", items: ["dashboard"] },
   { label: "Operación", items: ["ventas", "devoluciones", "compras"] },
@@ -104,6 +114,31 @@ const AdminDashboard: React.FC = () => {
   const [branches, setBranches] = useState<BranchOption[]>([]);
   const [refreshToken, setRefreshToken] = useState(0);
   const [navHistory, setNavHistory] = useState<string[]>([]);
+
+  // Redirigir a dashboard si tiene un rol GERENTE e intenta entrar a una sección prohibida
+  useEffect(() => {
+    if (user?.role === "GERENTE" && RESTRICTED_KEYS_GERENTE.includes(activeNav)) {
+      setActiveNav("dashboard");
+    }
+  }, [user, activeNav]);
+
+  // Si es GERENTE, forzar a sucursal asignada
+  useEffect(() => {
+    if (user?.role === "GERENTE" && user.branch?.id) {
+      setBranchId(user.branch.id.toString());
+    }
+  }, [user]);
+
+  // Filtrar las secciones y elementos navegables permitidos para el rol GERENTE
+  const allowedSections = NAV_SECTIONS.map((section) => {
+    const items = section.items.filter((key) => {
+      if (user?.role === "GERENTE") {
+        return !RESTRICTED_KEYS_GERENTE.includes(key);
+      }
+      return true;
+    });
+    return { ...section, items };
+  }).filter((section) => section.items.length > 0);
 
   // En móvil el menú nunca usa el rail colapsado; siempre cajón completo
   const effectiveCollapsed = isMobile ? false : collapsed;
@@ -173,7 +208,7 @@ const AdminDashboard: React.FC = () => {
         </div>
 
         <nav style={styles.nav} className="admin-sidebar-nav">
-          {NAV_SECTIONS.map((section) => (
+          {allowedSections.map((section) => (
             <React.Fragment key={section.label}>
               {!effectiveCollapsed && (
                 <span style={styles.navSectionLabel}>{section.label}</span>
@@ -268,16 +303,23 @@ const AdminDashboard: React.FC = () => {
             <div
               style={{
                 ...styles.selectWrap,
-                opacity: active.branchScoped ? 1 : 0.45,
-                pointerEvents: active.branchScoped ? "auto" : "none",
+                opacity: !active.branchScoped ? 0.45 : (user?.role === "GERENTE" ? 0.8 : 1),
+                pointerEvents: active.branchScoped && user?.role !== "GERENTE" ? "auto" : "none",
                 ...(isMobile ? { maxWidth: 150, padding: "0 8px", gap: 5 } : {}),
               }}
-              title={active.branchScoped ? "Filtrar por sucursal" : "Esta sección no se filtra por sucursal"}
+              title={
+                !active.branchScoped
+                  ? "Esta sección no se filtra por sucursal"
+                  : user?.role === "GERENTE"
+                  ? `Sucursal asignada: ${user.branch?.name}`
+                  : "Filtrar por sucursal"
+              }
             >
               <Store size={15} color="#64748b" style={{ flexShrink: 0 }} />
               <select
                 value={branchId}
                 onChange={(e) => setBranchId(e.target.value)}
+                disabled={user?.role === "GERENTE" || !active.branchScoped}
                 style={{ ...styles.select, ...(isMobile ? { textOverflow: "ellipsis", maxWidth: 110 } : {}) }}
               >
                 <option value="all">Todas las sucursales</option>
