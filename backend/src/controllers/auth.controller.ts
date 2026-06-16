@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
+import nodemailer from "nodemailer";
 import { prisma } from "../app";
-import { comparePassword, generateToken } from "../utils/auth";
+import { comparePassword, generateToken, verifyToken } from "../utils/auth";
 import { lockoutKey, getLockRemaining, registerFailedAttempt, clearFailedAttempts } from "../utils/authSecurity";
 import { buildLoginSecondFactor } from "./webauthn.controller";
 
@@ -295,5 +296,165 @@ export const verifyManagerPin = async (req: Request, res: Response): Promise<voi
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ message: "Error al validar el PIN." });
+  }
+};
+
+// ─── Helper SMTP (mismo patrón que ticketEmail.service.ts) ───────────────────
+const sendOtpEmail = async (to: string, otpCode: string): Promise<void> => {
+  const host = process.env.SMTP_HOST?.trim();
+  const port = Number(process.env.SMTP_PORT || 587);
+  const user = process.env.SMTP_USER?.trim();
+  const pass = process.env.SMTP_PASS?.trim();
+  const from = process.env.SMTP_FROM?.trim() || user;
+
+  if (!host || !user || !pass || !from) {
+    throw new Error("El servicio de correo no está configurado. Contacte al administrador.");
+  }
+
+  const transporter = nodemailer.createTransport({
+    host, port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  await transporter.sendMail({
+    from,
+    to,
+    subject: "Código de verificación - POS LYFRGL",
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head><meta charset="utf-8" /></head>
+        <body style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;">
+          <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;padding:24px;">
+            <h2 style="margin:0 0 12px 0;font-size:18px;color:#1e3a8a;">LYFRGL POS — Verificación de Seguridad</h2>
+            <p style="margin:0 0 16px 0;font-size:14px;line-height:1.5;">
+              Tu código de verificación de un solo uso es:
+            </p>
+            <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:20px;text-align:center;margin:0 0 16px 0;">
+              <span style="font-size:36px;font-weight:900;letter-spacing:12px;color:#1e3a8a;">${otpCode}</span>
+            </div>
+            <p style="margin:0;font-size:13px;color:#64748b;line-height:1.5;">
+              Este código es válido por <strong>10 minutos</strong>. Si no lo solicitaste, ignora este correo.
+            </p>
+          </div>
+          <p style="max-width:520px;margin:12px auto 0;font-size:11px;color:#64748b;text-align:center;">
+            Código generado por LYFRGL POS
+          </p>
+        </body>
+      </html>
+    `,
+  });
+};
+
+/**
+ * Paso 2b (fallback): solicitar un código OTP de 6 dígitos por correo.
+ * Solo disponible para usuarios que ya pasaron el Paso 1 (tienen un pendingToken).
+ */
+export const requestOtp = async (req: Request, res: Response) => {
+  try {
+    const { pendingToken } = req.body;
+
+    if (!pendingToken) {
+      return res.status(400).json({ message: "Token requerido" });
+    }
+
+    const decoded = verifyToken(pendingToken);
+    if (!decoded) {
+      return res.status(401).json({ message: "Token inválido o expirado" });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    if (!user) {
+      return res.status(404).json({ message: "Usuario no encontrado" });
+    }
+
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { otpCode, otpExpiresAt },
+    });
+
+    await sendOtpEmail(user.email, otpCode);
+
+    return res.json({
+      message: "Código enviado a tu correo",
+      email: user.email.replace(/(.{2}).*(@.*)/, "$1***$2"),
+    });
+  } catch (err) {
+    console.error("[requestOtp]", err);
+    return res.status(500).json({ message: "Error al enviar el código" });
+  }
+};
+
+/**
+ * Paso 2b (fallback): verificar el OTP recibido por correo y emitir la sesión.
+ */
+export const verifyOtp = async (req: Request, res: Response) => {
+  try {
+    const { pendingToken, otpCode } = req.body;
+
+    if (!pendingToken || !otpCode) {
+      return res.status(400).json({ message: "Token y código son requeridos" });
+    }
+
+    const decoded = verifyToken(pendingToken);
+    if (!decoded) {
+      return res.status(401).json({ message: "Token inválido o expirado" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      include: { branch: true },
+    });
+
+    if (!user || !user.otpCode || !user.otpExpiresAt) {
+      return res.status(400).json({ message: "No hay código pendiente. Solicita uno nuevo." });
+    }
+
+    if (new Date() > user.otpExpiresAt) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { otpCode: null, otpExpiresAt: null },
+      });
+      return res.status(400).json({ message: "El código ha expirado. Solicita uno nuevo." });
+    }
+
+    if (user.otpCode !== otpCode.trim()) {
+      return res.status(400).json({ message: "Código incorrecto" });
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { otpCode: null, otpExpiresAt: null },
+    });
+
+    const token = generateToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      branchId: user.branchId,
+    });
+
+    return res.json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        branch: {
+          id: user.branch.id,
+          name: user.branch.name,
+          phone: user.branch.phone,
+          address: user.branch.address,
+        },
+      },
+    });
+  } catch (err) {
+    console.error("[verifyOtp]", err);
+    return res.status(500).json({ message: "Error al verificar el código" });
   }
 };

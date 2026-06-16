@@ -56,7 +56,7 @@ const formatMMSS = (totalSeconds: number): string => {
 };
 
 const Login: React.FC = () => {
-  const { loginAsAdmin, loginAsCashier } = useAuth();
+  const { loginAsAdmin, loginAsCashier, webAuthnFailed, setWebAuthnFailed, requestOtp, verifyOtp } = useAuth();
 
   const isMobile = useMediaQuery("(max-width: 860px)");
   const shortScreen = useMediaQuery("(max-height: 860px)");
@@ -77,6 +77,12 @@ const Login: React.FC = () => {
   const [adminEmail, setAdminEmail] = useState("admin@fmb.com");
   const [adminPassword, setAdminPassword] = useState("AdminPassword#2026");
   const [adminFieldErrors, setAdminFieldErrors] = useState<FieldErrors<"email" | "password">>({});
+
+  // Fallback OTP (se activa cuando WebAuthn falla)
+  const [otpRequested, setOtpRequested] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpEmail, setOtpEmail] = useState("");
+  const [otpLoading, setOtpLoading] = useState(false);
 
   // Formulario Cajero (PIN)
   const [cashierEmail, setCashierEmail] = useState("");
@@ -233,9 +239,43 @@ const Login: React.FC = () => {
     };
   }, [activeTab, pinCode, cashierEmail, isLocked]);
 
+  const handleRequestOtp = async () => {
+    setOtpLoading(true);
+    setError(null);
+    try {
+      const data = await requestOtp();
+      setOtpEmail(data.email);
+      setOtpRequested(true);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Error al enviar el código. Intente de nuevo.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otpCode.length !== 6) {
+      setError("Ingresa el código de 6 dígitos recibido en tu correo.");
+      return;
+    }
+    setOtpLoading(true);
+    setError(null);
+    try {
+      await verifyOtp(otpCode);
+      // verifyOtp llama a persistSession internamente — si llega aquí, sesión iniciada
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Código incorrecto o expirado.");
+      setOtpCode("");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
   const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setOtpRequested(false);
+    setOtpCode("");
 
     const errors = validateAdminForm();
     setAdminFieldErrors(errors);
@@ -355,6 +395,9 @@ const Login: React.FC = () => {
             setAdminFieldErrors({});
             setRemainingAttempts(null);
             setShuffledDigits(shuffleDigits());
+            setWebAuthnFailed(false);
+            setOtpRequested(false);
+            setOtpCode("");
           }}
         >
           <UserCheck size={16} />
@@ -427,6 +470,80 @@ const Login: React.FC = () => {
           >
             {loading ? "Verificando..." : "ACEPTAR ➜"}
           </button>
+
+          {/* ── Fallback OTP: aparece solo cuando WebAuthn falla ── */}
+          {webAuthnFailed && !otpRequested && (
+            <div style={{ marginTop: "16px", textAlign: "center" }}>
+              <p style={{ color: "#6b7280", fontSize: "13px", marginBottom: "10px" }}>
+                ¿No tienes acceso al dispositivo registrado?
+              </p>
+              <button
+                type="button"
+                onClick={handleRequestOtp}
+                disabled={otpLoading}
+                style={{
+                  background: "none",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "6px",
+                  padding: "8px 16px",
+                  cursor: otpLoading ? "not-allowed" : "pointer",
+                  color: "#374151",
+                  fontSize: "14px",
+                  opacity: otpLoading ? 0.6 : 1,
+                }}
+              >
+                {otpLoading ? "Enviando..." : "📧 Recibir código por correo"}
+              </button>
+            </div>
+          )}
+
+          {webAuthnFailed && otpRequested && (
+            <div style={{ marginTop: "16px" }}>
+              <p style={{ color: "#6b7280", fontSize: "13px", marginBottom: "10px", textAlign: "center" }}>
+                Código enviado a <strong>{otpEmail}</strong>. Ingresa los 6 dígitos:
+              </p>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="000000"
+                className="input-corporate"
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                style={{ textAlign: "center", letterSpacing: "8px", fontSize: "22px", fontWeight: "700" }}
+              />
+              <button
+                type="button"
+                onClick={handleVerifyOtp}
+                disabled={otpLoading || otpCode.length !== 6}
+                className="btn-primary active-tap"
+                style={{
+                  ...styles.submitBtn,
+                  marginTop: "8px",
+                  opacity: otpCode.length === 6 && !otpLoading ? 1 : 0.5,
+                  cursor: otpCode.length === 6 && !otpLoading ? "pointer" : "not-allowed",
+                }}
+              >
+                {otpLoading ? "Verificando..." : "Verificar código"}
+              </button>
+              <p style={{ textAlign: "center", marginTop: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => { setOtpRequested(false); setOtpCode(""); setError(null); }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#6b7280",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                  }}
+                >
+                  Reenviar código
+                </button>
+              </p>
+            </div>
+          )}
         </form>
       )}
 
