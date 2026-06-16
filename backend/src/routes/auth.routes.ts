@@ -1,6 +1,6 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
-import { adminLogin, cashierLogin, getProfile, getBranches, getCashiersByBranch, verifyManagerPin } from "../controllers/auth.controller";
+import { adminLogin, cashierLogin, getProfile, getBranches, getCashiersByBranch, verifyManagerPin, requestOtp, verifyOtp } from "../controllers/auth.controller";
 import { webauthnRegisterVerify, webauthnLoginVerify } from "../controllers/webauthn.controller";
 import { authenticateJWT } from "../middlewares/auth.middleware";
 
@@ -37,5 +37,9 @@ router.get("/profile", authenticateJWT, getProfile);
 
 // Endpoint para validar PIN de Administrador/Gerente
 router.post("/verify-pin", authenticateJWT, verifyManagerPin);
+
+// Email OTP — Fallback del segundo factor WebAuthn
+router.post("/request-otp", loginLimiter, requestOtp);
+router.post("/verify-otp", loginLimiter, verifyOtp);
 
 export default router;
