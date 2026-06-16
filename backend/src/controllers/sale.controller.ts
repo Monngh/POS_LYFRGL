@@ -2,7 +2,8 @@ import { Request, Response } from "express";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../app";
 import bcrypt from "bcryptjs";
-import { executeRefund, createMercadoPagoCashPayment, syncDepositStatus as mpSyncDepositStatus } from "./mercadopago.controller";
+import { executeRefund, createMercadoPagoCashPayment, syncMercadoPagoDepositStatus } from "../services/mercadopago.service";
+import { searchCustomers as searchCustomersService, registerCustomerFromPos } from "../services/posCustomer.service";
 import { PromotionService } from "../services/promotion.service";
 import { BillingService } from "../services/billing.service";
 import { MercadoPagoConfig, Preference } from "mercadopago";
@@ -1640,29 +1641,7 @@ export const confirmQrPayment = async (req: Request, res: Response): Promise<voi
 export const searchCustomers = async (req: Request, res: Response): Promise<void> => {
   try {
     const query = typeof req.query.query === "string" ? req.query.query.trim() : "";
-    if (!query) {
-      res.status(200).json({ customers: [] });
-      return;
-    }
-
-    const customers = await prisma.customer.findMany({
-      where: {
-        OR: [
-          { name: { contains: query } },
-          { phone: { contains: query } }
-        ]
-      },
-      orderBy: { name: "asc" },
-      take: 10,
-      select: {
-        id: true,
-        name: true,
-        phone: true,
-        email: true,
-        points: true,
-      }
-    });
-
+    const customers = await searchCustomersService(query);
     res.status(200).json({ customers });
   } catch (error: any) {
     console.error(error);
@@ -1670,59 +1649,24 @@ export const searchCustomers = async (req: Request, res: Response): Promise<void
   }
 };
 
-/**
- * Registro rápido de cliente desde la caja
- */
 export const registerCustomer = async (req: Request, res: Response): Promise<void> => {
-  if (!req.user) {
-    res.status(401).json({ message: "No autenticado." });
-    return;
-  }
-
+  if (!req.user) { res.status(401).json({ message: "No autenticado." }); return; }
   try {
     const { name, phone, email } = req.body;
-
     if (!name || typeof name !== "string" || !name.trim()) {
-      res.status(400).json({ message: "El nombre del cliente es obligatorio." });
-      return;
+      res.status(400).json({ message: "El nombre del cliente es obligatorio." }); return;
     }
     if (!phone || typeof phone !== "string" || !phone.trim()) {
-      res.status(400).json({ message: "El teléfono del cliente es obligatorio." });
-      return;
+      res.status(400).json({ message: "El teléfono del cliente es obligatorio." }); return;
     }
-
-    // Verificar si ya existe un cliente con ese teléfono
-    const existing = await prisma.customer.findFirst({
-      where: { phone: phone.trim() }
-    });
-
-    if (existing) {
-      res.status(400).json({ message: "Ya existe un cliente registrado con ese número de teléfono." });
-      return;
-    }
-
-    const customer = await prisma.customer.create({
-      data: {
-        name: name.trim(),
-        phone: phone.trim(),
-        email: email && typeof email === "string" && email.trim() ? email.trim() : null,
-        points: 0,
-        creditLimit: 0,
-      },
-      select: {
-        id: true,
-        name: true,
-        phone: true,
-        email: true,
-        points: true,
-      }
-    });
-
-    res.status(201).json({
-      message: "Cliente registrado exitosamente.",
-      customer,
-    });
+    const customer = await registerCustomerFromPos(
+      name.trim(),
+      phone.trim(),
+      email && typeof email === "string" && email.trim() ? email.trim() : undefined
+    );
+    res.status(201).json({ message: "Cliente registrado exitosamente.", customer });
   } catch (error: any) {
+    if (error.statusCode) { res.status(error.statusCode).json({ message: error.message }); return; }
     console.error(error);
     res.status(500).json({ message: "Error al registrar el cliente." });
   }
@@ -1890,11 +1834,18 @@ export const getSaleDetailForCashier = async (req: Request, res: Response): Prom
   }
 };
 
-/**
- * Wrapper para sincronizar el estado del depósito bancario con Mercado Pago
- */
 export const syncDepositStatus = async (req: Request, res: Response): Promise<void> => {
-  return mpSyncDepositStatus(req, res);
+  if (!(req as any).user) { res.status(401).json({ message: "No autenticado." }); return; }
+  const depositId = parseInt(req.params.id, 10);
+  if (isNaN(depositId)) { res.status(400).json({ message: "ID de depósito inválido." }); return; }
+  try {
+    const result = await syncMercadoPagoDepositStatus(depositId);
+    res.status(200).json(result);
+  } catch (error: any) {
+    if (error.statusCode) { res.status(error.statusCode).json({ message: error.message }); return; }
+    console.error("Error al sincronizar estado de depósito:", error);
+    res.status(500).json({ message: "Error al sincronizar el estado con Mercado Pago." });
+  }
 };
 
 /**
