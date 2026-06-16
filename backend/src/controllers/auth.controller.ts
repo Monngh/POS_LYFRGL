@@ -1,15 +1,34 @@
 import { Request, Response } from "express";
 import { prisma } from "../app";
 import { comparePassword, generateToken } from "../utils/auth";
+import { lockoutKey, getLockRemaining, registerFailedAttempt, clearFailedAttempts } from "../utils/authSecurity";
+import { buildLoginSecondFactor } from "./webauthn.controller";
+
+const clientIp = (req: Request): string =>
+  (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || req.socket.remoteAddress || "unknown";
+
+const lockMessage = (seconds: number): string => {
+  const mins = Math.ceil(seconds / 60);
+  return `Demasiados intentos fallidos. Cuenta bloqueada temporalmente. Intente de nuevo en ${mins} minuto(s).`;
+};
 
 /**
- * Login clásico para Administradores y Gerentes (Email + Contraseña)
+ * Login clásico para Administradores y Gerentes (Email + Contraseña).
+ * Paso 1 del flujo de 2 factores: tras validar la contraseña NO se entrega la
+ * sesión todavía, sino el reto WebAuthn (Windows Hello) y un token temporal.
  */
 export const adminLogin = async (req: Request, res: Response): Promise<void> => {
   const { email, password } = req.body;
 
   if (!email || !password) {
     res.status(400).json({ message: "El correo y la contraseña son requeridos." });
+    return;
+  }
+
+  const key = lockoutKey("admin", email, clientIp(req));
+  const locked = getLockRemaining(key);
+  if (locked > 0) {
+    res.status(429).json({ code: "CUENTA_BLOQUEADA", message: lockMessage(locked) });
     return;
   }
 
@@ -20,6 +39,7 @@ export const adminLogin = async (req: Request, res: Response): Promise<void> => 
     });
 
     if (!user || !user.active) {
+      registerFailedAttempt(key);
       res.status(401).json({ message: "Credenciales incorrectas o usuario inactivo." });
       return;
     }
@@ -33,32 +53,25 @@ export const adminLogin = async (req: Request, res: Response): Promise<void> => 
 
     const isMatch = await comparePassword(password, user.passwordHash);
     if (!isMatch) {
-      res.status(401).json({ message: "Credenciales incorrectas." });
+      const result = registerFailedAttempt(key);
+      if (result.locked) {
+        res.status(429).json({ code: "CUENTA_BLOQUEADA", message: lockMessage(result.lockSeconds) });
+        return;
+      }
+      res.status(401).json({
+        message: `Credenciales incorrectas. Intentos restantes: ${result.remainingAttempts}.`,
+      });
       return;
     }
 
-    const token = generateToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      branchId: user.branchId,
-    });
-
+    // Contraseña correcta: limpiar intentos y pasar al segundo factor (WebAuthn).
+    clearFailedAttempts(key);
+    const secondFactor = await buildLoginSecondFactor(user as any);
     res.status(200).json({
-      message: "Inicio de sesión exitoso.",
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        branch: {
-          id: user.branch.id,
-          name: user.branch.name,
-          phone: user.branch.phone,
-          address: user.branch.address,
-        },
-      },
+      message: secondFactor.mode === "register"
+        ? "Contraseña correcta. Registre su dispositivo de seguridad (Windows Hello) para continuar."
+        : "Contraseña correcta. Confirme su identidad con Windows Hello.",
+      ...secondFactor,
     });
   } catch (error: any) {
     console.error(error);
@@ -77,6 +90,15 @@ export const cashierLogin = async (req: Request, res: Response): Promise<void> =
     return;
   }
 
+  // Bloqueo por fuerza bruta: un PIN de 4 dígitos solo es seguro si se limita el
+  // número de intentos (igual que un cajero automático).
+  const key = lockoutKey("cashier", email, clientIp(req));
+  const locked = getLockRemaining(key);
+  if (locked > 0) {
+    res.status(429).json({ code: "CUENTA_BLOQUEADA", message: lockMessage(locked), retryAfterSeconds: locked });
+    return;
+  }
+
   try {
     const user = await prisma.user.findUnique({
       where: { email },
@@ -84,22 +106,36 @@ export const cashierLogin = async (req: Request, res: Response): Promise<void> =
     });
 
     if (!user || !user.active) {
-      res.status(401).json({ message: "Usuario inactivo o no encontrado." });
+      registerFailedAttempt(key);
+      res.status(401).json({ code: "USUARIO_INVALIDO", message: "Usuario inactivo o no encontrado." });
       return;
     }
 
     if (!user.pinCode) {
-      res.status(400).json({ message: "Este usuario no tiene configurado un código PIN de acceso rápido." });
+      res.status(400).json({ code: "SIN_PIN", message: "Este usuario no tiene configurado un código PIN de acceso rápido." });
       return;
     }
 
     const isPinMatch = await comparePassword(pinCode, user.pinCode);
     if (!isPinMatch) {
-      res.status(401).json({ message: "Código PIN incorrecto." });
+      const result = registerFailedAttempt(key);
+      if (result.locked) {
+        res.status(429).json({
+          code: "CUENTA_BLOQUEADA",
+          message: lockMessage(result.lockSeconds),
+          retryAfterSeconds: result.lockSeconds,
+        });
+        return;
+      }
+      res.status(401).json({
+        code: "PIN_INCORRECTO",
+        message: "Código PIN incorrecto.",
+        remainingAttempts: result.remainingAttempts,
+      });
       return;
     }
 
-
+    clearFailedAttempts(key);
 
     const token = generateToken({
       userId: user.id,

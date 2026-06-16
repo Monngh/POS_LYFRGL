@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-import { ShieldCheck, UserCheck, Delete, KeyRound, AlertCircle, RefreshCw } from "lucide-react";
+import { ShieldCheck, UserCheck, Delete, KeyRound, AlertCircle, RefreshCw, Lock } from "lucide-react";
 import api from "../services/api";
 import {
   type FieldErrors,
@@ -37,6 +37,24 @@ function useMediaQuery(query: string): boolean {
   return matches;
 }
 
+// Baraja los dígitos 0-9 (Fisher-Yates) para que el teclado del PIN cambie de
+// posición y dificulte que alguien "lea" el NIP por la posición de los toques.
+const shuffleDigits = (): string[] => {
+  const d = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+  for (let i = d.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [d[i], d[j]] = [d[j], d[i]];
+  }
+  return d;
+};
+
+// Formatea segundos como MM:SS para la cuenta regresiva de bloqueo.
+const formatMMSS = (totalSeconds: number): string => {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+};
+
 const Login: React.FC = () => {
   const { loginAsAdmin, loginAsCashier } = useAuth();
 
@@ -67,6 +85,12 @@ const Login: React.FC = () => {
   const [showCashierDropdown, setShowCashierDropdown] = useState(false);
   const [cashierFieldErrors, setCashierFieldErrors] = useState<FieldErrors<"cashier" | "pin">>({});
   const [focusedCashierIndex, setFocusedCashierIndex] = useState(-1);
+
+  // Seguridad del PIN: teclado barajado, intentos restantes y bloqueo temporal
+  const [shuffledDigits, setShuffledDigits] = useState<string[]>(() => shuffleDigits());
+  const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
+  const [lockRemaining, setLockRemaining] = useState(0); // segundos restantes de bloqueo
+  const isLocked = lockRemaining > 0;
 
   // Cargar sucursales al montar el componente
   useEffect(() => {
@@ -157,11 +181,25 @@ const Login: React.FC = () => {
     setCashierFieldErrors((prev) => ({ ...prev, cashier: error }));
   };
 
+  // Cuenta regresiva del bloqueo temporal: descuenta 1s y, al llegar a 0,
+  // limpia el aviso de bloqueo automáticamente.
+  useEffect(() => {
+    if (lockRemaining <= 0) return;
+    const t = setTimeout(() => {
+      const next = lockRemaining - 1;
+      setLockRemaining(next);
+      if (next === 0) setError(null);
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [lockRemaining]);
+
   // Escuchar teclado físico para el ingreso del PIN de cajero
   useEffect(() => {
     if (activeTab !== "cashier") return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isLocked) return; // bloqueado por seguridad: ignorar el teclado físico
+
       const activeEl = document.activeElement;
       const isInputFocused = activeEl && (
         activeEl.tagName === "INPUT" && activeEl.getAttribute("type") === "text"
@@ -193,7 +231,7 @@ const Login: React.FC = () => {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [activeTab, pinCode, cashierEmail]);
+  }, [activeTab, pinCode, cashierEmail, isLocked]);
 
   const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,6 +252,7 @@ const Login: React.FC = () => {
   };
 
   const handleCashierPinPress = (num: string) => {
+    if (isLocked) return;
     setError(null);
     if (pinCode.length < 4) {
       setPinCode((prev) => prev + num);
@@ -222,12 +261,14 @@ const Login: React.FC = () => {
   };
 
   const handleClearPin = () => {
+    if (isLocked) return;
     setPinCode("");
     setError(null);
     setCashierFieldErrors((prev) => ({ ...prev, pin: "El PIN es obligatorio." }));
   };
 
   const handleCashierSubmit = async () => {
+    if (isLocked) return;
     const errors = validateCashierForm();
     setCashierFieldErrors(errors);
     if (hasErrors(errors)) return;
@@ -237,8 +278,22 @@ const Login: React.FC = () => {
     try {
       await loginAsCashier(cashierEmail, pinCode);
     } catch (err: any) {
-      setError(err.message || "PIN incorrecto.");
+      const info = err.info || {};
+      // Avisos precisos según el motivo informado por el backend.
+      // Cada motivo usa UN solo aviso dedicado (evita mensajes duplicados).
+      if (info.code === "CUENTA_BLOQUEADA") {
+        setLockRemaining(info.retryAfterSeconds || 0);
+        setRemainingAttempts(null);
+        setError(null); // el banner rojo de bloqueo ya comunica el motivo
+      } else if (info.code === "PIN_INCORRECTO") {
+        setRemainingAttempts(typeof info.remainingAttempts === "number" ? info.remainingAttempts : null);
+        setError(null); // el aviso ámbar ya dice "PIN incorrecto + intentos restantes"
+      } else {
+        setRemainingAttempts(null);
+        setError(err.message || "No se pudo iniciar sesión.");
+      }
       setPinCode(""); // Limpiar PIN al fallar
+      setShuffledDigits(shuffleDigits()); // Re-barajar el teclado tras cada fallo
     } finally {
       setLoading(false);
     }
@@ -298,6 +353,8 @@ const Login: React.FC = () => {
             setActiveTab("cashier");
             setError(null);
             setAdminFieldErrors({});
+            setRemainingAttempts(null);
+            setShuffledDigits(shuffleDigits());
           }}
         >
           <UserCheck size={16} />
@@ -358,13 +415,17 @@ const Login: React.FC = () => {
             />
             {adminFieldErrors.password && <p style={styles.fieldError}>{adminFieldErrors.password}</p>}
           </div>
+          <div style={styles.twoFactorHint}>
+            <ShieldCheck size={14} color="#1e3a8a" />
+            <span>Verificación en dos pasos: se le pedirá confirmar con <strong>Windows Hello</strong> (huella, rostro o PIN del equipo).</span>
+          </div>
           <button
             type="submit"
             disabled={loading}
             className="btn-primary active-tap"
             style={styles.submitBtn}
           >
-            {loading ? "Iniciando..." : "ACEPTAR ➜"}
+            {loading ? "Verificando..." : "ACEPTAR ➜"}
           </button>
         </form>
       )}
@@ -502,12 +563,44 @@ const Login: React.FC = () => {
 
           {cashierFieldErrors.pin && <p style={styles.fieldError}>{cashierFieldErrors.pin}</p>}
 
-          {/* PIN Pad */}
-          <div style={pinPadStyle}>
-            {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
+          {/* Aviso de bloqueo temporal con cuenta regresiva */}
+          {isLocked && (
+            <div style={styles.lockBanner}>
+              <Lock size={18} color="#b91c1c" />
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <span style={{ fontWeight: 700 }}>Acceso bloqueado por seguridad</span>
+                <span style={{ fontSize: "12px" }}>
+                  Demasiados intentos fallidos. Reintente en <strong>{formatMMSS(lockRemaining)}</strong>
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Aviso de intentos restantes (solo si no está bloqueado) */}
+          {!isLocked && remainingAttempts !== null && (
+            <div style={styles.attemptsWarning}>
+              <AlertCircle size={16} color="#b45309" />
+              <span>
+                {remainingAttempts > 0
+                  ? <>PIN incorrecto. Le queda{remainingAttempts === 1 ? "" : "n"} <strong>{remainingAttempts}</strong> intento{remainingAttempts === 1 ? "" : "s"} antes del bloqueo.</>
+                  : <>Último intento fallido. La cuenta será bloqueada.</>}
+              </span>
+            </div>
+          )}
+
+          {/* Leyenda de seguridad del teclado */}
+          <div style={styles.keypadHint}>
+            <ShieldCheck size={13} color="#64748b" />
+            <span>Teclado seguro: los números cambian de lugar para proteger su PIN.</span>
+          </div>
+
+          {/* PIN Pad — orden aleatorio (anti-espía) */}
+          <div style={{ ...pinPadStyle, ...(isLocked ? { opacity: 0.5, pointerEvents: "none" as const } : {}) }}>
+            {shuffledDigits.slice(0, 9).map((num) => (
               <button
                 key={num}
                 type="button"
+                disabled={isLocked || loading}
                 style={pinBtnStyle}
                 onClick={() => handleCashierPinPress(num)}
                 className="active-tap"
@@ -517,6 +610,7 @@ const Login: React.FC = () => {
             ))}
             <button
               type="button"
+              disabled={isLocked || loading}
               style={{ ...pinBtnStyle, ...styles.pinBtnAction }}
               onClick={handleClearPin}
               className="active-tap"
@@ -525,19 +619,20 @@ const Login: React.FC = () => {
             </button>
             <button
               type="button"
+              disabled={isLocked || loading}
               style={pinBtnStyle}
-              onClick={() => handleCashierPinPress("0")}
+              onClick={() => handleCashierPinPress(shuffledDigits[9])}
               className="active-tap"
             >
-              0
+              {shuffledDigits[9]}
             </button>
             <button
               type="button"
-              disabled={loading || pinCode.length < 4 || !cashierEmail}
+              disabled={loading || pinCode.length < 4 || !cashierEmail || isLocked}
               style={{
                 ...pinBtnStyle,
                 ...styles.pinBtnOK,
-                ...(pinCode.length === 4 && cashierEmail ? styles.pinBtnOKReady : {}),
+                ...(pinCode.length === 4 && cashierEmail && !isLocked ? styles.pinBtnOKReady : {}),
               }}
               onClick={handleCashierSubmit}
               className="active-tap"
@@ -915,6 +1010,51 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: "6px",
     cursor: "pointer",
     boxShadow: "0 4px 6px rgba(37, 99, 235, 0.2)",
+  },
+  twoFactorHint: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "8px",
+    backgroundColor: "#eff6ff",
+    border: "1px solid #bfdbfe",
+    borderRadius: "8px",
+    padding: "10px 12px",
+    fontSize: "12px",
+    color: "#1e3a8a",
+    lineHeight: "1.4",
+  },
+  lockBanner: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    backgroundColor: "#fef2f2",
+    border: "1px solid #fca5a5",
+    borderRadius: "8px",
+    padding: "10px 14px",
+    color: "#991b1b",
+    fontSize: "13px",
+  },
+  attemptsWarning: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    backgroundColor: "#fffbeb",
+    border: "1px solid #fcd34d",
+    borderRadius: "8px",
+    padding: "9px 12px",
+    color: "#92400e",
+    fontSize: "12.5px",
+    fontWeight: 600,
+    lineHeight: "1.4",
+  },
+  keypadHint: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    color: "#64748b",
+    fontSize: "11px",
+    justifyContent: "center",
+    marginTop: "2px",
   },
   autocompleteDropdown: {
     position: "absolute" as const,
