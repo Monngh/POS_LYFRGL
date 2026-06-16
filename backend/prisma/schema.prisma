@@ -39,6 +39,13 @@ model User {
   branchId               Int
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
+  // Segundo factor WebAuthn (Windows Hello / huella / llave de seguridad) para ADMIN/GERENTE.
+  // Aditivo y opcional: usuarios sin credencial registrada la enrolan en su próximo inicio de sesión.
+  webauthnCredentialId   String?           @db.VarChar(500)
+  webauthnPublicKey      String?           @db.VarChar(1000)
+  webauthnCounter        Int?              @default(0)
+  webauthnTransports     String?           @db.VarChar(200)
+  webauthnRegisteredAt   DateTime?
   bankDeposits           BankDeposit[]
   cashSessions           CashSession[]
   kardexEntries          Kardex[]
