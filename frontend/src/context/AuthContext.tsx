@@ -19,8 +19,13 @@ interface AuthContextType {
   token: string | null;
   user: User | null;
   loading: boolean;
+  webAuthnFailed: boolean;
+  setWebAuthnFailed: (v: boolean) => void;
+  pendingToken: string | null;
   loginAsAdmin: (email: string, password: string) => Promise<void>;
   loginAsCashier: (email: string, pinCode: string) => Promise<void>;
+  requestOtp: () => Promise<{ email: string }>;
+  verifyOtp: (otpCode: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -30,6 +35,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(localStorage.getItem("fmb_pos_token"));
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [webAuthnFailed, setWebAuthnFailed] = useState(false);
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
 
   // Cargar perfil al iniciar si ya hay un token
   useEffect(() => {
@@ -89,6 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
    */
   const loginAsAdmin = async (email: string, password: string) => {
     setLoading(true);
+    setWebAuthnFailed(false);
     try {
       const { data } = await api.post("/api/auth/admin-login", { email, password });
 
@@ -102,7 +110,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error(data.message || "Respuesta de autenticación no válida.");
       }
 
-      const pendingToken = data.pendingToken;
+      const pt = data.pendingToken;
+      setPendingToken(pt); // Guardar para el fallback OTP
       let verifyData;
 
       if (data.mode === "register") {
@@ -110,20 +119,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         let attResp;
         try {
           attResp = await startRegistration({ optionsJSON: data.options });
-        } catch (err: any) {
-          throw new Error(webauthnErrorMessage(err));
+        } catch {
+          // WebAuthn falló — activar fallback a OTP sin destruir el pendingToken
+          setWebAuthnFailed(true);
+          setLoading(false);
+          return;
         }
-        const res = await api.post("/api/auth/webauthn/register-verify", { pendingToken, response: attResp });
+        const res = await api.post("/api/auth/webauthn/register-verify", { pendingToken: pt, response: attResp });
         verifyData = res.data;
       } else {
         // Ingreso posterior: confirmar identidad con Windows Hello.
         let authResp;
         try {
           authResp = await startAuthentication({ optionsJSON: data.options });
-        } catch (err: any) {
-          throw new Error(webauthnErrorMessage(err));
+        } catch {
+          // WebAuthn falló — activar fallback a OTP sin destruir el pendingToken
+          setWebAuthnFailed(true);
+          setLoading(false);
+          return;
         }
-        const res = await api.post("/api/auth/webauthn/login-verify", { pendingToken, response: authResp });
+        const res = await api.post("/api/auth/webauthn/login-verify", { pendingToken: pt, response: authResp });
         verifyData = res.data;
       }
 
@@ -157,16 +172,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const requestOtp = async (): Promise<{ email: string }> => {
+    const res = await api.post("/api/auth/request-otp", { pendingToken });
+    return res.data;
+  };
+
+  const verifyOtp = async (otpCode: string): Promise<void> => {
+    const res = await api.post("/api/auth/verify-otp", { pendingToken, otpCode });
+    setPendingToken(null);
+    setWebAuthnFailed(false);
+    persistSession(res.data.token, res.data.user);
+  };
+
   const logout = () => {
     localStorage.removeItem("fmb_pos_token");
     localStorage.removeItem("fmb_pos_user");
     setToken(null);
     setUser(null);
+    setPendingToken(null);
+    setWebAuthnFailed(false);
     setLoading(false);
   };
 
   return (
-    <AuthContext.Provider value={{ token, user, loading, loginAsAdmin, loginAsCashier, logout }}>
+    <AuthContext.Provider value={{
+      token, user, loading,
+      webAuthnFailed, setWebAuthnFailed,
+      pendingToken,
+      loginAsAdmin, loginAsCashier,
+      requestOtp, verifyOtp,
+      logout,
+    }}>
       {children}
     </AuthContext.Provider>
   );
