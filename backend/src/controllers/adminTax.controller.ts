@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { Prisma } from "@prisma/client";
+import { logger } from "../utils/logger";
 import {
     getAllTaxes,
     postTax,
@@ -134,7 +135,7 @@ export const getTaxes = async (req: Request, res: Response): Promise<void> => {
             data: taxes,
         });
     } catch (error: any) {
-        console.log("Error al obtener los impuestos", error.message);
+        logger.error("Error al obtener los impuestos", error.message);
 
         res.status(500).json({
             message: "Error al obtener los impuestos",
@@ -196,7 +197,7 @@ export const createTax = async (req: Request, res: Response): Promise<void> => {
             return;
         }
 
-        console.log("Error al crear el impuesto", error.message);
+        logger.error("Error al crear el impuesto", error.message);
 
         res.status(500).json({
             message: "Error al crear el impuesto",
@@ -272,7 +273,7 @@ export const updateTax = async (req: Request, res: Response): Promise<void> => {
             return;
         }
 
-        console.log("Error al editar el impuesto", error.message);
+        logger.error("Error al editar el impuesto", error.message);
 
         res.status(500).json({
             message: "Error al editar el impuesto",
@@ -318,7 +319,7 @@ export const updateTaxStatus = async (req: Request, res: Response): Promise<void
             data: tax,
         });
     } catch (error: any) {
-        console.log("Error al actualizar el estado del impuesto", error.message);
+        logger.error("Error al actualizar el estado del impuesto", error.message);
 
         res.status(500).json({
             message: "Error al actualizar el estado del impuesto",
@@ -391,7 +392,7 @@ export const createProductTax = async (req: Request, res: Response): Promise<voi
             return;
         }
 
-        console.log("Error al asignar el impuesto", error.message);
+        logger.error("Error al asignar el impuesto", error.message);
 
         res.status(500).json({
             message: "Error al asignar el impuesto",
@@ -442,7 +443,7 @@ export const deleteProductTax = async (req: Request, res: Response): Promise<voi
             data: result,
         });
     } catch (error: any) {
-        console.log("Error al desvincular el impuesto del producto", error.message);
+        logger.error("Error al desvincular el impuesto del producto", error.message);
 
         res.status(500).json({
             message: "Error al eliminar el impuesto",
@@ -484,7 +485,7 @@ export const getProductTaxes = async (req: Request, res: Response): Promise<void
             },
         });
     } catch (error: any) {
-        console.log("Error al obtener los impuestos del producto", error.message);
+        logger.error("Error al obtener los impuestos del producto", error.message);
 
         res.status(500).json({
             message: "Error al obtener los impuestos del producto",
@@ -547,7 +548,7 @@ export const syncProductTaxes = async (req: Request, res: Response): Promise<voi
             return;
         }
 
-        console.log("Error al sincronizar los impuestos del producto", error.message);
+        logger.error("Error al sincronizar los impuestos del producto", error.message);
 
         res.status(500).json({
             message: "Error al sincronizar los impuestos del producto",

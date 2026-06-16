@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { prisma } from "../app";
 import bcrypt from "bcryptjs";
 import { parseOptionalDateRange, parseReportDateRange } from "../utils/dateRange.util";
+import { logger } from "../utils/logger";
 
 /**
  * Controlador del Panel Administrativo Central (módulos de gestión).
@@ -1458,7 +1459,7 @@ export const listBankDeposits = async (req: Request, res: Response): Promise<voi
         const fromDate = new Date(String(from));
         fromDate.setHours(0, 0, 0, 0);
         where.createdAt.gte = fromDate;
-        console.log("Desde (UTC):", fromDate.toISOString()); // Debug
+        logger.debug("Desde (UTC):", fromDate.toISOString());
       }
 
       if (to) {
@@ -1466,11 +1467,11 @@ export const listBankDeposits = async (req: Request, res: Response): Promise<voi
         const toDate = new Date(String(to));
         toDate.setHours(23, 59, 59, 999);
         where.createdAt.lte = toDate;
-        console.log("Hasta (UTC):", toDate.toISOString()); // Debug
+        logger.debug("Hasta (UTC):", toDate.toISOString());
       }
     }
 
-    console.log("Filtro where:", JSON.stringify(where, null, 2)); // Debug
+    logger.debug("Filtro where:", JSON.stringify(where, null, 2));
 
     const deposits = await prisma.bankDeposit.findMany({
       where,
@@ -1479,7 +1480,7 @@ export const listBankDeposits = async (req: Request, res: Response): Promise<voi
       include: { branch: { select: { name: true } } },
     });
 
-    console.log(`Encontrados ${deposits.length} depósitos`); // Debug
+    logger.debug(`Encontrados ${deposits.length} depósitos`);
 
     res.status(200).json({
       deposits: deposits.map((d) => ({
