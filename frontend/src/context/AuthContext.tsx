@@ -77,16 +77,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(receivedUser);
   };
 
-  // Traduce los errores del ceremonial WebAuthn (Windows Hello) a mensajes claros.
-  const webauthnErrorMessage = (err: any): string => {
-    const name = err?.name;
-    if (name === "NotAllowedError") return "Verificación cancelada o expirada. Vuelva a intentarlo con Windows Hello.";
-    if (name === "InvalidStateError") return "Este dispositivo ya está registrado para otra cuenta.";
-    if (name === "SecurityError") return "El dominio no está autorizado para Windows Hello. Contacte al administrador del sistema.";
-    if (name === "NotSupportedError") return "Este equipo o navegador no soporta Windows Hello / WebAuthn.";
-    return "No se pudo completar la verificación de seguridad.";
-  };
-
   /**
    * Login de administrador en 2 pasos:
    *   1) Correo + contraseña.
