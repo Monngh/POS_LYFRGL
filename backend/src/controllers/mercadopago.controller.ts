@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { MercadoPagoConfig, Preference, Payment, PaymentRefund } from "mercadopago";
 import { PrismaClient } from "@prisma/client";
+import { logger } from "../utils/logger";
 
 const prisma = new PrismaClient();
 
@@ -132,7 +133,7 @@ export const webhook = async (req: Request, res: Response): Promise<void> => {
     
     if (action === 'payment.created' || action === 'payment.updated') {
       const paymentId = data.id;
-      console.log("Webhook MP recibido para pago:", paymentId);
+      logger.info("Webhook MP recibido para pago:", paymentId);
     }
 
     res.status(200).send("OK");
@@ -162,7 +163,7 @@ export const executeRefund = async (paymentId: string, amount: number): Promise<
 
     // Si el ID de pago es simulado, responder con éxito directamente
     if (paymentId && paymentId.startsWith("mock-")) {
-      console.log(`[MOCK] Simulando reembolso para pago mock: ${paymentId}`);
+      logger.debug(`Simulando reembolso para pago mock: ${paymentId}`);
       return {
         success: true,
         refundId: `mock-ref-${Date.now()}`,
