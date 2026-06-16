@@ -46,7 +46,7 @@ model User {
   webauthnCounter        Int?            @default(0)
   webauthnTransports     String?         @db.VarChar(200)
   webauthnRegisteredAt   DateTime?
-  otpCode                String?   @db.NVarChar(6)
+  otpCode                String?           @db.NVarChar(6)
   otpExpiresAt           DateTime?
   bankDeposits           BankDeposit[]
   cashSessions           CashSession[]
