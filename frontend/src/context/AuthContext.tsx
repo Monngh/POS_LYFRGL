@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useContext } from "react";
+import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
 import api from "../services/api";
 
 interface User {
@@ -62,19 +63,75 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [token]);
 
+  const persistSession = (receivedToken: string, receivedUser: User) => {
+    localStorage.setItem("fmb_pos_token", receivedToken);
+    localStorage.setItem("fmb_pos_user", JSON.stringify(receivedUser));
+    setToken(receivedToken);
+    setUser(receivedUser);
+  };
+
+  // Traduce los errores del ceremonial WebAuthn (Windows Hello) a mensajes claros.
+  const webauthnErrorMessage = (err: any): string => {
+    const name = err?.name;
+    if (name === "NotAllowedError") return "Verificación cancelada o expirada. Vuelva a intentarlo con Windows Hello.";
+    if (name === "InvalidStateError") return "Este dispositivo ya está registrado para otra cuenta.";
+    if (name === "SecurityError") return "El dominio no está autorizado para Windows Hello. Contacte al administrador del sistema.";
+    if (name === "NotSupportedError") return "Este equipo o navegador no soporta Windows Hello / WebAuthn.";
+    return "No se pudo completar la verificación de seguridad.";
+  };
+
+  /**
+   * Login de administrador en 2 pasos:
+   *   1) Correo + contraseña.
+   *   2) Segundo factor WebAuthn (Windows Hello). Si el usuario aún no tiene
+   *      dispositivo registrado, se enrola en este momento.
+   * Aunque el navegador autocomplete la contraseña, sin el paso 2 no hay acceso.
+   */
   const loginAsAdmin = async (email: string, password: string) => {
     setLoading(true);
     try {
-      const response = await api.post("/api/auth/admin-login", { email, password });
-      const { token: receivedToken, user: receivedUser } = response.data;
-      
-      localStorage.setItem("fmb_pos_token", receivedToken);
-      localStorage.setItem("fmb_pos_user", JSON.stringify(receivedUser));
-      
-      setToken(receivedToken);
-      setUser(receivedUser);
+      const { data } = await api.post("/api/auth/admin-login", { email, password });
+
+      // Compatibilidad: si el backend devolviera una sesión directa.
+      if (data.token && data.user) {
+        persistSession(data.token, data.user);
+        return;
+      }
+
+      if (!data.requires2FA) {
+        throw new Error(data.message || "Respuesta de autenticación no válida.");
+      }
+
+      const pendingToken = data.pendingToken;
+      let verifyData;
+
+      if (data.mode === "register") {
+        // Primer ingreso: enrolar Windows Hello.
+        let attResp;
+        try {
+          attResp = await startRegistration({ optionsJSON: data.options });
+        } catch (err: any) {
+          throw new Error(webauthnErrorMessage(err));
+        }
+        const res = await api.post("/api/auth/webauthn/register-verify", { pendingToken, response: attResp });
+        verifyData = res.data;
+      } else {
+        // Ingreso posterior: confirmar identidad con Windows Hello.
+        let authResp;
+        try {
+          authResp = await startAuthentication({ optionsJSON: data.options });
+        } catch (err: any) {
+          throw new Error(webauthnErrorMessage(err));
+        }
+        const res = await api.post("/api/auth/webauthn/login-verify", { pendingToken, response: authResp });
+        verifyData = res.data;
+      }
+
+      persistSession(verifyData.token, verifyData.user);
     } catch (error: any) {
       setLoading(false);
+      // Si ya es un Error con mensaje propio (ceremonial WebAuthn), respétalo.
+      if (error instanceof Error && !(error as any).response) throw error;
       throw new Error(error.response?.data?.message || "Error al iniciar sesión.");
     }
   };
@@ -84,15 +141,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const response = await api.post("/api/auth/cashier-login", { email, pinCode });
       const { token: receivedToken, user: receivedUser } = response.data;
-      
+
       localStorage.setItem("fmb_pos_token", receivedToken);
       localStorage.setItem("fmb_pos_user", JSON.stringify(receivedUser));
-      
+
       setToken(receivedToken);
       setUser(receivedUser);
     } catch (error: any) {
       setLoading(false);
-      throw new Error(error.response?.data?.message || "PIN de acceso incorrecto.");
+      // Propagar los datos estructurados del backend (código, intentos restantes,
+      // segundos de bloqueo) para que el formulario muestre avisos precisos.
+      const err = new Error(error.response?.data?.message || "PIN de acceso incorrecto.");
+      (err as any).info = error.response?.data || {};
+      throw err;
     }
   };
 
