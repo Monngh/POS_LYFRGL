@@ -3,6 +3,8 @@ import path from "path";
 import cors from "cors";
 import helmet from "helmet";
 import { PrismaClient } from "@prisma/client";
+import { logger } from "./utils/logger";
+import { errorHandler } from "./middlewares/error.middleware";
 import authRouter from "./routes/auth.routes";
 import cashSessionRouter from "./routes/cashSession.routes";
 import productRouter from "./routes/product.routes";
@@ -31,7 +33,7 @@ app.use((req, res, next) => {
   const start = Date.now();
   res.on("finish", () => {
     const duration = Date.now() - start;
-    console.log(`[HTTP] ${req.method} ${req.originalUrl} - ${res.statusCode} - ${duration}ms`);
+    logger.http(`${req.method} ${req.originalUrl} - ${res.statusCode} - ${duration}ms`);
   });
   next();
 });
@@ -95,6 +97,9 @@ app.use("/api/*", (_req: Request, res: Response) => {
     message: `Ruta ${_req.originalUrl} no encontrada.`
   });
 });
+
+// Middleware global de manejo de errores (debe ir después de todas las rutas)
+app.use(errorHandler);
 
 // Servir frontend estático solo si la carpeta dist existe
 import fs from "fs";
