@@ -28,7 +28,7 @@ router.post("/admin-login", loginLimiter, adminLogin);
 // Inicio de sesión rápido de Cajero (Correo + PIN)
 router.post("/cashier-login", loginLimiter, cashierLogin);
 
-// WebAuthn (Windows Hello) — Paso 2 del login de administrador
+// WebAuthn (biometría del dispositivo, multiplataforma) — Paso 2 del login de administrador
 router.post("/webauthn/register-verify", loginLimiter, webauthnRegisterVerify);
 router.post("/webauthn/login-verify", loginLimiter, webauthnLoginVerify);
 

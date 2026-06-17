@@ -41,6 +41,15 @@ export const generatePendingToken = (userId: number, tfa: "register" | "authenti
 };
 
 /**
+ * Genera un token de "acceso a auditoría" de corta vida (10 min), emitido tras
+ * reconfirmar la contraseña del usuario actual. Habilita ver bitácoras sensibles
+ * (ej. accesos de administradores) sin reenviar la contraseña en cada consulta.
+ */
+export const generateAuditToken = (userId: number): string => {
+  return jwt.sign({ userId, scope: "audit" }, JWT_SECRET, { expiresIn: "10m" });
+};
+
+/**
  * Verifica y decodifica un token JWT.
  */
 export const verifyToken = (token: string): any => {

@@ -9,6 +9,7 @@ import { prisma } from "../app";
 import { generateToken, generatePendingToken, verifyToken } from "../utils/auth";
 import { rpName, rpID, expectedOrigins } from "../config/webauthn";
 import { saveChallenge, consumeChallenge } from "../utils/authSecurity";
+import { recordLoginEvent } from "../utils/authAudit";
 
 type UserWithBranch = {
   id: number;
@@ -85,7 +86,7 @@ const decodePending = (req: Request, expected: "register" | "authenticate"): num
 };
 
 /**
- * PASO 2 (primer ingreso): verificar el enrolamiento de Windows Hello y abrir sesión.
+ * PASO 2 (primer ingreso): verificar el enrolamiento del dispositivo biométrico y abrir sesión.
  */
 export const webauthnRegisterVerify = async (req: Request, res: Response): Promise<void> => {
   const userId = decodePending(req, "register");
@@ -128,6 +129,7 @@ export const webauthnRegisterVerify = async (req: Request, res: Response): Promi
     });
 
     const user = (await prisma.user.findUnique({ where: { id: userId }, include: { branch: true } })) as unknown as UserWithBranch;
+    recordLoginEvent(req, user, "Contraseña + Biometría (registro)");
     res.status(200).json({ message: "Dispositivo registrado. Acceso autorizado.", ...buildSessionResponse(user) });
   } catch (error: any) {
     console.error("[WEBAUTHN_REGISTER]", error?.message);
@@ -136,7 +138,7 @@ export const webauthnRegisterVerify = async (req: Request, res: Response): Promi
 };
 
 /**
- * PASO 2 (ingresos posteriores): verificar la firma de Windows Hello y abrir sesión.
+ * PASO 2 (ingresos posteriores): verificar la firma del dispositivo biométrico y abrir sesión.
  */
 export const webauthnLoginVerify = async (req: Request, res: Response): Promise<void> => {
   const userId = decodePending(req, "authenticate");
@@ -173,7 +175,7 @@ export const webauthnLoginVerify = async (req: Request, res: Response): Promise<
     });
 
     if (!verification.verified) {
-      res.status(401).json({ message: "Verificación de Windows Hello fallida." });
+      res.status(401).json({ message: "Verificación biométrica del dispositivo fallida." });
       return;
     }
 
@@ -182,6 +184,7 @@ export const webauthnLoginVerify = async (req: Request, res: Response): Promise<
       data: { webauthnCounter: verification.authenticationInfo.newCounter },
     });
 
+    recordLoginEvent(req, user, "Contraseña + Biometría");
     res.status(200).json({ message: "Acceso autorizado.", ...buildSessionResponse(user) });
   } catch (error: any) {
     console.error("[WEBAUTHN_LOGIN]", error?.message);
