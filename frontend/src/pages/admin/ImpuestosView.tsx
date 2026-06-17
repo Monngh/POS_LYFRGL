@@ -1,6 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { BadgePercent, Pencil, Plus, Power, X } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { BadgePercent, Pencil, Plus, Power } from "lucide-react";
 import api from "../../services/api";
+import { useAdminData } from "../../hooks";
+import { DataTable, ActionModal } from "../../components/common";
+import type { Column } from "../../components/common";
 import {
   DECIMAL_INPUT_REGEX,
   getDecimalValidationValue,
@@ -14,7 +17,6 @@ import {
   Toolbar,
   SearchInput,
   Badge,
-  TableState,
   SectionHeader,
   fmtDate,
 } from "./shared";
@@ -95,11 +97,10 @@ const getErrorMessage = (err: unknown, fallback: string) => {
 };
 
 const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
-  const [rows, setRows] = useState<TaxRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   const [editing, setEditing] = useState<"create" | TaxRow | null>(null);
   const [form, setForm] = useState<FormState>({ ...emptyForm });
@@ -110,26 +111,26 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   // TODO: integrar asignacion de impuestos desde la pantalla de Productos.
 
-  const load = useCallback(async () => {
-    void refreshToken;
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await api.get<TaxResponse>(TAX_ENDPOINT, {
-        params: search.trim() ? { search: search.trim() } : {},
-      });
-      setRows(extractTaxes(res.data));
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, "No se pudieron cargar los impuestos."));
-    } finally {
-      setLoading(false);
-    }
-  }, [search, refreshToken]);
-
   useEffect(() => {
-    const t = setTimeout(load, 300);
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(t);
-  }, [load]);
+  }, [search]);
+
+  const { data, loading, error: loadError, refetch } = useAdminData<TaxResponse | LegacyTaxResponse>(
+    TAX_ENDPOINT,
+    { params: debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {} }
+  );
+  const rows: TaxRow[] = data ? extractTaxes(data) : [];
+
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    refetch();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   const activeCount = useMemo(() => rows.filter((r) => r.active).length, [rows]);
   const inactiveCount = rows.length - activeCount;
@@ -240,7 +241,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
       setEditing(null);
       setForm({ ...emptyForm });
       setFieldErrors({});
-      await load();
+      await refetch();
     } catch (err: unknown) {
       setFormError(getErrorMessage(err, "No se pudo guardar el impuesto."));
     } finally {
@@ -255,14 +256,14 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
     if (!confirmed) return;
 
     setStatusUpdatingId(tax.id);
-    setError(null);
+    setMutationError(null);
     setNotice(null);
     try {
       await syncStatus(tax.id, next);
       setNotice(`Impuesto ${next ? "activado" : "desactivado"} correctamente.`);
-      await load();
+      await refetch();
     } catch (err: unknown) {
-      setError(getErrorMessage(err, "No se pudo actualizar el estado del impuesto."));
+      setMutationError(getErrorMessage(err, "No se pudo actualizar el estado del impuesto."));
     } finally {
       setStatusUpdatingId(null);
     }
@@ -310,6 +311,76 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
     });
   };
 
+  const columns: Column<TaxRow>[] = [
+    {
+      key: "id",
+      header: "ID",
+      render: (tax) => <span style={{ fontWeight: 800, color: "#1e3a8a" }}>{tax.id}</span>,
+    },
+    {
+      key: "name",
+      header: "Nombre",
+      render: (tax) => (
+        <span style={{ fontWeight: 800, color: "#0f172a", whiteSpace: "normal" }}>{tax.name}</span>
+      ),
+    },
+    {
+      key: "description",
+      header: "Descripcion",
+      render: (tax) => (
+        <span style={{ color: "#475569", whiteSpace: "normal" }}>{tax.description || "Sin descripcion"}</span>
+      ),
+    },
+    {
+      key: "rate",
+      header: "Tasa",
+      align: "right",
+      render: (tax) => (
+        <div>
+          <div style={{ fontWeight: 800, color: "#0f172a" }}>{formatPercent(tax.rate)}</div>
+          <div style={{ fontSize: 11, color: "#94a3b8" }}>decimal {formatDecimal(tax.rate)}</div>
+        </div>
+      ),
+    },
+    {
+      key: "active",
+      header: "Estado",
+      align: "center",
+      render: (tax) => (
+        <Badge tone={tax.active ? "green" : "red"}>{tax.active ? "Activo" : "Inactivo"}</Badge>
+      ),
+    },
+    {
+      key: "createdAt",
+      header: "Fecha de creacion",
+      render: (tax) => <span style={{ color: "#64748b" }}>{fmtDate(tax.createdAt)}</span>,
+    },
+    {
+      key: "actions",
+      header: "Acciones",
+      align: "center",
+      render: (tax) => (
+        <div style={styles.actions}>
+          <button style={ui.linkBtn} className="active-tap" onClick={() => openEdit(tax)}>
+            <Pencil size={14} style={{ verticalAlign: "-2px" }} /> Editar
+          </button>
+          <button
+            style={{
+              ...ui.linkBtn,
+              color: tax.active ? "#b91c1c" : "#15803d",
+              opacity: statusUpdatingId === tax.id ? 0.55 : 1,
+            }}
+            className="active-tap"
+            disabled={statusUpdatingId === tax.id}
+            onClick={() => toggleStatus(tax)}
+          >
+            <Power size={14} style={{ verticalAlign: "-2px" }} /> {tax.active ? "Desactivar" : "Activar"}
+          </button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div>
       <SectionHeader
@@ -343,125 +414,70 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
         </div>
       )}
 
-      <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-        <table style={ui.table}>
-          <thead>
-            <tr style={ui.theadRow}>
-              <th style={ui.th}>ID</th>
-              <th style={ui.th}>Nombre</th>
-              <th style={ui.th}>Descripcion</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Tasa</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-              <th style={ui.th}>Fecha de creacion</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <TableState
-              colSpan={7}
-              loading={loading}
-              error={error}
-              empty={!loading && rows.length === 0}
-              emptyText={search.trim() ? "No hay impuestos que coincidan con la busqueda." : "No hay impuestos registrados."}
-            />
-            {!loading &&
-              !error &&
-              rows.map((tax) => (
-                <tr key={tax.id}>
-                  <td style={{ ...ui.td, fontWeight: 800, color: "#1e3a8a" }}>{tax.id}</td>
-                  <td style={{ ...ui.td, fontWeight: 800, color: "#0f172a", whiteSpace: "normal" }}>{tax.name}</td>
-                  <td style={{ ...ui.td, color: "#475569", whiteSpace: "normal" }}>{tax.description || "Sin descripcion"}</td>
-                  <td style={{ ...ui.td, textAlign: "right" }}>
-                    <div style={{ fontWeight: 800, color: "#0f172a" }}>{formatPercent(tax.rate)}</div>
-                    <div style={{ fontSize: 11, color: "#94a3b8" }}>decimal {formatDecimal(tax.rate)}</div>
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <Badge tone={tax.active ? "green" : "red"}>{tax.active ? "Activo" : "Inactivo"}</Badge>
-                  </td>
-                  <td style={{ ...ui.td, color: "#64748b" }}>{fmtDate(tax.createdAt)}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <div style={styles.actions}>
-                      <button style={ui.linkBtn} className="active-tap" onClick={() => openEdit(tax)}>
-                        <Pencil size={14} style={{ verticalAlign: "-2px" }} /> Editar
-                      </button>
-                      <button
-                        style={{
-                          ...ui.linkBtn,
-                          color: tax.active ? "#b91c1c" : "#15803d",
-                          opacity: statusUpdatingId === tax.id ? 0.55 : 1,
-                        }}
-                        className="active-tap"
-                        disabled={statusUpdatingId === tax.id}
-                        onClick={() => toggleStatus(tax)}
-                      >
-                        <Power size={14} style={{ verticalAlign: "-2px" }} /> {tax.active ? "Desactivar" : "Activar"}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+      <div className="table-sticky-head">
+        <DataTable
+          columns={columns}
+          data={rows}
+          loading={loading}
+          error={loadError || mutationError}
+          emptyMessage={debouncedSearch.trim() ? "No hay impuestos que coincidan con la busqueda." : "No hay impuestos registrados."}
+          keyExtractor={(tax) => tax.id}
+        />
       </div>
 
-      {editing !== null && (
-        <div style={ui.overlay} onClick={closeForm}>
-          <form style={{ ...ui.modal, maxWidth: 520 }} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-            <div style={ui.modalHeader}>
-              <span style={ui.modalTitle}>{editing === "create" ? "Registrar nuevo impuesto" : "Editar impuesto"}</span>
-              <button type="button" style={ui.linkBtn} onClick={closeForm}>
-                <X size={18} color="#64748b" />
-              </button>
-            </div>
-            <div style={ui.modalBody}>
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Nombre *</label>
-                <input style={ui.input} value={form.name} onChange={set("name")} placeholder="IVA" autoFocus />
-                {fieldErrors.name && <p style={styles.fieldError}>{fieldErrors.name}</p>}
-              </div>
+      <ActionModal
+        isOpen={editing !== null}
+        onClose={closeForm}
+        title={editing === "create" ? "Registrar nuevo impuesto" : "Editar impuesto"}
+        size="md"
+      >
+        <form onSubmit={submit}>
+          <div style={{ marginBottom: 14 }}>
+            <label style={ui.fieldLabel}>Nombre *</label>
+            <input style={ui.input} value={form.name} onChange={set("name")} placeholder="IVA" autoFocus />
+            {fieldErrors.name && <p style={styles.fieldError}>{fieldErrors.name}</p>}
+          </div>
 
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Descripcion</label>
-                <textarea
-                  style={{ ...ui.input, minHeight: 82, resize: "vertical" }}
-                  value={form.description}
-                  onChange={set("description")}
-                  placeholder="Impuesto al valor agregado"
-                />
-                {fieldErrors.description && <p style={styles.fieldError}>{fieldErrors.description}</p>}
-              </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={ui.fieldLabel}>Descripcion</label>
+            <textarea
+              style={{ ...ui.input, minHeight: 82, resize: "vertical" }}
+              value={form.description}
+              onChange={set("description")}
+              placeholder="Impuesto al valor agregado"
+            />
+            {fieldErrors.description && <p style={styles.fieldError}>{fieldErrors.description}</p>}
+          </div>
 
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Tasa decimal *</label>
-                <input type="text" style={ui.input} value={form.rate} onChange={setRate} placeholder="0.16" inputMode="decimal" />
-                <p style={styles.helpText}>Use formato decimal: IVA 16% = 0.16, IEPS 8% = 0.08.</p>
-                {fieldErrors.rate && <p style={styles.fieldError}>{fieldErrors.rate}</p>}
-              </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={ui.fieldLabel}>Tasa decimal *</label>
+            <input type="text" style={ui.input} value={form.rate} onChange={setRate} placeholder="0.16" inputMode="decimal" />
+            <p style={styles.helpText}>Use formato decimal: IVA 16% = 0.16, IEPS 8% = 0.08.</p>
+            {fieldErrors.rate && <p style={styles.fieldError}>{fieldErrors.rate}</p>}
+          </div>
 
-              <label style={styles.checkRow}>
-                <input
-                  type="checkbox"
-                  checked={form.active}
-                  onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
-                  style={styles.check}
-                />
-                <span>Impuesto activo</span>
-              </label>
+          <label style={styles.checkRow}>
+            <input
+              type="checkbox"
+              checked={form.active}
+              onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
+              style={styles.check}
+            />
+            <span>Impuesto activo</span>
+          </label>
 
-              {formError && <p style={styles.formError}>{formError}</p>}
+          {formError && <p style={styles.formError}>{formError}</p>}
 
-              <div style={styles.formActions}>
-                <button type="button" style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={closeForm}>
-                  Cancelar
-                </button>
-                <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
-                  {saving ? "Guardando..." : editing === "create" ? "Guardar impuesto" : "Guardar cambios"}
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      )}
+          <div style={styles.formActions}>
+            <button type="button" style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={closeForm}>
+              Cancelar
+            </button>
+            <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
+              {saving ? "Guardando..." : editing === "create" ? "Guardar impuesto" : "Guardar cambios"}
+            </button>
+          </div>
+        </form>
+      </ActionModal>
     </div>
   );
 };

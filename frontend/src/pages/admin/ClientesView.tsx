@@ -1,6 +1,9 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { X, Plus, Pencil } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Plus, Pencil } from "lucide-react";
 import api from "../../services/api";
+import { useAdminData } from "../../hooks";
+import { DataTable, ActionModal } from "../../components/common";
+import type { Column } from "../../components/common";
 import {
   collectRoundedDecimalMessages,
   DECIMAL_INPUT_REGEX,
@@ -13,7 +16,6 @@ import {
   type ViewProps,
   Toolbar,
   SearchInput,
-  TableState,
   SectionHeader,
   money,
   fmtDate,
@@ -90,11 +92,11 @@ type CustomerPayload = {
   cfdiUse?: string;
 };
 
-const CUSTOMER_NAME_PATTERN = /^[A-Za-z0-9\u00C0-\u017F\s.,'&-]+$/;
+const CUSTOMER_NAME_PATTERN = /^[A-Za-z0-9À-ſ\s.,'&-]+$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_PATTERN = /^[0-9\s()+-]+$/;
-const RFC_PATTERN = /^([A-Z\u00D1&]{3,4})\d{6}([A-Z0-9]{3})$/;
-const ADDRESS_PATTERN = /^[A-Za-z0-9\u00C0-\u017F\s.,#\-\/]+$/;
+const RFC_PATTERN = /^([A-ZÑ&]{3,4})\d{6}([A-Z0-9]{3})$/;
+const ADDRESS_PATTERN = /^[A-Za-z0-9À-ſ\s.,#\-\/]+$/;
 const ZIP_CODE_PATTERN = /^\d{5}$/;
 
 const fieldErrorStyle: React.CSSProperties = {
@@ -202,10 +204,8 @@ const validateCustomerForm = (form: FormState): {
 };
 
 const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
-  const [rows, setRows] = useState<CustomerRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -214,25 +214,26 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await api.get<{ customers: CustomerRow[] }>("/api/admin/customers", {
-        params: search.trim() ? { search: search.trim() } : {},
-      });
-      setRows(res.data.customers);
-    } catch (err: any) {
-      setError(err.response?.data?.message || "No se pudieron cargar los clientes.");
-    } finally {
-      setLoading(false);
-    }
-  }, [search, refreshToken]);
-
   useEffect(() => {
-    const t = setTimeout(load, 300);
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(t);
-  }, [load]);
+  }, [search]);
+
+  const { data, loading, error, refetch } = useAdminData<{ customers: CustomerRow[] }>(
+    "/api/admin/customers",
+    { params: debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {} }
+  );
+  const rows = data?.customers ?? [];
+
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    refetch();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   const openCreate = () => {
     setForm({ ...emptyForm });
@@ -332,13 +333,96 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
       setForm({ ...emptyForm });
       setEditingId(null);
       setFieldErrors({});
-      await load();
+      await refetch();
     } catch (err: any) {
       setFormError(err.response?.data?.message || "No se pudo guardar el cliente.");
     } finally {
       setSaving(false);
     }
   };
+
+  const columns: Column<CustomerRow>[] = [
+    {
+      key: "name",
+      header: "Nombre / Razón Social",
+      render: (c) => (
+        <span style={{ fontWeight: 700, color: "#0f172a", whiteSpace: "normal" }}>{c.name}</span>
+      ),
+    },
+    {
+      key: "taxId",
+      header: "RFC",
+      render: (c) => (
+        <span style={{ color: "#64748b", fontFamily: "monospace", fontSize: 12 }}>{c.taxId || "—"}</span>
+      ),
+    },
+    {
+      key: "cfdi",
+      header: "CP · Régimen · Uso CFDI",
+      render: (c) => (
+        c.zipCode || c.taxRegime || c.cfdiUse ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 1, color: "#475569", fontSize: 12, whiteSpace: "normal" }}>
+            {c.zipCode && <span>CP: {c.zipCode}</span>}
+            {c.taxRegime && <span>Rég: {c.taxRegime}</span>}
+            {c.cfdiUse && <span>CFDI: {c.cfdiUse}</span>}
+          </div>
+        ) : (
+          <span style={{ color: "#cbd5e1" }}>—</span>
+        )
+      ),
+    },
+    {
+      key: "email",
+      header: "Contacto",
+      render: (c) => (
+        <div style={{ whiteSpace: "normal" }}>
+          <div>{c.email || "—"}</div>
+          <div style={{ fontSize: 11, color: "#94a3b8" }}>{c.phone || ""}</div>
+        </div>
+      ),
+    },
+    {
+      key: "creditLimit",
+      header: "Crédito",
+      align: "right",
+      render: (c) => <>{money(c.creditLimit)}</>,
+    },
+    {
+      key: "balance",
+      header: "Saldo",
+      align: "right",
+      render: (c) => (
+        <span style={{ fontWeight: 700, color: c.balance > 0 ? "#b91c1c" : "#334155" }}>
+          {money(c.balance)}
+        </span>
+      ),
+    },
+    {
+      key: "salesCount",
+      header: "Compras",
+      align: "center",
+      render: (c) => <span style={{ fontWeight: 700 }}>{c.salesCount}</span>,
+    },
+    {
+      key: "createdAt",
+      header: "Alta",
+      render: (c) => <span style={{ color: "#64748b" }}>{fmtDate(c.createdAt)}</span>,
+    },
+    {
+      key: "edit",
+      header: "",
+      align: "center",
+      render: (c) => (
+        <button
+          onClick={() => openEdit(c)}
+          style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 4, color: "#1e3a8a" }}
+          title="Editar cliente"
+        >
+          <Pencil size={14} />
+        </button>
+      ),
+    },
+  ];
 
   return (
     <div>
@@ -359,182 +443,127 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
         </span>
       </Toolbar>
 
-      <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-        <table style={ui.table}>
-          <thead>
-            <tr style={ui.theadRow}>
-              <th style={ui.th}>Nombre / Razón Social</th>
-              <th style={ui.th}>RFC</th>
-              <th style={ui.th}>CP · Régimen · Uso CFDI</th>
-              <th style={ui.th}>Contacto</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Crédito</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Saldo</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Compras</th>
-              <th style={ui.th}>Alta</th>
-              <th style={{ ...ui.th, textAlign: "center" }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            <TableState colSpan={9} loading={loading} error={error} empty={!loading && rows.length === 0} />
-            {!loading &&
-              !error &&
-              rows.map((c) => (
-                <tr key={c.id}>
-                  <td style={{ ...ui.td, fontWeight: 700, color: "#0f172a", whiteSpace: "normal" }}>{c.name}</td>
-                  <td style={{ ...ui.td, color: "#64748b", fontFamily: "monospace", fontSize: 12 }}>{c.taxId || "—"}</td>
-                  <td style={{ ...ui.td, whiteSpace: "normal", fontSize: 12 }}>
-                    {c.zipCode || c.taxRegime || c.cfdiUse ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 1, color: "#475569" }}>
-                        {c.zipCode && <span>CP: {c.zipCode}</span>}
-                        {c.taxRegime && <span>Rég: {c.taxRegime}</span>}
-                        {c.cfdiUse && <span>CFDI: {c.cfdiUse}</span>}
-                      </div>
-                    ) : (
-                      <span style={{ color: "#cbd5e1" }}>—</span>
-                    )}
-                  </td>
-                  <td style={{ ...ui.td, whiteSpace: "normal" }}>
-                    <div>{c.email || "—"}</div>
-                    <div style={{ fontSize: 11, color: "#94a3b8" }}>{c.phone || ""}</div>
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "right" }}>{money(c.creditLimit)}</td>
-                  <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: c.balance > 0 ? "#b91c1c" : "#334155" }}>
-                    {money(c.balance)}
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{c.salesCount}</td>
-                  <td style={{ ...ui.td, color: "#64748b" }}>{fmtDate(c.createdAt)}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <button
-                      onClick={() => openEdit(c)}
-                      style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 4, color: "#1e3a8a" }}
-                      title="Editar cliente"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+      <div className="table-sticky-head">
+        <DataTable
+          columns={columns}
+          data={rows}
+          loading={loading}
+          error={error}
+          keyExtractor={(c) => c.id}
+        />
       </div>
 
-      {/* Modal crear / editar */}
-      {showForm && (
-        <div style={ui.overlay} onClick={closeForm}>
-          <form style={{ ...ui.modal, maxWidth: 560 }} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-            <div style={ui.modalHeader}>
-              <span style={ui.modalTitle}>{editingId !== null ? "Editar cliente" : "Registrar nuevo cliente"}</span>
-              <button type="button" style={{ ...ui.linkBtn, opacity: saving ? 0.6 : 1 }} onClick={closeForm} disabled={saving}>
-                <X size={18} color="#64748b" />
-              </button>
+      <ActionModal
+        isOpen={showForm}
+        onClose={closeForm}
+        title={editingId !== null ? "Editar cliente" : "Registrar nuevo cliente"}
+        size="md"
+      >
+        <form onSubmit={submit}>
+
+          {/* Nombre */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={ui.fieldLabel}>Nombre / Razón Social *</label>
+            <input style={ui.input} value={form.name} onChange={set("name")} placeholder="Nombre del cliente" autoFocus />
+            {fieldErrors.name && <p style={fieldErrorStyle}>{fieldErrors.name}</p>}
+          </div>
+
+          {/* RFC + Teléfono */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+            <div>
+              <label style={ui.fieldLabel}>RFC</label>
+              <input
+                style={{ ...ui.input, fontFamily: "monospace", textTransform: "uppercase" }}
+                value={form.taxId}
+                onChange={set("taxId")}
+                placeholder="XAXX010101000"
+                maxLength={13}
+              />
+              {fieldErrors.taxId && <p style={fieldErrorStyle}>{fieldErrors.taxId}</p>}
             </div>
-            <div style={ui.modalBody}>
+            <div>
+              <label style={ui.fieldLabel}>Teléfono</label>
+              <input style={ui.input} value={form.phone} onChange={set("phone")} placeholder="771 000 0000" />
+              {fieldErrors.phone && <p style={fieldErrorStyle}>{fieldErrors.phone}</p>}
+            </div>
+          </div>
 
-              {/* Nombre */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Nombre / Razón Social *</label>
-                <input style={ui.input} value={form.name} onChange={set("name")} placeholder="Nombre del cliente" autoFocus />
-                {fieldErrors.name && <p style={fieldErrorStyle}>{fieldErrors.name}</p>}
+          {/* Email + Dirección */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={ui.fieldLabel}>Correo electrónico</label>
+            <input type="email" style={ui.input} value={form.email} onChange={set("email")} placeholder="correo@dominio.com" />
+            {fieldErrors.email && <p style={fieldErrorStyle}>{fieldErrors.email}</p>}
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={ui.fieldLabel}>Dirección</label>
+            <input style={ui.input} value={form.address} onChange={set("address")} placeholder="Calle, número, colonia" />
+            {fieldErrors.address && <p style={fieldErrorStyle}>{fieldErrors.address}</p>}
+          </div>
+
+          {/* Límite crédito + CP */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+            <div>
+              <label style={ui.fieldLabel}>Límite de crédito ($)</label>
+              <input type="text" inputMode="decimal" style={ui.input} value={form.creditLimit} onChange={setCreditLimit} placeholder="0.00" />
+              {fieldErrors.creditLimit && <p style={fieldErrorStyle}>{fieldErrors.creditLimit}</p>}
+            </div>
+            <div>
+              <label style={ui.fieldLabel}>Código Postal fiscal</label>
+              <input
+                inputMode="numeric"
+                style={ui.input}
+                value={form.zipCode}
+                onChange={set("zipCode")}
+                placeholder="12345"
+                maxLength={5}
+              />
+              {fieldErrors.zipCode && <p style={fieldErrorStyle}>{fieldErrors.zipCode}</p>}
+            </div>
+          </div>
+
+          {/* Sección CFDI */}
+          <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "12px 14px", backgroundColor: "#f8fafc", marginBottom: 8 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#1e3a8a", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Datos CFDI 4.0
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label style={ui.fieldLabel}>Régimen Fiscal</label>
+                <select style={{ ...ui.input, cursor: "pointer" }} value={form.taxRegime} onChange={set("taxRegime")}>
+                  <option value="">— Sin especificar —</option>
+                  {TAX_REGIMES.map((r) => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
+                </select>
+                {fieldErrors.taxRegime && <p style={fieldErrorStyle}>{fieldErrors.taxRegime}</p>}
               </div>
-
-              {/* RFC + Teléfono */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-                <div>
-                  <label style={ui.fieldLabel}>RFC</label>
-                  <input
-                    style={{ ...ui.input, fontFamily: "monospace", textTransform: "uppercase" }}
-                    value={form.taxId}
-                    onChange={set("taxId")}
-                    placeholder="XAXX010101000"
-                    maxLength={13}
-                  />
-                  {fieldErrors.taxId && <p style={fieldErrorStyle}>{fieldErrors.taxId}</p>}
-                </div>
-                <div>
-                  <label style={ui.fieldLabel}>Teléfono</label>
-                  <input style={ui.input} value={form.phone} onChange={set("phone")} placeholder="771 000 0000" />
-                  {fieldErrors.phone && <p style={fieldErrorStyle}>{fieldErrors.phone}</p>}
-                </div>
-              </div>
-
-              {/* Email + Dirección */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Correo electrónico</label>
-                <input type="email" style={ui.input} value={form.email} onChange={set("email")} placeholder="correo@dominio.com" />
-                {fieldErrors.email && <p style={fieldErrorStyle}>{fieldErrors.email}</p>}
-              </div>
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Dirección</label>
-                <input style={ui.input} value={form.address} onChange={set("address")} placeholder="Calle, número, colonia" />
-                {fieldErrors.address && <p style={fieldErrorStyle}>{fieldErrors.address}</p>}
-              </div>
-
-              {/* Límite crédito + CP */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-                <div>
-                  <label style={ui.fieldLabel}>Límite de crédito ($)</label>
-                  <input type="text" inputMode="decimal" style={ui.input} value={form.creditLimit} onChange={setCreditLimit} placeholder="0.00" />
-                  {fieldErrors.creditLimit && <p style={fieldErrorStyle}>{fieldErrors.creditLimit}</p>}
-                </div>
-                <div>
-                  <label style={ui.fieldLabel}>Código Postal fiscal</label>
-                  <input
-                    inputMode="numeric"
-                    style={ui.input}
-                    value={form.zipCode}
-                    onChange={set("zipCode")}
-                    placeholder="12345"
-                    maxLength={5}
-                  />
-                  {fieldErrors.zipCode && <p style={fieldErrorStyle}>{fieldErrors.zipCode}</p>}
-                </div>
-              </div>
-
-              {/* Sección CFDI */}
-              <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "12px 14px", backgroundColor: "#f8fafc", marginBottom: 8 }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: "#1e3a8a", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  Datos CFDI 4.0
-                </p>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <div>
-                    <label style={ui.fieldLabel}>Régimen Fiscal</label>
-                    <select style={{ ...ui.input, cursor: "pointer" }} value={form.taxRegime} onChange={set("taxRegime")}>
-                      <option value="">— Sin especificar —</option>
-                      {TAX_REGIMES.map((r) => (
-                        <option key={r.value} value={r.value}>{r.label}</option>
-                      ))}
-                    </select>
-                    {fieldErrors.taxRegime && <p style={fieldErrorStyle}>{fieldErrors.taxRegime}</p>}
-                  </div>
-                  <div>
-                    <label style={ui.fieldLabel}>Uso de CFDI</label>
-                    <select style={{ ...ui.input, cursor: "pointer" }} value={form.cfdiUse} onChange={set("cfdiUse")}>
-                      <option value="">— Sin especificar —</option>
-                      {CFDI_USES.map((u) => (
-                        <option key={u.value} value={u.value}>{u.label}</option>
-                      ))}
-                    </select>
-                    {fieldErrors.cfdiUse && <p style={fieldErrorStyle}>{fieldErrors.cfdiUse}</p>}
-                  </div>
-                </div>
-              </div>
-
-              {formError && (
-                <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 4 }}>{formError}</p>
-              )}
-
-              <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-                <button type="button" disabled={saving} style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={closeForm}>
-                  Cancelar
-                </button>
-                <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
-                  {saving ? "Guardando..." : editingId !== null ? "Actualizar cliente" : "Guardar cliente"}
-                </button>
+              <div>
+                <label style={ui.fieldLabel}>Uso de CFDI</label>
+                <select style={{ ...ui.input, cursor: "pointer" }} value={form.cfdiUse} onChange={set("cfdiUse")}>
+                  <option value="">— Sin especificar —</option>
+                  {CFDI_USES.map((u) => (
+                    <option key={u.value} value={u.value}>{u.label}</option>
+                  ))}
+                </select>
+                {fieldErrors.cfdiUse && <p style={fieldErrorStyle}>{fieldErrors.cfdiUse}</p>}
               </div>
             </div>
-          </form>
-        </div>
-      )}
+          </div>
+
+          {formError && (
+            <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 4 }}>{formError}</p>
+          )}
+
+          <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+            <button type="button" disabled={saving} style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={closeForm}>
+              Cancelar
+            </button>
+            <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
+              {saving ? "Guardando..." : editingId !== null ? "Actualizar cliente" : "Guardar cliente"}
+            </button>
+          </div>
+        </form>
+      </ActionModal>
     </div>
   );
 };

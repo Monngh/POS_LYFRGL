@@ -1,6 +1,20 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import api from "../../services/api";
-import { ui, type ViewProps, Toolbar, Badge, TableState, SectionHeader, money, fmtDate, fmtTime, payTone, FilterSelect, printTicketHtml } from "./shared";
+import { useAdminData } from "../../hooks";
+import { DataTable, ActionModal } from "../../components/common";
+import type { Column } from "../../components/common";
+import {
+  type ViewProps,
+  Toolbar,
+  Badge,
+  SectionHeader,
+  money,
+  fmtDate,
+  fmtTime,
+  payTone,
+  FilterSelect,
+  printTicketHtml,
+} from "./shared";
 
 interface DepositRow {
   id: number;
@@ -41,9 +55,6 @@ const renderComments = (raw: string | null | undefined) => {
 };
 
 const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
-  const [rows, setRows] = useState<DepositRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [from, setFrom] = useState<string>("");
   const [to, setTo] = useState<string>("");
   const [account, setAccount] = useState<string>("");
@@ -51,29 +62,29 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedDeposit, setSelectedDeposit] = useState<any>(null);
   const [confirmingDepositId, setConfirmingDepositId] = useState<number | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params: Record<string, any> = branchId !== "all" ? { branchId } : {};
+  const filterParams: Record<string, unknown> = {};
+  if (branchId !== "all") filterParams.branchId = branchId;
+  if (from) filterParams.from = from;
+  if (to) filterParams.to = to;
+  if (account) filterParams.account = account;
 
-      if (from) params.from = from;
-      if (to) params.to = to;
-      if (account) params.account = account;
+  const { data, loading, error: loadError, refetch } = useAdminData<{ deposits: DepositRow[] }>(
+    "/api/admin/bank-deposits",
+    { params: filterParams }
+  );
+  const rows = data?.deposits ?? [];
 
-      const res = await api.get<{ deposits: DepositRow[] }>("/api/admin/bank-deposits", { params });
-      setRows(res.data.deposits);
-    } catch (err: any) {
-      setError(err.response?.data?.message || "No se pudieron cargar los depósitos.");
-    } finally {
-      setLoading(false);
-    }
-  }, [branchId, refreshToken, from, to, account]);
-
+  const isFirstRender = useRef(true);
   useEffect(() => {
-    load();
-  }, [load]);
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    refetch();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   useEffect(() => {
     if (rows.length > 0 && accounts.length === 0) {
@@ -85,12 +96,13 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const confirmDeposit = async (depositId: number) => {
     if (confirmingDepositId === depositId) return;
     setConfirmingDepositId(depositId);
+    setMutationError(null);
     try {
       await api.post(`/api/sales/deposits/${depositId}/confirm`);
-      await load();
-    } catch (error: any) {
-      console.error("Error confirmando depósito:", error?.response?.status, error?.response?.data);
-      setError(error?.response?.data?.message || "Error al confirmar depósito");
+      await refetch();
+    } catch (err: any) {
+      console.error("Error confirmando depósito:", err?.response?.status, err?.response?.data);
+      setMutationError(err?.response?.data?.message || "Error al confirmar depósito");
     } finally {
       setConfirmingDepositId(null);
     }
@@ -158,6 +170,104 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const total = rows.reduce((acc, d) => acc + d.amount, 0);
 
+  const columns: Column<DepositRow>[] = [
+    {
+      key: "createdAt",
+      header: "Fecha",
+      render: (d) => (
+        <>{fmtDate(d.createdAt)} <span style={{ color: "#94a3b8" }}>{fmtTime(d.createdAt)}</span></>
+      ),
+    },
+    {
+      key: "accountMasked",
+      header: "Cuenta Destino",
+      render: (d) => (
+        <span style={{ fontFamily: "monospace", color: "#475569" }}>{d.accountMasked}</span>
+      ),
+    },
+    {
+      key: "targetName",
+      header: "Beneficiario",
+      render: (d) => (
+        <span style={{ fontWeight: 600, color: "#0f172a", whiteSpace: "normal" }}>{d.targetName}</span>
+      ),
+    },
+    {
+      key: "branch",
+      header: "Sucursal",
+    },
+    {
+      key: "paymentType",
+      header: "Tipo",
+      align: "center",
+      render: (d) => <Badge tone={payTone(d.paymentType)}>{d.paymentType}</Badge>,
+    },
+    {
+      key: "sessionId",
+      header: "Sesión",
+      align: "center",
+      render: (d) => <span style={{ color: "#64748b" }}>#{d.sessionId}</span>,
+    },
+    {
+      key: "status",
+      header: "Confirmado",
+      align: "center",
+      width: "80px",
+      render: (d) => (
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}>
+          <input
+            type="checkbox"
+            checked={d.status === "COMPLETED" || d.status === "CONFIRMADO"}
+            onChange={() => confirmDeposit(d.id)}
+            disabled={
+              confirmingDepositId === d.id ||
+              d.status === "CANCELLED" ||
+              d.status === "CANCELADO" ||
+              d.status === "COMPLETED" ||
+              d.status === "CONFIRMADO"
+            }
+            style={{
+              cursor:
+                confirmingDepositId === d.id ||
+                d.status === "CANCELLED" ||
+                d.status === "CANCELADO" ||
+                d.status === "COMPLETED" ||
+                d.status === "CONFIRMADO"
+                  ? "not-allowed"
+                  : "pointer",
+              width: "18px",
+              height: "18px",
+            }}
+          />
+          <button
+            onClick={() => openDetail(d)}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontSize: "16px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0,
+            }}
+            title="Ver detalles"
+          >
+            Ver
+          </button>
+        </div>
+      ),
+    },
+    {
+      key: "amount",
+      header: "Monto",
+      align: "right",
+      render: (d) => (
+        <span style={{ fontWeight: 800, color: "#b91c1c" }}>-{money(d.amount)}</span>
+      ),
+    },
+  ];
+
   return (
     <div>
       <SectionHeader title="Depósitos bancarios" subtitle="Retiros de efectivo de caja depositados a cuentas bancarias" />
@@ -204,123 +314,57 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         </span>
       </Toolbar>
 
-      <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-        <table style={ui.table}>
-          <thead>
-            <tr style={ui.theadRow}>
-              <th style={ui.th}>Fecha</th>
-              <th style={ui.th}>Cuenta destino</th>
-              <th style={ui.th}>Beneficiario</th>
-              <th style={ui.th}>Sucursal</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Tipo</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Sesión</th>
-              <th style={{ ...ui.th, width: "80px", textAlign: "center" }}>Confirmado</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Monto</th>
-            </tr>
-          </thead>
-          <tbody>
-            <TableState colSpan={8} loading={loading} error={error} empty={!loading && rows.length === 0} emptyText="No hay depósitos bancarios registrados." />
-            {!loading &&
-              !error &&
-              rows.map((d) => (
-                <tr key={d.id}>
-                  <td style={ui.td}>{fmtDate(d.createdAt)} <span style={{ color: "#94a3b8" }}>{fmtTime(d.createdAt)}</span></td>
-                  <td style={{ ...ui.td, fontFamily: "monospace", color: "#475569" }}>{d.accountMasked}</td>
-                  <td style={{ ...ui.td, fontWeight: 600, color: "#0f172a", whiteSpace: "normal" }}>{d.targetName}</td>
-                  <td style={ui.td}>{d.branch}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <Badge tone={payTone(d.paymentType)}>{d.paymentType}</Badge>
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center", color: "#64748b" }}>#{d.sessionId}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}>
-                      <input
-                        type="checkbox"
-                        checked={d.status === "COMPLETED" || d.status === "CONFIRMADO"}
-                        onChange={() => confirmDeposit(d.id)}
-                        disabled={
-                          confirmingDepositId === d.id ||
-                          d.status === "CANCELLED" ||
-                          d.status === "CANCELADO" ||
-                          d.status === "COMPLETED" ||
-                          d.status === "CONFIRMADO"
-                        }
-                        style={{
-                          cursor:
-                            confirmingDepositId === d.id ||
-                            d.status === "CANCELLED" ||
-                            d.status === "CANCELADO" ||
-                            d.status === "COMPLETED" ||
-                            d.status === "CONFIRMADO"
-                              ? "not-allowed"
-                              : "pointer",
-                          width: "18px",
-                          height: "18px",
-                        }}
-                      />
-                      <button
-                        onClick={() => openDetail(d)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          fontSize: "16px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          padding: 0
-                        }}
-                        title="Ver detalles"
-                      >
-                        Ver
-                      </button>
-                    </div>
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "right", fontWeight: 800, color: "#b91c1c" }}>-{money(d.amount)}</td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+      <div className="table-sticky-head">
+        <DataTable
+          columns={columns}
+          data={rows}
+          loading={loading}
+          error={loadError || mutationError}
+          emptyMessage="No hay depósitos bancarios registrados."
+          keyExtractor={(d) => d.id}
+        />
       </div>
 
-      {detailOpen && selectedDeposit && (
-        <div style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: "rgba(0,0,0,0.5)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 1000
-        }}>
-          <div style={{
-            background: "white",
-            borderRadius: "8px",
-            padding: "24px",
-            maxWidth: "600px",
-            width: "90%",
-            boxShadow: "0 20px 25px rgba(0,0,0,0.15)"
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "16px" }}>
-              <h2 style={{ margin: 0, fontSize: "18px", color: "#1e3a8a" }}>
-                Depósito #{selectedDeposit.id}
-              </h2>
-              <button
-                onClick={closeDetail}
-                style={{
-                  background: "none",
-                  border: "none",
-                  fontSize: "24px",
-                  cursor: "pointer"
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
+      <ActionModal
+        isOpen={detailOpen && !!selectedDeposit}
+        onClose={closeDetail}
+        title={`Depósito #${selectedDeposit?.id ?? ""}`}
+        footer={
+          <>
+            <button
+              onClick={closeDetail}
+              style={{
+                padding: "10px 16px",
+                background: "#f3f4f6",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: "600",
+              }}
+            >
+              Cerrar
+            </button>
+            <button
+              onClick={() => selectedDeposit && printDeposit(selectedDeposit)}
+              style={{
+                padding: "10px 16px",
+                background: "#3b82f6",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: "600",
+              }}
+            >
+              Imprimir
+            </button>
+          </>
+        }
+      >
+        {selectedDeposit && (
+          <>
             <div style={{ marginBottom: "16px", borderBottom: "1px solid #e5e7eb", paddingBottom: "16px" }}>
               <p style={{ margin: "8px 0" }}>
                 <strong>Cuenta Destino:</strong> {selectedDeposit.accountNumber}
@@ -341,7 +385,8 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
             <div style={{ marginBottom: "16px", borderBottom: "1px solid #e5e7eb", paddingBottom: "16px" }}>
               <p style={{ margin: "8px 0" }}>
-                <strong>Monto:</strong> <span style={{ color: "#dc2626", fontSize: "16px", fontWeight: "bold" }}>
+                <strong>Monto:</strong>{" "}
+                <span style={{ color: "#dc2626", fontSize: "16px", fontWeight: "bold" }}>
                   -${selectedDeposit.amount.toFixed(2)}
                 </span>
               </p>
@@ -349,13 +394,22 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <strong>Fecha:</strong> {new Date(selectedDeposit.createdAt).toLocaleString()}
               </p>
               <p style={{ margin: "8px 0" }}>
-                <strong>Estado:</strong> <span style={{
-                  background: selectedDeposit.status === "CONFIRMADO" || selectedDeposit.status === "COMPLETED" ? "#d1fae5" : "#fee2e2",
-                  color: selectedDeposit.status === "CONFIRMADO" || selectedDeposit.status === "COMPLETED" ? "#065f46" : "#991b1b",
-                  padding: "4px 8px",
-                  borderRadius: "4px",
-                  fontSize: "12px"
-                }}>
+                <strong>Estado:</strong>{" "}
+                <span
+                  style={{
+                    background:
+                      selectedDeposit.status === "CONFIRMADO" || selectedDeposit.status === "COMPLETED"
+                        ? "#d1fae5"
+                        : "#fee2e2",
+                    color:
+                      selectedDeposit.status === "CONFIRMADO" || selectedDeposit.status === "COMPLETED"
+                        ? "#065f46"
+                        : "#991b1b",
+                    padding: "4px 8px",
+                    borderRadius: "4px",
+                    fontSize: "12px",
+                  }}
+                >
                   {selectedDeposit.status}
                 </span>
               </p>
@@ -363,41 +417,9 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <strong>Comentarios:</strong> {renderComments(selectedDeposit.comments)}
               </p>
             </div>
-
-            <div style={{ display: "flex", gap: "12px" }}>
-              <button
-                onClick={closeDetail}
-                style={{
-                  padding: "10px 16px",
-                  background: "#f3f4f6",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: "600"
-                }}
-              >
-                Cerrar
-              </button>
-              <button
-                onClick={() => printDeposit(selectedDeposit)}
-                style={{
-                  padding: "10px 16px",
-                  background: "#3b82f6",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: "600"
-                }}
-              >
-                Imprimir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </ActionModal>
     </div>
   );
 };
