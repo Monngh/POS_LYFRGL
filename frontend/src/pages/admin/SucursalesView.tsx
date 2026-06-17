@@ -1,6 +1,9 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { X, Plus, Pencil } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Plus, Pencil } from "lucide-react";
 import api from "../../services/api";
+import { useAdminData } from "../../hooks";
+import { DataTable, ActionModal } from "../../components/common";
+import type { Column } from "../../components/common";
 import {
   normalizePhoneInput,
   validatePhone as validatePhoneFormat,
@@ -13,7 +16,6 @@ import {
   Toolbar,
   SearchInput,
   Badge,
-  TableState,
   SectionHeader,
   fmtDate,
 } from "./shared";
@@ -70,11 +72,8 @@ const validatePhone = (value: string): string | undefined => {
 // Componente
 // ---------------------------------------------------------------------------
 const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
-  const [rows, setRows] = useState<BranchRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
 
   // Modal crear / editar sucursal
@@ -87,10 +86,35 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
   // Modal de empleados y reasignación
   const [selectedBranch, setSelectedBranch] = useState<BranchRow | null>(null);
   const [showEmployeesModal, setShowEmployeesModal] = useState(false);
-  const [allEmployees, setAllEmployees] = useState<any[]>([]);
   const [reassignId, setReassignId] = useState<number | null>(null);
   const [reassignTarget, setReassignTarget] = useState<string>("");
   const [reassigningEmployeeId, setReassigningEmployeeId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const { data, loading, error, refetch } = useAdminData<{ branches: BranchRow[] }>(
+    "/api/admin/branches",
+    { params: debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {} }
+  );
+  const rows = data?.branches ?? [];
+
+  const { data: employeesData, refetch: refetchEmployees } = useAdminData<{ employees: any[] }>(
+    "/api/admin/employees"
+  );
+  const allEmployees = employeesData?.employees ?? [];
+
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    refetch();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   // ---------------------------------------------------------------------------
   // Validez global reactiva — se recalcula cada vez que el formulario cambia
@@ -102,40 +126,6 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
       !validatePhone(form.phone)
     );
   }, [form.name, form.address, form.phone]);
-
-  // ---------------------------------------------------------------------------
-  // Carga de datos
-  // ---------------------------------------------------------------------------
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await api.get<{ branches: BranchRow[] }>("/api/admin/branches", {
-        params: search.trim() ? { search: search.trim() } : {},
-      });
-      setRows(res.data.branches);
-    } catch (err: any) {
-      setError(err.response?.data?.message || "No se pudieron cargar las sucursales.");
-    } finally {
-      setLoading(false);
-    }
-  }, [search, refreshToken]);
-
-  useEffect(() => {
-    const t = setTimeout(load, 300);
-    return () => clearTimeout(t);
-  }, [load]);
-
-  const loadEmployees = useCallback(async () => {
-    try {
-      const res = await api.get<{ employees: any[] }>("/api/admin/employees");
-      setAllEmployees(res.data.employees);
-    } catch {
-      // silencioso; no bloquea el resto de la vista
-    }
-  }, []);
-
-  useEffect(() => { loadEmployees(); }, [loadEmployees]);
 
   // ---------------------------------------------------------------------------
   // Apertura de modales
@@ -157,7 +147,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
     setReassigningEmployeeId(employeeId);
     try {
       await api.put(`/api/admin/employees/${employeeId}`, { branchId: parseInt(reassignTarget) });
-      await Promise.all([load(), loadEmployees()]);
+      await Promise.all([refetch(), refetchEmployees()]);
       setReassignId(null);
       setReassignTarget("");
       setSelectedBranch((prev) =>
@@ -169,7 +159,6 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
       setReassigningEmployeeId(null);
     }
   };
-
 
   const openCreate = () => {
     setForm({ ...emptyForm });
@@ -249,7 +238,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
       }
       setEditing(null);
       setFieldErrors({ ...emptyErrors });
-      await load();
+      await refetch();
     } catch (err: any) {
       setFormError(err.response?.data?.message || "No se pudo guardar la sucursal.");
     } finally {
@@ -295,6 +284,76 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
     borderColor: hasError ? "#fca5a5" : undefined,
   });
 
+  // ---------------------------------------------------------------------------
+  // Columnas de la tabla principal
+  // ---------------------------------------------------------------------------
+  const columns: Column<BranchRow>[] = [
+    {
+      key: "id",
+      header: "#",
+      render: (b) => <span style={{ fontWeight: 700, color: "#1e3a8a" }}>{b.id}</span>,
+    },
+    {
+      key: "name",
+      header: "Nombre",
+      render: (b) => (
+        <span style={{ fontWeight: 700, color: "#0f172a", whiteSpace: "normal" }}>{b.name}</span>
+      ),
+    },
+    {
+      key: "address",
+      header: "Dirección",
+      render: (b) => (
+        <span style={{ color: "#475569", whiteSpace: "normal" }}>{b.address || "—"}</span>
+      ),
+    },
+    {
+      key: "phone",
+      header: "Teléfono",
+      render: (b) => <>{b.phone || "—"}</>,
+    },
+    {
+      key: "employees",
+      header: "Empleados",
+      align: "center",
+      render: (b) => <span style={{ fontWeight: 700 }}>{b.employees}</span>,
+    },
+    {
+      key: "sales",
+      header: "Ventas",
+      align: "center",
+      render: (b) => <span style={{ fontWeight: 700 }}>{b.sales}</span>,
+    },
+    {
+      key: "active",
+      header: "Estado",
+      align: "center",
+      render: (b) => (
+        <Badge tone={b.active ? "green" : "red"}>{b.active ? "Activa" : "Inactiva"}</Badge>
+      ),
+    },
+    {
+      key: "createdAt",
+      header: "Alta",
+      render: (b) => <span style={{ color: "#64748b" }}>{fmtDate(b.createdAt)}</span>,
+    },
+    {
+      key: "actions",
+      header: "Acción",
+      align: "center",
+      render: (b) => (
+        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+          <button style={ui.linkBtn} className="active-tap" onClick={() => openEmployeesModal(b)}>
+            Empleados
+          </button>
+          <button style={ui.linkBtn} className="active-tap" onClick={() => openEdit(b)}>
+            <Pencil size={14} style={{ verticalAlign: "-2px" }} /> Editar
+          </button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div>
       <SectionHeader
@@ -324,298 +383,235 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
         </span>
       </Toolbar>
 
-      <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-        <table style={ui.table}>
-          <thead>
-            <tr style={ui.theadRow}>
-              <th style={ui.th}>#</th>
-              <th style={ui.th}>Nombre</th>
-              <th style={ui.th}>Dirección</th>
-              <th style={ui.th}>Teléfono</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Empleados</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Ventas</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-              <th style={ui.th}>Alta</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            <TableState colSpan={9} loading={loading} error={error} empty={!loading && filteredRows.length === 0} />
-            {!loading &&
-              !error &&
-              filteredRows.map((b) => (
-                <tr key={b.id}>
-                  <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{b.id}</td>
-                  <td style={{ ...ui.td, fontWeight: 700, color: "#0f172a", whiteSpace: "normal" }}>{b.name}</td>
-                  <td style={{ ...ui.td, color: "#475569", whiteSpace: "normal" }}>{b.address || "—"}</td>
-                  <td style={ui.td}>{b.phone || "—"}</td>
-                  <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{b.employees}</td>
-                  <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{b.sales}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <Badge tone={b.active ? "green" : "red"}>{b.active ? "Activa" : "Inactiva"}</Badge>
-                  </td>
-                  <td style={{ ...ui.td, color: "#64748b" }}>{fmtDate(b.createdAt)}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-                      <button style={ui.linkBtn} className="active-tap" onClick={() => openEmployeesModal(b)}>
-                        Empleados
-                      </button>
-                      <button style={ui.linkBtn} className="active-tap" onClick={() => openEdit(b)}>
-                        <Pencil size={14} style={{ verticalAlign: "-2px" }} /> Editar
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+      <div className="table-sticky-head">
+        <DataTable
+          columns={columns}
+          data={filteredRows}
+          loading={loading}
+          error={error}
+          keyExtractor={(b) => b.id}
+        />
       </div>
 
       {/* ------------------------------------------------------------------- */}
       {/* Modal crear / editar                                                  */}
       {/* ------------------------------------------------------------------- */}
-      {editing !== null && (
-        <div
-          style={ui.overlay}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <form
-            style={ui.modal}
-            onClick={(e) => e.stopPropagation()}
-            onSubmit={submit}
-          >
-            <div style={ui.modalHeader}>
-              <span style={ui.modalTitle}>
-                {editing === "create" ? "Registrar nueva sucursal" : "Editar sucursal"}
-              </span>
-              <button type="button" style={ui.linkBtn} onClick={closeModal}>
-                <X size={18} color="#64748b" />
-              </button>
-            </div>
-            <div style={ui.modalBody}>
+      <ActionModal
+        isOpen={editing !== null}
+        onClose={closeModal}
+        title={editing === "create" ? "Registrar nueva sucursal" : "Editar sucursal"}
+        size="md"
+      >
+        <form onSubmit={submit}>
+          {/* Nombre */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={ui.fieldLabel}>Nombre de la sucursal *</label>
+            <input
+              style={inputWithError(!!fieldErrors.name)}
+              value={form.name}
+              onChange={handleNameChange}
+              placeholder="Ej. Sucursal Centro LYFRGL"
+              autoFocus
+              maxLength={80}
+            />
+            {fieldErrors.name && (
+              <span style={fieldErrStyle}>{fieldErrors.name}</span>
+            )}
+          </div>
 
-              {/* Nombre */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Nombre de la sucursal *</label>
-                <input
-                  style={inputWithError(!!fieldErrors.name)}
-                  value={form.name}
-                  onChange={handleNameChange}
-                  placeholder="Ej. Sucursal Centro LYFRGL"
-                  autoFocus
-                  maxLength={80}
-                />
-                {fieldErrors.name && (
-                  <span style={fieldErrStyle}>{fieldErrors.name}</span>
-                )}
-              </div>
+          {/* Dirección */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={ui.fieldLabel}>Dirección *</label>
+            <input
+              style={inputWithError(!!fieldErrors.address)}
+              value={form.address}
+              onChange={handleAddressChange}
+              placeholder="Calle, número, colonia, ciudad"
+              maxLength={150}
+            />
+            {fieldErrors.address && (
+              <span style={fieldErrStyle}>{fieldErrors.address}</span>
+            )}
+          </div>
 
-              {/* Dirección */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Dirección *</label>
-                <input
-                  style={inputWithError(!!fieldErrors.address)}
-                  value={form.address}
-                  onChange={handleAddressChange}
-                  placeholder="Calle, número, colonia, ciudad"
-                  maxLength={150}
-                />
-                {fieldErrors.address && (
-                  <span style={fieldErrStyle}>{fieldErrors.address}</span>
-                )}
-              </div>
+          {/* Teléfono — solo acepta dígitos */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={ui.fieldLabel}>Teléfono * (10 dígitos)</label>
+            <input
+              style={inputWithError(!!fieldErrors.phone)}
+              value={form.phone}
+              onChange={handlePhoneChange}
+              placeholder="7710000000"
+              inputMode="numeric"
+            />
+            {fieldErrors.phone && (
+              <span style={fieldErrStyle}>{fieldErrors.phone}</span>
+            )}
+          </div>
 
-              {/* Teléfono — solo acepta dígitos */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Teléfono * (10 dígitos)</label>
-                <input
-                  style={inputWithError(!!fieldErrors.phone)}
-                  value={form.phone}
-                  onChange={handlePhoneChange}
-                  placeholder="7710000000"
-                  inputMode="numeric"
-                />
-                {fieldErrors.phone && (
-                  <span style={fieldErrStyle}>{fieldErrors.phone}</span>
-                )}
-              </div>
+          {/* Sucursal activa */}
+          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", marginTop: 4 }}>
+            <input
+              type="checkbox"
+              checked={form.active}
+              onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
+              style={{ width: 16, height: 16, accentColor: "#1e3a8a", cursor: "pointer" }}
+            />
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Sucursal activa</span>
+          </label>
 
-              {/* Sucursal activa */}
-              <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", marginTop: 4 }}>
-                <input
-                  type="checkbox"
-                  checked={form.active}
-                  onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
-                  style={{ width: 16, height: 16, accentColor: "#1e3a8a", cursor: "pointer" }}
-                />
-                <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Sucursal activa</span>
-              </label>
+          {/* Error general del servidor */}
+          {formError && (
+            <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 14 }}>{formError}</p>
+          )}
 
-              {/* Error general del servidor */}
-              {formError && (
-                <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 14 }}>{formError}</p>
-              )}
-
-              {/* Botones */}
-              <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
-                <button
-                  type="button"
-                  style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }}
-                  onClick={closeModal}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving || !isFormValid}
-                  style={saveButtonStyle}
-                >
-                  {saving
-                    ? "Guardando..."
-                    : editing === "create"
-                      ? "Guardar sucursal"
-                      : "Guardar cambios"}
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      )}
+          {/* Botones */}
+          <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
+            <button
+              type="button"
+              style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }}
+              onClick={closeModal}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={saving || !isFormValid}
+              style={saveButtonStyle}
+            >
+              {saving
+                ? "Guardando..."
+                : editing === "create"
+                  ? "Guardar sucursal"
+                  : "Guardar cambios"}
+            </button>
+          </div>
+        </form>
+      </ActionModal>
 
       {/* ------------------------------------------------------------------- */}
       {/* Modal de empleados y reasignación                                     */}
       {/* ------------------------------------------------------------------- */}
-      {showEmployeesModal && selectedBranch && (
-        <div style={ui.overlay} onClick={() => setShowEmployeesModal(false)}>
-          <div
-            style={{ ...ui.modal, maxWidth: 640, width: "100%", maxHeight: "80vh", overflowY: "auto" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={ui.modalHeader}>
-              <span style={ui.modalTitle}>Empleados — {selectedBranch.name}</span>
-              <button style={ui.linkBtn} onClick={() => setShowEmployeesModal(false)}>
-                <X size={18} color="#64748b" />
-              </button>
-            </div>
-
-            <div style={ui.modalBody}>
-              {(() => {
-                const branchEmployees = allEmployees.filter(
-                  (e: any) => e.branchId === selectedBranch.id
-                );
-                return branchEmployees.length === 0 ? (
-                  <p style={{ color: "#64748b", textAlign: "center", padding: "16px 0" }}>
-                    No hay empleados en esta sucursal.
-                  </p>
-                ) : (
-                  <>
-                    <div style={{ ...ui.tableWrap, boxShadow: "none" }}>
-                    <table style={ui.table}>
-                      <thead>
-                        <tr style={ui.theadRow}>
-                          <th style={ui.th}>Nombre</th>
-                          <th style={{ ...ui.th, textAlign: "center" }}>Rol</th>
-                          <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-                          <th style={{ ...ui.th, textAlign: "center" }}>Acción</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {branchEmployees.map((emp: any) => (
-                          <tr key={emp.id}>
-                            <td style={ui.td}>{emp.name}</td>
-                            <td style={{ ...ui.td, textAlign: "center" }}>
-                              <Badge
-                                tone={
-                                  emp.role === "ADMIN"
-                                    ? "red"
-                                    : emp.role === "GERENTE"
-                                      ? "amber"
-                                      : "blue"
-                                }
-                              >
-                                {emp.role}
-                              </Badge>
-                            </td>
-                            <td style={{ ...ui.td, textAlign: "center" }}>
-                              <Badge tone={emp.active ? "green" : "red"}>
-                                {emp.active ? "Activo" : "Inactivo"}
-                              </Badge>
-                            </td>
-                            <td style={{ ...ui.td, textAlign: "center" }}>
-                              <button
-                                style={ui.linkBtn}
-                                onClick={() => {
-                                  setReassignId(emp.id);
-                                  setReassignTarget("");
-                                }}
-                              >
-                                Reasignar
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    </div>
-
-                    {/* Formulario de reasignación */}
-                    {reassignId !== null && (
-                      <div
-                        style={{
-                          marginTop: 18,
-                          padding: 16,
-                          background: "#eff6ff",
-                          borderRadius: 8,
-                          border: "1px solid #bfdbfe",
-                        }}
-                      >
-                        <p style={{ fontWeight: 700, marginBottom: 10, fontSize: 14 }}>
-                          Reasignar:{" "}
-                          {branchEmployees.find((e: any) => e.id === reassignId)?.name}
-                        </p>
-                        <label style={ui.fieldLabel}>Sucursal destino</label>
-                        <select
-                          value={reassignTarget}
-                          onChange={(e) => setReassignTarget(e.target.value)}
-                          style={{ ...ui.input, marginBottom: 12 }}
-                        >
-                          <option value="">-- Seleccionar --</option>
-                          {rows
-                            .filter((b) => b.id !== selectedBranch.id)
-                            .map((b) => (
-                              <option key={b.id} value={b.id}>
-                                {b.name} ({b.employees} empleado{b.employees === 1 ? "" : "s"})
-                              </option>
-                            ))}
-                        </select>
-                        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                          <button
-                            style={ui.ghostBtn}
-                            onClick={() => { setReassignId(null); setReassignTarget(""); }}
+      <ActionModal
+        isOpen={showEmployeesModal && !!selectedBranch}
+        onClose={() => setShowEmployeesModal(false)}
+        title={`Empleados — ${selectedBranch?.name ?? ""}`}
+        size="md"
+      >
+        {selectedBranch && (() => {
+          const branchEmployees = allEmployees.filter(
+            (e: any) => e.branchId === selectedBranch.id
+          );
+          return branchEmployees.length === 0 ? (
+            <p style={{ color: "#64748b", textAlign: "center", padding: "16px 0" }}>
+              No hay empleados en esta sucursal.
+            </p>
+          ) : (
+            <>
+              <div style={{ ...ui.tableWrap, boxShadow: "none" }}>
+                <table style={ui.table}>
+                  <thead>
+                    <tr style={ui.theadRow}>
+                      <th style={ui.th}>Nombre</th>
+                      <th style={{ ...ui.th, textAlign: "center" }}>Rol</th>
+                      <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                      <th style={{ ...ui.th, textAlign: "center" }}>Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {branchEmployees.map((emp: any) => (
+                      <tr key={emp.id}>
+                        <td style={ui.td}>{emp.name}</td>
+                        <td style={{ ...ui.td, textAlign: "center" }}>
+                          <Badge
+                            tone={
+                              emp.role === "ADMIN"
+                                ? "red"
+                                : emp.role === "GERENTE"
+                                  ? "amber"
+                                  : "blue"
+                            }
                           >
-                            Cancelar
-                          </button>
+                            {emp.role}
+                          </Badge>
+                        </td>
+                        <td style={{ ...ui.td, textAlign: "center" }}>
+                          <Badge tone={emp.active ? "green" : "red"}>
+                            {emp.active ? "Activo" : "Inactivo"}
+                          </Badge>
+                        </td>
+                        <td style={{ ...ui.td, textAlign: "center" }}>
                           <button
-                            style={{
-                              ...ui.primaryBtn,
-                              opacity: reassigningEmployeeId === reassignId ? 0.6 : 1,
-                              cursor: reassigningEmployeeId === reassignId ? "not-allowed" : "pointer",
+                            style={ui.linkBtn}
+                            onClick={() => {
+                              setReassignId(emp.id);
+                              setReassignTarget("");
                             }}
-                            onClick={handleReassign}
-                            disabled={reassigningEmployeeId === reassignId}
                           >
-                            {reassigningEmployeeId === reassignId ? "Reasignando..." : "Confirmar reasignación"}
+                            Reasignar
                           </button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
-          </div>
-        </div>
-      )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Formulario de reasignación */}
+              {reassignId !== null && (
+                <div
+                  style={{
+                    marginTop: 18,
+                    padding: 16,
+                    background: "#eff6ff",
+                    borderRadius: 8,
+                    border: "1px solid #bfdbfe",
+                  }}
+                >
+                  <p style={{ fontWeight: 700, marginBottom: 10, fontSize: 14 }}>
+                    Reasignar:{" "}
+                    {branchEmployees.find((e: any) => e.id === reassignId)?.name}
+                  </p>
+                  <label style={ui.fieldLabel}>Sucursal destino</label>
+                  <select
+                    value={reassignTarget}
+                    onChange={(e) => setReassignTarget(e.target.value)}
+                    style={{ ...ui.input, marginBottom: 12 }}
+                  >
+                    <option value="">-- Seleccionar --</option>
+                    {rows
+                      .filter((b) => b.id !== selectedBranch.id)
+                      .map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name} ({b.employees} empleado{b.employees === 1 ? "" : "s"})
+                        </option>
+                      ))}
+                  </select>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button
+                      style={ui.ghostBtn}
+                      onClick={() => { setReassignId(null); setReassignTarget(""); }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      style={{
+                        ...ui.primaryBtn,
+                        opacity: reassigningEmployeeId === reassignId ? 0.6 : 1,
+                        cursor: reassigningEmployeeId === reassignId ? "not-allowed" : "pointer",
+                      }}
+                      onClick={handleReassign}
+                      disabled={reassigningEmployeeId === reassignId}
+                    >
+                      {reassigningEmployeeId === reassignId ? "Reasignando..." : "Confirmar reasignación"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
+      </ActionModal>
     </div>
   );
 };
