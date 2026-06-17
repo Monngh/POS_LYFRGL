@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, PackagePlus, Pencil, Plus, Power, Tags, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Eye, PackagePlus, Pencil, Plus, Power, Tags, X } from "lucide-react";
 import api from "../../services/api";
 import {
   collectRoundedDecimalMessages,
@@ -18,6 +18,7 @@ import {
   SectionHeader,
   fmtDate,
   moneyExact,
+  useMediaQuery,
 } from "./shared";
 
 interface PromotionTypeOption {
@@ -280,6 +281,12 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [productEditorIds, setProductEditorIds] = useState<number[]>([]);
   const [productError, setProductError] = useState<string | null>(null);
   const [productSaving, setProductSaving] = useState(false);
+
+  const [expandedPromotions, setExpandedPromotions] = useState<Record<number, boolean>>({});
+  const isMobile = useMediaQuery("(max-width: 1024px)");
+
+  const toggleExpandPromotion = (id: number) =>
+    setExpandedPromotions((prev) => ({ ...prev, [id]: !prev[id] }));
 
   const load = useCallback(async () => {
     void refreshToken;
@@ -765,78 +772,372 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
         </div>
       )}
 
-      <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-        <table style={ui.table}>
-          <thead>
-            <tr style={ui.theadRow}>
-              <th style={ui.th}>Promocion</th>
-              <th style={ui.th}>Tipo</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Valor</th>
-              <th style={ui.th}>Vigencia</th>
-              <th style={ui.th}>Productos</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <TableState
-              colSpan={7}
-              loading={loading}
-              error={error}
-              empty={!loading && rows.length === 0}
-              emptyText={search.trim() ? "No hay promociones que coincidan con la busqueda." : "No hay promociones registradas."}
-            />
-            {!loading &&
-              !error &&
-              rows.map((promotion) => {
-                const status = getStatus(promotion);
-                const busy = loadingActionId === promotion.id;
+      {isMobile ? (
+        /* ── Mobile / Tablet: Card-based layout ── */
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
+          {/* Header row mirroring the fields */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1.6fr 0.8fr 0.8fr 0.8fr",
+            padding: "12px 16px",
+            fontWeight: 700,
+            fontSize: 11,
+            color: "#64748b",
+            textTransform: "uppercase",
+            letterSpacing: "0.4px",
+          }}>
+            <div>Promoción</div>
+            <div style={{ textAlign: "right" }}>Valor</div>
+            <div style={{ textAlign: "center" }}>Estado</div>
+            <div style={{ textAlign: "right", paddingRight: 8 }}>Acciones</div>
+          </div>
 
-                return (
-                  <tr key={promotion.id}>
-                    <td style={{ ...ui.td, fontWeight: 800, color: "#0f172a", whiteSpace: "normal", minWidth: 210 }}>
-                      <div>{promotion.name}</div>
-                      {promotion.description && <div style={styles.rowSubtext}>{promotion.description}</div>}
-                    </td>
-                    <td style={ui.td}>{typeLabel(promotion.promotionType.name)}</td>
-                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 800 }}>{formatPromotionValue(promotion)}</td>
-                    <td style={{ ...ui.td, color: "#64748b" }}>
-                      {fmtDate(promotion.startDate)} - {fmtDate(promotion.endDate)}
-                    </td>
-                    <td style={{ ...ui.td, whiteSpace: "normal", minWidth: 180 }}>
-                      <div style={{ fontWeight: 800 }}>{promotion.products.length} producto{promotion.products.length === 1 ? "" : "s"}</div>
-                      <div style={styles.rowSubtext}>{productSummary(promotion)}</div>
-                    </td>
-                    <td style={{ ...ui.td, textAlign: "center" }}>
-                      <Badge tone={status.tone}>{status.label}</Badge>
-                    </td>
-                    <td style={{ ...ui.td, textAlign: "center" }}>
-                      <div style={styles.actions}>
-                        <button style={ui.linkBtn} className="active-tap" disabled={busy} onClick={() => openDetail(promotion)}>
-                          <Eye size={14} style={styles.iconInline} /> Ver
-                        </button>
-                        <button style={ui.linkBtn} className="active-tap" disabled={busy} onClick={() => openEdit(promotion)}>
-                          <Pencil size={14} style={styles.iconInline} /> Editar
-                        </button>
-                        <button style={ui.linkBtn} className="active-tap" disabled={busy} onClick={() => openProductEditor(promotion)}>
-                          <PackagePlus size={14} style={styles.iconInline} /> Productos
-                        </button>
+          {loading && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              Cargando información...
+            </div>
+          )}
+          {!loading && error && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
+              {error}
+            </div>
+          )}
+          {!loading && !error && rows.length === 0 && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              {search.trim() ? "No hay promociones que coincidan con la búsqueda." : "No hay promociones registradas."}
+            </div>
+          )}
+
+          {!loading &&
+            !error &&
+            rows.map((promotion) => {
+              const status = getStatus(promotion);
+              const busy = loadingActionId === promotion.id;
+              const isExpanded = expandedPromotions[promotion.id];
+
+              return (
+                <div
+                  key={promotion.id}
+                  style={{
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 12,
+                    marginBottom: 10,
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* Header: Tipo de Promoción */}
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "8px 16px 6px 16px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "#64748b",
+                    borderBottom: "1px solid #f1f5f9",
+                    backgroundColor: "#f8fafc",
+                    letterSpacing: "0.2px",
+                  }}>
+                    <span>{typeLabel(promotion.promotionType.name).toUpperCase()}</span>
+                  </div>
+
+                  {/* Fila principal */}
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.6fr 0.8fr 0.8fr 0.8fr",
+                    padding: "12px 16px",
+                    alignItems: "center",
+                  }}>
+                    {/* Promoción (Nombre) */}
+                    <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {promotion.name}
+                    </div>
+
+                    {/* Valor */}
+                    <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", textAlign: "right" }}>
+                      {formatPromotionValue(promotion)}
+                    </div>
+
+                    {/* Estado */}
+                    <div style={{ textAlign: "center" }}>
+                      <Badge tone={status.tone}>
+                        {status.label}
+                      </Badge>
+                    </div>
+
+                    {/* Botones de Acción */}
+                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+                      {/* Ver */}
+                      <button
+                        onClick={() => openDetail(promotion)}
+                        disabled={busy}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#f1f5f9",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: 8,
+                          width: 34,
+                          height: 34,
+                          cursor: "pointer",
+                          color: "#475569",
+                          padding: 0,
+                          opacity: busy ? 0.55 : 1,
+                        }}
+                        className="active-tap"
+                        title="Ver detalle"
+                      >
+                        <Eye size={14} />
+                      </button>
+
+                      {/* Chevron */}
+                      <button
+                        onClick={() => toggleExpandPromotion(promotion.id)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#ffffff",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: 8,
+                          width: 34,
+                          height: 34,
+                          cursor: "pointer",
+                          color: "#64748b",
+                          padding: 0,
+                        }}
+                        className="active-tap"
+                      >
+                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Detalle expandido */}
+                  {isExpanded && (
+                    <div style={{
+                      padding: "16px",
+                      margin: "0 16px 16px 16px",
+                      backgroundColor: "#f8fafc",
+                      borderRadius: 8,
+                      border: "1px solid #e2e8f0",
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                      gap: 16,
+                      textAlign: "left",
+                    }}>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>ID de Promoción</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a" }}>{promotion.id}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Descripción</div>
+                        <div style={{ fontSize: 13, color: "#475569" }}>{promotion.description || "Sin descripción"}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Vigencia</div>
+                        <div style={{ fontSize: 13, color: "#475569", fontWeight: 700 }}>{fmtDate(promotion.startDate)} - {fmtDate(promotion.endDate)}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Cantidad de Productos</div>
+                        <div style={{ fontSize: 13, color: "#475569" }}>{promotion.products.length} producto{promotion.products.length === 1 ? "" : "s"}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Productos incluidos</div>
+                        <div style={{ fontSize: 13, color: "#475569" }}>{productSummary(promotion)}</div>
+                      </div>
+                      {promotion.minQuantity !== null && (
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Cantidad mínima</div>
+                          <div style={{ fontSize: 13, color: "#475569" }}>{promotion.minQuantity}</div>
+                        </div>
+                      )}
+                      {promotion.payQuantity !== null && (
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Cantidad a pagar</div>
+                          <div style={{ fontSize: 13, color: "#475569" }}>{promotion.payQuantity}</div>
+                        </div>
+                      )}
+                      {promotion.createdAt && (
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Fecha de creación</div>
+                          <div style={{ fontSize: 13, color: "#475569" }}>{fmtDate(promotion.createdAt)}</div>
+                        </div>
+                      )}
+                      {promotion.updatedAt && (
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Última actualización</div>
+                          <div style={{ fontSize: 13, color: "#475569" }}>{fmtDate(promotion.updatedAt)}</div>
+                        </div>
+                      )}
+
+                      {/* Acciones del desplegable */}
+                      <div style={{
+                        gridColumn: "1 / -1",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        marginTop: 8,
+                        borderTop: "1px solid #e2e8f0",
+                        paddingTop: 14,
+                        flexWrap: "wrap",
+                      }}>
+                        {/* Editar */}
                         <button
-                          style={{ ...ui.linkBtn, color: promotion.isActive ? "#b91c1c" : "#15803d", opacity: busy ? 0.55 : 1 }}
-                          className="active-tap"
+                          onClick={() => openEdit(promotion)}
                           disabled={busy}
-                          onClick={() => toggleStatus(promotion)}
+                          style={{
+                            ...ui.linkBtn,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            backgroundColor: "#eff6ff",
+                            border: "1px solid #bfdbfe",
+                            borderRadius: 8,
+                            padding: "8px 14px",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: "#1e3a8a",
+                            cursor: "pointer",
+                            opacity: busy ? 0.55 : 1,
+                          }}
+                          className="active-tap"
                         >
-                          <Power size={14} style={styles.iconInline} /> {promotion.isActive ? "Desactivar" : "Activar"}
+                          <Pencil size={13} /> Editar promoción
+                        </button>
+
+                        {/* Productos */}
+                        <button
+                          onClick={() => openProductEditor(promotion)}
+                          disabled={busy}
+                          style={{
+                            ...ui.linkBtn,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            backgroundColor: "#f5f3ff",
+                            border: "1px solid #ddd6fe",
+                            borderRadius: 8,
+                            padding: "8px 14px",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: "#6d28d9",
+                            cursor: "pointer",
+                            opacity: busy ? 0.55 : 1,
+                          }}
+                          className="active-tap"
+                        >
+                          <PackagePlus size={13} /> Productos
+                        </button>
+
+                        {/* Activar/Desactivar */}
+                        <button
+                          onClick={() => toggleStatus(promotion)}
+                          disabled={busy}
+                          style={{
+                            ...ui.linkBtn,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            backgroundColor: promotion.isActive ? "#fef2f2" : "#f0fdf4",
+                            border: `1px solid ${promotion.isActive ? "#fecaca" : "#bbf7d0"}`,
+                            borderRadius: 8,
+                            padding: "8px 14px",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: promotion.isActive ? "#b91c1c" : "#15803d",
+                            cursor: "pointer",
+                            opacity: busy ? 0.55 : 1,
+                          }}
+                          className="active-tap"
+                        >
+                          <Power size={13} /> {promotion.isActive ? "Desactivar" : "Activar"}
                         </button>
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-          </tbody>
-        </table>
-      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      ) : (
+        /* ── Desktop: Standard table ── */
+        <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
+          <table style={ui.table}>
+            <thead>
+              <tr style={ui.theadRow}>
+                <th style={ui.th}>Promocion</th>
+                <th style={ui.th}>Tipo</th>
+                <th style={{ ...ui.th, textAlign: "right" }}>Valor</th>
+                <th style={ui.th}>Vigencia</th>
+                <th style={ui.th}>Productos</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <TableState
+                colSpan={7}
+                loading={loading}
+                error={error}
+                empty={!loading && rows.length === 0}
+                emptyText={search.trim() ? "No hay promociones que coincidan con la busqueda." : "No hay promociones registradas."}
+              />
+              {!loading &&
+                !error &&
+                rows.map((promotion) => {
+                  const status = getStatus(promotion);
+                  const busy = loadingActionId === promotion.id;
+
+                  return (
+                    <tr key={promotion.id}>
+                      <td style={{ ...ui.td, fontWeight: 800, color: "#0f172a", whiteSpace: "normal", minWidth: 210 }}>
+                        <div>{promotion.name}</div>
+                        {promotion.description && <div style={styles.rowSubtext}>{promotion.description}</div>}
+                      </td>
+                      <td style={ui.td}>{typeLabel(promotion.promotionType.name)}</td>
+                      <td style={{ ...ui.td, textAlign: "right", fontWeight: 800 }}>{formatPromotionValue(promotion)}</td>
+                      <td style={{ ...ui.td, color: "#64748b" }}>
+                        {fmtDate(promotion.startDate)} - {fmtDate(promotion.endDate)}
+                      </td>
+                      <td style={{ ...ui.td, whiteSpace: "normal", minWidth: 180 }}>
+                        <div style={{ fontWeight: 800 }}>{promotion.products.length} producto{promotion.products.length === 1 ? "" : "s"}</div>
+                        <div style={styles.rowSubtext}>{productSummary(promotion)}</div>
+                      </td>
+                      <td style={{ ...ui.td, textAlign: "center" }}>
+                        <Badge tone={status.tone}>{status.label}</Badge>
+                      </td>
+                      <td style={{ ...ui.td, textAlign: "center" }}>
+                        <div style={styles.actions}>
+                          <button style={ui.linkBtn} className="active-tap" disabled={busy} onClick={() => openDetail(promotion)}>
+                            <Eye size={14} style={styles.iconInline} /> Ver
+                          </button>
+                          <button style={ui.linkBtn} className="active-tap" disabled={busy} onClick={() => openEdit(promotion)}>
+                            <Pencil size={14} style={styles.iconInline} /> Editar
+                          </button>
+                          <button style={ui.linkBtn} className="active-tap" disabled={busy} onClick={() => openProductEditor(promotion)}>
+                            <PackagePlus size={14} style={styles.iconInline} /> Productos
+                          </button>
+                          <button
+                            style={{ ...ui.linkBtn, color: promotion.isActive ? "#b91c1c" : "#15803d", opacity: busy ? 0.55 : 1 }}
+                            className="active-tap"
+                            disabled={busy}
+                            onClick={() => toggleStatus(promotion)}
+                          >
+                            <Power size={14} style={styles.iconInline} /> {promotion.isActive ? "Desactivar" : "Activar"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {editing !== null && (
         <div style={ui.overlay} onClick={closeForm}>
