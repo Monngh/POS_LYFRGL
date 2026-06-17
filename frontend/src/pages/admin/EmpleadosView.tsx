@@ -1,6 +1,9 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { X, Plus, Activity, Pencil } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Plus, Activity, Pencil } from "lucide-react";
 import api from "../../services/api";
+import { useAdminData } from "../../hooks";
+import { DataTable, ActionModal } from "../../components/common";
+import type { Column } from "../../components/common";
 import {
   collectRoundedDecimalMessages,
   DECIMAL_INPUT_REGEX,
@@ -82,13 +85,9 @@ type FormState = typeof emptyForm;
 type FieldErrors = Partial<Record<keyof FormState, string>>;
 
 const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
-  const [rows, setRows] = useState<EmployeeRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [role, setRole] = useState("all");
-
-  const [branches, setBranches] = useState<BranchOption[]>([]);
 
   // Alta / edición de empleado
   const [showForm, setShowForm] = useState(false);
@@ -103,33 +102,34 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [ops, setOps] = useState<Operations | null>(null);
   const [opsLoading, setOpsLoading] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await api.get<{ employees: EmployeeRow[] }>("/api/admin/employees", {
-        params: {
-          ...(branchId !== "all" ? { branchId } : {}),
-          ...(role !== "all" ? { role } : {}),
-          ...(search.trim() ? { search: search.trim() } : {}),
-        },
-      });
-      setRows(res.data.employees);
-    } catch (err: any) {
-      setError(err.response?.data?.message || "No se pudieron cargar los empleados.");
-    } finally {
-      setLoading(false);
-    }
-  }, [branchId, role, search, refreshToken]);
-
   useEffect(() => {
-    const t = setTimeout(load, 300);
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(t);
-  }, [load]);
+  }, [search]);
 
+  const employeeParams: Record<string, unknown> = {};
+  if (branchId !== "all") employeeParams.branchId = branchId;
+  if (role !== "all") employeeParams.role = role;
+  if (debouncedSearch.trim()) employeeParams.search = debouncedSearch.trim();
+
+  const { data, loading, error, refetch } = useAdminData<{ employees: EmployeeRow[] }>(
+    "/api/admin/employees",
+    { params: employeeParams }
+  );
+  const rows = data?.employees ?? [];
+
+  const { data: branchesData } = useAdminData<{ branches: BranchOption[] }>("/api/auth/branches");
+  const branches = branchesData?.branches ?? [];
+
+  const isFirstRender = useRef(true);
   useEffect(() => {
-    api.get<{ branches: BranchOption[] }>("/api/auth/branches").then((r) => setBranches(r.data.branches)).catch(() => {});
-  }, []);
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    refetch();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   const validateEmployeeForm = (candidate: FormState = form) => {
     const errors: FieldErrors = {};
@@ -282,7 +282,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setForm({ ...emptyForm });
       setEditingId(null);
       setFieldErrors({});
-      await load();
+      await refetch();
     } catch (err: any) {
       setFormError(err.response?.data?.message || "No se pudo guardar el empleado.");
     } finally {
@@ -350,6 +350,71 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     });
   };
 
+  // ---------------------------------------------------------------------------
+  // Columnas de la tabla principal
+  // ---------------------------------------------------------------------------
+  const columns: Column<EmployeeRow>[] = [
+    {
+      key: "name",
+      header: "Nombre",
+      render: (u) => (
+        <span style={{ fontWeight: 700, color: "#0f172a", whiteSpace: "normal" }}>{u.name}</span>
+      ),
+    },
+    {
+      key: "email",
+      header: "Correo",
+      render: (u) => <span style={{ color: "#475569" }}>{u.email}</span>,
+    },
+    {
+      key: "role",
+      header: "Rol",
+      align: "center",
+      render: (u) => <Badge tone={roleTone(u.role)}>{u.role}</Badge>,
+    },
+    {
+      key: "branch",
+      header: "Sucursal",
+    },
+    {
+      key: "active",
+      header: "Estado",
+      align: "center",
+      render: (u) => (
+        <Badge tone={u.active ? "green" : "red"}>{u.active ? "Activo" : "Inactivo"}</Badge>
+      ),
+    },
+    {
+      key: "createdAt",
+      header: "Alta",
+      render: (u) => <span style={{ color: "#64748b" }}>{fmtDate(u.createdAt)}</span>,
+    },
+    {
+      key: "ops",
+      header: "Operaciones",
+      align: "center",
+      render: (u) => (
+        <button style={ui.linkBtn} className="active-tap" onClick={() => openOps(u.id)}>
+          <Activity size={14} style={{ verticalAlign: "-2px" }} /> Ver
+        </button>
+      ),
+    },
+    {
+      key: "edit",
+      header: "",
+      align: "center",
+      render: (u) => (
+        <button
+          onClick={() => openEdit(u)}
+          style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 4, color: "#1e3a8a" }}
+          title="Editar empleado"
+        >
+          <Pencil size={14} />
+        </button>
+      ),
+    },
+  ];
+
   return (
     <div>
       <SectionHeader
@@ -379,261 +444,211 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         </span>
       </Toolbar>
 
-      <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-        <table style={ui.table}>
-          <thead>
-            <tr style={ui.theadRow}>
-              <th style={ui.th}>Nombre</th>
-              <th style={ui.th}>Correo</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Rol</th>
-              <th style={ui.th}>Sucursal</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-              <th style={ui.th}>Alta</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Operaciones</th>
-              <th style={{ ...ui.th, textAlign: "center" }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            <TableState colSpan={8} loading={loading} error={error} empty={!loading && rows.length === 0} />
-            {!loading &&
-              !error &&
-              rows.map((u) => (
-                <tr key={u.id}>
-                  <td style={{ ...ui.td, fontWeight: 700, color: "#0f172a", whiteSpace: "normal" }}>{u.name}</td>
-                  <td style={{ ...ui.td, color: "#475569" }}>{u.email}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <Badge tone={roleTone(u.role)}>{u.role}</Badge>
-                  </td>
-                  <td style={ui.td}>{u.branch}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <Badge tone={u.active ? "green" : "red"}>{u.active ? "Activo" : "Inactivo"}</Badge>
-                  </td>
-                  <td style={{ ...ui.td, color: "#64748b" }}>{fmtDate(u.createdAt)}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <button style={ui.linkBtn} className="active-tap" onClick={() => openOps(u.id)}>
-                      <Activity size={14} style={{ verticalAlign: "-2px" }} /> Ver
-                    </button>
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <button
-                      onClick={() => openEdit(u)}
-                      style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 4, color: "#1e3a8a" }}
-                      title="Editar empleado"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+      <div className="table-sticky-head">
+        <DataTable
+          columns={columns}
+          data={rows}
+          loading={loading}
+          error={error}
+          keyExtractor={(u) => u.id}
+        />
       </div>
 
       {/* Modal alta / edición de empleado */}
-      {showForm && (
-        <div style={ui.overlay} onClick={closeForm}>
-          <form style={ui.modal} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-            <div style={ui.modalHeader}>
-              <span style={ui.modalTitle}>{editingId !== null ? "Editar empleado" : "Registrar nuevo empleado"}</span>
-              <button type="button" style={ui.linkBtn} onClick={closeForm}>
-                <X size={18} color="#64748b" />
-              </button>
+      <ActionModal
+        isOpen={showForm}
+        onClose={closeForm}
+        title={editingId !== null ? "Editar empleado" : "Registrar nuevo empleado"}
+        size="md"
+      >
+        <form onSubmit={submit}>
+          <div style={{ marginBottom: 14 }}>
+            <label style={ui.fieldLabel}>Nombre completo *</label>
+            <input style={ui.input} value={form.name} onChange={set("name")} placeholder="Nombre del empleado" autoFocus />
+            {fieldErrors.name && <p style={styles.fieldError}>{fieldErrors.name}</p>}
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={ui.fieldLabel}>Correo electrónico *</label>
+            <input style={ui.input} value={form.email} onChange={set("email")} placeholder="correo@empresa.com" />
+            {fieldErrors.email && <p style={styles.fieldError}>{fieldErrors.email}</p>}
+          </div>
+
+          {/* Teléfono */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={ui.fieldLabel}>Teléfono</label>
+            <input style={ui.input} value={form.phone} onChange={set("phone")} placeholder="771 000 0000" />
+            {fieldErrors.phone && <p style={styles.fieldError}>{fieldErrors.phone}</p>}
+          </div>
+
+          {/* Sueldo base + % comisión */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+            <div>
+              <label style={ui.fieldLabel}>Sueldo base ($)</label>
+              <input style={ui.input} type="text" inputMode="decimal" value={form.baseSalary} onChange={setDecimal("baseSalary")} placeholder="0.00" />
+              {fieldErrors.baseSalary && <p style={styles.fieldError}>{fieldErrors.baseSalary}</p>}
             </div>
-            <div style={ui.modalBody}>
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Nombre completo *</label>
-                <input style={ui.input} value={form.name} onChange={set("name")} placeholder="Nombre del empleado" autoFocus />
-                {fieldErrors.name && <p style={styles.fieldError}>{fieldErrors.name}</p>}
-              </div>
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Correo electrónico *</label>
-                <input style={ui.input} value={form.email} onChange={set("email")} placeholder="correo@empresa.com" />
-                {fieldErrors.email && <p style={styles.fieldError}>{fieldErrors.email}</p>}
-              </div>
+            <div>
+              <label style={ui.fieldLabel}>% Comisión de ventas</label>
+              <input style={ui.input} type="text" inputMode="decimal" value={form.commissionRate} onChange={setDecimal("commissionRate")} placeholder="0.00" />
+              <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 3 }}>Ej: 2.5 para 2.5%</p>
+              {fieldErrors.commissionRate && <p style={styles.fieldError}>{fieldErrors.commissionRate}</p>}
+            </div>
+          </div>
 
-              {/* Teléfono */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Teléfono</label>
-                <input style={ui.input} value={form.phone} onChange={set("phone")} placeholder="771 000 0000" />
-                {fieldErrors.phone && <p style={styles.fieldError}>{fieldErrors.phone}</p>}
-              </div>
-
-              {/* Sueldo base + % comisión */}
+          {/* Solo en creación: rol, sucursal, contraseña, PIN */}
+          {editingId === null && (
+            <>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
                 <div>
-                  <label style={ui.fieldLabel}>Sueldo base ($)</label>
-                  <input style={ui.input} type="text" inputMode="decimal" value={form.baseSalary} onChange={setDecimal("baseSalary")} placeholder="0.00" />
-                  {fieldErrors.baseSalary && <p style={styles.fieldError}>{fieldErrors.baseSalary}</p>}
+                  <label style={ui.fieldLabel}>Rol *</label>
+                  <select style={ui.input} value={form.role} onChange={set("role")}>
+                    <option value="CAJERO">Cajero</option>
+                    <option value="GERENTE">Gerente</option>
+                    <option value="ADMIN">Administrador</option>
+                  </select>
+                  {fieldErrors.role && <p style={styles.fieldError}>{fieldErrors.role}</p>}
                 </div>
                 <div>
-                  <label style={ui.fieldLabel}>% Comisión de ventas</label>
-                  <input style={ui.input} type="text" inputMode="decimal" value={form.commissionRate} onChange={setDecimal("commissionRate")} placeholder="0.00" />
-                  <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 3 }}>Ej: 2.5 para 2.5%</p>
-                  {fieldErrors.commissionRate && <p style={styles.fieldError}>{fieldErrors.commissionRate}</p>}
+                  <label style={ui.fieldLabel}>Sucursal *</label>
+                  <select style={ui.input} value={form.branchId} onChange={set("branchId")}>
+                    <option value="">Seleccione...</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                  {fieldErrors.branchId && <p style={styles.fieldError}>{fieldErrors.branchId}</p>}
                 </div>
               </div>
-
-              {/* Solo en creación: rol, sucursal, contraseña, PIN */}
-              {editingId === null && (
-                <>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-                    <div>
-                      <label style={ui.fieldLabel}>Rol *</label>
-                      <select style={ui.input} value={form.role} onChange={set("role")}>
-                        <option value="CAJERO">Cajero</option>
-                        <option value="GERENTE">Gerente</option>
-                        <option value="ADMIN">Administrador</option>
-                      </select>
-                      {fieldErrors.role && <p style={styles.fieldError}>{fieldErrors.role}</p>}
-                    </div>
-                    <div>
-                      <label style={ui.fieldLabel}>Sucursal *</label>
-                      <select style={ui.input} value={form.branchId} onChange={set("branchId")}>
-                        <option value="">Seleccione...</option>
-                        {branches.map((b) => (
-                          <option key={b.id} value={b.id}>{b.name}</option>
-                        ))}
-                      </select>
-                      {fieldErrors.branchId && <p style={styles.fieldError}>{fieldErrors.branchId}</p>}
-                    </div>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 6 }}>
-                    <div>
-                      <label style={ui.fieldLabel}>Contraseña *</label>
-                      <input style={ui.input} type="password" value={form.password} onChange={set("password")} placeholder="Mínimo 6 caracteres" />
-                      {fieldErrors.password && <p style={styles.fieldError}>{fieldErrors.password}</p>}
-                    </div>
-                    <div>
-                      <label style={ui.fieldLabel}>PIN {form.role === "CAJERO" ? "(4 dígitos) *" : "(opcional)"}</label>
-                      <input style={ui.input} value={form.pinCode} onChange={set("pinCode")} maxLength={4} placeholder="0000" />
-                      {fieldErrors.pinCode && <p style={styles.fieldError}>{fieldErrors.pinCode}</p>}
-                    </div>
-                  </div>
-                  <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 8 }}>
-                    Los cajeros acceden con correo + PIN; administradores y gerentes con correo + contraseña.
-                  </p>
-                </>
-              )}
-
-              {/* Solo en edición: nuevo PIN + estado activo */}
-              {editingId !== null && (
-                <>
-                  <div style={{ marginBottom: 14 }}>
-                    <label style={ui.fieldLabel}>Nuevo PIN (dejar vacío para no cambiar)</label>
-                    <input style={ui.input} value={form.newPin} onChange={set("newPin")} maxLength={4} placeholder="0000" />
-                    {fieldErrors.newPin && <p style={styles.fieldError}>{fieldErrors.newPin}</p>}
-                    <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 3 }}>4 dígitos numéricos</p>
-                  </div>
-                  <div style={{ marginBottom: 14 }}>
-                    <label style={ui.fieldLabel}>Estado del empleado</label>
-                    <select
-                      style={ui.input}
-                      value={editActive ? "true" : "false"}
-                      onChange={(e) => setEditActive(e.target.value === "true")}
-                    >
-                      <option value="true">Activo</option>
-                      <option value="false">Inactivo (baja lógica)</option>
-                    </select>
-                  </div>
-                </>
-              )}
-
-              {formError && <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 10 }}>{formError}</p>}
-
-              <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-                <button type="button" style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={closeForm}>
-                  Cancelar
-                </button>
-                <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
-                  {saving ? "Guardando..." : editingId !== null ? "Actualizar empleado" : "Registrar empleado"}
-                </button>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 6 }}>
+                <div>
+                  <label style={ui.fieldLabel}>Contraseña *</label>
+                  <input style={ui.input} type="password" value={form.password} onChange={set("password")} placeholder="Mínimo 6 caracteres" />
+                  {fieldErrors.password && <p style={styles.fieldError}>{fieldErrors.password}</p>}
+                </div>
+                <div>
+                  <label style={ui.fieldLabel}>PIN {form.role === "CAJERO" ? "(4 dígitos) *" : "(opcional)"}</label>
+                  <input style={ui.input} value={form.pinCode} onChange={set("pinCode")} maxLength={4} placeholder="0000" />
+                  {fieldErrors.pinCode && <p style={styles.fieldError}>{fieldErrors.pinCode}</p>}
+                </div>
               </div>
-            </div>
-          </form>
-        </div>
-      )}
+              <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 8 }}>
+                Los cajeros acceden con correo + PIN; administradores y gerentes con correo + contraseña.
+              </p>
+            </>
+          )}
+
+          {/* Solo en edición: nuevo PIN + estado activo */}
+          {editingId !== null && (
+            <>
+              <div style={{ marginBottom: 14 }}>
+                <label style={ui.fieldLabel}>Nuevo PIN (dejar vacío para no cambiar)</label>
+                <input style={ui.input} value={form.newPin} onChange={set("newPin")} maxLength={4} placeholder="0000" />
+                {fieldErrors.newPin && <p style={styles.fieldError}>{fieldErrors.newPin}</p>}
+                <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 3 }}>4 dígitos numéricos</p>
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <label style={ui.fieldLabel}>Estado del empleado</label>
+                <select
+                  style={ui.input}
+                  value={editActive ? "true" : "false"}
+                  onChange={(e) => setEditActive(e.target.value === "true")}
+                >
+                  <option value="true">Activo</option>
+                  <option value="false">Inactivo (baja lógica)</option>
+                </select>
+              </div>
+            </>
+          )}
+
+          {formError && <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 10 }}>{formError}</p>}
+
+          <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+            <button type="button" style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={closeForm}>
+              Cancelar
+            </button>
+            <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
+              {saving ? "Guardando..." : editingId !== null ? "Actualizar empleado" : "Registrar empleado"}
+            </button>
+          </div>
+        </form>
+      </ActionModal>
 
       {/* Modal operaciones del vendedor */}
-      {(ops || opsLoading) && (
-        <div style={ui.overlay} onClick={() => setOps(null)}>
-          <div style={{ ...ui.modal, maxWidth: 600 }} onClick={(e) => e.stopPropagation()}>
-            <div style={ui.modalHeader}>
-              <span style={ui.modalTitle}>{opsLoading ? "Cargando operaciones..." : `Operaciones · ${ops?.employee.name}`}</span>
-              <button style={ui.linkBtn} onClick={() => setOps(null)}>
-                <X size={18} color="#64748b" />
-              </button>
+      <ActionModal
+        isOpen={!!(ops || opsLoading)}
+        onClose={() => setOps(null)}
+        title={opsLoading ? "Cargando operaciones..." : `Operaciones · ${ops?.employee.name ?? ""}`}
+        size="md"
+      >
+        {ops && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 18 }}>
+              <Mini label="Ventas" value={String(ops.summary.salesCount)} />
+              <Mini label="Total vendido" value={money(ops.summary.salesTotal)} />
+              <Mini label="Canceladas" value={String(ops.summary.cancelledCount)} />
+              <Mini label="Turnos" value={String(ops.summary.sessionsCount)} />
+              <Mini label="Depósitos" value={String(ops.summary.depositsCount)} />
+              <Mini label="Monto depósitos" value={money(ops.summary.depositsTotal)} />
+              {ops.summary.avgPerTicket !== undefined && (
+                <Mini label="Promedio por ticket" value={money(ops.summary.avgPerTicket)} accent="blue" />
+              )}
+              {ops.summary.estimatedCommission !== undefined && ops.summary.estimatedCommission > 0 && (
+                <Mini label="Comisión estimada" value={money(ops.summary.estimatedCommission)} accent="green" />
+              )}
             </div>
-            {ops && (
-              <div style={ui.modalBody}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 18 }}>
-                  <Mini label="Ventas" value={String(ops.summary.salesCount)} />
-                  <Mini label="Total vendido" value={money(ops.summary.salesTotal)} />
-                  <Mini label="Canceladas" value={String(ops.summary.cancelledCount)} />
-                  <Mini label="Turnos" value={String(ops.summary.sessionsCount)} />
-                  <Mini label="Depósitos" value={String(ops.summary.depositsCount)} />
-                  <Mini label="Monto depósitos" value={money(ops.summary.depositsTotal)} />
-                  {ops.summary.avgPerTicket !== undefined && (
-                    <Mini label="Promedio por ticket" value={money(ops.summary.avgPerTicket)} accent="blue" />
-                  )}
-                  {ops.summary.estimatedCommission !== undefined && ops.summary.estimatedCommission > 0 && (
-                    <Mini label="Comisión estimada" value={money(ops.summary.estimatedCommission)} accent="green" />
-                  )}
-                </div>
 
-                <h4 style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a", marginBottom: 8 }}>Últimas ventas</h4>
-                <div style={{ ...ui.tableWrap, boxShadow: "none", marginBottom: 18 }}>
-                <table style={ui.table}>
-                  <thead>
-                    <tr style={ui.theadRow}>
-                      <th style={ui.th}>Folio</th>
-                      <th style={ui.th}>Fecha</th>
-                      <th style={{ ...ui.th, textAlign: "right" }}>Total</th>
-                      <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+            <h4 style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a", marginBottom: 8 }}>Últimas ventas</h4>
+            <div style={{ ...ui.tableWrap, boxShadow: "none", marginBottom: 18 }}>
+              <table style={ui.table}>
+                <thead>
+                  <tr style={ui.theadRow}>
+                    <th style={ui.th}>Folio</th>
+                    <th style={ui.th}>Fecha</th>
+                    <th style={{ ...ui.th, textAlign: "right" }}>Total</th>
+                    <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ops.recentSales.length === 0 && <TableState colSpan={4} empty emptyText="Sin ventas registradas." />}
+                  {ops.recentSales.map((s) => (
+                    <tr key={s.id}>
+                      <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.invoiceNumber}</td>
+                      <td style={ui.td}>{fmtDate(s.createdAt)} {fmtTime(s.createdAt)}</td>
+                      <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{money(s.totalAmount)}</td>
+                      <td style={{ ...ui.td, textAlign: "center" }}><Badge tone={statusTone(s.status)}>{s.status}</Badge></td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {ops.recentSales.length === 0 && <TableState colSpan={4} empty emptyText="Sin ventas registradas." />}
-                    {ops.recentSales.map((s) => (
-                      <tr key={s.id}>
-                        <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.invoiceNumber}</td>
-                        <td style={ui.td}>{fmtDate(s.createdAt)} {fmtTime(s.createdAt)}</td>
-                        <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{money(s.totalAmount)}</td>
-                        <td style={{ ...ui.td, textAlign: "center" }}><Badge tone={statusTone(s.status)}>{s.status}</Badge></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                  ))}
+                </tbody>
+              </table>
 
-                <h4 style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a", marginBottom: 8 }}>Últimos turnos de caja</h4>
-                <table style={ui.table}>
-                  <thead>
-                    <tr style={ui.theadRow}>
-                      <th style={ui.th}>#</th>
-                      <th style={ui.th}>Apertura</th>
-                      <th style={{ ...ui.th, textAlign: "right" }}>Diferencia</th>
-                      <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+              <h4 style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a", marginBottom: 8 }}>Últimos turnos de caja</h4>
+              <table style={ui.table}>
+                <thead>
+                  <tr style={ui.theadRow}>
+                    <th style={ui.th}>#</th>
+                    <th style={ui.th}>Apertura</th>
+                    <th style={{ ...ui.th, textAlign: "right" }}>Diferencia</th>
+                    <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ops.recentSessions.length === 0 && <TableState colSpan={4} empty emptyText="Sin turnos registrados." />}
+                  {ops.recentSessions.map((s) => (
+                    <tr key={s.id}>
+                      <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.id}</td>
+                      <td style={ui.td}>{fmtDate(s.openedAt)} {fmtTime(s.openedAt)}</td>
+                      <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: s.difference && s.difference < 0 ? "#b91c1c" : "#334155" }}>
+                        {s.difference !== null ? money(s.difference) : "—"}
+                      </td>
+                      <td style={{ ...ui.td, textAlign: "center" }}><Badge tone={statusTone(s.status)}>{s.status}</Badge></td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {ops.recentSessions.length === 0 && <TableState colSpan={4} empty emptyText="Sin turnos registrados." />}
-                    {ops.recentSessions.map((s) => (
-                      <tr key={s.id}>
-                        <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.id}</td>
-                        <td style={ui.td}>{fmtDate(s.openedAt)} {fmtTime(s.openedAt)}</td>
-                        <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: s.difference && s.difference < 0 ? "#b91c1c" : "#334155" }}>
-                          {s.difference !== null ? money(s.difference) : "—"}
-                        </td>
-                        <td style={{ ...ui.td, textAlign: "center" }}><Badge tone={statusTone(s.status)}>{s.status}</Badge></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </ActionModal>
     </div>
   );
 };
