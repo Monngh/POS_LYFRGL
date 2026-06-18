@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from "react";
 import "../pos-cashier-responsive.css";
 import { useAuth } from "../context/AuthContext";
+import {
+  PriceLookupModal,
+  CancelSaleModal,
+  CloseOptionsModal,
+  PartialCutSummaryModal,
+} from "../components/pos";
 import api, { LONG_OPERATION_TIMEOUT } from "../services/api";
 import {
   printTicketElementById,
@@ -4471,149 +4477,31 @@ const Dashboard: React.FC = () => {
       {/* ========================================================================= */}
 
       {/* MODAL 1: CONSULTAR PRECIO / LOOKUP (Mockup 6) */}
-      {activeModal === "price-lookup" && (
-        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-          <div style={styles.lookupModal} className="pos-cashier-modal">
-            <h3 style={styles.modalTitle}>Búsqueda de productos:</h3>
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>Buscar:</label>
-              <input
-                type="text"
-                className="input-corporate"
-                placeholder="Nombre o id del producto"
-                value={lookupQuery}
-                onKeyDown={handleLookupKeyDown}
-                onChange={(e) => setLookupQuery(validateTextInput(e.target.value))}
-              />
-            </div>
-
-            <div style={{ maxHeight: "240px", overflowX: "auto", overflowY: "auto", marginTop: "14px", border: "1px solid #e2e8f0", borderRadius: "6px" }} className="pos-cashier-inline-table-scroll">
-              <table style={styles.table}>
-                <thead>
-                  <tr style={styles.tableHeaderRow}>
-                    <th style={styles.th}>Producto</th>
-                    <th style={styles.th}>Precio</th>
-                    <th style={styles.th}>Existencia</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lookupResults.map((p) => (
-                    <tr key={p.id} style={styles.tableRow}>
-                      <td style={styles.td}>{p.name}</td>
-                      <td style={styles.td}>${p.sellPrice.toFixed(2)}</td>
-                      <td style={styles.td}>{p.stock}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions">
-              <button onClick={handleCloseLookup} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
-                CANCELAR
-              </button>
-              <button onClick={handleCloseLookup} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
-                ACEPTAR
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PriceLookupModal
+        isOpen={activeModal === "price-lookup"}
+        onClose={handleCloseLookup}
+        lookupQuery={lookupQuery}
+        onQueryChange={(v) => setLookupQuery(validateTextInput(v))}
+        lookupResults={lookupResults}
+        onLookupKeyDown={handleLookupKeyDown}
+      />
 
       {/* MODAL: AUTORIZACIÓN PIN GERENTE/ADMIN PARA CARRITO (Fase 3.0) */}
       {renderCartAuthorizationModal()}
 
       {/* MODAL 2: SOLICITAR CANCELACIÓN CON PIN DE ADMIN (Mockup 1) */}
-      {activeModal === "cancel-sale" && (
-        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-          <div style={styles.cancelModal} className="pos-cashier-modal">
-            <h3 style={styles.modalTitle}>Cancelación Producto / Venta:</h3>
-            <form onSubmit={handleCancelSaleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "14px" }}>
-              <div style={styles.inputGroup}>
-                <label htmlFor="cancelInvoice" style={styles.label}>Folio de Venta (Invoice):</label>
-                <input
-                  id="cancelInvoice"
-                  type="text"
-                  required
-                  className="input-corporate"
-                  placeholder="V-XXXXXX"
-                  value={cancelInvoice}
-                  onChange={(e) => setCancelField("invoice", e.target.value)}
-                />
-                {cancelFieldErrors.invoice && <p style={styles.fieldError}>{cancelFieldErrors.invoice}</p>}
-              </div>
-
-              {cancelSalePreview && (
-                <div style={{
-                  backgroundColor: "#f8fafc",
-                  border: "1px dashed #cbd5e1",
-                  borderRadius: "6px",
-                  padding: "10px 12px",
-                  fontSize: "12px",
-                  color: "#334155",
-                  marginTop: "-4px"
-                }}>
-                  <div style={{ fontWeight: "700", marginBottom: "4px", color: "#1e3a8a" }}>
-                    Resumen de Venta Encontrada:
-                  </div>
-                  <div><strong>Fecha:</strong> {new Date(cancelSalePreview.createdAt).toLocaleString()}</div>
-                  <div><strong>Total:</strong> <span style={{ fontWeight: "700", color: "#b91c1c" }}>${cancelSalePreview.total.toFixed(2)}</span></div>
-                  <div><strong>Artículos:</strong> {cancelSalePreview.items.reduce((sum: number, item: any) => sum + item.quantity, 0)} pz</div>
-                  <div style={{ fontSize: "10px", marginTop: "4px", color: "#64748b", maxHeight: "60px", overflowY: "auto" }}>
-                    {cancelSalePreview.items.map((it: any) => `${it.product.name} (x${it.quantity})`).join(", ")}
-                  </div>
-                </div>
-              )}
-
-              <div style={styles.inputGroup}>
-                <label htmlFor="cancelPin" style={styles.label}>PIN de Autorización del Gerente:</label>
-                <input
-                  id="cancelPin"
-                  type="password"
-                  maxLength={4}
-                  required
-                  className="input-corporate"
-                  placeholder="PIN de 4 dígitos"
-                  value={cancelPin}
-                  onChange={(e) => setCancelField("pin", e.target.value)}
-                />
-                {cancelFieldErrors.pin && <p style={styles.fieldError}>{cancelFieldErrors.pin}</p>}
-              </div>
-
-              <div style={styles.inputGroup}>
-                <label htmlFor="cancelReason" style={styles.label}>Motivo de Cancelación:</label>
-                <input
-                  id="cancelReason"
-                  type="text"
-                  required
-                  className="input-corporate"
-                  placeholder="Ej. Producto equivocado, error de cobro"
-                  value={cancelReason}
-                  onChange={(e) => setCancelField("reason", e.target.value)}
-                />
-                {cancelFieldErrors.reason && <p style={styles.fieldError}>{cancelFieldErrors.reason}</p>}
-              </div>
-
-              <div style={{ display: "flex", gap: "10px", marginTop: "10px" }} className="pos-cashier-modal-actions">
-                <button
-                  type="button"
-                  onClick={handleCloseModal_cancelSale}
-                  style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
-                >
-                  VOLVER
-                </button>
-                <button
-                  type="submit"
-                  disabled={cancelLoading}
-                  style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
-                >
-                  {cancelLoading ? "Cancelando..." : "CANCELAR VENTA"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <CancelSaleModal
+        isOpen={activeModal === "cancel-sale"}
+        onClose={handleCloseModal_cancelSale}
+        cancelInvoice={cancelInvoice}
+        cancelPin={cancelPin}
+        cancelReason={cancelReason}
+        cancelFieldErrors={cancelFieldErrors}
+        cancelLoading={cancelLoading}
+        cancelSalePreview={cancelSalePreview}
+        onSetField={setCancelField}
+        onSubmit={handleCancelSaleSubmit}
+      />
 
       {/* MODAL 3: TICKET IMPRESO/PDF (Mockup 3) */}
       {activeModal === "ticket-view" && selectedSale && (
@@ -4894,133 +4782,22 @@ const Dashboard: React.FC = () => {
       )}
 
       {/* MODAL: OPCIONES DE CIERRE DE CAJA */}
-      {activeModal === "close-options" && (
-        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-          <div style={{ ...styles.closeModal, width: "400px" }} className="pos-cashier-modal">
-            <h3 style={styles.modalTitle}>Cierre de Caja</h3>
-            <p style={{ fontSize: "13px", color: "#64748b", margin: "8px 0 20px 0", textAlign: "center", lineHeight: "1.5" }}>
-              Seleccione la operación de caja que desea realizar:
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
-              <button
-                onClick={() => setActiveModal("partial-cut-summary")}
-                style={{
-                  padding: "14px",
-                  borderRadius: "8px",
-                  border: "1px solid #3b82f6",
-                  backgroundColor: "#eff6ff",
-                  color: "#1e3a8a",
-                  fontWeight: "700",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  transition: "all 0.15s ease",
-                  textAlign: "center"
-                }}
-                className="active-tap"
-              >
-                Corte Parcial (Cut de Caja)
-              </button>
-              <button
-                onClick={() => setActiveModal("close-cash")}
-                style={{
-                  padding: "14px",
-                  borderRadius: "8px",
-                  border: "none",
-                  backgroundColor: "#dc2626",
-                  color: "white",
-                  fontWeight: "700",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  transition: "all 0.15s ease",
-                  textAlign: "center"
-                }}
-                className="active-tap"
-              >
-                Cierre de Turno (Final)
-              </button>
-              <button
-                onClick={() => setActiveModal(null)}
-                style={{
-                  padding: "10px",
-                  borderRadius: "6px",
-                  border: "1px solid #cbd5e1",
-                  backgroundColor: "#ffffff",
-                  color: "#64748b",
-                  fontWeight: "700",
-                  cursor: "pointer",
-                  fontSize: "12px",
-                  textAlign: "center",
-                  marginTop: "8px"
-                }}
-              >
-                CANCELAR
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CloseOptionsModal
+        isOpen={activeModal === "close-options"}
+        onClose={() => setActiveModal(null)}
+        onPartialCut={() => setActiveModal("partial-cut-summary")}
+        onCloseCash={() => setActiveModal("close-cash")}
+      />
 
       {/* MODAL: CORTE PARCIAL (Resumen) */}
-      {activeModal === "partial-cut-summary" && (
-        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-          <div style={styles.closeModal} className="pos-cashier-modal">
-            <h3 style={styles.modalTitle}>Resumen de Corte Parcial:</h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "14px" }}>
-              <div style={styles.summaryRow}>
-                <span>Vendedor:</span>
-                <span style={{ fontWeight: "700" }}>{user?.name}</span>
-              </div>
-              <div style={styles.summaryRow}>
-                <span>Total Ventas Brutas:</span>
-                <span style={{ fontWeight: "600" }}>${sessionStats?.totalSalesAmount?.toFixed(2) || "0.00"}</span>
-              </div>
-              <div style={styles.summaryRow}>
-                <span>Total Efectivo:</span>
-                <span style={{ fontWeight: "600", color: "#059669" }}>${sessionStats?.cashTotal?.toFixed(2) || "0.00"}</span>
-              </div>
-              <div style={styles.summaryRow}>
-                <span>Total Tarjeta Crédito:</span>
-                <span style={{ fontWeight: "600", color: "#0d9488" }}>${sessionStats?.creditCardTotal?.toFixed(2) || "0.00"}</span>
-              </div>
-              <div style={styles.summaryRow}>
-                <span>Total Tarjeta Débito:</span>
-                <span style={{ fontWeight: "600", color: "#0d9488" }}>${sessionStats?.debitCardTotal?.toFixed(2) || "0.00"}</span>
-              </div>
-              <div style={styles.summaryRow}>
-                <span>Cancelaciones:</span>
-                <span style={{ fontWeight: "600", color: "#dc2626" }}>${sessionStats?.totalRefunds?.toFixed(2) || "0.00"}</span>
-              </div>
-              <div style={styles.summaryRow}>
-                <span>Devoluciones:</span>
-                <span style={{ fontWeight: "600", color: "#dc2626" }}>${sessionStats?.totalReturnsAmount?.toFixed(2) || "0.00"}</span>
-              </div>
-              <div style={{ ...styles.summaryRow, borderTop: "1px dashed #cbd5e1", paddingTop: "10px", paddingBottom: "10px" }}>
-                <span>Total Neto:</span>
-                <span style={{ fontWeight: "800", color: "#1e3a8a", fontSize: "16px" }}>
-                  ${sessionStats?.netTotal?.toFixed(2) || "0.00"}
-                </span>
-              </div>
-
-              <div style={{ display: "flex", gap: "10px", marginTop: "14px" }} className="pos-cashier-modal-actions">
-                <button 
-                  onClick={() => setActiveModal("close-options")} 
-                  style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
-                >
-                  VOLVER
-                </button>
-                <button
-                  disabled={partialCutLoading}
-                  onClick={handleSavePartialCut}
-                  style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
-                  className="active-tap"
-                >
-                  {partialCutLoading ? "Guardando..." : "GUARDAR CORTE"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <PartialCutSummaryModal
+        isOpen={activeModal === "partial-cut-summary"}
+        onBack={() => setActiveModal("close-options")}
+        onSave={handleSavePartialCut}
+        partialCutLoading={partialCutLoading}
+        sessionStats={sessionStats}
+        userName={user?.name}
+      />
 
       {/* MODAL: COMPROBANTE DE CORTE PARCIAL */}
       {activeModal === "partial-cut-receipt" && partialCutData && (
