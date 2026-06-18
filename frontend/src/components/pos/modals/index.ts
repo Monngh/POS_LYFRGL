@@ -2,3 +2,8 @@ export { default as PriceLookupModal } from "./PriceLookupModal";
 export { default as CancelSaleModal } from "./CancelSaleModal";
 export { default as CloseOptionsModal } from "./CloseOptionsModal";
 export { default as PartialCutSummaryModal } from "./PartialCutSummaryModal";
+export { default as TicketViewModal } from "./TicketViewModal";
+export { default as PartialCutReceiptModal } from "./PartialCutReceiptModal";
+export { default as CloseCashModal } from "./CloseCashModal";
+export { default as DepositReceiptModal } from "./DepositReceiptModal";
+export { default as CloseReceiptModal } from "./CloseReceiptModal";
