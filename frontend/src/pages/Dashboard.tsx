@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import "../pos-cashier-responsive.css";
 import { useAuth } from "../context/AuthContext";
 import {
+  AperturaView,
+  DashboardHomeView,
   PriceLookupModal,
   CancelSaleModal,
   CloseOptionsModal,
@@ -36,23 +38,16 @@ import {
   validateInteger,
   validateReference,
 } from "../utils/formValidation";
-import { 
-  LogOut, 
-  Store, 
-  Users, 
-  Plus, 
-  Minus, 
-  BadgePercent,
+import {
+  Store,
+  Plus,
+  Minus,
   Search,
   Printer,
   XCircle,
-  PiggyBank,
   AlertTriangle,
-  FileText,
-  RotateCcw,
   Mail,
   ArrowLeft,
-  MoreVertical
 } from "lucide-react";
 
 interface Product {
@@ -138,18 +133,19 @@ const Dashboard: React.FC = () => {
     setToast({ message, type });
   };
 
+  const sessionData = useCashSession({
+    user,
+    onToast: showToast,
+    onSetView: setView,
+    onSetLoading: setLoading,
+    onSetCajaLockedByOtherDevice: setCajaLockedByOtherDevice,
+    onSetActiveModal: setActiveModal,
+  });
   const {
     session,
     sessionStats,
     lastClosedStats,
     setLastClosedStats,
-    recentSales,
-    recentDeposits,
-    initialFund,
-    setInitialFund,
-    initialFundError,
-    setInitialFundError,
-    openingLoading,
     partialCutLoading,
     partialCutData,
     setPartialCutData,
@@ -160,17 +156,9 @@ const Dashboard: React.FC = () => {
     closingLoading,
     calculatedDifference,
     loadDashboardData,
-    handleOpenCash,
     handleCloseShift,
     handleSavePartialCut,
-  } = useCashSession({
-    user,
-    onToast: showToast,
-    onSetView: setView,
-    onSetLoading: setLoading,
-    onSetCajaLockedByOtherDevice: setCajaLockedByOtherDevice,
-    onSetActiveModal: setActiveModal,
-  });
+  } = sessionData;
 
   const {
     selectedCustomer,
@@ -1216,80 +1204,16 @@ const Dashboard: React.FC = () => {
   // ===========================================================================
   if (view === "apertura") {
     return (
-      <div style={styles.appContainer} className="pos-cashier-app">
-        {/* Navbar */}
-        <header style={styles.navbar} className="pos-cashier-navbar">
-          <div style={styles.navBrand}>
-            <Store size={22} color="#ffffff" />
-            <span style={styles.brandText} className="pos-cashier-brand-text">LYFRGL POS</span>
-          </div>
-          <button onClick={handleLogoutClick} style={styles.logoutBtn} className="active-tap pos-cashier-logout-btn">
-            <LogOut size={16} /> Salir
-          </button>
-        </header>
-
-        <div style={styles.mainLayout} className="pos-cashier-main-layout">
-          {/* Sidebar */}
-          <aside style={styles.sidebar} className="pos-cashier-sidebar">
-            <div style={styles.sidebarProfile} className="pos-cashier-sidebar-profile">
-              <div style={styles.avatarIcon}>
-                <Users size={24} color="#475569" />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <h4 style={styles.profileName}>
-                  {user?.name}
-                  <span style={{ fontSize: "11px", fontWeight: "normal", color: "#64748b", marginLeft: "8px", display: "inline-block" }}>
-                    {currentTime.toLocaleDateString()} {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </h4>
-                <p style={styles.profileBranch}>{user?.branch.name}</p>
-              </div>
-            </div>
-          </aside>
-
-          {/* Formulario Apertura Caja */}
-          <div style={styles.contentArea} className="pos-cashier-content">
-            <div style={styles.aperturaCard} className="pos-cashier-apertura-card">
-              <h3 style={styles.cardMainTitle}>APERTURA DE CAJA</h3>
-              <p style={{ fontSize: "14px", color: "#64748b", marginBottom: "20px" }}>Establezca el fondo de caja inicial para comenzar el turno.</p>
-              
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>FONDO INICIAL ($)</label>
-                <input
-                  type="text"
-                  className="input-corporate"
-                  style={{ fontSize: "20px", fontWeight: "700", textAlign: "center", padding: "12px" }}
-                  value={initialFund}
-                  inputMode="decimal"
-                  onChange={(e) => {
-                    const rawValue = e.target.value.trim();
-                    if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
-                      setInitialFundError("El fondo inicial debe ser un monto valido con maximo 3 decimales.");
-                      return;
-                    }
-                    handleDecimalInputChange(rawValue, (value) => {
-                    setInitialFund(value);
-                    setInitialFundError("");
-                    });
-                  }}
-                />
-                {initialFundError && <p style={styles.fieldError}>{initialFundError}</p>}
-              </div>
-
-              <button
-                onClick={handleOpenCash}
-                disabled={openingLoading}
-                className="btn-primary active-tap"
-                style={{ ...styles.submitBtn, width: "100%", marginTop: "24px" }}
-              >
-                {openingLoading ? "Abriendo Caja..." : "ABRIR TURNO ➜"}
-              </button>
-            </div>
-          </div>
-        </div>
+      <>
+        <AperturaView
+          sessionData={sessionData}
+          user={user}
+          currentTime={currentTime}
+          onLogout={handleLogoutClick}
+        />
         {renderDashboardTicketLoading()}
         {renderToast()}
-      </div>
+      </>
     );
   }
 
@@ -2727,404 +2651,25 @@ const Dashboard: React.FC = () => {
   // RENDER D: DASHBOARD PRINCIPAL DEL CAJERO (Mockup 7)
   // ===========================================================================
   return (
-    <div style={styles.appContainer} className="pos-cashier-app">
-      <style>{TICKET_PRINT_MEDIA_STYLES}</style>
-      {/* Navbar */}
-      <header style={styles.navbar} className="pos-cashier-navbar">
-        <div style={styles.navBrand}>
-          <Store size={22} color="#ffffff" />
-          <span style={styles.brandText} className="pos-cashier-brand-text">POS - PUNTO DE VENTA</span>
-        </div>
-        <button onClick={handleLogoutClick} style={styles.logoutBtn} className="active-tap pos-cashier-logout-btn">
-          <LogOut size={16} /> Cerrar Sesión
-        </button>
-      </header>
-
-      <div style={styles.mainLayout} className="pos-cashier-main-layout">
-        {/* Sidebar */}
-        <aside style={styles.sidebar} className="pos-cashier-sidebar">
-          <div style={styles.sidebarProfile} className="pos-cashier-sidebar-profile">
-            <div style={styles.avatarCircle}>
-              <Users size={22} color="#ffffff" />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <h4 style={styles.profileName}>
-                {user?.name}
-                <span style={{ fontSize: "11px", fontWeight: "normal", color: "#64748b", marginLeft: "8px", display: "inline-block" }}>
-                  {currentTime.toLocaleDateString()} {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </h4>
-              <p style={styles.profileBranch}>{user?.branch.name}</p>
-            </div>
-          </div>
-        </aside>
-
-        {/* Content Area */}
-        <div style={styles.contentArea} className="pos-cashier-content">
-          {/* Alerta de Límite de Efectivo en Caja Chica (Fase 3.0) */}
-          {sessionStats && sessionStats.expectedAmount > 5000 && (
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "12px",
-              backgroundColor: "#fffbeb",
-              border: "1px solid #fef3c7",
-              borderRadius: "8px",
-              padding: "12px 16px",
-              marginBottom: "16px",
-              color: "#b45309"
-            }} className="pos-cashier-cash-alert">
-              <AlertTriangle size={20} color="#d97706" />
-              <div style={{ flex: 1 }}>
-                <strong style={{ fontSize: "14px", fontWeight: "700" }}>⚠️ Alerta de Efectivo en Caja Chica</strong>
-                <p style={{ fontSize: "12px", margin: "2px 0 0 0", color: "#b45309" }}>
-                  El efectivo actual en caja (${sessionStats.expectedAmount.toFixed(2)} MXN) supera el límite establecido de $5,000.00 MXN. 
-                  Por favor, registre un <strong>Depósito Bancario (Cash Drop)</strong> para retirar el excedente.
-                </p>
-              </div>
-              <button 
-                onClick={() => setActiveModal("bank-deposit")}
-                style={{
-                  backgroundColor: "#d97706",
-                  color: "#ffffff",
-                  border: "none",
-                  borderRadius: "4px",
-                  padding: "6px 12px",
-                  fontSize: "12px",
-                  fontWeight: "700",
-                  cursor: "pointer",
-                  transition: "background-color 0.15s ease"
-                }}
-                className="active-tap pos-cashier-cash-alert-btn"
-              >
-                DEPOSITAR AHORA
-              </button>
-            </div>
-          )}
-
-          {/* Tarjetas Superiores Estatus (Mockup 7) */}
-          <div style={styles.statsGrid} className="pos-cashier-stats-grid">
-            <div style={styles.statusCard}>
-              <span style={styles.cardHeaderLabel}>CAJA ESTATUS</span>
-              <h3 style={{ fontSize: "20px", fontWeight: "800", color: "#059669", marginTop: "4px" }}>ABIERTA</h3>
-            </div>
-            <div style={styles.statusCard}>
-              <span style={styles.cardHeaderLabel}>TOTAL VENDIDO</span>
-              <h3 style={{ fontSize: "20px", fontWeight: "800", color: "#0f172a", marginTop: "4px" }}>
-                ${sessionStats?.totalSalesAmount.toFixed(2) || "0.00"}
-              </h3>
-            </div>
-            <div style={styles.statusCard}>
-              <span style={styles.cardHeaderLabel}>VENTAS REALIZADAS</span>
-              <h3 style={{ fontSize: "20px", fontWeight: "800", color: "#0f172a", marginTop: "4px" }}>
-                {sessionStats?.salesCount || 0} ventas
-              </h3>
-            </div>
-            <div style={styles.statusCard}>
-              <span style={styles.cardHeaderLabel}>FONDO INICIAL</span>
-              <h3 style={{ fontSize: "20px", fontWeight: "800", color: "#475569", marginTop: "4px" }}>
-                ${sessionStats?.initialAmount.toFixed(2) || "0.00"}
-              </h3>
-            </div>
-            <div style={styles.statusCard}>
-              <span style={styles.cardHeaderLabel}>EFECTIVO ESPERADO</span>
-              <h3 style={{ fontSize: "20px", fontWeight: "800", color: "#1e3a8a", marginTop: "4px" }}>
-                ${sessionStats?.expectedAmount.toFixed(2) || "0.00"}
-              </h3>
-            </div>
-            <div style={styles.statusCard}>
-              <span style={styles.cardHeaderLabel}>TURNO INICIADO</span>
-              <h3 style={{ fontSize: "16px", fontWeight: "800", color: "#475569", marginTop: "6px" }}>
-                {session?.openedAt ? new Date(session.openedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "8:00 am"}
-              </h3>
-            </div>
-          </div>
-
-          {/* ACCIONES RÁPIDAS (Mockup 7) */}
-          <div style={{ marginTop: "24px" }}>
-            <h4 style={styles.sectionSubtitle}>ACCIONES RÁPIDAS</h4>
-            <div style={styles.actionsGrid} className="pos-cashier-actions-grid">
-              <button onClick={handleNuevaVenta} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
-                <BadgePercent size={28} color="#1e3a8a" />
-                <span>Nueva Venta</span>
-              </button>
-              <button onClick={() => setActiveModal("price-lookup")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
-                <Search size={28} color="#1e3a8a" />
-                <span>Consultar precio</span>
-              </button>
-              <button onClick={() => setActiveModal("ticket-history")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
-                <Printer size={28} color="#1e3a8a" />
-                <span>Reimprimir ticket</span>
-              </button>
-              <button onClick={() => setActiveModal("cancel-sale")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
-                <XCircle size={28} color="#1e3a8a" />
-                <span>Solicitar Cancelación</span>
-              </button>
-              <button onClick={() => setActiveModal("close-options")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
-                <Store size={28} color="#dc2626" />
-                <span>Cerrar Caja</span>
-              </button>
-              <button onClick={() => setActiveModal("bank-deposit")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
-                <PiggyBank size={28} color="#0d9488" />
-                <span>Depósito Banco</span>
-              </button>
-              <button onClick={() => setActiveModal("returns")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
-                <RotateCcw size={28} color="#dc2626" />
-                <span>Devoluciones</span>
-              </button>
-              <button onClick={() => window.open("/autofacturacion", "_blank")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
-                <FileText size={28} color="#0d9488" />
-                <span>Autofacturación</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Tablas Inferiores (Mockup 7) */}
-          <div style={styles.tablesGrid} className="pos-cashier-tables-grid">
-            {/* Últimas Ventas */}
-            <div className="card-premium pos-cashier-table-card" style={styles.tableCard}>
-              <h4 style={styles.tableCardTitle}>ÚLTIMAS VENTAS</h4>
-              <div style={{ overflowY: "auto", flex: 1, marginTop: "12px" }} className="pos-cashier-table-scroll pos-cashier-table-scroll--dashboard-sales">
-                <table style={styles.table}>
-                  <thead>
-                    <tr style={styles.tableHeaderRow}>
-                      <th style={styles.th}>FOLIO</th>
-                      <th style={styles.th}>HORA</th>
-                      <th style={styles.th}>TOTAL</th>
-                      <th style={styles.th}>PAGO</th>
-                      <th style={styles.th}>CAJERO</th>
-                      <th style={styles.th}>ESTADO</th>
-                      <th style={styles.th} className="pos-cashier-responsive-menu-head">MAS</th>
-                      <th style={styles.th}>ACCIÓN</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentSales.map((sale) => {
-                      const isExpanded = expandedSalesRows.has(sale.id);
-                      return (
-                        <React.Fragment key={sale.id}>
-                          <tr 
-                            style={styles.tableRow}
-                            className={isExpanded ? "pos-cashier-table-row-expanded" : ""}
-                          >
-                            <td data-label="Folio" style={{ ...styles.td, fontWeight: "600" }}>{sale.invoiceNumber}</td>
-                            <td data-label="Hora" style={styles.td}>
-                              {new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </td>
-                            <td data-label="Total" style={{ ...styles.td, fontWeight: "700" }}>${sale.totalAmount.toFixed(2)}</td>
-                            <td data-label="Pago" style={styles.td}>{sale.paymentMethod}</td>
-                            <td data-label="Cajero" style={styles.td}>{sale.cajero}</td>
-                            <td data-label="Estado" style={styles.td}>
-                              <span style={{
-                                color: sale.status === "CANCELADA" ? "#dc2626" : "#059669",
-                                fontWeight: "700",
-                                fontSize: "12px"
-                              }}>
-                                {sale.status === "CANCELADA" ? "Cancelado" : "Activo"}
-                              </span>
-                            </td>
-                            <td data-label="Acción" style={styles.td}>
-                              <button
-                                onClick={() => handleOpenDashboardSaleTicket(sale)}
-                                disabled={dashboardTicketLoadingId === sale.id}
-                                style={{ ...styles.actionLink, opacity: dashboardTicketLoadingId === sale.id ? 0.65 : 1 }}
-                              >
-                                Ver Ticket v
-                              </button>
-                              <button
-                                onClick={() => toggleSalesRow(sale.id)}
-                                className="pos-cashier-table-expand-btn"
-                              >
-                                {isExpanded ? "Ocultar detalles" : "Ver detalles"}
-                              </button>
-                            </td>
-                            <td style={styles.td} className="pos-cashier-responsive-menu-cell">
-                              <button
-                                type="button"
-                                className="pos-cashier-kebab-btn"
-                                aria-label="Opciones de venta"
-                                onClick={() => setOpenDashboardTableMenu(openDashboardTableMenu === `sale-${sale.id}` ? null : `sale-${sale.id}`)}
-                              >
-                                <MoreVertical size={18} />
-                              </button>
-                              {openDashboardTableMenu === `sale-${sale.id}` && (
-                                <div className="pos-cashier-row-menu">
-                                  <button
-                                    type="button"
-                                    disabled={dashboardTicketLoadingId === sale.id}
-                                    onClick={() => handleOpenDashboardSaleTicket(sale)}
-                                  >
-                                    Ver Ticket
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      toggleSalesRow(sale.id);
-                                      setOpenDashboardTableMenu(null);
-                                    }}
-                                  >
-                                    {isExpanded ? "Ocultar detalles" : "Ver mas detalles"}
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                          {/* Fila de detalles adicionales para responsive */}
-                          <tr className="pos-cashier-table-details-row">
-                            <td colSpan={8} style={{ padding: 0 }}>
-                              <div className="pos-cashier-table-details">
-                                <div className="pos-cashier-table-details-content">
-                                  <span className="pos-cashier-table-details-label">PAGO:</span>
-                                  <span className="pos-cashier-table-details-value">{sale.paymentMethod}</span>
-                                </div>
-                                <div className="pos-cashier-table-details-content">
-                                  <span className="pos-cashier-table-details-label">CAJERO:</span>
-                                  <span className="pos-cashier-table-details-value">{sale.cajero}</span>
-                                </div>
-                                <div className="pos-cashier-table-details-content pos-cashier-sale-status-detail">
-                                  <span className="pos-cashier-table-details-label">ESTADO:</span>
-                                  <span className="pos-cashier-table-details-value">{sale.status === "CANCELADA" ? "Cancelado" : "Activo"}</span>
-                                </div>
-                                <div className="pos-cashier-table-details-content">
-                                  <span className="pos-cashier-table-details-label">ACCIÓN:</span>
-                                  <span className="pos-cashier-table-details-value">
-                                    <button
-                                      onClick={async () => {
-                                        try {
-                                          const res = await api.get(`/api/sales/detail?id=${sale.id}`);
-                                          setSelectedSale({
-                                            ...res.data.sale,
-                                            refundStatus: sale.refundStatus,
-                                            isNewSale: false
-                                          });
-                                          setActiveModal("ticket-view");
-                                        } catch (e: any) {
-                                          showToast(e.response?.data?.message || "Error al recuperar los detalles de la venta.", "error");
-                                        }
-                                      }}
-                                      style={styles.actionLink}
-                                    >
-                                      Ver Ticket v
-                                    </button>
-                                  </span>
-                                </div>
-                                <button
-                                  onClick={() => toggleSalesRow(sale.id)}
-                                  className="pos-cashier-table-expand-btn"
-                                >
-                                  {isExpanded ? "▲ Ocultar detalles" : "▼ Ver detalles"}
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        </React.Fragment>
-                      );
-                    })}
-                    {recentSales.length === 0 && (
-                      <tr>
-                        <td colSpan={7} style={{ textAlign: "center", padding: "24px 12px", color: "#64748b", fontSize: "13px" }}>
-                          Aún no tienes ventas registradas en este turno.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Solicitudes de Cancelación / Historial de depósitos */}
-            <div className="card-premium pos-cashier-table-card" style={styles.tableCard}>
-              <h4 style={styles.tableCardTitle}>HISTORIAL DE DEPÓSITOS BANCARIOS</h4>
-              <div style={{ overflowY: "auto", flex: 1, marginTop: "12px" }} className="pos-cashier-table-scroll pos-cashier-table-scroll--deposits pos-cashier-table-scroll--dashboard-deposits">
-                <table style={styles.table}>
-                  <thead>
-                    <tr style={styles.tableHeaderRow}>
-                      <th style={styles.th}>CUENTA TARGET</th>
-                      <th style={styles.th}>BENEFICIARIO</th>
-                      <th style={styles.th}>MONTO</th>
-                      <th style={styles.th} className="pos-cashier-responsive-menu-head">MAS</th>
-                      <th style={styles.th}>ESTADO</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentDeposits.map((dep) => {
-                      const isExpanded = expandedDepositRows.has(dep.id);
-                      return (
-                        <React.Fragment key={dep.id}>
-                          <tr 
-                            style={styles.tableRow}
-                            className={isExpanded ? "pos-cashier-table-row-expanded" : ""}
-                          >
-                            <td data-label="Cuenta" style={styles.td}>**** **** **** {dep.accountNumber.slice(-4)}</td>
-                            <td data-label="Beneficiario" style={styles.td}>{dep.targetName}</td>
-                            <td data-label="Monto" style={{ ...styles.td, fontWeight: "700", color: "#dc2626" }}>-${dep.amount.toFixed(2)}</td>
-                            <td data-label="Estado" style={styles.td}>
-                              <span style={styles.badgeSuccess}>Exitoso</span>
-                              <button
-                                onClick={() => toggleDepositRow(dep.id)}
-                                className="pos-cashier-table-expand-btn"
-                              >
-                                {isExpanded ? "Ocultar detalles" : "Ver detalles"}
-                              </button>
-                            </td>
-                            <td style={styles.td} className="pos-cashier-responsive-menu-cell">
-                              <button
-                                type="button"
-                                className="pos-cashier-kebab-btn"
-                                aria-label="Opciones de deposito"
-                                onClick={() => setOpenDashboardTableMenu(openDashboardTableMenu === `deposit-${dep.id}` ? null : `deposit-${dep.id}`)}
-                              >
-                                <MoreVertical size={18} />
-                              </button>
-                              {openDashboardTableMenu === `deposit-${dep.id}` && (
-                                <div className="pos-cashier-row-menu">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      toggleDepositRow(dep.id);
-                                      setOpenDashboardTableMenu(null);
-                                    }}
-                                  >
-                                    {isExpanded ? "Ocultar detalles" : "Ver mas detalles"}
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                          {/* Fila de detalles adicionales para responsive */}
-                          <tr className="pos-cashier-table-details-row">
-                            <td colSpan={5} style={{ padding: 0 }}>
-                              <div className="pos-cashier-table-details">
-                                <div className="pos-cashier-table-details-content">
-                                  <span className="pos-cashier-table-details-label">ESTADO:</span>
-                                  <span className="pos-cashier-table-details-value">Exitoso</span>
-                                </div>
-                                <button
-                                  onClick={() => toggleDepositRow(dep.id)}
-                                  className="pos-cashier-table-expand-btn"
-                                >
-                                  {isExpanded ? "▲ Ocultar detalles" : "▼ Ver detalles"}
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        </React.Fragment>
-                      );
-                    })}
-                    {recentDeposits.length === 0 && (
-                      <tr>
-                        <td colSpan={5} style={{ textAlign: "center", padding: "20px", color: "#64748b" }}>
-                          No hay depósitos bancarios registrados en este turno.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <>
+      <DashboardHomeView
+        sessionData={sessionData}
+        user={user}
+        currentTime={currentTime}
+        onOpenModal={setActiveModal}
+        onLogout={handleLogoutClick}
+        onNuevaVenta={handleNuevaVenta}
+        openDashboardTableMenu={openDashboardTableMenu}
+        onSetOpenDashboardTableMenu={setOpenDashboardTableMenu}
+        expandedSalesRows={expandedSalesRows}
+        onToggleSalesRow={toggleSalesRow}
+        expandedDepositRows={expandedDepositRows}
+        onToggleDepositRow={toggleDepositRow}
+        dashboardTicketLoadingId={dashboardTicketLoadingId}
+        onOpenDashboardSaleTicket={handleOpenDashboardSaleTicket}
+        onSetSelectedSale={setSelectedSale}
+        onToast={showToast}
+      />
 
       {/* ========================================================================= */}
       {/* CAPA DE MODALES GLOBALES DE ACCIONES RÁPIDAS */}
@@ -3495,7 +3040,7 @@ const Dashboard: React.FC = () => {
       {renderTicketEmailModal()}
       {renderDashboardTicketLoading()}
       {renderToast()}
-    </div>
+    </>
   );
 };
 
