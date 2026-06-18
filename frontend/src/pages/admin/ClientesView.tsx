@@ -366,7 +366,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
       <Toolbar>
         <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre, RFC, correo o teléfono" />
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b", fontWeight: 600 }}>
+        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
           {rows.length} cliente{rows.length === 1 ? "" : "s"}
         </span>
       </Toolbar>
@@ -381,7 +381,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
             padding: "12px 16px",
             fontWeight: 700,
             fontSize: 11,
-            color: "#64748b",
+            color: "var(--text-muted)",
             textTransform: "uppercase",
             letterSpacing: "0.4px",
           }}>
@@ -392,12 +392,12 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
           </div>
 
           {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
             </div>
           )}
           {!loading && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               No hay clientes registrados.
             </div>
           )}
@@ -409,8 +409,8 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <div
                   key={c.id}
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e2e8f0",
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border)",
                     borderRadius: 12,
                     marginBottom: 10,
                     boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
@@ -425,9 +425,9 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     padding: "8px 16px 6px 16px",
                     fontSize: 11,
                     fontWeight: 700,
-                    color: "#64748b",
-                    borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "#f8fafc",
+                    color: "var(--text-muted)",
+                    borderBottom: "1px solid var(--surface-3)",
+                    backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
                     <span>{c.name.toUpperCase()}</span>
@@ -442,17 +442,17 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     alignItems: "center",
                   }}>
                     {/* Saldo */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: c.balance > 0 ? "#b91c1c" : "#334155" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: c.balance > 0 ? "#b91c1c" : "var(--text-secondary)" }}>
                       {money(c.balance)}
                     </div>
 
                     {/* Compras */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", textAlign: "center" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "center" }}>
                       {c.salesCount}
                     </div>
 
                     {/* Contacto */}
-                    <div style={{ fontSize: 12, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {c.phone || c.email || "—"}
                     </div>
 
@@ -471,7 +471,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#1e3a8a",
+                          color: "var(--accent-strong)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -487,13 +487,13 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#ffffff",
-                          border: "1px solid #cbd5e1",
+                          backgroundColor: "var(--surface)",
+                          border: "1px solid var(--border-strong)",
                           borderRadius: 8,
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#64748b",
+                          color: "var(--text-muted)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -508,9 +508,9 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     <div style={{
                       padding: "16px",
                       margin: "0 16px 16px 16px",
-                      backgroundColor: "#f8fafc",
+                      backgroundColor: "var(--surface-2)",
                       borderRadius: "8px",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--border)",
                       display: "grid",
                       gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
                       gap: "16px",
@@ -518,7 +518,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     }}>
                       {/* Datos Fiscales */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Datos CFDI</h4>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Datos CFDI</h4>
                         <div style={cliDetailRow}>
                           <span style={cliDetailLabel}>RFC:</span>
                           <span style={{ ...cliDetailValue, fontFamily: "monospace" }}>{c.taxId || "—"}</span>
@@ -539,7 +539,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
                       {/* Información de Contacto */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Contacto y Alta</h4>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Contacto y Alta</h4>
                         <div style={cliDetailRow}>
                           <span style={cliDetailLabel}>Correo:</span>
                           <span style={cliDetailValue}>{c.email || "—"}</span>
@@ -560,14 +560,14 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
                       {/* Límites de Crédito */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Crédito y Historial</h4>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Crédito y Historial</h4>
                         <div style={cliDetailRow}>
                           <span style={cliDetailLabel}>Límite Crédito:</span>
                           <span style={cliDetailValue}>{money(c.creditLimit)}</span>
                         </div>
                         <div style={cliDetailRow}>
                           <span style={cliDetailLabel}>Saldo Actual:</span>
-                          <span style={{ ...cliDetailValue, color: c.balance > 0 ? "#b91c1c" : "#334155" }}>{money(c.balance)}</span>
+                          <span style={{ ...cliDetailValue, color: c.balance > 0 ? "#b91c1c" : "var(--text-secondary)" }}>{money(c.balance)}</span>
                         </div>
                         <div style={cliDetailRow}>
                           <span style={cliDetailLabel}>Compras:</span>
@@ -603,33 +603,33 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                 !error &&
                 rows.map((c) => (
                   <tr key={c.id}>
-                    <td style={{ ...ui.td, fontWeight: 700, color: "#0f172a", whiteSpace: "normal" }}>{c.name}</td>
-                    <td style={{ ...ui.td, color: "#64748b", fontFamily: "monospace", fontSize: 12 }}>{c.taxId || "—"}</td>
+                    <td style={{ ...ui.td, fontWeight: 700, color: "var(--text)", whiteSpace: "normal" }}>{c.name}</td>
+                    <td style={{ ...ui.td, color: "var(--text-muted)", fontFamily: "monospace", fontSize: 12 }}>{c.taxId || "—"}</td>
                     <td style={{ ...ui.td, whiteSpace: "normal", fontSize: 12 }}>
                       {c.zipCode || c.taxRegime || c.cfdiUse ? (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 1, color: "#475569" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 1, color: "var(--text-secondary)" }}>
                           {c.zipCode && <span>CP: {c.zipCode}</span>}
                           {c.taxRegime && <span>Rég: {c.taxRegime}</span>}
                           {c.cfdiUse && <span>CFDI: {c.cfdiUse}</span>}
                         </div>
                       ) : (
-                        <span style={{ color: "#cbd5e1" }}>—</span>
+                        <span style={{ color: "var(--border-strong)" }}>—</span>
                       )}
                     </td>
                     <td style={{ ...ui.td, whiteSpace: "normal" }}>
                       <div>{c.email || "—"}</div>
-                      <div style={{ fontSize: 11, color: "#94a3b8" }}>{c.phone || ""}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{c.phone || ""}</div>
                     </td>
                     <td style={{ ...ui.td, textAlign: "right" }}>{money(c.creditLimit)}</td>
-                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: c.balance > 0 ? "#b91c1c" : "#334155" }}>
+                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: c.balance > 0 ? "#b91c1c" : "var(--text-secondary)" }}>
                       {money(c.balance)}
                     </td>
                     <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{c.salesCount}</td>
-                    <td style={{ ...ui.td, color: "#64748b" }}>{fmtDate(c.createdAt)}</td>
+                    <td style={{ ...ui.td, color: "var(--text-muted)" }}>{fmtDate(c.createdAt)}</td>
                     <td style={{ ...ui.td, textAlign: "center" }}>
                       <button
                         onClick={() => openEdit(c)}
-                        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 4, color: "#1e3a8a" }}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 4, color: "var(--accent-strong)" }}
                         title="Editar cliente"
                       >
                         <Pencil size={14} />
@@ -715,8 +715,8 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
               </div>
 
               {/* Sección CFDI */}
-              <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "12px 14px", backgroundColor: "#f8fafc", marginBottom: 8 }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: "#1e3a8a", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "12px 14px", backgroundColor: "var(--surface-2)", marginBottom: 8 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: "var(--accent-strong)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   Datos CFDI 4.0
                 </p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -774,14 +774,14 @@ const cliDetailRow: React.CSSProperties = {
 
 const cliDetailLabel: React.CSSProperties = {
   fontWeight: 700,
-  color: "#64748b",
+  color: "var(--text-muted)",
   minWidth: "95px",
   display: "inline-block",
 };
 
 const cliDetailValue: React.CSSProperties = {
   fontWeight: 600,
-  color: "#334155",
+  color: "var(--text-secondary)",
 };
 
 export default ClientesView;

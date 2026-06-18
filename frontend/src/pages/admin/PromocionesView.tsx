@@ -247,7 +247,7 @@ const ProductSelector: React.FC<{
                       aria-label={`Seleccionar ${product.name}`}
                     />
                   </td>
-                  <td style={{ ...ui.td, fontWeight: 800, color: "#1e3a8a" }}>{product.sku}</td>
+                  <td style={{ ...ui.td, fontWeight: 800, color: "var(--accent-strong)" }}>{product.sku}</td>
                   <td style={{ ...ui.td, whiteSpace: "normal", fontWeight: 700 }}>{product.name}</td>
                   <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(Number(product.sellPrice))}</td>
                 </tr>
@@ -782,7 +782,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
             padding: "12px 16px",
             fontWeight: 700,
             fontSize: 11,
-            color: "#64748b",
+            color: "var(--text-muted)",
             textTransform: "uppercase",
             letterSpacing: "0.4px",
           }}>
@@ -793,7 +793,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
           </div>
 
           {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
             </div>
           )}
@@ -803,7 +803,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
             </div>
           )}
           {!loading && !error && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               {search.trim() ? "No hay promociones que coincidan con la búsqueda." : "No hay promociones registradas."}
             </div>
           )}
@@ -819,8 +819,8 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <div
                   key={promotion.id}
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e2e8f0",
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border)",
                     borderRadius: 12,
                     marginBottom: 10,
                     boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
@@ -835,9 +835,9 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     padding: "8px 16px 6px 16px",
                     fontSize: 11,
                     fontWeight: 700,
-                    color: "#64748b",
-                    borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "#f8fafc",
+                    color: "var(--text-muted)",
+                    borderBottom: "1px solid var(--surface-3)",
+                    backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
                     <span>{typeLabel(promotion.promotionType.name).toUpperCase()}</span>
@@ -851,12 +851,12 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     alignItems: "center",
                   }}>
                     {/* Promoción (Nombre) */}
-                    <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {promotion.name}
                     </div>
 
                     {/* Valor */}
-                    <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", textAlign: "right" }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text)", textAlign: "right" }}>
                       {formatPromotionValue(promotion)}
                     </div>
 
@@ -877,13 +877,13 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#f1f5f9",
-                          border: "1px solid #cbd5e1",
+                          backgroundColor: "var(--surface-3)",
+                          border: "1px solid var(--border-strong)",
                           borderRadius: 8,
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#475569",
+                          color: "var(--text-secondary)",
                           padding: 0,
                           opacity: busy ? 0.55 : 1,
                         }}
@@ -900,13 +900,13 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#ffffff",
-                          border: "1px solid #cbd5e1",
+                          backgroundColor: "var(--surface)",
+                          border: "1px solid var(--border-strong)",
                           borderRadius: 8,
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#64748b",
+                          color: "var(--text-muted)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -921,56 +921,56 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     <div style={{
                       padding: "16px",
                       margin: "0 16px 16px 16px",
-                      backgroundColor: "#f8fafc",
+                      backgroundColor: "var(--surface-2)",
                       borderRadius: 8,
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--border)",
                       display: "grid",
                       gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
                       gap: 16,
                       textAlign: "left",
                     }}>
                       <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>ID de Promoción</div>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a" }}>{promotion.id}</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>ID de Promoción</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)" }}>{promotion.id}</div>
                       </div>
                       <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Descripción</div>
-                        <div style={{ fontSize: 13, color: "#475569" }}>{promotion.description || "Sin descripción"}</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Descripción</div>
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{promotion.description || "Sin descripción"}</div>
                       </div>
                       <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Vigencia</div>
-                        <div style={{ fontSize: 13, color: "#475569", fontWeight: 700 }}>{fmtDate(promotion.startDate)} - {fmtDate(promotion.endDate)}</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Vigencia</div>
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 700 }}>{fmtDate(promotion.startDate)} - {fmtDate(promotion.endDate)}</div>
                       </div>
                       <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Cantidad de Productos</div>
-                        <div style={{ fontSize: 13, color: "#475569" }}>{promotion.products.length} producto{promotion.products.length === 1 ? "" : "s"}</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Cantidad de Productos</div>
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{promotion.products.length} producto{promotion.products.length === 1 ? "" : "s"}</div>
                       </div>
                       <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Productos incluidos</div>
-                        <div style={{ fontSize: 13, color: "#475569" }}>{productSummary(promotion)}</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Productos incluidos</div>
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{productSummary(promotion)}</div>
                       </div>
                       {promotion.minQuantity !== null && (
                         <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Cantidad mínima</div>
-                          <div style={{ fontSize: 13, color: "#475569" }}>{promotion.minQuantity}</div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Cantidad mínima</div>
+                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{promotion.minQuantity}</div>
                         </div>
                       )}
                       {promotion.payQuantity !== null && (
                         <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Cantidad a pagar</div>
-                          <div style={{ fontSize: 13, color: "#475569" }}>{promotion.payQuantity}</div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Cantidad a pagar</div>
+                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{promotion.payQuantity}</div>
                         </div>
                       )}
                       {promotion.createdAt && (
                         <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Fecha de creación</div>
-                          <div style={{ fontSize: 13, color: "#475569" }}>{fmtDate(promotion.createdAt)}</div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Fecha de creación</div>
+                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmtDate(promotion.createdAt)}</div>
                         </div>
                       )}
                       {promotion.updatedAt && (
                         <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Última actualización</div>
-                          <div style={{ fontSize: 13, color: "#475569" }}>{fmtDate(promotion.updatedAt)}</div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Última actualización</div>
+                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmtDate(promotion.updatedAt)}</div>
                         </div>
                       )}
 
@@ -981,7 +981,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                         alignItems: "center",
                         gap: 12,
                         marginTop: 8,
-                        borderTop: "1px solid #e2e8f0",
+                        borderTop: "1px solid var(--border)",
                         paddingTop: 14,
                         flexWrap: "wrap",
                       }}>
@@ -1000,7 +1000,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                             padding: "8px 14px",
                             fontSize: 12,
                             fontWeight: 700,
-                            color: "#1e3a8a",
+                            color: "var(--accent-strong)",
                             cursor: "pointer",
                             opacity: busy ? 0.55 : 1,
                           }}
@@ -1094,13 +1094,13 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
                   return (
                     <tr key={promotion.id}>
-                      <td style={{ ...ui.td, fontWeight: 800, color: "#0f172a", whiteSpace: "normal", minWidth: 210 }}>
+                      <td style={{ ...ui.td, fontWeight: 800, color: "var(--text)", whiteSpace: "normal", minWidth: 210 }}>
                         <div>{promotion.name}</div>
                         {promotion.description && <div style={styles.rowSubtext}>{promotion.description}</div>}
                       </td>
                       <td style={ui.td}>{typeLabel(promotion.promotionType.name)}</td>
                       <td style={{ ...ui.td, textAlign: "right", fontWeight: 800 }}>{formatPromotionValue(promotion)}</td>
-                      <td style={{ ...ui.td, color: "#64748b" }}>
+                      <td style={{ ...ui.td, color: "var(--text-muted)" }}>
                         {fmtDate(promotion.startDate)} - {fmtDate(promotion.endDate)}
                       </td>
                       <td style={{ ...ui.td, whiteSpace: "normal", minWidth: 180 }}>
@@ -1300,7 +1300,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     <div key={row.productId} style={styles.assignedRow}>
                       <span style={styles.sku}>{row.product?.sku ?? `#${row.productId}`}</span>
                       <span style={{ fontWeight: 800 }}>{row.product?.name ?? `Producto #${row.productId}`}</span>
-                      <span style={{ marginLeft: "auto", color: "#64748b" }}>
+                      <span style={{ marginLeft: "auto", color: "var(--text-muted)" }}>
                         {row.product ? moneyExact(Number(row.product.sellPrice)) : ""}
                       </span>
                     </div>
@@ -1355,13 +1355,13 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   metricMuted: {
     fontSize: 13,
-    color: "#64748b",
+    color: "var(--text-muted)",
     fontWeight: 700,
   },
   resultCount: {
     marginLeft: "auto",
     fontSize: 13,
-    color: "#64748b",
+    color: "var(--text-muted)",
     fontWeight: 600,
   },
   notice: {
@@ -1375,7 +1375,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: "10px 12px",
   },
   rowSubtext: {
-    color: "#64748b",
+    color: "var(--text-muted)",
     fontSize: 12,
     fontWeight: 600,
     marginTop: 3,
@@ -1399,7 +1399,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     alignItems: "center",
     gap: 10,
-    color: "#334155",
+    color: "var(--text-secondary)",
     cursor: "pointer",
     fontSize: 13,
     fontWeight: 700,
@@ -1409,27 +1409,27 @@ const styles: { [key: string]: React.CSSProperties } = {
   check: {
     width: 16,
     height: 16,
-    accentColor: "#1e3a8a",
+    accentColor: "var(--accent-strong)",
     cursor: "pointer",
   },
   productPicker: {
-    border: "1px solid #e2e8f0",
+    border: "1px solid var(--border)",
     borderRadius: 8,
     overflow: "hidden",
-    backgroundColor: "#ffffff",
+    backgroundColor: "var(--surface)",
   },
   productPickerTop: {
     display: "flex",
     alignItems: "center",
     gap: 10,
     padding: 10,
-    borderBottom: "1px solid #e2e8f0",
-    backgroundColor: "#f8fafc",
+    borderBottom: "1px solid var(--border)",
+    backgroundColor: "var(--surface-2)",
     flexWrap: "wrap",
   },
   selectedCount: {
     marginLeft: "auto",
-    color: "#1e3a8a",
+    color: "var(--accent-strong)",
     fontSize: 12,
     fontWeight: 800,
   },
@@ -1443,7 +1443,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   productEmpty: {
     textAlign: "center",
     padding: "22px 14px",
-    color: "#94a3b8",
+    color: "var(--text-faint)",
     fontSize: 13,
     fontWeight: 600,
   },
@@ -1475,7 +1475,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   detailLabel: {
     display: "block",
-    color: "#64748b",
+    color: "var(--text-muted)",
     fontSize: 11,
     fontWeight: 800,
     letterSpacing: "0.4px",
@@ -1483,14 +1483,14 @@ const styles: { [key: string]: React.CSSProperties } = {
     textTransform: "uppercase",
   },
   detailDescription: {
-    color: "#475569",
+    color: "var(--text-secondary)",
     fontSize: 13,
     fontWeight: 600,
     lineHeight: 1.55,
     marginTop: 18,
   },
   assignedList: {
-    border: "1px solid #e2e8f0",
+    border: "1px solid var(--border)",
     borderRadius: 8,
     overflow: "hidden",
   },
@@ -1498,15 +1498,15 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     alignItems: "center",
     gap: 10,
-    borderBottom: "1px solid #f1f5f9",
-    color: "#334155",
+    borderBottom: "1px solid var(--surface-3)",
+    color: "var(--text-secondary)",
     fontSize: 13,
     padding: "10px 12px",
   },
   sku: {
     backgroundColor: "#eff6ff",
     borderRadius: 6,
-    color: "#1e3a8a",
+    color: "var(--accent-strong)",
     fontSize: 11,
     fontWeight: 800,
     padding: "3px 7px",
@@ -1515,7 +1515,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     flexDirection: "column",
     gap: 4,
-    color: "#0f172a",
+    color: "var(--text)",
     fontSize: 14,
     marginBottom: 14,
   },

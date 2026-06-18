@@ -385,7 +385,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             { value: "CAJERO", label: "Cajeros" },
           ]}
         />
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b", fontWeight: 600 }}>
+        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
           {rows.length} empleado{rows.length === 1 ? "" : "s"}
         </span>
       </Toolbar>
@@ -400,7 +400,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             padding: "12px 16px",
             fontWeight: 700,
             fontSize: 11,
-            color: "#64748b",
+            color: "var(--text-muted)",
             textTransform: "uppercase",
             letterSpacing: "0.4px",
           }}>
@@ -411,7 +411,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           </div>
 
           {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
             </div>
           )}
@@ -421,7 +421,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </div>
           )}
           {!loading && !error && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               No hay empleados registrados.
             </div>
           )}
@@ -434,8 +434,8 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <div
                   key={u.id}
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e2e8f0",
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border)",
                     borderRadius: 12,
                     marginBottom: 10,
                     boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
@@ -450,9 +450,9 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     padding: "8px 16px 6px 16px",
                     fontSize: 11,
                     fontWeight: 700,
-                    color: "#64748b",
-                    borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "#f8fafc",
+                    color: "var(--text-muted)",
+                    borderBottom: "1px solid var(--surface-3)",
+                    backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
                     <span>{u.name.toUpperCase()}</span>
@@ -467,7 +467,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     alignItems: "center",
                   }}>
                     {/* Sucursal */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)" }}>
                       {u.branch}
                     </div>
 
@@ -498,7 +498,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#1e3a8a",
+                          color: "var(--accent-strong)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -514,13 +514,13 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#ffffff",
-                          border: "1px solid #cbd5e1",
+                          backgroundColor: "var(--surface)",
+                          border: "1px solid var(--border-strong)",
                           borderRadius: 8,
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#64748b",
+                          color: "var(--text-muted)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -535,9 +535,9 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <div style={{
                       padding: "16px",
                       margin: "0 16px 16px 16px",
-                      backgroundColor: "#f8fafc",
+                      backgroundColor: "var(--surface-2)",
                       borderRadius: "8px",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--border)",
                       display: "grid",
                       gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
                       gap: "16px",
@@ -545,7 +545,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     }}>
                       {/* Información de Contacto */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Contacto y Registro</h4>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Contacto y Registro</h4>
                         <div style={empDetailRow}>
                           <span style={empDetailLabel}>Correo:</span>
                           <span style={empDetailValue}>{u.email}</span>
@@ -562,7 +562,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                       {/* Configuración Salarial */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Sueldo y Comisiones</h4>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Sueldo y Comisiones</h4>
                         <div style={empDetailRow}>
                           <span style={empDetailLabel}>Sueldo base:</span>
                           <span style={empDetailValue}>
@@ -604,8 +604,8 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 !error &&
                 rows.map((u) => (
                   <tr key={u.id}>
-                    <td style={{ ...ui.td, fontWeight: 700, color: "#0f172a", whiteSpace: "normal" }}>{u.name}</td>
-                    <td style={{ ...ui.td, color: "#475569" }}>{u.email}</td>
+                    <td style={{ ...ui.td, fontWeight: 700, color: "var(--text)", whiteSpace: "normal" }}>{u.name}</td>
+                    <td style={{ ...ui.td, color: "var(--text-secondary)" }}>{u.email}</td>
                     <td style={{ ...ui.td, textAlign: "center" }}>
                       <Badge tone={roleTone(u.role)}>{u.role}</Badge>
                     </td>
@@ -613,7 +613,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <td style={{ ...ui.td, textAlign: "center" }}>
                       <Badge tone={u.active ? "green" : "red"}>{u.active ? "Activo" : "Inactivo"}</Badge>
                     </td>
-                    <td style={{ ...ui.td, color: "#64748b" }}>{fmtDate(u.createdAt)}</td>
+                    <td style={{ ...ui.td, color: "var(--text-muted)" }}>{fmtDate(u.createdAt)}</td>
                     <td style={{ ...ui.td, textAlign: "center" }}>
                       <button style={ui.linkBtn} className="active-tap" onClick={() => openOps(u.id)}>
                         <Activity size={14} style={{ verticalAlign: "-2px" }} /> Ver
@@ -622,7 +622,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <td style={{ ...ui.td, textAlign: "center" }}>
                       <button
                         onClick={() => openEdit(u)}
-                        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 4, color: "#1e3a8a" }}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 4, color: "var(--accent-strong)" }}
                         title="Editar empleado"
                       >
                         <Pencil size={14} />
@@ -674,7 +674,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <div>
                   <label style={ui.fieldLabel}>% Comisión de ventas</label>
                   <input style={ui.input} type="text" inputMode="decimal" value={form.commissionRate} onChange={setDecimal("commissionRate")} placeholder="0.00" />
-                  <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 3 }}>Ej: 2.5 para 2.5%</p>
+                  <p style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 3 }}>Ej: 2.5 para 2.5%</p>
                   {fieldErrors.commissionRate && <p style={styles.fieldError}>{fieldErrors.commissionRate}</p>}
                 </div>
               </div>
@@ -715,7 +715,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       {fieldErrors.pinCode && <p style={styles.fieldError}>{fieldErrors.pinCode}</p>}
                     </div>
                   </div>
-                  <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 8 }}>
+                  <p style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 8 }}>
                     Los cajeros acceden con correo + PIN; administradores y gerentes con correo + contraseña.
                   </p>
                 </>
@@ -728,7 +728,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <label style={ui.fieldLabel}>Nuevo PIN (dejar vacío para no cambiar)</label>
                     <input style={ui.input} value={form.newPin} onChange={set("newPin")} maxLength={4} placeholder="0000" />
                     {fieldErrors.newPin && <p style={styles.fieldError}>{fieldErrors.newPin}</p>}
-                    <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 3 }}>4 dígitos numéricos</p>
+                    <p style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 3 }}>4 dígitos numéricos</p>
                   </div>
                   <div style={{ marginBottom: 14 }}>
                     <label style={ui.fieldLabel}>Estado del empleado</label>
@@ -798,18 +798,18 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   )}
                 </div>
 
-                <h4 style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a", marginBottom: 8 }}>Últimas ventas</h4>
+                <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)", marginBottom: 8 }}>Últimas ventas</h4>
                 {isMobile ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18, overflowY: "auto", maxHeight: 220, paddingRight: 4 }}>
                     {ops.recentSales.length === 0 ? (
-                      <p style={{ textAlign: "center", color: "#94a3b8", fontSize: 13, padding: 12 }}>Sin ventas registradas.</p>
+                      <p style={{ textAlign: "center", color: "var(--text-faint)", fontSize: 13, padding: 12 }}>Sin ventas registradas.</p>
                     ) : (
                       ops.recentSales.map((s) => (
                         <div
                           key={s.id}
                           style={{
-                            backgroundColor: "#ffffff",
-                            border: "1px solid #e2e8f0",
+                            backgroundColor: "var(--surface)",
+                            border: "1px solid var(--border)",
                             borderRadius: 10,
                             padding: "10px 14px",
                             display: "flex",
@@ -818,12 +818,12 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           }}
                         >
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontWeight: 700, color: "#1e3a8a", fontSize: 13 }}>{s.invoiceNumber}</span>
+                            <span style={{ fontWeight: 700, color: "var(--accent-strong)", fontSize: 13 }}>{s.invoiceNumber}</span>
                             <Badge tone={statusTone(s.status)}>{s.status}</Badge>
                           </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#475569" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }}>
                             <span>{fmtDate(s.createdAt)} {fmtTime(s.createdAt)}</span>
-                            <span style={{ fontWeight: 700, color: "#0f172a" }}>{money(s.totalAmount)}</span>
+                            <span style={{ fontWeight: 700, color: "var(--text)" }}>{money(s.totalAmount)}</span>
                           </div>
                         </div>
                       ))
@@ -844,7 +844,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         {ops.recentSales.length === 0 && <TableState colSpan={4} empty emptyText="Sin ventas registradas." />}
                         {ops.recentSales.map((s) => (
                           <tr key={s.id}>
-                            <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.invoiceNumber}</td>
+                            <td style={{ ...ui.td, fontWeight: 700, color: "var(--accent-strong)" }}>{s.invoiceNumber}</td>
                             <td style={ui.td}>{fmtDate(s.createdAt)} {fmtTime(s.createdAt)}</td>
                             <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{money(s.totalAmount)}</td>
                             <td style={{ ...ui.td, textAlign: "center" }}><Badge tone={statusTone(s.status)}>{s.status}</Badge></td>
@@ -855,18 +855,18 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   </div>
                 )}
 
-                <h4 style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a", marginBottom: 8 }}>Últimos turnos de caja</h4>
+                <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)", marginBottom: 8 }}>Últimos turnos de caja</h4>
                 {isMobile ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, overflowY: "auto", maxHeight: 220, paddingRight: 4 }}>
                     {ops.recentSessions.length === 0 ? (
-                      <p style={{ textAlign: "center", color: "#94a3b8", fontSize: 13, padding: 12 }}>Sin turnos registrados.</p>
+                      <p style={{ textAlign: "center", color: "var(--text-faint)", fontSize: 13, padding: 12 }}>Sin turnos registrados.</p>
                     ) : (
                       ops.recentSessions.map((s) => (
                         <div
                           key={s.id}
                           style={{
-                            backgroundColor: "#ffffff",
-                            border: "1px solid #e2e8f0",
+                            backgroundColor: "var(--surface)",
+                            border: "1px solid var(--border)",
                             borderRadius: 10,
                             padding: "10px 14px",
                             display: "flex",
@@ -875,12 +875,12 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           }}
                         >
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontWeight: 700, color: "#1e3a8a", fontSize: 13 }}>Turno #{s.id}</span>
+                            <span style={{ fontWeight: 700, color: "var(--accent-strong)", fontSize: 13 }}>Turno #{s.id}</span>
                             <Badge tone={statusTone(s.status)}>{s.status}</Badge>
                           </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#475569" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }}>
                             <span>{fmtDate(s.openedAt)} {fmtTime(s.openedAt)}</span>
-                            <span style={{ fontWeight: 700, color: s.difference && s.difference < 0 ? "#b91c1c" : "#334155" }}>
+                            <span style={{ fontWeight: 700, color: s.difference && s.difference < 0 ? "#b91c1c" : "var(--text-secondary)" }}>
                               {s.difference !== null ? money(s.difference) : "—"}
                             </span>
                           </div>
@@ -903,9 +903,9 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         {ops.recentSessions.length === 0 && <TableState colSpan={4} empty emptyText="Sin turnos registrados." />}
                         {ops.recentSessions.map((s) => (
                           <tr key={s.id}>
-                            <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.id}</td>
+                            <td style={{ ...ui.td, fontWeight: 700, color: "var(--accent-strong)" }}>{s.id}</td>
                             <td style={ui.td}>{fmtDate(s.openedAt)} {fmtTime(s.openedAt)}</td>
-                            <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: s.difference && s.difference < 0 ? "#b91c1c" : "#334155" }}>
+                            <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: s.difference && s.difference < 0 ? "#b91c1c" : "var(--text-secondary)" }}>
                               {s.difference !== null ? money(s.difference) : "—"}
                             </td>
                             <td style={{ ...ui.td, textAlign: "center" }}><Badge tone={statusTone(s.status)}>{s.status}</Badge></td>
@@ -944,14 +944,14 @@ const empDetailRow: React.CSSProperties = {
 
 const empDetailLabel: React.CSSProperties = {
   fontWeight: 700,
-  color: "#64748b",
+  color: "var(--text-muted)",
   minWidth: "95px",
   display: "inline-block",
 };
 
 const empDetailValue: React.CSSProperties = {
   fontWeight: 600,
-  color: "#334155",
+  color: "var(--text-secondary)",
 };
 
 const Mini: React.FC<{ label: string; value: string; accent?: "blue" | "green" }> = ({ label, value, accent }) => {
@@ -959,10 +959,10 @@ const Mini: React.FC<{ label: string; value: string; accent?: "blue" | "green" }
     blue: { background: "#eff6ff", borderLeft: "4px solid #60a5fa" },
     green: { background: "#f0fdf4", borderLeft: "4px solid #4ade80" },
   };
-  const valueColor = accent === "blue" ? "#2563eb" : accent === "green" ? "#16a34a" : "#0f172a";
+  const valueColor = accent === "blue" ? "#2563eb" : accent === "green" ? "#16a34a" : "var(--text)";
   return (
-    <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 12px", ...(accent ? accentStyles[accent] : {}) }}>
-      <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>{label}</div>
+    <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "10px 12px", ...(accent ? accentStyles[accent] : {}) }}>
+      <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>{label}</div>
       <div style={{ fontSize: 18, fontWeight: 800, color: valueColor, marginTop: 3 }}>{value}</div>
     </div>
   );

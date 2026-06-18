@@ -175,7 +175,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
         
         {/* PANEL DE CONFIGURACIÓN */}
         <Panel style={{ padding: 20 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 800, color: "#1e3a8a", marginBottom: 16 }}>Configurar Factura Global</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--accent-strong)", marginBottom: 16 }}>Configurar Factura Global</h3>
           
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
@@ -277,7 +277,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                     href={`${api.defaults.baseURL}/api/public/sales/invoice/${stampResult.cfdiUuid}/xml`}
                     target="_blank"
                     rel="noreferrer"
-                    style={{ ...downloadBtn, backgroundColor: "#0f172a" }}
+                    style={{ ...downloadBtn, backgroundColor: "var(--text)" }}
                   >
                     Descargar XML
                   </a>
@@ -298,7 +298,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
 
           {/* RESUMEN DE VENTAS */}
           <Panel style={{ padding: 20 }}>
-            <h3 style={{ fontSize: 15, fontWeight: 800, color: "#0f172a", marginBottom: 14 }}>Resumen de Lote a Facturar</h3>
+            <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--text)", marginBottom: 14 }}>Resumen de Lote a Facturar</h3>
             
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 16 }}>
               <div style={kpiWrap}>
@@ -315,13 +315,13 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
               </div>
             </div>
 
-            <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: 16, marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+            <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
               <button
                 onClick={handleStampGlobal}
                 disabled={tickets.length === 0 || stamping}
                 style={{
                   ...ui.primaryBtn,
-                  backgroundColor: stamping ? "#94a3b8" : "#1e3a8a",
+                  backgroundColor: stamping ? "var(--text-faint)" : "var(--accent-strong)",
                   opacity: tickets.length === 0 ? 0.6 : 1,
                   cursor: tickets.length === 0 ? "not-allowed" : "pointer"
                 }}
@@ -333,8 +333,8 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
 
           {/* LISTADO DE TICKETS A INCLUIR */}
           <div style={ui.tableWrap}>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
-              <strong style={{ fontSize: 13, color: "#334155" }}>Ventas completadas en el rango de fechas</strong>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", backgroundColor: "var(--surface-2)" }}>
+              <strong style={{ fontSize: 13, color: "var(--text-secondary)" }}>Ventas completadas en el rango de fechas</strong>
             </div>
 
             {isMobile ? (
@@ -347,7 +347,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                   padding: "12px 16px",
                   fontWeight: 700,
                   fontSize: 11,
-                  color: "#64748b",
+                  color: "var(--text-muted)",
                   textTransform: "uppercase",
                   letterSpacing: "0.4px",
                 }}>
@@ -358,7 +358,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                 </div>
 
                 {loading && (
-                  <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+                  <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
                     Cargando información...
                   </div>
                 )}
@@ -368,7 +368,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                   </div>
                 )}
                 {!loading && !error && tickets.length === 0 && (
-                  <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+                  <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
                     No hay ventas pendientes de facturar en este rango de fechas.
                   </div>
                 )}
@@ -381,8 +381,8 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                       <div
                         key={t.id}
                         style={{
-                          backgroundColor: "#ffffff",
-                          border: "1px solid #e2e8f0",
+                          backgroundColor: "var(--surface)",
+                          border: "1px solid var(--border)",
                           borderRadius: 12,
                           marginBottom: 10,
                           boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
@@ -396,9 +396,9 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                           padding: "8px 16px 6px 16px",
                           fontSize: 11,
                           fontWeight: 700,
-                          color: "#64748b",
-                          borderBottom: "1px solid #f1f5f9",
-                          backgroundColor: "#f8fafc",
+                          color: "var(--text-muted)",
+                          borderBottom: "1px solid var(--surface-3)",
+                          backgroundColor: "var(--surface-2)",
                           letterSpacing: "0.2px",
                         }}>
                           <span>{t.customer ? t.customer.toUpperCase() : "PÚBLICO GENERAL"}</span>
@@ -413,18 +413,18 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                           alignItems: "center",
                         }}>
                           {/* Folio */}
-                          <div style={{ fontWeight: 700, fontSize: 13, color: "#1e3a8a" }}>
+                          <div style={{ fontWeight: 700, fontSize: 13, color: "var(--accent-strong)" }}>
                             {t.invoiceNumber}
                           </div>
 
                           {/* Fecha */}
-                          <div style={{ fontSize: 13, color: "#334155" }}>
+                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
                             <div>{fmtDate(t.createdAt)}</div>
-                            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{fmtTime(t.createdAt)}</div>
+                            <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2 }}>{fmtTime(t.createdAt)}</div>
                           </div>
 
                           {/* Total */}
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
                             {moneyExact(t.totalAmount)}
                           </div>
 
@@ -436,13 +436,13 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                                 display: "inline-flex",
                                 alignItems: "center",
                                 justifyContent: "center",
-                                backgroundColor: "#ffffff",
-                                border: "1px solid #cbd5e1",
+                                backgroundColor: "var(--surface)",
+                                border: "1px solid var(--border-strong)",
                                 borderRadius: 8,
                                 width: 34,
                                 height: 34,
                                 cursor: "pointer",
-                                color: "#64748b",
+                                color: "var(--text-muted)",
                                 padding: 0,
                               }}
                               className="active-tap"
@@ -457,16 +457,16 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                           <div style={{
                             padding: "16px",
                             margin: "0 16px 16px 16px",
-                            backgroundColor: "#f8fafc",
+                            backgroundColor: "var(--surface-2)",
                             borderRadius: "8px",
-                            border: "1px solid #e2e8f0",
+                            border: "1px solid var(--border)",
                             display: "grid",
                             gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
                             gap: "16px",
                           }}>
                             {/* Datos de la Venta */}
                             <div>
-                              <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Datos de la Venta</h4>
+                              <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Datos de la Venta</h4>
                               <div style={facDetailRow}>
                                 <span style={facDetailLabel}>Folio:</span>
                                 <span style={facDetailValue}>{t.invoiceNumber}</span>
@@ -483,7 +483,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
 
                             {/* Detalle Fiscal */}
                             <div>
-                              <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Detalle Fiscal</h4>
+                              <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Detalle Fiscal</h4>
                               <div style={facDetailRow}>
                                 <span style={facDetailLabel}>Método:</span>
                                 <span style={facDetailValue}>
@@ -502,10 +502,10 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
 
                             {/* Resumen */}
                             <div>
-                              <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Resumen</h4>
+                              <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Resumen</h4>
                               <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 8 }}>
-                                <span style={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}>Total:</span>
-                                <span style={{ fontSize: 20, fontWeight: 800, color: "#1e3a8a" }}>{moneyExact(t.totalAmount)}</span>
+                                <span style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>Total:</span>
+                                <span style={{ fontSize: 20, fontWeight: 800, color: "var(--accent-strong)" }}>{moneyExact(t.totalAmount)}</span>
                               </div>
                             </div>
                           </div>
@@ -539,7 +539,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                   />
                   {!loading && !error && tickets.map((t) => (
                     <tr key={t.id}>
-                      <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{t.invoiceNumber}</td>
+                      <td style={{ ...ui.td, fontWeight: 700, color: "var(--accent-strong)" }}>{t.invoiceNumber}</td>
                       <td style={ui.td}>{fmtDate(t.createdAt)}</td>
                       <td style={ui.td}>{t.customer}</td>
                       <td style={ui.td}>
@@ -568,7 +568,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
 const fieldLabel: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
-  color: "#475569",
+  color: "var(--text-secondary)",
   textTransform: "uppercase",
   letterSpacing: "0.4px",
   marginBottom: 6,
@@ -579,20 +579,20 @@ const kpiWrap: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   padding: "4px 8px",
-  borderRight: "1px solid #e2e8f0",
+  borderRight: "1px solid var(--border)",
 };
 
 const kpiLabel: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
-  color: "#64748b",
+  color: "var(--text-muted)",
   textTransform: "uppercase",
 };
 
 const kpiVal: React.CSSProperties = {
   fontSize: 18,
   fontWeight: 800,
-  color: "#0f172a",
+  color: "var(--text)",
   marginTop: 4,
 };
 
@@ -645,14 +645,14 @@ const facDetailRow: React.CSSProperties = {
 
 const facDetailLabel: React.CSSProperties = {
   fontWeight: 700,
-  color: "#64748b",
+  color: "var(--text-muted)",
   minWidth: "85px",
   display: "inline-block",
 };
 
 const facDetailValue: React.CSSProperties = {
   fontWeight: 600,
-  color: "#334155",
+  color: "var(--text-secondary)",
 };
 
 

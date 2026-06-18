@@ -31,6 +31,72 @@
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.03), 0 4px 6px -4px rgba(0, 0, 0, 0.03);
+
+  /* ───────────────────────────────────────────────────────────────
+     Tokens semánticos de tema (claro por defecto). El panel admin
+     los consume; en modo oscuro se sobrescriben con .theme-dark.
+     Los valores claros son idénticos al diseño actual (sin regresión).
+     ─────────────────────────────────────────────────────────────── */
+  --app-bg: linear-gradient(180deg, #f6f8fc 0%, #eef2f9 100%);
+  --surface: #ffffff;          /* tarjetas, paneles, tablas, modales */
+  --surface-2: #f8fafc;        /* encabezados de tabla, sub-fondos */
+  --surface-3: #f1f5f9;        /* chips suaves, hover de fila */
+  --border: #e2e8f0;           /* bordes nítidos */
+  --border-soft: #f1f5f9;      /* divisores internos de tabla */
+  --border-strong: #cbd5e1;    /* bordes con énfasis / hover */
+  --text: #0f172a;             /* texto principal */
+  --text-secondary: #334155;   /* texto secundario */
+  --text-muted: #64748b;       /* descripciones */
+  --text-faint: #94a3b8;       /* placeholders, metadatos */
+  --accent: #2563eb;           /* acento interactivo */
+  --accent-strong: #1e3a8a;    /* marca navy */
+  --accent-soft: #eff6ff;      /* fondo de chip de acento */
+  --topbar-bg: #ffffff;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-pop: 0 18px 40px -16px rgba(15, 23, 42, 0.28);
+}
+
+/* Modo oscuro — paleta navy-slate profunda, coherente con la marca
+   (no negro puro ni acentos neón). Scopeada al contenedor del admin. */
+.theme-dark {
+  --app-bg: linear-gradient(180deg, #0b1322 0%, #0d1830 100%);
+  --surface: #141d31;
+  --surface-2: #1b2740;
+  --surface-3: #23314f;
+  --border: #2c3b5c;
+  --border-soft: #243353;
+  --border-strong: #3b4f78;
+  --text: #eef2f9;
+  --text-secondary: #c6d2e6;
+  --text-muted: #93a3c2;
+  --text-faint: #6f81a4;
+  --accent: #60a5fa;
+  --accent-strong: #3b82f6;
+  --accent-soft: rgba(96, 165, 250, 0.14);
+  --topbar-bg: #111b2e;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 18px 44px -14px rgba(0, 0, 0, 0.65);
+}
+
+/* Transición suave al alternar tema (respeta reduce-motion abajo) */
+.theme-aware,
+.theme-aware * {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.2s ease;
+}
+
+/* Realce de filas de tabla del admin (elevación sin tocar cada vista) */
+.table-sticky-head tbody tr {
+  transition: background-color 0.12s ease;
+}
+.table-sticky-head tbody tr:hover td {
+  background-color: var(--surface-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-aware,
+  .theme-aware * {
+    transition: none !important;
+  }
 }
 
 /* Reset de Estilos */
