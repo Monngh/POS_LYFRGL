@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { ChevronDown, ChevronUp, Calendar, User, Eye, DollarSign } from "lucide-react";
+import { ChevronDown, ChevronUp, Calendar, Eye, DollarSign } from "lucide-react";
 import api from "../../services/api";
 import { validateReference } from "../../utils/formValidation";
 import {

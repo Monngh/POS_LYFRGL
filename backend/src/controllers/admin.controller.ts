@@ -16,6 +16,9 @@ import { parseOptionalDateRange, parseReportDateRange } from "../utils/dateRange
 
 // Lee el filtro de sucursal de la query (?branchId=). "all"/vacío => todas.
 const parseBranch = (req: Request): number | undefined => {
+  if (req.user && req.user.role === "GERENTE") {
+    return req.user.branchId;
+  }
   const b = req.query.branchId as string | undefined;
   return b && b !== "all" && !isNaN(Number(b)) ? Number(b) : undefined;
 };
@@ -149,6 +152,11 @@ export const getSaleDetail = async (req: Request, res: Response): Promise<void> 
 
     if (!sale) {
       res.status(404).json({ message: "Venta no encontrada." });
+      return;
+    }
+
+    if (req.user && req.user.role === "GERENTE" && sale.branchId !== req.user.branchId) {
+      res.status(403).json({ message: "Acceso denegado. Esta venta pertenece a otra sucursal." });
       return;
     }
 
@@ -892,12 +900,19 @@ export const getReports = async (req: Request, res: Response): Promise<void> => 
       }),
       prisma.sale.groupBy({
         by: ["branchId"],
-        where: { ...rangeFilter, status: "COMPLETADA" },
+        where: completedWhere,
         _sum: { totalAmount: true },
         _count: { _all: true },
       }),
       prisma.sale.findMany({ where: completedWhere, select: { id: true } }),
-      prisma.branch.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { id: "asc" } }),
+      prisma.branch.findMany({
+        where: {
+          active: true,
+          ...(req.user && req.user.role === "GERENTE" ? { id: req.user.branchId } : {}),
+        },
+        select: { id: true, name: true },
+        orderBy: { id: "asc" },
+      }),
       prisma.sale.findMany({
         where: { ...branchFilter, ...rangeFilter },
         select: {
@@ -1136,6 +1151,11 @@ export const createEmployee = async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    if (req.user && req.user.role === "GERENTE" && Number(branchId) !== req.user.branchId) {
+      res.status(403).json({ message: "Acceso denegado. Solo puede crear empleados para su propia sucursal." });
+      return;
+    }
+
     const passwordHash = await bcrypt.hash(String(password), 10);
     const pinHash = pinCode ? await bcrypt.hash(String(pinCode), 10) : null;
 
@@ -1189,6 +1209,17 @@ export const updateEmployee = async (req: Request, res: Response): Promise<void>
     if (!existing) {
       res.status(404).json({ message: "Empleado no encontrado." });
       return;
+    }
+
+    if (req.user && req.user.role === "GERENTE") {
+      if (existing.branchId !== req.user.branchId) {
+        res.status(403).json({ message: "Acceso denegado. Este empleado pertenece a otra sucursal." });
+        return;
+      }
+      if (branchId && Number(branchId) !== req.user.branchId) {
+        res.status(403).json({ message: "Acceso denegado. No puede transferir un empleado a otra sucursal." });
+        return;
+      }
     }
 
     if (email && String(email).trim() !== "" && String(email).trim().toLowerCase() !== existing.email) {
@@ -1273,10 +1304,15 @@ export const getEmployeeOperations = async (req: Request, res: Response): Promis
 
     const user = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, name: true, email: true, role: true, active: true, commissionRate: true, branch: { select: { name: true } } },
+      select: { id: true, name: true, email: true, role: true, active: true, commissionRate: true, branchId: true, branch: { select: { name: true } } },
     });
     if (!user) {
       res.status(404).json({ message: "Empleado no encontrado." });
+      return;
+    }
+
+    if (req.user && req.user.role === "GERENTE" && user.branchId !== req.user.branchId) {
+      res.status(403).json({ message: "Acceso denegado. Este empleado pertenece a otra sucursal." });
       return;
     }
 
@@ -2348,6 +2384,11 @@ export const getCashSessionDetail = async (req: Request, res: Response): Promise
       return;
     }
 
+    if (req.user && req.user.role === "GERENTE" && session.branchId !== req.user.branchId) {
+      res.status(403).json({ message: "Acceso denegado. Esta sesión pertenece a otra sucursal." });
+      return;
+    }
+
     // Desglose por método de pago (solo ventas COMPLETADAS)
     let efectivo = 0;
     let tarjetaCredito = 0;
@@ -2480,6 +2521,12 @@ export const forceCloseCashSession = async (req: Request, res: Response): Promis
       res.status(404).json({ message: "Sesión de caja no encontrada." });
       return;
     }
+
+    if (req.user && req.user.role === "GERENTE" && session.branchId !== req.user.branchId) {
+      res.status(403).json({ message: "Acceso denegado. Solo puede cerrar sesiones de su sucursal." });
+      return;
+    }
+
     if (session.status !== "ABIERTA") {
       res.status(400).json({ message: "La sesión ya se encuentra cerrada." });
       return;
@@ -2988,6 +3035,12 @@ export const adjustInventory = async (req: Request, res: Response): Promise<void
       res.status(400).json({ message: "Campos requeridos incompletos." });
       return;
     }
+
+    if (req.user && req.user.role === "GERENTE" && branchId !== req.user.branchId) {
+      res.status(403).json({ message: "Acceso denegado. Solo puede ajustar el inventario de su sucursal." });
+      return;
+    }
+
     if (!MOVEMENT_TYPE_REGEX.test(movementType)) {
       res.status(400).json({ message: "El tipo de movimiento contiene caracteres no permitidos." });
       return;
@@ -3044,6 +3097,12 @@ export const transferInventory = async (req: Request, res: Response): Promise<vo
       res.status(400).json({ message: "Campos requeridos incompletos." });
       return;
     }
+
+    if (req.user && req.user.role === "GERENTE" && fromBranch !== req.user.branchId && toBranch !== req.user.branchId) {
+      res.status(403).json({ message: "Acceso denegado. Uno de los extremos de la transferencia debe ser su sucursal." });
+      return;
+    }
+
     if (fromBranch === toBranch) {
       res.status(400).json({ message: "El origen y destino deben ser diferentes." });
       return;
@@ -3252,5 +3311,40 @@ export const deleteProduct = async (req: Request, res: Response): Promise<void> 
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ message: "Error al desactivar el producto." });
+  }
+};
+
+export const getReportAuditLogs = async (req: Request, res: Response) => {
+  try {
+    const { from, to, userId, reportType } = req.query;
+
+    const where: any = {};
+
+    if (from || to) {
+      where.createdAt = {};
+      if (from) where.createdAt.gte = new Date(from as string);
+      if (to) {
+        const toDate = new Date(to as string);
+        toDate.setHours(23, 59, 59, 999);
+        where.createdAt.lte = toDate;
+      }
+    }
+    if (userId) where.userId = Number(userId);
+    if (reportType) where.reportType = reportType as string;
+
+    const logs = await prisma.reportAuditLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: 500,
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        branch: { select: { id: true, name: true } },
+      },
+    });
+
+    res.json({ logs });
+  } catch (err) {
+    console.error("[getReportAuditLogs]", err);
+    res.status(500).json({ message: "Error al obtener logs de auditoría" });
   }
 };

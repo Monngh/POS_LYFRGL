@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { Plus, Trash2, CheckCircle2, Package, ChevronDown, ChevronUp, Calendar, User, Tag, Eye } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, Package, ChevronDown, ChevronUp, Calendar } from "lucide-react";
 import api from "../../services/api";
 import {
   collectRoundedDecimalMessages,
@@ -22,7 +22,6 @@ import {
   money,
   fmtDate,
   fmtTime,
-  fmtDateTime,
   useMediaQuery,
 } from "./shared";
 

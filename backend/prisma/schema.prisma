@@ -8,45 +8,58 @@ datasource db {
 }
 
 model Branch {
-  id             Int             @id @default(autoincrement())
-  name           String          @unique
-  address        String?
-  phone          String?
-  active         Boolean         @default(true)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  bankDeposits   BankDeposit[]
-  cashSessions   CashSession[]
-  inventories    Inventory[]
-  kardexEntries  Kardex[]
-  sales          Sale[]
-  users          User[]
-  purchaseOrders PurchaseOrder[] @relation("purchaseOrdersBranch")
+  id              Int              @id @default(autoincrement())
+  name            String           @unique
+  address         String?
+  phone           String?
+  active          Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  bankDeposits    BankDeposit[]
+  cashSessions    CashSession[]
+  inventories     Inventory[]
+  kardexEntries   Kardex[]
+  sales           Sale[]
+  users           User[]
+  purchaseOrders  PurchaseOrder[]  @relation("purchaseOrdersBranch")
+  reportAuditLogs ReportAuditLog[]
+  authAuditLogs   AuthAuditLog[]
 }
 
 model User {
-  id                     Int             @id @default(autoincrement())
-  email                  String          @unique
+  id                     Int               @id @default(autoincrement())
+  email                  String            @unique
   passwordHash           String
   pinCode                String?
   name                   String
   role                   String
-  active                 Boolean         @default(true)
+  active                 Boolean           @default(true)
   phone                  String?
-  baseSalary             Decimal?        @db.Decimal(18, 2)
-  commissionRate         Decimal?        @db.Decimal(18, 4)
+  baseSalary             Decimal?          @db.Decimal(18, 2)
+  commissionRate         Decimal?          @db.Decimal(18, 4)
   branchId               Int
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
+  // Segundo factor WebAuthn (Windows Hello / huella / llave de seguridad) para ADMIN/GERENTE.
+  // Aditivo y opcional: usuarios sin credencial registrada la enrolan en su próximo inicio de sesión.
+  webauthnCredentialId   String?         @db.VarChar(500)
+  webauthnPublicKey      String?         @db.VarChar(1000)
+  webauthnCounter        Int?            @default(0)
+  webauthnTransports     String?         @db.VarChar(200)
+  webauthnRegisteredAt   DateTime?
+  otpCode                String?           @db.NVarChar(6)
+  otpExpiresAt           DateTime?
   bankDeposits           BankDeposit[]
   cashSessions           CashSession[]
   kardexEntries          Kardex[]
-  returns                Return[]        @relation("UserReturns")
-  authorizedReturns      Return[]        @relation("UserAuthorizedReturns")
+  returns                Return[]          @relation("UserReturns")
+  authorizedReturns      Return[]          @relation("UserAuthorizedReturns")
   sales                  Sale[]
-  branch                 Branch          @relation(fields: [branchId], references: [id], onUpdate: NoAction)
-  purchaseOrdersCreated  PurchaseOrder[] @relation("purchaseCreatedBy")
-  purchaseOrdersReceived PurchaseOrder[] @relation("purchaseReceivedBy")
+  branch                 Branch            @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+  purchaseOrdersCreated  PurchaseOrder[]   @relation("purchaseCreatedBy")
+  purchaseOrdersReceived PurchaseOrder[]   @relation("purchaseReceivedBy")
+  reportAuditLogs        ReportAuditLog[]
+  authAuditLogs          AuthAuditLog[]
 }
 
 model Product {
@@ -443,4 +456,37 @@ model PurchaseDetail {
 
   @@index([purchaseOrderId])
   @@index([productId])
+}
+
+model ReportAuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  branchId   Int?
+  reportName String   @db.NVarChar(255)
+  reportType String   @db.NVarChar(100)
+  filters    String?  @db.NVarChar(Max)
+  ipAddress  String?  @db.NVarChar(45)
+  createdAt  DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onUpdate: NoAction)
+  branch Branch? @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+}
+
+// Bitácora de inicios de sesión (accesos) — tanto de cajeros como de admin/gerente.
+model AuthAuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  branchId  Int?
+  email     String   @db.NVarChar(255)
+  name      String   @db.NVarChar(255)
+  role      String   @db.NVarChar(50)
+  method    String   @db.NVarChar(50) // "PIN", "Contraseña + WebAuthn", "Contraseña + OTP", etc.
+  ipAddress String?  @db.NVarChar(45)
+  deviceId  String?  @db.NVarChar(64)
+  createdAt DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onUpdate: NoAction)
+  branch Branch? @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+
+  @@index([role, createdAt])
 }
