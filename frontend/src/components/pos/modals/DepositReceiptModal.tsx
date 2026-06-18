@@ -1,13 +1,12 @@
-import React from "react";
+import React, { useState } from "react";
 
 interface DepositReceiptModalProps {
   isOpen: boolean;
   lastDeposit: any;
   user: any;
-  syncingDepositId: number | null;
   onClose: () => void;
   onPrint: () => void;
-  onSync: (depositId: number) => void;
+  onSync: (depositId: number) => Promise<void>;
   emailButton: React.ReactNode;
 }
 
@@ -72,12 +71,13 @@ export default function DepositReceiptModal({
   isOpen,
   lastDeposit,
   user,
-  syncingDepositId,
   onClose,
   onPrint,
   onSync,
   emailButton,
 }: DepositReceiptModalProps) {
+  const [syncingDepositId, setSyncingDepositId] = useState<number | null>(null);
+
   if (!isOpen || !lastDeposit) return null;
 
   let mpMeta: any = null;
@@ -246,7 +246,10 @@ export default function DepositReceiptModal({
           {lastDeposit.status === "PENDING" && lastDeposit.paymentType?.startsWith("MERCADOPAGO_") && (
             <button
               type="button"
-              onClick={() => onSync(lastDeposit.id)}
+              onClick={async () => {
+                setSyncingDepositId(lastDeposit.id);
+                try { await onSync(lastDeposit.id); } finally { setSyncingDepositId(null); }
+              }}
               disabled={syncingDepositId === lastDeposit.id}
               style={{
                 ...modalBtn,
