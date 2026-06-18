@@ -80,8 +80,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   /**
    * Login de administrador en 2 pasos:
    *   1) Correo + contraseña.
-   *   2) Segundo factor WebAuthn (Windows Hello). Si el usuario aún no tiene
-   *      dispositivo registrado, se enrola en este momento.
+   *   2) Segundo factor WebAuthn — biometría del dispositivo, multiplataforma
+   *      (Windows Hello, Touch ID, Face ID, huella de Android o llave de seguridad).
+   *      Si el usuario aún no tiene dispositivo registrado, se enrola en este momento.
    * Aunque el navegador autocomplete la contraseña, sin el paso 2 no hay acceso.
    */
   const loginAsAdmin = async (email: string, password: string) => {
@@ -105,7 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let verifyData;
 
       if (data.mode === "register") {
-        // Primer ingreso: enrolar Windows Hello.
+        // Primer ingreso: enrolar la biometría/llave de acceso del dispositivo.
         let attResp;
         try {
           attResp = await startRegistration({ optionsJSON: data.options });
@@ -118,7 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const res = await api.post("/api/auth/webauthn/register-verify", { pendingToken: pt, response: attResp });
         verifyData = res.data;
       } else {
-        // Ingreso posterior: confirmar identidad con Windows Hello.
+        // Ingreso posterior: confirmar identidad con la biometría del dispositivo.
         let authResp;
         try {
           authResp = await startAuthentication({ optionsJSON: data.options });
