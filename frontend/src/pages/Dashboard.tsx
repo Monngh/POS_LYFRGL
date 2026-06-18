@@ -28,12 +28,12 @@ import {
   validateSafeText,
   validateSearchText,
 } from "../utils/formValidation";
-import { 
-  LogOut, 
-  Store, 
-  Users, 
-  Plus, 
-  Minus, 
+import {
+  LogOut,
+  Store,
+  Users,
+  Plus,
+  Minus,
   BadgePercent,
   Search,
   Printer,
@@ -82,10 +82,25 @@ interface Sale {
 }
 
 type CartEntry = { product: Product; quantity: number };
+type CustomerLookupStatus = "idle" | "typing" | "loading" | "not-found" | "error";
 
 const getProductId = (product: Product | Record<string, any> | null | undefined): number => {
   const runtimeProduct = product as Record<string, any> | null | undefined;
   return Number(runtimeProduct?.id ?? runtimeProduct?.productId);
+};
+
+const getPhoneDigits = (value: string | null | undefined): string => (value || "").replace(/\D/g, "");
+
+const maskPhone = (value: string | null | undefined): string => {
+  const digits = getPhoneDigits(value);
+  if (!digits) return "";
+  return `${"*".repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}`;
+};
+
+const maskTail = (value: string | null | undefined, visibleChars = 4): string => {
+  const text = (value || "").trim();
+  if (!text) return "No disponible";
+  return `${"*".repeat(Math.max(0, text.length - visibleChars))}${text.slice(-visibleChars)}`;
 };
 
 const getCheckoutErrorMessage = (err: any, fallback: string): string => {
@@ -129,7 +144,7 @@ const Dashboard: React.FC = () => {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
-  
+
   // Vistas del Cajero: "dashboard" | "apertura" | "sales-terminal"
   const [view, setView] = useState<"dashboard" | "apertura" | "sales-terminal">("dashboard");
   // Bloqueo: el turno de caja del usuario está abierto en otro equipo
@@ -278,9 +293,9 @@ const Dashboard: React.FC = () => {
     const bg = isError ? "#fef2f2" : isSuccess ? "#f0fdf4" : "#f0f9ff";
     const border = isError ? "#fca5a5" : isSuccess ? "#bbf7d0" : "#bae6fd";
     const textColor = isError ? "#991b1b" : isSuccess ? "#166534" : "#075985";
-    
+
     return (
-      <div 
+      <div
         className="toast-premium"
         style={{
           position: "fixed",
@@ -325,9 +340,9 @@ const Dashboard: React.FC = () => {
   // ---------------------------------------------------------------------------
   const checkSessionStatus = async () => {
     if (!user) return;
-    
-    // Si es Administrador o Gerente, va directo al Dashboard admin
-    if (user.role === "ADMIN" || user.role === "GERENTE") {
+
+    // Si es Administrador, va directo al Dashboard admin
+    if (user.role === "ADMIN") {
       setLoading(false);
       return;
     }
@@ -507,17 +522,16 @@ const Dashboard: React.FC = () => {
   // Interfaces y Estados para Clientes y Lealtad (Fase 3.6/3.7)
   interface Customer {
     id: number;
-    name: string;
-    phone: string;
-    email?: string;
+    name?: string;
+    phone?: string | null;
+    email?: string | null;
     points: number;
   }
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerSearchError, setCustomerSearchError] = useState("");
-  const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([]);
-  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
+  const [customerLookupStatus, setCustomerLookupStatus] = useState<CustomerLookupStatus>("idle");
   const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
   const [newCustomerForm, setNewCustomerForm] = useState({ name: "", phone: "", email: "" });
   const [newCustomerFieldErrors, setNewCustomerFieldErrors] = useState<Partial<Record<keyof typeof newCustomerForm, string>>>({});
@@ -528,6 +542,20 @@ const Dashboard: React.FC = () => {
   const [pointsToRedeem, setPointsToRedeem] = useState<number>(0);
   const [usePoints, setUsePoints] = useState<boolean>(false);
   const [invoiceRequested, setInvoiceRequested] = useState<boolean>(false);
+  const selectedCustomerMaskedPhone = maskPhone(selectedCustomer?.phone);
+  const customerLookupFeedback =
+    customerSearchError ||
+    (customerLookupStatus === "typing" ? "Captura el telefono completo para consultar puntos." :
+      customerLookupStatus === "loading" ? "Consultando cliente registrado..." :
+        customerLookupStatus === "not-found" ? "Cliente no registrado." :
+          customerLookupStatus === "error" ? "No se pudo consultar el cliente. Intente nuevamente." :
+            "");
+  const customerLookupFeedbackColor =
+    customerSearchError || customerLookupStatus === "error"
+      ? "#b91c1c"
+      : customerLookupStatus === "not-found"
+        ? "#64748b"
+        : "#166534";
 
   // Estados para búsqueda de tickets en reimpresión (Fase 3.8)
   const [ticketSearch, setTicketSearch] = useState("");
@@ -570,34 +598,61 @@ const Dashboard: React.FC = () => {
     return () => clearTimeout(timer);
   }, [ticketSearch, ticketCustomer, ticketPhone, ticketDateFrom, ticketDateTo, activeModal]);
 
-  // Efecto de búsqueda predictiva para Clientes en la caja
+  // Vinculacion discreta de cliente por telefono completo en la caja
   useEffect(() => {
     if (view !== "sales-terminal") return;
     const query = customerSearch.trim();
-    const searchError = validateSearchText(query, "La busqueda de cliente", { max: 120 });
-    setCustomerSearchError(searchError || "");
+    const digits = getPhoneDigits(query);
+    const searchError = query
+      ? validatePhone(query, { required: false, minDigits: 1, maxDigits: 15 })
+      : undefined;
     if (!query) {
-      setCustomerSearchResults([]);
-      setIsCustomerDropdownOpen(false);
+      setCustomerSearchError("");
+      setCustomerLookupStatus("idle");
       return;
     }
     if (searchError) {
-      setCustomerSearchResults([]);
-      setIsCustomerDropdownOpen(false);
+      setCustomerSearchError(searchError);
+      setCustomerLookupStatus("idle");
+      setSelectedCustomer(null);
       return;
     }
 
+    setCustomerSearchError("");
+    if (digits.length < 10) {
+      setCustomerLookupStatus("typing");
+      setSelectedCustomer(null);
+      return;
+    }
+
+    let cancelled = false;
     const timer = setTimeout(async () => {
+      setCustomerLookupStatus("loading");
       try {
-        const res = await api.get(`/api/sales/customers/search?query=${query}`);
-        setCustomerSearchResults(res.data.customers || []);
-        setIsCustomerDropdownOpen(true);
+        const res = await api.get("/api/sales/customers/search", { params: { query: digits } });
+        if (cancelled) return;
+        const customers: Customer[] = res.data.customers || [];
+        const exactMatch = customers.find((c) => getPhoneDigits(c.phone) === digits) || null;
+        if (exactMatch) {
+          setSelectedCustomer(exactMatch);
+          setCustomerSearch("");
+          setCustomerLookupStatus("idle");
+        } else {
+          setSelectedCustomer(null);
+          setCustomerLookupStatus("not-found");
+        }
       } catch (err) {
+        if (cancelled) return;
         console.error("Error al buscar clientes:", err);
+        setSelectedCustomer(null);
+        setCustomerLookupStatus("error");
       }
     }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [customerSearch, view]);
 
   const loadSaleSimulation = async () => {
@@ -643,23 +698,23 @@ const Dashboard: React.FC = () => {
 
   const setNewCustomerField =
     (field: keyof typeof newCustomerForm) =>
-    (value: string) => {
-      const nextValue =
-        field === "phone"
-          ? normalizePhoneInput(value).slice(0, 20)
-          : field === "email"
-            ? normalizeEmailInput(value)
-            : value;
-      setNewCustomerForm((prev) => ({ ...prev, [field]: nextValue }));
-      setNewCustomerError(null);
-      setNewCustomerFieldErrors((prev) => {
-        const next = { ...prev };
-        const error = validateNewCustomerField(field, nextValue);
-        if (error) next[field] = error;
-        else delete next[field];
-        return next;
-      });
-    };
+      (value: string) => {
+        const nextValue =
+          field === "phone"
+            ? normalizePhoneInput(value).slice(0, 20)
+            : field === "email"
+              ? normalizeEmailInput(value)
+              : value;
+        setNewCustomerForm((prev) => ({ ...prev, [field]: nextValue }));
+        setNewCustomerError(null);
+        setNewCustomerFieldErrors((prev) => {
+          const next = { ...prev };
+          const error = validateNewCustomerField(field, nextValue);
+          if (error) next[field] = error;
+          else delete next[field];
+          return next;
+        });
+      };
 
   const handleRegisterCustomerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -684,12 +739,11 @@ const Dashboard: React.FC = () => {
       });
       setSelectedCustomer(res.data.customer);
       setCustomerSearch("");
-      setCustomerSearchResults([]);
-      setIsCustomerDropdownOpen(false);
+      setCustomerLookupStatus("idle");
       setIsNewCustomerModalOpen(false);
       setNewCustomerForm({ name: "", phone: "", email: "" });
       setNewCustomerFieldErrors({});
-      showToast("Cliente registrado y seleccionado.", "success");
+      showToast("Cliente registrado y vinculado para puntos.", "success");
     } catch (err: any) {
       setNewCustomerError(err.response?.data?.message || "Error al registrar cliente.");
     } finally {
@@ -866,8 +920,7 @@ const Dashboard: React.FC = () => {
     setCheckoutModalOpen(false);
     setSelectedCustomer(null);
     setCustomerSearch("");
-    setCustomerSearchResults([]);
-    setIsCustomerDropdownOpen(false);
+    setCustomerLookupStatus("idle");
     setIsNewCustomerModalOpen(false);
     setNewCustomerError(null);
     setUsePoints(false);
@@ -1096,20 +1149,8 @@ const Dashboard: React.FC = () => {
   const [qrUrl, setQrUrl] = useState("");
   const [qrReference, setQrReference] = useState("");
   const [qrChecking, setQrChecking] = useState(false);
-  const [qrExpiresAt, setQrExpiresAt] = useState("");
-  const [countdownText, setCountdownText] = useState("");
-
-  const isQrExpired = (sale: any) => {
-    if (!sale || !sale.qrExpiresAt) return false;
-    return new Date(sale.qrExpiresAt).getTime() < Date.now();
-  };
 
   const checkQrStatus = async () => {
-    if (qrExpiresAt && new Date(qrExpiresAt).getTime() < Date.now()) {
-      showToast("El código QR ha expirado. Por favor, cancela e intenta de nuevo o guarda la venta en pagos pendientes.");
-      return;
-    }
-    setQrChecking(true);
     setQrChecking(true);
     try {
       const res = await api.get(`/api/mercadopago/status/${qrReference}`);
@@ -1140,7 +1181,7 @@ const Dashboard: React.FC = () => {
       } else {
         alert("El pago aún no ha sido completado. Estado: " + res.data.status);
       }
-    } catch(err) {
+    } catch (err) {
       alert("Error al verificar pago.");
     } finally {
       setQrChecking(false);
@@ -1154,11 +1195,11 @@ const Dashboard: React.FC = () => {
   const parsedReceived = roundToTwoDecimals(Number(cashReceived) || 0);
   const parsedMixtoCash = roundToTwoDecimals(Number(mixtoCash) || 0);
   const parsedMixtoCard = roundToTwoDecimals(Number(mixtoCard) || 0);
-  const calculatedChange = paymentMethod === "EFECTIVO" 
+  const calculatedChange = paymentMethod === "EFECTIVO"
     ? (parsedReceived >= netTotalToPay ? parsedReceived - netTotalToPay : 0)
     : paymentMethod === "MIXTO"
-    ? (parsedMixtoCard <= netTotalToPay && parsedMixtoCash >= (netTotalToPay - parsedMixtoCard) ? parsedMixtoCash - (netTotalToPay - parsedMixtoCard) : 0)
-    : 0;
+      ? (parsedMixtoCard <= netTotalToPay && parsedMixtoCash >= (netTotalToPay - parsedMixtoCard) ? parsedMixtoCash - (netTotalToPay - parsedMixtoCard) : 0)
+      : 0;
 
   const buildCheckoutItemsPayload = () => {
     if (cart.length === 0) {
@@ -1272,7 +1313,7 @@ const Dashboard: React.FC = () => {
         }, { timeout: LONG_OPERATION_TIMEOUT });
 
         const saleInvoice = res.data.invoiceNumber;
-        
+
         // Generar QR
         const qrRes = await api.post("/api/mercadopago/qr-preference", {
           title: "Venta " + saleInvoice,
@@ -1296,7 +1337,7 @@ const Dashboard: React.FC = () => {
         setQrReference(saleInvoice);
         setCheckoutModalOpen(false);
         setQrModalOpen(true);
-      } catch(err: any) {
+      } catch (err: any) {
         alert(getCheckoutErrorMessage(err, "Error al procesar pago QR"));
       } finally {
         setCheckoutLoading(false);
@@ -1419,7 +1460,7 @@ const Dashboard: React.FC = () => {
       `<div class="ticket-row"><span>Fecha:</span><span class="ticket-value">${safe(new Date().toLocaleString())}</span></div>`,
       `<div class="ticket-row"><span>Sucursal:</span><span class="ticket-value">${safe(user?.branch?.name || "N/A")}</span></div>`,
       `<div class="ticket-row"><span>Cajero:</span><span class="ticket-value">${safe(user?.name || "N/A")}</span></div>`,
-      `<div class="ticket-row"><span>Cliente:</span><span class="ticket-value">${safe(returnSaleData?.customerName || "Publico general")}</span></div>`,
+      `<div class="ticket-row"><span>Cliente:</span><span class="ticket-value">${safe(returnSaleData?.customerName ? "Cliente registrado" : "Público general")}</span></div>`,
       `<div class="ticket-row"><span>Metodo reembolso:</span><span class="ticket-value">${safe(returnPaymentMethod)}</span></div>`,
       `<div class="ticket-row"><span>Motivo:</span><span class="ticket-value">${safe(returnReason || "N/A")}</span></div>`,
     ];
@@ -1454,9 +1495,8 @@ const Dashboard: React.FC = () => {
         <div class="ticket-section">
           ${rows.join("")}
         </div>
-        ${
-          itemRows
-            ? `<div class="ticket-section">
+        ${itemRows
+        ? `<div class="ticket-section">
                 <table>
                   <thead>
                     <tr style="border-bottom:1px dashed #111111;">
@@ -1469,8 +1509,8 @@ const Dashboard: React.FC = () => {
                   <tbody>${itemRows}</tbody>
                 </table>
               </div>`
-            : ""
-        }
+        : ""
+      }
         <div class="ticket-section">
           <div class="ticket-row ticket-total">
             <span>Total reembolsado:</span>
@@ -1620,6 +1660,17 @@ const Dashboard: React.FC = () => {
       <button onClick={options.onPrint} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
         <Printer size={16} /> {options.printLabel || "IMPRIMIR"}
       </button>
+    </div>
+  );
+
+  const renderTicketInvoiceInfo = () => (
+    <div className="invoice-info" style={styles.invoiceInfo}>
+      <div className="invoice-info-title" style={styles.invoiceInfoTitle}>
+        AVISO DE FACTURACIÓN
+      </div>
+      <div className="invoice-info-text" style={styles.invoiceInfoText}>
+        Factura disponible solo dentro de los 30 días naturales posteriores a la emisión del ticket.
+      </div>
     </div>
   );
 
@@ -1875,7 +1926,7 @@ const Dashboard: React.FC = () => {
     e.preventDefault();
     const isMercadoPago = depType.startsWith("MERCADOPAGO_");
     const errors: Record<string, string> = {};
-    
+
     if (!isMercadoPago) {
       if (depAccount.length !== 16 || isNaN(Number(depAccount))) {
         errors.account = "El numero de cuenta debe tener exactamente 16 digitos.";
@@ -1885,7 +1936,7 @@ const Dashboard: React.FC = () => {
         errors.name = nameError;
       }
     }
-    
+
     const depAmountValidation = validateDecimalField(depAmount, "El monto del deposito", {
       min: 0,
       minExclusive: true,
@@ -1918,7 +1969,7 @@ const Dashboard: React.FC = () => {
         paymentType: depType,
         comments: depComments
       });
-      
+
       setLastDeposit(res.data.deposit);
       setDepAccount("");
       setDepName("");
@@ -1926,7 +1977,7 @@ const Dashboard: React.FC = () => {
       setDepComments("");
       setDepositFieldErrors({});
       setDepType("EFECTIVO");
-      
+
       await loadDashboardData();
       setActiveModal("deposit-receipt");
     } catch (err: any) {
@@ -1970,7 +2021,7 @@ const Dashboard: React.FC = () => {
 
   const addPendingQrSale = () => {
     if (!qrReference) return;
-    
+
     const newPending = {
       id: Date.now(),
       invoiceNumber: qrReference,
@@ -1981,13 +2032,13 @@ const Dashboard: React.FC = () => {
       customer: selectedCustomer,
       status: "pending"
     };
-    
+
     setPendingQrSales(prev => {
       const updated = [...prev, newPending];
       localStorage.setItem(QR_KEY, JSON.stringify(updated));
       return updated;
     });
-    
+
     // Limpiar el carrito de compras
     setCart([]);
     setSelectedCustomer(null);
@@ -1997,48 +2048,14 @@ const Dashboard: React.FC = () => {
     setCashReceived("");
     setPaymentMethod("EFECTIVO");
     setQrModalOpen(false);
-  };
-
-  const handleRegenerateQr = async (sale: any) => {
-    try {
-      const res = await api.post("/api/sales/retry-qr", {
-        invoiceNumber: sale.invoiceNumber
-      });
-
-      if (res.data.success) {
-        const updatedSale = {
-          ...sale,
-          qrUrl: res.data.initPoint,
-          qrExpiresAt: res.data.expiresAt,
-          status: "pending"
-        };
-
-        setPendingQrSales(prev => {
-          const updated = prev.map(s => s.invoiceNumber === sale.invoiceNumber ? updatedSale : s);
-          localStorage.setItem("pendingQrSales", JSON.stringify(updated));
-          return updated;
-        });
-
-        setViewingPendingQrSale(updatedSale);
-        showToast("El QR anterior venció. Se ha generado un nuevo código QR.", "success");
-      } else {
-        showToast("No se pudo regenerar el código QR.");
-      }
-    } catch (err: any) {
-      showToast("Error al regenerar el QR: " + (err.response?.data?.message || err.message));
-    }
+    showToast("Venta enviada a pagos pendientes. Puedes seguir vendiendo.");
   };
 
   const checkPendingQrStatus = async (invoiceNumber: string) => {
-    const salePending = pendingQrSales.find(s => s.invoiceNumber === invoiceNumber);
-    if (isQrExpired(salePending)) {
-      showToast("El código QR ha expirado. Por favor genera un nuevo código QR.");
-      return;
-    }
     setPendingQrChecking(invoiceNumber);
     try {
       const res = await api.get(`/api/mercadopago/status/${invoiceNumber}`);
-      
+
       if (res.data.status === "approved") {
         await api.post("/api/sales/confirm-qr", {
           invoiceNumber,
@@ -2083,9 +2100,9 @@ const Dashboard: React.FC = () => {
         await loadDashboardData();
       } else if (res.data.status === "rejected") {
         setPendingQrSales(prev => {
-          const updated = prev.map(sale => 
-            sale.invoiceNumber === invoiceNumber 
-              ? { ...sale, status: "rejected" } 
+          const updated = prev.map(sale =>
+            sale.invoiceNumber === invoiceNumber
+              ? { ...sale, status: "rejected" }
               : sale
           );
           localStorage.setItem(QR_KEY, JSON.stringify(updated));
@@ -2314,10 +2331,10 @@ const Dashboard: React.FC = () => {
       prev.map((item, i) =>
         i === idx
           ? {
-              ...item,
-              selected: !item.selected,
-              qtyToReturn: !item.selected ? Math.min(1, item.maxReturnableQty) : 0,
-            }
+            ...item,
+            selected: !item.selected,
+            qtyToReturn: !item.selected ? Math.min(1, item.maxReturnableQty) : 0,
+          }
           : item
       )
     );
@@ -2479,23 +2496,55 @@ const Dashboard: React.FC = () => {
   // ===========================================================================
   if (cajaLockedByOtherDevice) {
     return (
-      <div id="device-conflict-screen" style={styles.conflictScreen}>
-        <div style={styles.conflictCard}>
-          <div style={styles.conflictIconContainer}>
-            <AlertTriangle size={36} color="#ef4444" />
+      <div style={styles.loadingScreen}>
+        <div style={{
+          maxWidth: "440px",
+          backgroundColor: "#ffffff",
+          borderRadius: "12px",
+          padding: "32px",
+          boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
+          textAlign: "center",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "16px",
+        }}>
+          <div style={{
+            width: "56px",
+            height: "56px",
+            borderRadius: "999px",
+            backgroundColor: "#fef3c7",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
+            <AlertTriangle size={28} color="#d97706" />
           </div>
-          <h2 style={styles.conflictTitle}>Caja abierta en otro dispositivo</h2>
-          <p style={styles.conflictText}>
-            El turno/caja ya se encuentra abierto en otra computadora. Cierre el turno en esa caja para poder abrir uno nuevo.
+          <h2 style={{ fontSize: "18px", fontWeight: "800", color: "#0f172a", margin: 0 }}>
+            CAJA ABIERTA EN OTRO EQUIPO
+          </h2>
+          <p style={{ fontSize: "14px", color: "#64748b", margin: 0, lineHeight: 1.6 }}>
+            Su turno de caja está activo en otra computadora. Por seguridad, la caja solo puede
+            operarse desde el equipo donde se abrió el turno.
           </p>
-          <button
-            id="conflict-back-button"
-            onClick={logout}
-            className="btn-primary active-tap"
-            style={styles.conflictButton}
-          >
-            Regresar al Login
-          </button>
+          <p style={{ fontSize: "13px", color: "#94a3b8", margin: 0, lineHeight: 1.6 }}>
+            Cierre el turno en el equipo original o solicite a un administrador el cierre
+            forzado de la sesión de caja.
+          </p>
+          <div style={{ display: "flex", gap: "10px", width: "100%", marginTop: "8px" }}>
+            <button
+              onClick={logout}
+              style={{ ...styles.modalBtn, backgroundColor: "#e2e8f0", color: "#0f172a" }}
+            >
+              CERRAR SESIÓN
+            </button>
+            <button
+              onClick={() => { setLoading(true); checkSessionStatus(); }}
+              style={{ ...styles.modalBtn, backgroundColor: "#2563eb", color: "white" }}
+            >
+              REINTENTAR
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -2542,7 +2591,7 @@ const Dashboard: React.FC = () => {
             <div style={styles.aperturaCard} className="pos-cashier-apertura-card">
               <h3 style={styles.cardMainTitle}>APERTURA DE CAJA</h3>
               <p style={{ fontSize: "14px", color: "#64748b", marginBottom: "20px" }}>Establezca el fondo de caja inicial para comenzar el turno.</p>
-              
+
               <div style={styles.inputGroup}>
                 <label style={styles.label}>FONDO INICIAL ($)</label>
                 <input
@@ -2558,8 +2607,8 @@ const Dashboard: React.FC = () => {
                       return;
                     }
                     handleDecimalInputChange(rawValue, (value) => {
-                    setInitialFund(value);
-                    setInitialFundError("");
+                      setInitialFund(value);
+                      setInitialFundError("");
                     });
                   }}
                 />
@@ -2652,9 +2701,11 @@ const Dashboard: React.FC = () => {
                     width: "100%",
                     fontSize: "13px"
                   }} className="pos-cashier-customer-selected">
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <span style={{ fontWeight: "700", color: "#166534" }}>👤 {selectedCustomer.name}</span>
-                      <span style={{ color: "#475569" }}>({selectedCustomer.phone})</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                      <span style={{ fontWeight: "700", color: "#166534" }}>Cliente vinculado para puntos</span>
+                      {selectedCustomerMaskedPhone && (
+                        <span style={{ color: "#475569" }}>Tel: {selectedCustomerMaskedPhone}</span>
+                      )}
                       <span style={{
                         backgroundColor: "#dcfce7",
                         color: "#15803d",
@@ -2662,7 +2713,7 @@ const Dashboard: React.FC = () => {
                         borderRadius: "4px",
                         fontWeight: "700"
                       }}>
-                        ⭐ {selectedCustomer.points} pts
+                        Puntos disponibles: {selectedCustomer.points} pts
                       </span>
                     </div>
                     <button
@@ -2692,19 +2743,22 @@ const Dashboard: React.FC = () => {
                     <div style={{ flex: 1, position: "relative" }}>
                       <span style={{ position: "absolute", left: "12px", top: "12px", fontSize: "14px" }}>👤</span>
                       <input
-                        type="text"
+                        type="password"
                         className="input-corporate"
-                        style={{ paddingLeft: "38px" }}
-                        placeholder="Buscar cliente por teléfono o nombre..."
+                        style={{ paddingLeft: "38px", letterSpacing: "0.15em" }}
+                        placeholder="Telefono del cliente para puntos..."
                         value={customerSearch}
-                        onChange={(e) => setCustomerSearch(e.target.value)}
-                        onFocus={() => {
-                          if (customerSearch.trim().length > 0) {
-                            setIsCustomerDropdownOpen(true);
-                          }
-                        }}
+                        inputMode="tel"
+                        autoComplete="off"
+                        onChange={(e) => setCustomerSearch(normalizePhoneInput(e.target.value).slice(0, 20))}
                       />
-                      {customerSearchError && <p style={styles.fieldError}>{customerSearchError}</p>}
+                      {customerLookupFeedback && (
+                        <p style={{ ...styles.fieldError, color: customerLookupFeedbackColor }}>
+                          {customerLookupStatus === "not-found" && customerSearch
+                            ? `Tel: ${maskPhone(customerSearch)} — Cliente no registrado.`
+                            : customerLookupFeedback}
+                        </p>
+                      )}
                     </div>
                     <button
                       type="button"
@@ -2713,90 +2767,13 @@ const Dashboard: React.FC = () => {
                       onClick={() => {
                         setNewCustomerError(null);
                         setNewCustomerFieldErrors({});
-                        setNewCustomerForm({ name: "", phone: "", email: "" });
+                        setNewCustomerForm({ name: "", phone: getPhoneDigits(customerSearch), email: "" });
                         setIsNewCustomerModalOpen(true);
                       }}
                     >
                       + Nuevo
                     </button>
                   </>
-                )}
-
-                {/* Dropdown de búsqueda de clientes */}
-                {isCustomerDropdownOpen && customerSearchResults.length > 0 && (
-                  <div style={{
-                    ...styles.searchResultsDropdown,
-                    left: 0,
-                    right: 0,
-                    top: "100%",
-                    marginTop: "4px",
-                    zIndex: 110
-                  }}>
-                    {customerSearchResults.map((c) => (
-                      <div
-                        key={c.id}
-                        onClick={() => {
-                          setSelectedCustomer(c);
-                          setCustomerSearch("");
-                          setCustomerSearchResults([]);
-                          setIsCustomerDropdownOpen(false);
-                        }}
-                        style={{
-                          ...styles.dropdownItem,
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center"
-                        }}
-                      >
-                        <div style={{ display: "flex", flexDirection: "column" }}>
-                          <span style={{ fontWeight: "700", color: "#1e293b" }}>{c.name}</span>
-                          <span style={{ fontSize: "12px", color: "#64748b" }}>📞 {c.phone}</span>
-                        </div>
-                        <span style={{
-                          backgroundColor: "#f1f5f9",
-                          color: "#334155",
-                          padding: "2px 6px",
-                          borderRadius: "4px",
-                          fontWeight: "700",
-                          fontSize: "12px"
-                        }}>
-                          ⭐ {c.points} pts
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Dropdown vacío (No coincidencia => Sugerir registro) */}
-                {isCustomerDropdownOpen && customerSearch.trim().length > 0 && customerSearchResults.length === 0 && (
-                  <div style={{
-                    ...styles.searchResultsDropdown,
-                    left: 0,
-                    right: 0,
-                    top: "100%",
-                    marginTop: "4px",
-                    padding: "12px",
-                    textAlign: "center" as const,
-                    zIndex: 110
-                  }}>
-                    <span style={{ fontSize: "13px", color: "#64748b", display: "block", marginBottom: "8px" }}>
-                      No se encontró ningún cliente
-                    </span>
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      style={{ fontSize: "12px", padding: "6px 12px", width: "100%", backgroundColor: "#0f172a" }}
-                      onClick={() => {
-                        setNewCustomerError(null);
-                        setNewCustomerFieldErrors({});
-                        setNewCustomerForm({ name: "", phone: customerSearch.replace(/\D/g, ""), email: "" });
-                        setIsNewCustomerModalOpen(true);
-                        setIsCustomerDropdownOpen(false);
-                      }}
-                    >
-                      + Registrar "{customerSearch}" como Nuevo Cliente
-                    </button>
-                  </div>
                 )}
               </div>
             </div>
@@ -2997,7 +2974,7 @@ const Dashboard: React.FC = () => {
                 </tbody>
               </table>
             </div>
- 
+
             {/* Totales y Controles Cobro — layout 2 columnas */}
             <div style={{ ...styles.terminalSummary, display: "flex", gap: "24px", alignItems: "flex-start" }} className="pos-cashier-terminal-summary">
 
@@ -3009,43 +2986,43 @@ const Dashboard: React.FC = () => {
                       📱 Pagos QR Pendientes
                     </div>
                     <div className="pos-cashier-inline-table-scroll">
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                      <tbody>
-                        {pendingQrSales.slice(-3).reverse().map((sale) => {
-                          const isChecking = pendingQrChecking === sale.invoiceNumber;
-                          const isApproved = sale.status === "approved";
-                          const isRejected = sale.status === "rejected";
-                          return (
-                            <tr key={sale.id} style={{ borderBottom: "1px solid #f1f5f9", backgroundColor: isApproved ? "#f0fdf4" : isRejected ? "#fef2f2" : "transparent" }}>
-                              <td style={{ padding: "5px 6px", fontWeight: "600", color: "#334155", whiteSpace: "nowrap" }} title={sale.invoiceNumber}>
-                                ...{sale.invoiceNumber.slice(-6)}
-                              </td>
-                              <td style={{ padding: "5px 6px", fontWeight: "700", color: "#0f172a", whiteSpace: "nowrap" }}>
-                                ${Number(sale.amount).toFixed(2)}
-                              </td>
-                              <td style={{ padding: "5px 6px" }}>
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "700", backgroundColor: isApproved ? "#dcfce7" : isRejected ? "#fee2e2" : "#ffedd5", color: isApproved ? "#15803d" : isRejected ? "#b91c1c" : "#c2410c" }}>
-                                  <span style={{ width: "5px", height: "5px", borderRadius: "50%", backgroundColor: isApproved ? "#22c55e" : isRejected ? "#ef4444" : "#f97316" }} />
-                                  {isApproved ? "Aprobado" : isRejected ? "Rechazado" : "Pendiente"}
-                                </span>
-                              </td>
-                              <td style={{ padding: "5px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
-                                <div style={{ display: "inline-flex", gap: "4px" }}>
-                                  <button onClick={(e) => { e.stopPropagation(); setPendingCancelFieldErrors({}); setViewingPendingQrSale(sale); }} title="Ver QR"
-                                    style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: "#dbeafe", color: "#1e40af", border: "1px solid #93c5fd", cursor: "pointer" }}>
-                                    QR
-                                  </button>
-                                  <button onClick={(e) => { e.stopPropagation(); checkPendingQrStatus(sale.invoiceNumber); }} disabled={isChecking} title="Verificar pago — si está aprobado muestra el ticket"
-                                    style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: isChecking ? "#6b7280" : "#1e3a8a", color: "white", border: "none", cursor: isChecking ? "default" : "pointer" }}>
-                                    {isChecking ? "..." : "Verificar"}
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                        <tbody>
+                          {pendingQrSales.slice(-3).reverse().map((sale) => {
+                            const isChecking = pendingQrChecking === sale.invoiceNumber;
+                            const isApproved = sale.status === "approved";
+                            const isRejected = sale.status === "rejected";
+                            return (
+                              <tr key={sale.id} style={{ borderBottom: "1px solid #f1f5f9", backgroundColor: isApproved ? "#f0fdf4" : isRejected ? "#fef2f2" : "transparent" }}>
+                                <td style={{ padding: "5px 6px", fontWeight: "600", color: "#334155", whiteSpace: "nowrap" }} title={sale.invoiceNumber}>
+                                  ...{sale.invoiceNumber.slice(-6)}
+                                </td>
+                                <td style={{ padding: "5px 6px", fontWeight: "700", color: "#0f172a", whiteSpace: "nowrap" }}>
+                                  ${Number(sale.amount).toFixed(2)}
+                                </td>
+                                <td style={{ padding: "5px 6px" }}>
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "700", backgroundColor: isApproved ? "#dcfce7" : isRejected ? "#fee2e2" : "#ffedd5", color: isApproved ? "#15803d" : isRejected ? "#b91c1c" : "#c2410c" }}>
+                                    <span style={{ width: "5px", height: "5px", borderRadius: "50%", backgroundColor: isApproved ? "#22c55e" : isRejected ? "#ef4444" : "#f97316" }} />
+                                    {isApproved ? "Aprobado" : isRejected ? "Rechazado" : "Pendiente"}
+                                  </span>
+                                </td>
+                                <td style={{ padding: "5px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
+                                  <div style={{ display: "inline-flex", gap: "4px" }}>
+                                    <button onClick={(e) => { e.stopPropagation(); setPendingCancelFieldErrors({}); setViewingPendingQrSale(sale); }} title="Ver QR"
+                                      style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: "#dbeafe", color: "#1e40af", border: "1px solid #93c5fd", cursor: "pointer" }}>
+                                      QR
+                                    </button>
+                                    <button onClick={(e) => { e.stopPropagation(); checkPendingQrStatus(sale.invoiceNumber); }} disabled={isChecking} title="Verificar pago — si está aprobado muestra el ticket"
+                                      style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: isChecking ? "#6b7280" : "#1e3a8a", color: "white", border: "none", cursor: isChecking ? "default" : "pointer" }}>
+                                      {isChecking ? "..." : "Verificar"}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </>
                 )}
@@ -3078,14 +3055,6 @@ const Dashboard: React.FC = () => {
                   <div style={styles.summaryRow}>
                     <span>Impuestos:</span>
                     <span style={{ fontWeight: "600" }}>${cartTax.toFixed(2)}</span>
-                  </div>
-                )}
-                {Math.abs(cartTotal - (cartSubtotal + cartTax)) > 0.01 && (
-                  <div style={styles.summaryRow}>
-                    <span>Ajuste por Redondeo:</span>
-                    <span style={{ fontWeight: "600", color: (cartTotal - (cartSubtotal + cartTax)) < 0 ? "#059669" : "#dc2626" }}>
-                      {cartTotal - (cartSubtotal + cartTax) > 0 ? "+" : ""}{(cartTotal - (cartSubtotal + cartTax)).toFixed(2)}
-                    </span>
                   </div>
                 )}
                 <div style={{ ...styles.summaryRow, ...styles.summaryTotal }}>
@@ -3457,34 +3426,34 @@ const Dashboard: React.FC = () => {
             <div style={styles.checkoutModal} className="pos-cashier-modal">
               <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
               <div style={{ textAlign: "center", padding: "20px 0" }}>
-                 <p style={{marginBottom: "10px", fontSize: "14px", color: "#475569"}}>Escanea el siguiente código para pagar <strong>${cartTotal.toFixed(2)}</strong></p>
-                 {qrUrl ? (
-                   <>
-                     <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" width="200" height="200" />
-                     <div style={{ marginTop: "12px" }}>
-                       <a 
-                         href={qrUrl} 
-                         target="_blank" 
-                         rel="noopener noreferrer" 
-                         style={{ 
-                           fontSize: "12px", 
-                           color: "#2563eb", 
-                           textDecoration: "underline", 
-                           fontWeight: "600", 
-                           display: "inline-block", 
-                           padding: "6px 12px", 
-                           backgroundColor: "#f1f5f9", 
-                           borderRadius: "6px" 
-                         }}
-                       >
-                         🔗 Abrir enlace de pago / Sandbox
-                       </a>
-                     </div>
-                   </>
-                 ) : (
-                   <p>Generando QR...</p>
-                 )}
-                 <p style={{ marginTop: "12px", fontSize: "12px", color: "#64748b" }}>Ref: {qrReference}</p>
+                <p style={{ marginBottom: "10px", fontSize: "14px", color: "#475569" }}>Escanea el siguiente código para pagar <strong>${cartTotal.toFixed(2)}</strong></p>
+                {qrUrl ? (
+                  <>
+                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" width="200" height="200" />
+                    <div style={{ marginTop: "12px" }}>
+                      <a
+                        href={qrUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          fontSize: "12px",
+                          color: "#2563eb",
+                          textDecoration: "underline",
+                          fontWeight: "600",
+                          display: "inline-block",
+                          padding: "6px 12px",
+                          backgroundColor: "#f1f5f9",
+                          borderRadius: "6px"
+                        }}
+                      >
+                        🔗 Abrir enlace de pago / Sandbox
+                      </a>
+                    </div>
+                  </>
+                ) : (
+                  <p>Generando QR...</p>
+                )}
+                <p style={{ marginTop: "12px", fontSize: "12px", color: "#64748b" }}>Ref: {qrReference}</p>
               </div>
               <div style={{ display: "flex", gap: "10px", marginTop: "24px" }} className="pos-cashier-modal-actions">
                 <button
@@ -3530,15 +3499,26 @@ const Dashboard: React.FC = () => {
                   {newCustomerFieldErrors.name && <p style={styles.fieldError}>{newCustomerFieldErrors.name}</p>}
                 </div>
                 <div style={styles.inputGroup}>
-                  <label style={styles.label}>Teléfono (10 dígitos) *</label>
-                  <input
-                    type="text"
-                    required
-                    className="input-corporate"
-                    placeholder="Ej. 5551234567"
-                    value={newCustomerForm.phone}
-                    onChange={(e) => setNewCustomerField("phone")(e.target.value)}
-                  />
+                  <label style={styles.label}>TELÉFONO</label>
+                  {/* Mostrar el teléfono enmascarado (solo lectura). El valor completo se conserva
+                      internamente en newCustomerForm.phone para guardarlo en BD sin modificación. */}
+                  <div style={{
+                    padding: "10px 14px",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    backgroundColor: "#f8fafc",
+                    color: "#0f172a",
+                    fontSize: "14px",
+                    fontWeight: "700",
+                    letterSpacing: "0.12em",
+                    cursor: "default",
+                    userSelect: "none"
+                  }}>
+                    {maskPhone(newCustomerForm.phone) || "—"}
+                  </div>
+                  <p style={{ fontSize: "11px", color: "#64748b", margin: "4px 0 0 2px" }}>
+                    🔒 El número se oculta por seguridad.
+                  </p>
                   {newCustomerFieldErrors.phone && <p style={styles.fieldError}>{newCustomerFieldErrors.phone}</p>}
                 </div>
                 <div style={styles.inputGroup}>
@@ -3675,10 +3655,10 @@ const Dashboard: React.FC = () => {
                     {selectedSale.items.map((item: any, idx: number) => {
                       const promoDetails = selectedSale.isNewSale === false
                         ? {
-                            finalPrice: Number(item.product.sellPrice) - (Number(item.discountAmount || 0) / item.quantity),
-                            discountAmount: Number(item.discountAmount || 0),
-                            label: item.product.activePromotion?.name || ""
-                          }
+                          finalPrice: Number(item.product.sellPrice) - (Number(item.discountAmount || 0) / item.quantity),
+                          discountAmount: Number(item.discountAmount || 0),
+                          label: item.product.activePromotion?.name || ""
+                        }
                         : calculateItemPromotion(item);
                       const hasDiscount = promoDetails.discountAmount > 0;
                       return (
@@ -3803,14 +3783,16 @@ const Dashboard: React.FC = () => {
                       <p><strong>Cambio:</strong> ${selectedSale.changeGiven.toFixed(2)}</p>
                     </>
                   )}
-                  {selectedSale.customerName && (
-                    <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "6px", paddingTop: "6px", fontSize: "10px" }}>
-                      <p><strong>Cliente:</strong> {selectedSale.customerName}</p>
-                      {selectedSale.pointsEarned > 0 && <p><strong>Puntos Ganados:</strong> +{selectedSale.pointsEarned}</p>}
-                      {selectedSale.pointsRedeemed > 0 && <p><strong>Puntos Canjeados:</strong> -{selectedSale.pointsRedeemed} (-${Number(selectedSale.pointsDiscount).toFixed(2)} MXN)</p>}
-                      <p><strong>Saldo Nuevo:</strong> {selectedSale.customerPoints} pts</p>
-                    </div>
-                  )}
+                  <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "6px", paddingTop: "6px", fontSize: "10px" }}>
+                    <p><strong>Cliente:</strong> {selectedSale.customerName ? "Cliente registrado" : "Público general"}</p>
+                    {selectedSale.customerName && (
+                      <>
+                        {selectedSale.pointsEarned > 0 && <p><strong>Puntos Ganados:</strong> +{selectedSale.pointsEarned}</p>}
+                        {selectedSale.pointsRedeemed > 0 && <p><strong>Puntos Canjeados:</strong> -{selectedSale.pointsRedeemed} (-${Number(selectedSale.pointsDiscount).toFixed(2)} MXN)</p>}
+                        <p><strong>Saldo Nuevo:</strong> {selectedSale.customerPoints} pts</p>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "12px", paddingTop: "8px", fontSize: "9px", textAlign: "center", color: "#64748b", lineHeight: "1.4", display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -3822,6 +3804,7 @@ const Dashboard: React.FC = () => {
                   />
                   <p style={{ fontWeight: "700", wordBreak: "break-all" }}>{window.location.origin + "/autofacturacion"}</p>
                   <p>Escanea el código QR para facturar tu compra</p>
+                  {renderTicketInvoiceInfo()}
                 </div>
 
                 <div style={{ textAlign: "center", marginTop: "20px", fontSize: "10px", color: "#64748b" }}>
@@ -3891,7 +3874,8 @@ const Dashboard: React.FC = () => {
                   <p style={{ fontSize: "12px", color: "#64748b" }}>Código QR no disponible.</p>
                 )}
                 <p style={{ marginTop: "10px", fontSize: "11px", color: "#64748b" }}>Folio: {viewingPendingQrSale.invoiceNumber}</p>
-                <p style={{ marginTop: "4px", fontSize: "12px", fontWeight: "700",
+                <p style={{
+                  marginTop: "4px", fontSize: "12px", fontWeight: "700",
                   color: viewingPendingQrSale.status === "approved" ? "#15803d" : viewingPendingQrSale.status === "rejected" ? "#b91c1c" : "#c2410c"
                 }}>
                   Estado: {viewingPendingQrSale.status === "approved" ? "✅ Aprobado" : viewingPendingQrSale.status === "rejected" ? "❌ Rechazado" : "⏳ Pendiente"}
@@ -3967,24 +3951,13 @@ const Dashboard: React.FC = () => {
                 >
                   CERRAR
                 </button>
-                {isQrExpired(viewingPendingQrSale) && viewingPendingQrSale.status !== "approved" && viewingPendingQrSale.status !== "rejected" ? (
-                  <button
-                    onClick={() => handleRegenerateQr(viewingPendingQrSale)}
-                    style={{ ...styles.modalBtn, backgroundColor: "#2563eb", color: "white" }}
-                  >
-                    🔄 GENERAR NUEVO QR
-                  </button>
-                ) : (
-                  viewingPendingQrSale.status !== "approved" && (
-                    <button
-                      onClick={() => checkPendingQrStatus(viewingPendingQrSale.invoiceNumber)}
-                      disabled={pendingQrChecking === viewingPendingQrSale.invoiceNumber}
-                      style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
-                    >
-                      {pendingQrChecking === viewingPendingQrSale.invoiceNumber ? "VERIFICANDO..." : "VERIFICAR ESTADO"}
-                    </button>
-                  )
-                )}
+                <button
+                  onClick={() => checkPendingQrStatus(viewingPendingQrSale.invoiceNumber)}
+                  disabled={pendingQrChecking === viewingPendingQrSale.invoiceNumber}
+                  style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
+                >
+                  {pendingQrChecking === viewingPendingQrSale.invoiceNumber ? "VERIFICANDO..." : "VERIFICAR ESTADO"}
+                </button>
               </div>
             </div>
           </div>
@@ -4050,11 +4023,11 @@ const Dashboard: React.FC = () => {
               <div style={{ flex: 1 }}>
                 <strong style={{ fontSize: "14px", fontWeight: "700" }}>⚠️ Alerta de Efectivo en Caja Chica</strong>
                 <p style={{ fontSize: "12px", margin: "2px 0 0 0", color: "#b45309" }}>
-                  El efectivo actual en caja (${sessionStats.expectedAmount.toFixed(2)} MXN) supera el límite establecido de $5,000.00 MXN. 
+                  El efectivo actual en caja (${sessionStats.expectedAmount.toFixed(2)} MXN) supera el límite establecido de $5,000.00 MXN.
                   Por favor, registre un <strong>Depósito Bancario (Cash Drop)</strong> para retirar el excedente.
                 </p>
               </div>
-              <button 
+              <button
                 onClick={() => setActiveModal("bank-deposit")}
                 style={{
                   backgroundColor: "#d97706",
@@ -4175,7 +4148,7 @@ const Dashboard: React.FC = () => {
                       const isExpanded = expandedSalesRows.has(sale.id);
                       return (
                         <React.Fragment key={sale.id}>
-                          <tr 
+                          <tr
                             style={styles.tableRow}
                             className={isExpanded ? "pos-cashier-table-row-expanded" : ""}
                           >
@@ -4312,7 +4285,7 @@ const Dashboard: React.FC = () => {
                   <thead>
                     <tr style={styles.tableHeaderRow}>
                       <th style={styles.th}>CUENTA TARGET</th>
-                      <th style={styles.th}>BENEFICIARIO</th>
+                      <th style={styles.th}>DESTINO</th>
                       <th style={styles.th}>MONTO</th>
                       <th style={styles.th} className="pos-cashier-responsive-menu-head">MAS</th>
                       <th style={styles.th}>ESTADO</th>
@@ -4323,12 +4296,12 @@ const Dashboard: React.FC = () => {
                       const isExpanded = expandedDepositRows.has(dep.id);
                       return (
                         <React.Fragment key={dep.id}>
-                          <tr 
+                          <tr
                             style={styles.tableRow}
                             className={isExpanded ? "pos-cashier-table-row-expanded" : ""}
                           >
                             <td data-label="Cuenta" style={styles.td}>**** **** **** {dep.accountNumber.slice(-4)}</td>
-                            <td data-label="Beneficiario" style={styles.td}>{dep.targetName}</td>
+                            <td data-label="Destino" style={styles.td}>{dep.targetName ? "Destino registrado" : "Destino no registrado"}</td>
                             <td data-label="Monto" style={{ ...styles.td, fontWeight: "700", color: "#dc2626" }}>-${dep.amount.toFixed(2)}</td>
                             <td data-label="Estado" style={styles.td}>
                               <span style={styles.badgeSuccess}>Exitoso</span>
@@ -4567,22 +4540,6 @@ const Dashboard: React.FC = () => {
                   *** CANCELADO ***
                 </div>
               )}
-              {selectedSale.status === "PENDIENTE" && (
-                <div style={{
-                  textAlign: "center",
-                  color: "#d97706",
-                  fontWeight: "900",
-                  fontSize: "16px",
-                  border: "2px solid #d97706",
-                  padding: "4px",
-                  marginBottom: "12px",
-                  borderRadius: "4px",
-                  textTransform: "uppercase",
-                  backgroundColor: "#fffbeb"
-                }}>
-                  *** PAGO PENDIENTE ***
-                </div>
-              )}
               {selectedSale.totalRefunded > 0 && Number(selectedSale.totalRefunded).toFixed(2) === Number(selectedSale.total).toFixed(2) && (
                 <div style={{
                   textAlign: "center",
@@ -4653,10 +4610,10 @@ const Dashboard: React.FC = () => {
                   {selectedSale.items.map((item: any, idx: number) => {
                     const promoDetails = selectedSale.isNewSale === false
                       ? {
-                          finalPrice: Number(item.product.sellPrice) - (Number(item.discountAmount || 0) / item.quantity),
-                          discountAmount: Number(item.discountAmount || 0),
-                          label: item.product.activePromotion?.name || ""
-                        }
+                        finalPrice: Number(item.product.sellPrice) - (Number(item.discountAmount || 0) / item.quantity),
+                        discountAmount: Number(item.discountAmount || 0),
+                        label: item.product.activePromotion?.name || ""
+                      }
                       : calculateItemPromotion(item);
                     const hasDiscount = promoDetails.discountAmount > 0;
                     return (
@@ -4763,7 +4720,7 @@ const Dashboard: React.FC = () => {
                 )}
               </div>
 
-               <div style={{ borderTop: "1px solid #cbd5e1", marginTop: "8px", paddingTop: "8px", fontSize: "11px" }}>
+              <div style={{ borderTop: "1px solid #cbd5e1", marginTop: "8px", paddingTop: "8px", fontSize: "11px" }}>
                 <p>
                   <strong>Método de pago:</strong> {selectedSale.paymentMethod}
                   {selectedSale.cardType && ` (${selectedSale.cardType})`}
@@ -4781,14 +4738,16 @@ const Dashboard: React.FC = () => {
                     <p><strong>Cambio:</strong> ${selectedSale.changeGiven.toFixed(2)}</p>
                   </>
                 )}
-                {selectedSale.customerName && (
-                  <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "6px", paddingTop: "6px", fontSize: "10px" }}>
-                    <p><strong>Cliente:</strong> {selectedSale.customerName}</p>
-                    {selectedSale.pointsEarned > 0 && <p><strong>Puntos Ganados:</strong> +{selectedSale.pointsEarned}</p>}
-                    {selectedSale.pointsRedeemed > 0 && <p><strong>Puntos Canjeados:</strong> -{selectedSale.pointsRedeemed} (-${Number(selectedSale.pointsDiscount).toFixed(2)} MXN)</p>}
-                    <p><strong>Saldo Nuevo:</strong> {selectedSale.customerPoints} pts</p>
-                  </div>
-                )}
+                <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "6px", paddingTop: "6px", fontSize: "10px" }}>
+                  <p><strong>Cliente:</strong> {selectedSale.customerName ? "Cliente registrado" : "Público general"}</p>
+                  {selectedSale.customerName && (
+                    <>
+                      {selectedSale.pointsEarned > 0 && <p><strong>Puntos Ganados:</strong> +{selectedSale.pointsEarned}</p>}
+                      {selectedSale.pointsRedeemed > 0 && <p><strong>Puntos Canjeados:</strong> -{selectedSale.pointsRedeemed} (-${Number(selectedSale.pointsDiscount).toFixed(2)} MXN)</p>}
+                      <p><strong>Saldo Nuevo:</strong> {selectedSale.customerPoints} pts</p>
+                    </>
+                  )}
+                </div>
               </div>
 
               <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "12px", paddingTop: "8px", fontSize: "9px", textAlign: "center", color: "#64748b", lineHeight: "1.4", display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -4800,6 +4759,8 @@ const Dashboard: React.FC = () => {
                 />
                 <p style={{ fontWeight: "700", wordBreak: "break-all" }}>{window.location.origin + "/autofacturacion"}</p>
                 <p>Escanea el código QR para facturar tu compra</p>
+                {renderTicketInvoiceInfo()}
+
               </div>
 
               <div style={{ textAlign: "center", marginTop: "20px", fontSize: "10px", color: "#64748b" }}>
@@ -4934,8 +4895,8 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div style={{ display: "flex", gap: "10px", marginTop: "14px" }} className="pos-cashier-modal-actions">
-                <button 
-                  onClick={() => setActiveModal("close-options")} 
+                <button
+                  onClick={() => setActiveModal("close-options")}
                   style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
                 >
                   VOLVER
@@ -4962,7 +4923,7 @@ const Dashboard: React.FC = () => {
             <p style={{ fontSize: "11px", color: "#64748b", margin: "4px 0 16px 0", textAlign: "center" }}>
               Corte parcial registrado exitosamente en base de datos.
             </p>
-            
+
             <div style={styles.ticketContainer} id="partial-cut-thermal-receipt" className="ticket-print">
               <div style={{ textAlign: "center", borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px", marginBottom: "10px" }}>
                 <strong style={{ fontSize: "14px" }}>LYFRGL POS</strong>
@@ -5021,13 +4982,13 @@ const Dashboard: React.FC = () => {
             </div>
 
             <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions no-print" data-no-ticket-print="true">
-              <button 
+              <button
                 onClick={() => {
                   const printed = printTicketElementById(`Corte Parcial #${partialCutData.cutNumber}`, "partial-cut-thermal-receipt");
                   if (!printed) {
                     alert("Habilite las ventanas emergentes para imprimir el comprobante.");
                   }
-                }} 
+                }}
                 style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
               >
                 IMPRIMIR
@@ -5115,8 +5076,8 @@ const Dashboard: React.FC = () => {
                       return;
                     }
                     handleDecimalInputChange(rawValue, (value) => {
-                    setDeclaredCash(value);
-                    setDeclaredCashError("");
+                      setDeclaredCash(value);
+                      setDeclaredCashError("");
                     });
                   }}
                 />
@@ -5155,14 +5116,14 @@ const Dashboard: React.FC = () => {
               <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "#0f172a" }}>
                 Resguardo de Efectivo (Cash Deposit)
               </h3>
-              <button 
-                onClick={() => setActiveModal(null)} 
+              <button
+                onClick={() => setActiveModal(null)}
                 style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "20px", cursor: "pointer", fontWeight: "bold" }}
               >
                 &times;
               </button>
             </div>
-            
+
             <div style={{ backgroundColor: "#e0f2fe", border: "1px solid #bae6fd", borderRadius: "8px", padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "13px", color: "#0369a1", fontWeight: "600", marginTop: "12px", marginBottom: "14px" }} className="pos-cashier-deposit-info">
               <span>Efectivo disponible en caja:</span>
               <span style={{ fontSize: "15px", fontWeight: "800" }}>${sessionStats?.expectedAmount?.toFixed(2) || "0.00"}</span>
@@ -5286,7 +5247,7 @@ const Dashboard: React.FC = () => {
 
                 {depTab === "registrar" ? (
                   <form onSubmit={handleDepositSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                    
+
                     {/* Tarjeta de Datos Calculados */}
                     <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px", backgroundColor: "#f8fafc", marginBottom: "4px" }}>
                       <h4 style={{ fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "8px", borderBottom: "1px solid #e2e8f0", paddingBottom: "4px" }}>
@@ -5451,11 +5412,11 @@ const Dashboard: React.FC = () => {
                       <div style={styles.inputGroup}>
                         <label style={styles.label}>Referencia:</label>
                         <input
-                           type="text"
-                           className="input-corporate"
-                           placeholder="DEP-..."
-                           value={searchDepRef}
-                           onChange={(e) => setSearchDepRef(e.target.value)}
+                          type="text"
+                          className="input-corporate"
+                          placeholder="DEP-..."
+                          value={searchDepRef}
+                          onChange={(e) => setSearchDepRef(e.target.value)}
                         />
                       </div>
                       <div style={styles.inputGroup}>
@@ -5485,7 +5446,7 @@ const Dashboard: React.FC = () => {
                         </select>
                       </div>
                     </div>
-                    
+
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "14px" }} className="pos-cashier-grid-2">
                       <div style={styles.inputGroup}>
                         <label style={styles.label}>Desde:</label>
@@ -5542,11 +5503,13 @@ const Dashboard: React.FC = () => {
                                 </td>
                                 <td style={{ ...styles.td, padding: "8px", fontSize: "12px" }}>
                                   {dep.paymentType?.startsWith("MERCADOPAGO_") ? (
-                                    <div>Ref: {dep.accountNumber}</div>
+                                    <div>Ref: {maskTail(dep.accountNumber)}</div>
                                   ) : (
-                                    <div>****{dep.accountNumber.slice(-4)}</div>
+                                    <div>Cuenta: {maskTail(dep.accountNumber)}</div>
                                   )}
-                                  <div style={{ fontSize: "10px", color: "#64748b" }}>{dep.targetName}</div>
+                                  <div style={{ fontSize: "10px", color: "#64748b" }}>
+                                    {dep.targetName ? "Destino registrado" : "Destino no registrado"}
+                                  </div>
                                 </td>
                                 <td style={{ ...styles.td, padding: "8px", fontSize: "12px", fontWeight: "700", color: dep.status === "CANCELLED" ? "#b91c1c" : "#0f172a" }}>
                                   {dep.status === "CANCELLED" ? "" : "-"}${Number(dep.amount).toFixed(2)}
@@ -5554,12 +5517,12 @@ const Dashboard: React.FC = () => {
                                 <td style={{ ...styles.td, padding: "8px", fontSize: "12px" }}>{dep.userName}</td>
                                 <td style={{ ...styles.td, padding: "8px", fontSize: "12px" }}>
                                   <span style={
-                                    dep.status === "COMPLETED" ? styles.badgeSuccess : 
-                                    dep.status === "CANCELLED" ? styles.badgeDanger : 
-                                    styles.badgeWarning
+                                    dep.status === "COMPLETED" ? styles.badgeSuccess :
+                                      dep.status === "CANCELLED" ? styles.badgeDanger :
+                                        styles.badgeWarning
                                   }>
-                                    {dep.status === "COMPLETED" ? "Exitoso" : 
-                                     dep.status === "CANCELLED" ? "Cancelado" : "Pendiente"}
+                                    {dep.status === "COMPLETED" ? "Exitoso" :
+                                      dep.status === "CANCELLED" ? "Cancelado" : "Pendiente"}
                                   </span>
                                 </td>
                                 <td style={{ ...styles.td, padding: "8px", fontSize: "12px" }}>
@@ -5653,7 +5616,7 @@ const Dashboard: React.FC = () => {
         if (lastDeposit.paymentType?.startsWith("MERCADOPAGO_")) {
           try {
             mpMeta = JSON.parse(lastDeposit.comments);
-          } catch (e) {}
+          } catch (e) { }
         }
         return (
           <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
@@ -5662,7 +5625,7 @@ const Dashboard: React.FC = () => {
               <p style={{ fontSize: "11px", color: "#64748b", margin: "4px 0 16px 0", textAlign: "center" }}>
                 Depósito bancario registrado exitosamente en base de datos.
               </p>
-              
+
               <div style={styles.ticketContainer} id="deposit-thermal-receipt" className="ticket-print">
                 <div style={{ textAlign: "center", borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px", marginBottom: "10px" }}>
                   <strong style={{ fontSize: "14px" }}>LYFRGL POS</strong>
@@ -5681,7 +5644,7 @@ const Dashboard: React.FC = () => {
                     <span>ID RETIRO:</span>
                     <strong>#{lastDeposit.id}</strong>
                   </div>
-                  
+
                   {lastDeposit.paymentType?.startsWith("MERCADOPAGO_") ? (
                     <>
                       <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -5713,10 +5676,10 @@ const Dashboard: React.FC = () => {
                       {mpMeta && mpMeta.ticketUrl && (
                         <div style={{ display: "flex", flexDirection: "column", gap: "2px", borderTop: "1px dashed #cbd5e1", paddingTop: "4px", marginTop: "2px" }} className="no-print">
                           <span style={{ color: "#64748b" }}>TICKET DIGITAL:</span>
-                          <a 
-                            href={mpMeta.ticketUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
+                          <a
+                            href={mpMeta.ticketUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             style={{ color: "#2563eb", textDecoration: "underline", wordBreak: "break-all", fontSize: "10px", fontWeight: "bold" }}
                           >
                             Ver Instrucciones de Pago
@@ -5804,13 +5767,13 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions no-print" data-no-ticket-print="true">
-                <button 
+                <button
                   onClick={() => {
                     const printed = printTicketElementById(`Comprobante de Retiro #${lastDeposit.id}`, "deposit-thermal-receipt");
                     if (!printed) {
                       alert("Habilite las ventanas emergentes para imprimir el comprobante.");
                     }
-                  }} 
+                  }}
                   style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
                 >
                   IMPRIMIR
@@ -5849,43 +5812,43 @@ const Dashboard: React.FC = () => {
         <div style={{ ...styles.modalOverlay, zIndex: 9999 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
           <div style={styles.checkoutModal} className="pos-cashier-modal">
             <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
-            
+
             <div style={{ textAlign: "center", padding: "12px 0" }}>
-               <p style={{ marginBottom: "10px", fontSize: "13px", color: "#475569" }}>
-                 Escanea el siguiente código para pagar la venta <strong>${Number(viewingPendingQrSale.amount).toFixed(2)}</strong>
-               </p>
-               {viewingPendingQrSale.qrUrl ? (
-                 <>
-                   <img 
-                     src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(viewingPendingQrSale.qrUrl)}`} 
-                     alt="QR Code" 
-                     width="180" 
-                     height="180" 
-                   />
-                   <div style={{ marginTop: "10px" }}>
-                     <a 
-                       href={viewingPendingQrSale.qrUrl} 
-                       target="_blank" 
-                       rel="noopener noreferrer" 
-                       style={{ 
-                         fontSize: "12px", 
-                         color: "#2563eb", 
-                         textDecoration: "underline", 
-                         fontWeight: "600", 
-                         display: "inline-block", 
-                         padding: "6px 12px", 
-                         backgroundColor: "#f1f5f9", 
-                         borderRadius: "6px" 
-                       }}
-                     >
-                       🔗 Abrir enlace de pago / Sandbox
-                     </a>
-                   </div>
-                 </>
-               ) : (
-                 <p style={{ fontSize: "12px", color: "#64748b" }}>Código QR no disponible.</p>
-               )}
-               <p style={{ marginTop: "10px", fontSize: "11px", color: "#64748b" }}>Folio: {viewingPendingQrSale.invoiceNumber}</p>
+              <p style={{ marginBottom: "10px", fontSize: "13px", color: "#475569" }}>
+                Escanea el siguiente código para pagar la venta <strong>${Number(viewingPendingQrSale.amount).toFixed(2)}</strong>
+              </p>
+              {viewingPendingQrSale.qrUrl ? (
+                <>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(viewingPendingQrSale.qrUrl)}`}
+                    alt="QR Code"
+                    width="180"
+                    height="180"
+                  />
+                  <div style={{ marginTop: "10px" }}>
+                    <a
+                      href={viewingPendingQrSale.qrUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontSize: "12px",
+                        color: "#2563eb",
+                        textDecoration: "underline",
+                        fontWeight: "600",
+                        display: "inline-block",
+                        padding: "6px 12px",
+                        backgroundColor: "#f1f5f9",
+                        borderRadius: "6px"
+                      }}
+                    >
+                      🔗 Abrir enlace de pago / Sandbox
+                    </a>
+                  </div>
+                </>
+              ) : (
+                <p style={{ fontSize: "12px", color: "#64748b" }}>Código QR no disponible.</p>
+              )}
+              <p style={{ marginTop: "10px", fontSize: "11px", color: "#64748b" }}>Folio: {viewingPendingQrSale.invoiceNumber}</p>
             </div>
 
             {/* Formulario de Cancelación con PIN si la venta sigue pendiente */}
@@ -5901,7 +5864,7 @@ const Dashboard: React.FC = () => {
                 <div style={{ fontSize: "11px", fontWeight: "700", color: "#dc2626", textTransform: "uppercase" }}>
                   ⚠️ Cancelar Venta (Revertir Stock)
                 </div>
-                
+
                 <div style={{ display: "flex", gap: "8px" }}>
                   <div style={{ flex: 1 }}>
                     <input
@@ -5959,23 +5922,13 @@ const Dashboard: React.FC = () => {
               >
                 CERRAR
               </button>
-              {isQrExpired(viewingPendingQrSale) && viewingPendingQrSale.status !== "approved" && viewingPendingQrSale.status !== "rejected" ? (
-                <button
-                  onClick={() => handleRegenerateQr(viewingPendingQrSale)}
-                  style={{ ...styles.modalBtn, backgroundColor: "#2563eb", color: "white" }}
-                >
-                  🔄 GENERAR NUEVO QR
-                </button>
-              ) : (
-                viewingPendingQrSale.status !== "approved" && (
-                  <button
-                    onClick={() => checkPendingQrStatus(viewingPendingQrSale.invoiceNumber)}
-                    style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
-                  >
-                    VERIFICAR ESTADO
-                  </button>
-                )
-              )}
+
+              <button
+                onClick={() => checkPendingQrStatus(viewingPendingQrSale.invoiceNumber)}
+                style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
+              >
+                VERIFICAR ESTADO
+              </button>
             </div>
           </div>
         </div>
@@ -6025,9 +5978,9 @@ const Dashboard: React.FC = () => {
                   <span>ESTADO:</span>
                   <strong>{lastClosedStats.session?.status}</strong>
                 </div>
-                
+
                 <div className="dashed" style={{ borderTop: "1px dashed #cbd5e1", margin: "6px 0" }} />
-                
+
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span>FONDO INICIAL:</span>
                   <strong>${Number(lastClosedStats.initialAmount || 0).toFixed(2)}</strong>
@@ -6040,9 +5993,9 @@ const Dashboard: React.FC = () => {
                   <span>RETIROS CAJA (-):</span>
                   <strong style={{ color: "#dc2626" }}>-${Number(lastClosedStats.cashOut || 0).toFixed(2)}</strong>
                 </div>
-                
+
                 <div className="dashed" style={{ borderTop: "1px dashed #cbd5e1", margin: "6px 0" }} />
-                
+
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span>EFECTIVO ESPERADO:</span>
                   <strong>${Number(lastClosedStats.expectedAmount || 0).toFixed(2)}</strong>
@@ -6090,13 +6043,13 @@ const Dashboard: React.FC = () => {
             </div>
 
             <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions no-print" data-no-ticket-print="true">
-              <button 
+              <button
                 onClick={() => {
                   const printed = printTicketElementById(`Corte Z - Sesion #${lastClosedStats.session?.id}`, "close-thermal-receipt");
                   if (!printed) {
                     alert("Habilite las ventanas emergentes para imprimir el comprobante.");
                   }
-                }} 
+                }}
                 style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
               >
                 IMPRIMIR
@@ -6119,7 +6072,7 @@ const Dashboard: React.FC = () => {
           <div style={styles.historyModal} className="pos-cashier-modal">
             <h3 style={styles.modalTitle}>Reimprimir Ticket de Venta:</h3>
             <p style={{ fontSize: "12px", color: "#64748b", marginBottom: "14px" }}>Seleccione la venta de la sucursal para reimprimir su comprobante.</p>
-            
+
             {/* Grid de Filtros */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }} className="pos-cashier-grid-2">
               <div style={{ ...styles.inputGroup, gridColumn: "span 2" }}>
@@ -6194,7 +6147,7 @@ const Dashboard: React.FC = () => {
                 <thead>
                   <tr style={styles.tableHeaderRow}>
                     <th style={styles.th}>Folio / Fecha</th>
-                    <th style={styles.th}>Cliente / Tel</th>
+                    <th style={styles.th}>Cliente</th>
                     <th style={{ ...styles.th, textAlign: "right" }}>Total</th>
                     <th style={{ ...styles.th, textAlign: "center" }}>Acción</th>
                   </tr>
@@ -6216,8 +6169,8 @@ const Dashboard: React.FC = () => {
                         <td style={{ ...styles.td, fontSize: "11px" }}>
                           {sale.customerName ? (
                             <>
-                              <div style={{ fontWeight: "600", color: "#334155" }}>{sale.customerName}</div>
-                              {sale.customerPhone && <div style={{ fontSize: "10px", color: "#64748b" }}>{sale.customerPhone}</div>}
+                              <div style={{ fontWeight: "600", color: "#334155" }}>Cliente registrado</div>
+                              {sale.customerPhone && <div style={{ fontSize: "10px", color: "#64748b" }}>Tel: {maskPhone(sale.customerPhone)}</div>}
                             </>
                           ) : (
                             <span style={{ color: "#94a3b8", fontStyle: "italic" }}>General</span>
@@ -6354,7 +6307,7 @@ const Dashboard: React.FC = () => {
                 }} className="pos-cashier-grid-2">
                   <div><strong>Folio:</strong> {returnSaleData.invoiceNumber}</div>
                   <div><strong>Fecha:</strong> {new Date(returnSaleData.createdAt).toLocaleDateString()}</div>
-                  <div><strong>Cliente:</strong> {returnSaleData.customerName}</div>
+                  <div><strong>Cliente:</strong> {returnSaleData.customerName ? "Cliente registrado" : "Público general"}</div>
                   <div><strong>Total:</strong> ${Number(returnSaleData.totalAmount).toFixed(2)}</div>
                 </div>
 
@@ -7284,71 +7237,29 @@ const styles: { [key: string]: React.CSSProperties } = {
     maxHeight: "55vh",
     overflowY: "auto",
   },
-  conflictScreen: {
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    minHeight: "100vh",
-    width: "100vw",
-    backgroundColor: "#f8fafc",
-    padding: "20px",
-    boxSizing: "border-box",
-    position: "fixed",
-    top: 0,
-    left: 0,
-    zIndex: 9999,
-  },
-  conflictCard: {
-    width: "440px",
-    maxWidth: "100%",
-    backgroundColor: "#ffffff",
-    borderRadius: "16px",
-    padding: "48px 32px 36px 32px",
-    boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-    textAlign: "center",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    border: "1px solid #f1f5f9",
-  },
-  conflictIconContainer: {
-    width: "72px",
-    height: "72px",
-    borderRadius: "50%",
-    backgroundColor: "#fef2f2",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: "28px",
-  },
-  conflictTitle: {
-    color: "#0f172a",
-    fontSize: "22px",
-    fontWeight: "700",
-    margin: "0 0 16px 0",
-    fontFamily: "'Outfit', 'Inter', sans-serif",
-    letterSpacing: "-0.5px",
-  },
-  conflictText: {
-    color: "#475569",
-    fontSize: "14px",
-    lineHeight: "1.6",
-    margin: "0 0 32px 0",
-    fontFamily: "'Inter', sans-serif",
-    maxWidth: "340px",
-  },
-  conflictButton: {
+  invoiceInfo: {
     width: "100%",
-    padding: "14px 20px",
-    fontSize: "15px",
-    fontWeight: "600",
-    borderRadius: "10px",
-    backgroundColor: "#598ffbff",
-    color: "#ffffff",
-    border: "none",
-    cursor: "pointer",
-    transition: "background-color 0.2s, transform 0.1s",
-    boxShadow: "0 4px 6px -1px rgba(89, 143, 251, 0.2)",
+    margin: "8px 0 0 0",
+    padding: "6px 4px",
+    borderTop: "1px dashed #111111",
+    borderBottom: "1px dashed #111111",
+    textAlign: "center",
+    color: "#111111",
+    fontSize: "9px",
+    lineHeight: 1.3,
+  },
+  invoiceInfoTitle: {
+    marginBottom: "3px",
+    color: "#111111",
+    fontSize: "10px",
+    fontWeight: 800,
+    letterSpacing: "0.3px",
+  },
+  invoiceInfoText: {
+    maxWidth: "62mm",
+    margin: "0 auto",
+    color: "#111111",
+    fontWeight: 400,
   },
   select: {
     width: "100%",
