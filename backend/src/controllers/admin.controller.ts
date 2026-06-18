@@ -171,7 +171,7 @@ export const getSaleDetail = async (req: Request, res: Response): Promise<void> 
           name: d.product.name,
           quantity: d.quantity,
           unitPrice: Number(d.unitPrice),
-          importe: Number(d.unitPrice) * d.quantity,
+          importe: (Number(d.unitPrice) * d.quantity) - Number(d.discountAmount),
         })),
       },
     });

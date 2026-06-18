@@ -702,6 +702,66 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <p style={{ fontSize: 13, color: "#94a3b8", textAlign: "center", padding: "12px 0" }}>
                       Sin movimientos registrados.
                     </p>
+                  ) : isMobile ? (
+                    <div style={{ maxHeight: 360, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
+                      {selectedDetail.movements.map((m) => {
+                        const isPositive = m.amount >= 0;
+                        return (
+                          <div
+                            key={m.id}
+                            style={{
+                              backgroundColor: "#ffffff",
+                              border: "1px solid #f1f5f9",
+                              borderRadius: 14,
+                              padding: "14px 16px",
+                              boxShadow: "0 2px 4px rgba(0,0,0,0.04)",
+                            }}
+                          >
+                            {/* Row 1: Date/time + Amount */}
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                              <span style={{ fontSize: 12, color: "#64748b", fontWeight: 500 }}>
+                                {fmtDate(m.date)} {fmtTime(m.date)}
+                              </span>
+                              <div style={{ textAlign: "right" }}>
+                                <div style={{ fontSize: 16, fontWeight: 800, color: isPositive ? "#15803d" : "#b91c1c" }}>
+                                  {isPositive ? "+" : ""}${Math.abs(m.amount).toLocaleString("es-MX")}
+                                </div>
+                                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, marginTop: 2 }}>
+                                  Saldo {money(m.balance)}
+                                </div>
+                              </div>
+                            </div>
+                            {/* Row 2: Arrow icon + Type + Description */}
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div
+                                style={{
+                                  width: 28,
+                                  height: 28,
+                                  borderRadius: "50%",
+                                  backgroundColor: isPositive ? "#f0fdf4" : "#fef2f2",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                <span style={{ fontSize: 14, color: isPositive ? "#15803d" : "#b91c1c" }}>
+                                  {isPositive ? "↓" : "↑"}
+                                </span>
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 14, fontWeight: 800, color: movTypeColor(m.type) }}>
+                                  {m.type}
+                                </div>
+                                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500 }}>
+                                  {m.description}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   ) : (
                     <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, overflowX: "auto", overflowY: "hidden", maxWidth: "100%" }}>
                       <table style={{ ...ui.table, fontSize: 12 }}>

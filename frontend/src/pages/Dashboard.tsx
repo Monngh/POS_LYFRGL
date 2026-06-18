@@ -28,12 +28,12 @@ import {
   validateSafeText,
   validateSearchText,
 } from "../utils/formValidation";
-import { 
-  LogOut, 
-  Store, 
-  Users, 
-  Plus, 
-  Minus, 
+import {
+  LogOut,
+  Store,
+  Users,
+  Plus,
+  Minus,
   BadgePercent,
   Search,
   Printer,
@@ -161,7 +161,7 @@ const Dashboard: React.FC = () => {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
-  
+
   // Vistas del Cajero: "dashboard" | "apertura" | "sales-terminal"
   const [view, setView] = useState<"dashboard" | "apertura" | "sales-terminal">("dashboard");
   // Bloqueo: el turno de caja del usuario está abierto en otro equipo
@@ -304,9 +304,9 @@ const Dashboard: React.FC = () => {
     const bg = isError ? "#fef2f2" : isSuccess ? "#f0fdf4" : "#f0f9ff";
     const border = isError ? "#fca5a5" : isSuccess ? "#bbf7d0" : "#bae6fd";
     const textColor = isError ? "#991b1b" : isSuccess ? "#166534" : "#075985";
-    
+
     return (
-      <div 
+      <div
         className="toast-premium"
         style={{
           position: "fixed",
@@ -351,7 +351,7 @@ const Dashboard: React.FC = () => {
   // ---------------------------------------------------------------------------
   const checkSessionStatus = async () => {
     if (!user) return;
-    
+
     // Si es Administrador o Gerente, va directo al Dashboard admin
     if (user.role === "ADMIN" || user.role === "GERENTE") {
       setLoading(false);
@@ -669,25 +669,25 @@ const Dashboard: React.FC = () => {
 
   const setNewCustomerField =
     (field: keyof typeof newCustomerForm) =>
-    (value: string) => {
-      const nextValue =
-        field === "phone"
-          ? normalizePhoneInput(value).slice(0, 20)
-          : field === "email"
-            ? normalizeEmailInput(value)
-            : field === "name"
-              ? validateNameInput(value)
-              : value;
-      setNewCustomerForm((prev) => ({ ...prev, [field]: nextValue }));
-      setNewCustomerError(null);
-      setNewCustomerFieldErrors((prev) => {
-        const next = { ...prev };
-        const error = validateNewCustomerField(field, nextValue);
-        if (error) next[field] = error;
-        else delete next[field];
-        return next;
-      });
-    };
+      (value: string) => {
+        const nextValue =
+          field === "phone"
+            ? normalizePhoneInput(value).slice(0, 20)
+            : field === "email"
+              ? normalizeEmailInput(value)
+              : field === "name"
+                ? validateNameInput(value)
+                : value;
+        setNewCustomerForm((prev) => ({ ...prev, [field]: nextValue }));
+        setNewCustomerError(null);
+        setNewCustomerFieldErrors((prev) => {
+          const next = { ...prev };
+          const error = validateNewCustomerField(field, nextValue);
+          if (error) next[field] = error;
+          else delete next[field];
+          return next;
+        });
+      };
 
   const handleRegisterCustomerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1145,7 +1145,7 @@ const Dashboard: React.FC = () => {
           invoiceNumber: qrReference,
           paymentId: res.data.paymentId || `mock-${Date.now()}`
         }, { timeout: LONG_OPERATION_TIMEOUT });
-        alert("Pago aprobado exitosamente.");
+        showToast("Pago aprobado exitosamente.", "success");
         setQrModalOpen(false);
         setCart([]);
         setPaymentMethod("EFECTIVO");
@@ -1163,12 +1163,12 @@ const Dashboard: React.FC = () => {
 
         setActiveModal("ticket-view");
       } else if (res.data.status === "rejected") {
-        alert("Pago rechazado.");
+        showToast("Pago rechazado.", "error");
       } else {
-        alert("El pago aún no ha sido completado. Estado: " + res.data.status);
+        showToast("El pago aún no ha sido completado. Estado: " + res.data.status, "info");
       }
-    } catch(err) {
-      alert("Error al verificar pago.");
+    } catch (err) {
+      showToast("Error al verificar pago.", "error");
     } finally {
       setQrChecking(false);
     }
@@ -1181,11 +1181,11 @@ const Dashboard: React.FC = () => {
   const parsedReceived = roundToTwoDecimals(Number(cashReceived) || 0);
   const parsedMixtoCash = roundToTwoDecimals(Number(mixtoCash) || 0);
   const parsedMixtoCard = roundToTwoDecimals(Number(mixtoCard) || 0);
-  const calculatedChange = paymentMethod === "EFECTIVO" 
+  const calculatedChange = paymentMethod === "EFECTIVO"
     ? (parsedReceived >= netTotalToPay ? parsedReceived - netTotalToPay : 0)
     : paymentMethod === "MIXTO"
-    ? (parsedMixtoCard <= netTotalToPay && parsedMixtoCash >= (netTotalToPay - parsedMixtoCard) ? parsedMixtoCash - (netTotalToPay - parsedMixtoCard) : 0)
-    : 0;
+      ? (parsedMixtoCard <= netTotalToPay && parsedMixtoCash >= (netTotalToPay - parsedMixtoCard) ? parsedMixtoCash - (netTotalToPay - parsedMixtoCard) : 0)
+      : 0;
 
   const buildCheckoutItemsPayload = () => {
     if (cart.length === 0) {
@@ -1302,7 +1302,7 @@ const Dashboard: React.FC = () => {
         }, { timeout: LONG_OPERATION_TIMEOUT });
 
         const saleInvoice = res.data.invoiceNumber;
-        
+
         // Generar QR
         const qrRes = await api.post("/api/mercadopago/qr-preference", {
           title: "Venta " + saleInvoice,
@@ -1326,8 +1326,8 @@ const Dashboard: React.FC = () => {
         setQrReference(saleInvoice);
         setCheckoutModalOpen(false);
         setQrModalOpen(true);
-      } catch(err: any) {
-        alert(getCheckoutErrorMessage(err, "Error al procesar pago QR"));
+      } catch (err: any) {
+        showToast(getCheckoutErrorMessage(err, "Error al procesar pago QR"), "error");
       } finally {
         setCheckoutLoading(false);
       }
@@ -1414,7 +1414,7 @@ const Dashboard: React.FC = () => {
     const title = selectedSale?.invoiceNumber ? `Ticket ${selectedSale.invoiceNumber}` : "Ticket";
     const printed = printTicketElementById(title, "print-area");
     if (!printed) {
-      alert("Habilite las ventanas emergentes para imprimir el ticket.");
+      showToast("Habilite las ventanas emergentes para imprimir el ticket.", "info");
     }
   };
 
@@ -1484,9 +1484,8 @@ const Dashboard: React.FC = () => {
         <div class="ticket-section">
           ${rows.join("")}
         </div>
-        ${
-          itemRows
-            ? `<div class="ticket-section">
+        ${itemRows
+        ? `<div class="ticket-section">
                 <table>
                   <thead>
                     <tr style="border-bottom:1px dashed #111111;">
@@ -1499,8 +1498,8 @@ const Dashboard: React.FC = () => {
                   <tbody>${itemRows}</tbody>
                 </table>
               </div>`
-            : ""
-        }
+        : ""
+      }
         <div class="ticket-section">
           <div class="ticket-row ticket-total">
             <span>Total reembolsado:</span>
@@ -1540,7 +1539,7 @@ const Dashboard: React.FC = () => {
         pdfBase64,
         pdfFilename: ticketPdfFilename(ticketEmailSubject),
       });
-      showToast(res.data.message, "success");
+      showToast("¡Enviado! El ticket se ha enviado con éxito al correo: " + email, "success");
       setTicketEmailModalOpen(false);
     } catch (err: any) {
       const msg =
@@ -1731,9 +1730,9 @@ const Dashboard: React.FC = () => {
   const setCancelField = (field: "invoice" | "pin" | "reason", value: string) => {
     const nextValue =
       field === "pin" ? normalizeIntegerInput(value).slice(0, 4) :
-      field === "invoice" ? validateFolioInput(value) :
-      field === "reason" ? validateReasonInput(value) :
-      value;
+        field === "invoice" ? validateFolioInput(value) :
+          field === "reason" ? validateReasonInput(value) :
+            value;
     if (field === "invoice") setCancelInvoice(nextValue);
     if (field === "pin") setCancelPin(nextValue);
     if (field === "reason") setCancelReason(nextValue);
@@ -1909,7 +1908,7 @@ const Dashboard: React.FC = () => {
     e.preventDefault();
     const isMercadoPago = depType.startsWith("MERCADOPAGO_");
     const errors: Record<string, string> = {};
-    
+
     if (!isMercadoPago) {
       if (depAccount.length !== 16 || isNaN(Number(depAccount))) {
         errors.account = "El numero de cuenta debe tener exactamente 16 digitos.";
@@ -1919,7 +1918,7 @@ const Dashboard: React.FC = () => {
         errors.name = nameError;
       }
     }
-    
+
     const depAmountValidation = validateDecimalField(depAmount, "El monto del deposito", {
       min: 0,
       minExclusive: true,
@@ -1952,7 +1951,7 @@ const Dashboard: React.FC = () => {
         paymentType: depType,
         comments: depComments
       });
-      
+
       setLastDeposit(res.data.deposit);
       setDepAccount("");
       setDepName("");
@@ -1960,7 +1959,7 @@ const Dashboard: React.FC = () => {
       setDepComments("");
       setDepositFieldErrors({});
       setDepType("EFECTIVO");
-      
+
       await loadDashboardData();
       setActiveModal("deposit-receipt");
     } catch (err: any) {
@@ -2004,7 +2003,7 @@ const Dashboard: React.FC = () => {
 
   const addPendingQrSale = () => {
     if (!qrReference) return;
-    
+
     const newPending = {
       id: Date.now(),
       invoiceNumber: qrReference,
@@ -2015,13 +2014,13 @@ const Dashboard: React.FC = () => {
       customer: selectedCustomer,
       status: "pending"
     };
-    
+
     setPendingQrSales(prev => {
       const updated = [...prev, newPending];
       localStorage.setItem(QR_KEY, JSON.stringify(updated));
       return updated;
     });
-    
+
     // Limpiar el carrito de compras
     setCart([]);
     setSelectedCustomer(null);
@@ -2072,7 +2071,7 @@ const Dashboard: React.FC = () => {
     setPendingQrChecking(invoiceNumber);
     try {
       const res = await api.get(`/api/mercadopago/status/${invoiceNumber}`);
-      
+
       if (res.data.status === "approved") {
         await api.post("/api/sales/confirm-qr", {
           invoiceNumber,
@@ -2117,9 +2116,9 @@ const Dashboard: React.FC = () => {
         await loadDashboardData();
       } else if (res.data.status === "rejected") {
         setPendingQrSales(prev => {
-          const updated = prev.map(sale => 
-            sale.invoiceNumber === invoiceNumber 
-              ? { ...sale, status: "rejected" } 
+          const updated = prev.map(sale =>
+            sale.invoiceNumber === invoiceNumber
+              ? { ...sale, status: "rejected" }
               : sale
           );
           localStorage.setItem(QR_KEY, JSON.stringify(updated));
@@ -2273,7 +2272,7 @@ const Dashboard: React.FC = () => {
         pinCode: depCancelPin,
         reason: depCancelReason.trim()
       });
-      alert(res.data.message || "Depósito cancelado exitosamente.");
+      showToast(res.data.message || "Depósito cancelado exitosamente.", "success");
       setCancellingDep(null);
       setDepCancelPin("");
       setDepCancelReason("");
@@ -2281,7 +2280,7 @@ const Dashboard: React.FC = () => {
       await handleSearchDeposits();
       await loadDashboardData();
     } catch (err: any) {
-      alert(err.response?.data?.message || "Error al cancelar el depósito.");
+      showToast(err.response?.data?.message || "Error al cancelar el depósito.", "error");
     } finally {
       setDepCancelLoading(false);
     }
@@ -2364,10 +2363,10 @@ const Dashboard: React.FC = () => {
       prev.map((item, i) =>
         i === idx
           ? {
-              ...item,
-              selected: !item.selected,
-              qtyToReturn: !item.selected ? Math.min(1, item.maxReturnableQty) : 0,
-            }
+            ...item,
+            selected: !item.selected,
+            qtyToReturn: !item.selected ? Math.min(1, item.maxReturnableQty) : 0,
+          }
           : item
       )
     );
@@ -2534,7 +2533,7 @@ const Dashboard: React.FC = () => {
           <div style={styles.conflictIconContainer}>
             <AlertTriangle size={36} color="#ef4444" />
           </div>
-          <h2 style={styles.conflictTitle}>Caja abierta en otro dispositivo</h2>
+          <h2 style={styles.conflictTitle}>Caja abierta en otro equipo</h2>
           <p style={styles.conflictText}>
             El turno/caja ya se encuentra abierto en otra computadora. Cierre el turno en esa caja para poder abrir uno nuevo.
           </p>
@@ -2544,7 +2543,7 @@ const Dashboard: React.FC = () => {
             className="btn-primary active-tap"
             style={styles.conflictButton}
           >
-            Regresar al Login
+            Regresar al login
           </button>
         </div>
       </div>
@@ -2592,7 +2591,7 @@ const Dashboard: React.FC = () => {
             <div style={styles.aperturaCard} className="pos-cashier-apertura-card">
               <h3 style={styles.cardMainTitle}>APERTURA DE CAJA</h3>
               <p style={{ fontSize: "14px", color: "#64748b", marginBottom: "20px" }}>Establezca el fondo de caja inicial para comenzar el turno.</p>
-              
+
               <div style={styles.inputGroup}>
                 <label style={styles.label}>FONDO INICIAL ($)</label>
                 <input
@@ -2608,8 +2607,8 @@ const Dashboard: React.FC = () => {
                       return;
                     }
                     handleDecimalInputChange(rawValue, (value) => {
-                    setInitialFund(value);
-                    setInitialFundError("");
+                      setInitialFund(value);
+                      setInitialFundError("");
                     });
                   }}
                 />
@@ -3045,7 +3044,7 @@ const Dashboard: React.FC = () => {
                 </tbody>
               </table>
             </div>
- 
+
             {/* Totales y Controles Cobro — layout 2 columnas */}
             <div style={{ ...styles.terminalSummary, display: "flex", gap: "24px", alignItems: "flex-start" }} className="pos-cashier-terminal-summary">
 
@@ -3057,43 +3056,43 @@ const Dashboard: React.FC = () => {
                       📱 Pagos QR Pendientes
                     </div>
                     <div className="pos-cashier-inline-table-scroll">
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                      <tbody>
-                        {pendingQrSales.slice(-3).reverse().map((sale) => {
-                          const isChecking = pendingQrChecking === sale.invoiceNumber;
-                          const isApproved = sale.status === "approved";
-                          const isRejected = sale.status === "rejected";
-                          return (
-                            <tr key={sale.id} style={{ borderBottom: "1px solid #f1f5f9", backgroundColor: isApproved ? "#f0fdf4" : isRejected ? "#fef2f2" : "transparent" }}>
-                              <td style={{ padding: "5px 6px", fontWeight: "600", color: "#334155", whiteSpace: "nowrap" }} title={sale.invoiceNumber}>
-                                ...{sale.invoiceNumber.slice(-6)}
-                              </td>
-                              <td style={{ padding: "5px 6px", fontWeight: "700", color: "#0f172a", whiteSpace: "nowrap" }}>
-                                ${Number(sale.amount).toFixed(2)}
-                              </td>
-                              <td style={{ padding: "5px 6px" }}>
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "700", backgroundColor: isApproved ? "#dcfce7" : isRejected ? "#fee2e2" : "#ffedd5", color: isApproved ? "#15803d" : isRejected ? "#b91c1c" : "#c2410c" }}>
-                                  <span style={{ width: "5px", height: "5px", borderRadius: "50%", backgroundColor: isApproved ? "#22c55e" : isRejected ? "#ef4444" : "#f97316" }} />
-                                  {isApproved ? "Aprobado" : isRejected ? "Rechazado" : "Pendiente"}
-                                </span>
-                              </td>
-                              <td style={{ padding: "5px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
-                                <div style={{ display: "inline-flex", gap: "4px" }}>
-                                  <button onClick={(e) => { e.stopPropagation(); setPendingCancelFieldErrors({}); setViewingPendingQrSale(sale); }} title="Ver QR"
-                                    style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: "#dbeafe", color: "#1e40af", border: "1px solid #93c5fd", cursor: "pointer" }}>
-                                    QR
-                                  </button>
-                                  <button onClick={(e) => { e.stopPropagation(); checkPendingQrStatus(sale.invoiceNumber); }} disabled={isChecking} title="Verificar pago — si está aprobado muestra el ticket"
-                                    style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: isChecking ? "#6b7280" : "#1e3a8a", color: "white", border: "none", cursor: isChecking ? "default" : "pointer" }}>
-                                    {isChecking ? "..." : "Verificar"}
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                        <tbody>
+                          {pendingQrSales.slice(-3).reverse().map((sale) => {
+                            const isChecking = pendingQrChecking === sale.invoiceNumber;
+                            const isApproved = sale.status === "approved";
+                            const isRejected = sale.status === "rejected";
+                            return (
+                              <tr key={sale.id} style={{ borderBottom: "1px solid #f1f5f9", backgroundColor: isApproved ? "#f0fdf4" : isRejected ? "#fef2f2" : "transparent" }}>
+                                <td style={{ padding: "5px 6px", fontWeight: "600", color: "#334155", whiteSpace: "nowrap" }} title={sale.invoiceNumber}>
+                                  ...{sale.invoiceNumber.slice(-6)}
+                                </td>
+                                <td style={{ padding: "5px 6px", fontWeight: "700", color: "#0f172a", whiteSpace: "nowrap" }}>
+                                  ${Number(sale.amount).toFixed(2)}
+                                </td>
+                                <td style={{ padding: "5px 6px" }}>
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "700", backgroundColor: isApproved ? "#dcfce7" : isRejected ? "#fee2e2" : "#ffedd5", color: isApproved ? "#15803d" : isRejected ? "#b91c1c" : "#c2410c" }}>
+                                    <span style={{ width: "5px", height: "5px", borderRadius: "50%", backgroundColor: isApproved ? "#22c55e" : isRejected ? "#ef4444" : "#f97316" }} />
+                                    {isApproved ? "Aprobado" : isRejected ? "Rechazado" : "Pendiente"}
+                                  </span>
+                                </td>
+                                <td style={{ padding: "5px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
+                                  <div style={{ display: "inline-flex", gap: "4px" }}>
+                                    <button onClick={(e) => { e.stopPropagation(); setPendingCancelFieldErrors({}); setViewingPendingQrSale(sale); }} title="Ver QR"
+                                      style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: "#dbeafe", color: "#1e40af", border: "1px solid #93c5fd", cursor: "pointer" }}>
+                                      QR
+                                    </button>
+                                    <button onClick={(e) => { e.stopPropagation(); checkPendingQrStatus(sale.invoiceNumber); }} disabled={isChecking} title="Verificar pago — si está aprobado muestra el ticket"
+                                      style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: isChecking ? "#6b7280" : "#1e3a8a", color: "white", border: "none", cursor: isChecking ? "default" : "pointer" }}>
+                                      {isChecking ? "..." : "Verificar"}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </>
                 )}
@@ -3505,34 +3504,34 @@ const Dashboard: React.FC = () => {
             <div style={styles.checkoutModal} className="pos-cashier-modal">
               <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
               <div style={{ textAlign: "center", padding: "20px 0" }}>
-                 <p style={{marginBottom: "10px", fontSize: "14px", color: "#475569"}}>Escanea el siguiente código para pagar <strong>${cartTotal.toFixed(2)}</strong></p>
-                 {qrUrl ? (
-                   <>
-                     <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" width="200" height="200" />
-                     <div style={{ marginTop: "12px" }}>
-                       <a 
-                         href={qrUrl} 
-                         target="_blank" 
-                         rel="noopener noreferrer" 
-                         style={{ 
-                           fontSize: "12px", 
-                           color: "#2563eb", 
-                           textDecoration: "underline", 
-                           fontWeight: "600", 
-                           display: "inline-block", 
-                           padding: "6px 12px", 
-                           backgroundColor: "#f1f5f9", 
-                           borderRadius: "6px" 
-                         }}
-                       >
-                         🔗 Abrir enlace de pago / Sandbox
-                       </a>
-                     </div>
-                   </>
-                 ) : (
-                   <p>Generando QR...</p>
-                 )}
-                 <p style={{ marginTop: "12px", fontSize: "12px", color: "#64748b" }}>Ref: {qrReference}</p>
+                <p style={{ marginBottom: "10px", fontSize: "14px", color: "#475569" }}>Escanea el siguiente código para pagar <strong>${cartTotal.toFixed(2)}</strong></p>
+                {qrUrl ? (
+                  <>
+                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" width="200" height="200" />
+                    <div style={{ marginTop: "12px" }}>
+                      <a
+                        href={qrUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          fontSize: "12px",
+                          color: "#2563eb",
+                          textDecoration: "underline",
+                          fontWeight: "600",
+                          display: "inline-block",
+                          padding: "6px 12px",
+                          backgroundColor: "#f1f5f9",
+                          borderRadius: "6px"
+                        }}
+                      >
+                        🔗 Abrir enlace de pago / Sandbox
+                      </a>
+                    </div>
+                  </>
+                ) : (
+                  <p>Generando QR...</p>
+                )}
+                <p style={{ marginTop: "12px", fontSize: "12px", color: "#64748b" }}>Ref: {qrReference}</p>
               </div>
               <div style={{ display: "flex", gap: "10px", marginTop: "24px" }} className="pos-cashier-modal-actions">
                 <button
@@ -3723,10 +3722,10 @@ const Dashboard: React.FC = () => {
                     {selectedSale.items.map((item: any, idx: number) => {
                       const promoDetails = selectedSale.isNewSale === false
                         ? {
-                            finalPrice: Number(item.product.sellPrice) - (Number(item.discountAmount || 0) / item.quantity),
-                            discountAmount: Number(item.discountAmount || 0),
-                            label: item.product.activePromotion?.name || ""
-                          }
+                          finalPrice: Number(item.product.sellPrice) - (Number(item.discountAmount || 0) / item.quantity),
+                          discountAmount: Number(item.discountAmount || 0),
+                          label: item.product.activePromotion?.name || ""
+                        }
                         : calculateItemPromotion(item);
                       const hasDiscount = promoDetails.discountAmount > 0;
                       return (
@@ -3939,7 +3938,8 @@ const Dashboard: React.FC = () => {
                   <p style={{ fontSize: "12px", color: "#64748b" }}>Código QR no disponible.</p>
                 )}
                 <p style={{ marginTop: "10px", fontSize: "11px", color: "#64748b" }}>Folio: {viewingPendingQrSale.invoiceNumber}</p>
-                <p style={{ marginTop: "4px", fontSize: "12px", fontWeight: "700",
+                <p style={{
+                  marginTop: "4px", fontSize: "12px", fontWeight: "700",
                   color: viewingPendingQrSale.status === "approved" ? "#15803d" : viewingPendingQrSale.status === "rejected" ? "#b91c1c" : "#c2410c"
                 }}>
                   Estado: {viewingPendingQrSale.status === "approved" ? "✅ Aprobado" : viewingPendingQrSale.status === "rejected" ? "❌ Rechazado" : "⏳ Pendiente"}
@@ -4118,11 +4118,11 @@ const Dashboard: React.FC = () => {
               <div style={{ flex: 1 }}>
                 <strong style={{ fontSize: "14px", fontWeight: "700" }}>⚠️ Alerta de Efectivo en Caja Chica</strong>
                 <p style={{ fontSize: "12px", margin: "2px 0 0 0", color: "#b45309" }}>
-                  El efectivo actual en caja (${sessionStats.expectedAmount.toFixed(2)} MXN) supera el límite establecido de $5,000.00 MXN. 
+                  El efectivo actual en caja (${sessionStats.expectedAmount.toFixed(2)} MXN) supera el límite establecido de $5,000.00 MXN.
                   Por favor, registre un <strong>Depósito Bancario (Cash Drop)</strong> para retirar el excedente.
                 </p>
               </div>
-              <button 
+              <button
                 onClick={() => setActiveModal("bank-deposit")}
                 style={{
                   backgroundColor: "#d97706",
@@ -4243,7 +4243,7 @@ const Dashboard: React.FC = () => {
                       const isExpanded = expandedSalesRows.has(sale.id);
                       return (
                         <React.Fragment key={sale.id}>
-                          <tr 
+                          <tr
                             style={styles.tableRow}
                             className={isExpanded ? "pos-cashier-table-row-expanded" : ""}
                           >
@@ -4391,7 +4391,7 @@ const Dashboard: React.FC = () => {
                       const isExpanded = expandedDepositRows.has(dep.id);
                       return (
                         <React.Fragment key={dep.id}>
-                          <tr 
+                          <tr
                             style={styles.tableRow}
                             className={isExpanded ? "pos-cashier-table-row-expanded" : ""}
                           >
@@ -4721,10 +4721,10 @@ const Dashboard: React.FC = () => {
                   {selectedSale.items.map((item: any, idx: number) => {
                     const promoDetails = selectedSale.isNewSale === false
                       ? {
-                          finalPrice: Number(item.product.sellPrice) - (Number(item.discountAmount || 0) / item.quantity),
-                          discountAmount: Number(item.discountAmount || 0),
-                          label: item.product.activePromotion?.name || ""
-                        }
+                        finalPrice: Number(item.product.sellPrice) - (Number(item.discountAmount || 0) / item.quantity),
+                        discountAmount: Number(item.discountAmount || 0),
+                        label: item.product.activePromotion?.name || ""
+                      }
                       : calculateItemPromotion(item);
                     const hasDiscount = promoDetails.discountAmount > 0;
                     return (
@@ -4831,7 +4831,7 @@ const Dashboard: React.FC = () => {
                 )}
               </div>
 
-               <div style={{ borderTop: "1px solid #cbd5e1", marginTop: "8px", paddingTop: "8px", fontSize: "11px" }}>
+              <div style={{ borderTop: "1px solid #cbd5e1", marginTop: "8px", paddingTop: "8px", fontSize: "11px" }}>
                 <p>
                   <strong>Método de pago:</strong> {selectedSale.paymentMethod}
                   {selectedSale.cardType && ` (${selectedSale.cardType})`}
@@ -5002,8 +5002,8 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div style={{ display: "flex", gap: "10px", marginTop: "14px" }} className="pos-cashier-modal-actions">
-                <button 
-                  onClick={() => setActiveModal("close-options")} 
+                <button
+                  onClick={() => setActiveModal("close-options")}
                   style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
                 >
                   VOLVER
@@ -5030,7 +5030,7 @@ const Dashboard: React.FC = () => {
             <p style={{ fontSize: "11px", color: "#64748b", margin: "4px 0 16px 0", textAlign: "center" }}>
               Corte parcial registrado exitosamente en base de datos.
             </p>
-            
+
             <div style={styles.ticketContainer} id="partial-cut-thermal-receipt" className="ticket-print">
               <div style={{ textAlign: "center", borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px", marginBottom: "10px" }}>
                 <strong style={{ fontSize: "14px" }}>LYFRGL POS</strong>
@@ -5089,13 +5089,13 @@ const Dashboard: React.FC = () => {
             </div>
 
             <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions no-print" data-no-ticket-print="true">
-              <button 
+              <button
                 onClick={() => {
                   const printed = printTicketElementById(`Corte Parcial #${partialCutData.cutNumber}`, "partial-cut-thermal-receipt");
                   if (!printed) {
-                    alert("Habilite las ventanas emergentes para imprimir el comprobante.");
+                    showToast("Habilite las ventanas emergentes para imprimir el comprobante.", "info");
                   }
-                }} 
+                }}
                 style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
               >
                 IMPRIMIR
@@ -5183,8 +5183,8 @@ const Dashboard: React.FC = () => {
                       return;
                     }
                     handleDecimalInputChange(rawValue, (value) => {
-                    setDeclaredCash(value);
-                    setDeclaredCashError("");
+                      setDeclaredCash(value);
+                      setDeclaredCashError("");
                     });
                   }}
                 />
@@ -5223,14 +5223,14 @@ const Dashboard: React.FC = () => {
               <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "#0f172a" }}>
                 Resguardo de Efectivo (Cash Deposit)
               </h3>
-              <button 
-                onClick={() => setActiveModal(null)} 
+              <button
+                onClick={() => setActiveModal(null)}
                 style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "20px", cursor: "pointer", fontWeight: "bold" }}
               >
                 &times;
               </button>
             </div>
-            
+
             <div style={{ backgroundColor: "#e0f2fe", border: "1px solid #bae6fd", borderRadius: "8px", padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "13px", color: "#0369a1", fontWeight: "600", marginTop: "12px", marginBottom: "14px" }} className="pos-cashier-deposit-info">
               <span>Efectivo disponible en caja:</span>
               <span style={{ fontSize: "15px", fontWeight: "800" }}>${sessionStats?.expectedAmount?.toFixed(2) || "0.00"}</span>
@@ -5354,7 +5354,7 @@ const Dashboard: React.FC = () => {
 
                 {depTab === "registrar" ? (
                   <form onSubmit={handleDepositSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                    
+
                     {/* Tarjeta de Datos Calculados */}
                     <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px", backgroundColor: "#f8fafc", marginBottom: "4px" }}>
                       <h4 style={{ fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "8px", borderBottom: "1px solid #e2e8f0", paddingBottom: "4px" }}>
@@ -5520,11 +5520,11 @@ const Dashboard: React.FC = () => {
                       <div style={styles.inputGroup}>
                         <label style={styles.label}>Referencia:</label>
                         <input
-                           type="text"
-                           className="input-corporate"
-                           placeholder="DEP-..."
-                           value={searchDepRef}
-                           onChange={(e) => setSearchDepRef(normalizeIntegerInput(e.target.value))}
+                          type="text"
+                          className="input-corporate"
+                          placeholder="DEP-..."
+                          value={searchDepRef}
+                          onChange={(e) => setSearchDepRef(normalizeIntegerInput(e.target.value))}
                         />
                       </div>
                       <div style={styles.inputGroup}>
@@ -5554,7 +5554,7 @@ const Dashboard: React.FC = () => {
                         </select>
                       </div>
                     </div>
-                    
+
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "14px" }} className="pos-cashier-grid-2">
                       <div style={styles.inputGroup}>
                         <label style={styles.label}>Desde:</label>
@@ -5623,12 +5623,12 @@ const Dashboard: React.FC = () => {
                                 <td style={{ ...styles.td, padding: "8px", fontSize: "12px" }}>{dep.userName}</td>
                                 <td style={{ ...styles.td, padding: "8px", fontSize: "12px" }}>
                                   <span style={
-                                    dep.status === "COMPLETED" ? styles.badgeSuccess : 
-                                    dep.status === "CANCELLED" ? styles.badgeDanger : 
-                                    styles.badgeWarning
+                                    dep.status === "COMPLETED" ? styles.badgeSuccess :
+                                      dep.status === "CANCELLED" ? styles.badgeDanger :
+                                        styles.badgeWarning
                                   }>
-                                    {dep.status === "COMPLETED" ? "Exitoso" : 
-                                     dep.status === "CANCELLED" ? "Cancelado" : "Pendiente"}
+                                    {dep.status === "COMPLETED" ? "Exitoso" :
+                                      dep.status === "CANCELLED" ? "Cancelado" : "Pendiente"}
                                   </span>
                                 </td>
                                 <td style={{ ...styles.td, padding: "8px", fontSize: "12px" }}>
@@ -5722,7 +5722,7 @@ const Dashboard: React.FC = () => {
         if (lastDeposit.paymentType?.startsWith("MERCADOPAGO_")) {
           try {
             mpMeta = JSON.parse(lastDeposit.comments);
-          } catch (e) {}
+          } catch (e) { }
         }
         return (
           <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
@@ -5731,7 +5731,7 @@ const Dashboard: React.FC = () => {
               <p style={{ fontSize: "11px", color: "#64748b", margin: "4px 0 16px 0", textAlign: "center" }}>
                 Depósito bancario registrado exitosamente en base de datos.
               </p>
-              
+
               <div style={styles.ticketContainer} id="deposit-thermal-receipt" className="ticket-print">
                 <div style={{ textAlign: "center", borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px", marginBottom: "10px" }}>
                   <strong style={{ fontSize: "14px" }}>LYFRGL POS</strong>
@@ -5750,7 +5750,7 @@ const Dashboard: React.FC = () => {
                     <span>ID RETIRO:</span>
                     <strong>#{lastDeposit.id}</strong>
                   </div>
-                  
+
                   {lastDeposit.paymentType?.startsWith("MERCADOPAGO_") ? (
                     <>
                       <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -5782,10 +5782,10 @@ const Dashboard: React.FC = () => {
                       {mpMeta && mpMeta.ticketUrl && (
                         <div style={{ display: "flex", flexDirection: "column", gap: "2px", borderTop: "1px dashed #cbd5e1", paddingTop: "4px", marginTop: "2px" }} className="no-print">
                           <span style={{ color: "#64748b" }}>TICKET DIGITAL:</span>
-                          <a 
-                            href={mpMeta.ticketUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
+                          <a
+                            href={mpMeta.ticketUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             style={{ color: "#2563eb", textDecoration: "underline", wordBreak: "break-all", fontSize: "10px", fontWeight: "bold" }}
                           >
                             Ver Instrucciones de Pago
@@ -5873,13 +5873,13 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions no-print" data-no-ticket-print="true">
-                <button 
+                <button
                   onClick={() => {
                     const printed = printTicketElementById(`Comprobante de Retiro #${lastDeposit.id}`, "deposit-thermal-receipt");
                     if (!printed) {
-                      alert("Habilite las ventanas emergentes para imprimir el comprobante.");
+                      showToast("Habilite las ventanas emergentes para imprimir el comprobante.", "info");
                     }
-                  }} 
+                  }}
                   style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
                 >
                   IMPRIMIR
@@ -5918,43 +5918,43 @@ const Dashboard: React.FC = () => {
         <div style={{ ...styles.modalOverlay, zIndex: 9999 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
           <div style={styles.checkoutModal} className="pos-cashier-modal">
             <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
-            
+
             <div style={{ textAlign: "center", padding: "12px 0" }}>
-               <p style={{ marginBottom: "10px", fontSize: "13px", color: "#475569" }}>
-                 Escanea el siguiente código para pagar la venta <strong>${Number(viewingPendingQrSale.amount).toFixed(2)}</strong>
-               </p>
-               {viewingPendingQrSale.qrUrl ? (
-                 <>
-                   <img 
-                     src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(viewingPendingQrSale.qrUrl)}`} 
-                     alt="QR Code" 
-                     width="180" 
-                     height="180" 
-                   />
-                   <div style={{ marginTop: "10px" }}>
-                     <a 
-                       href={viewingPendingQrSale.qrUrl} 
-                       target="_blank" 
-                       rel="noopener noreferrer" 
-                       style={{ 
-                         fontSize: "12px", 
-                         color: "#2563eb", 
-                         textDecoration: "underline", 
-                         fontWeight: "600", 
-                         display: "inline-block", 
-                         padding: "6px 12px", 
-                         backgroundColor: "#f1f5f9", 
-                         borderRadius: "6px" 
-                       }}
-                     >
-                       🔗 Abrir enlace de pago / Sandbox
-                     </a>
-                   </div>
-                 </>
-               ) : (
-                 <p style={{ fontSize: "12px", color: "#64748b" }}>Código QR no disponible.</p>
-               )}
-               <p style={{ marginTop: "10px", fontSize: "11px", color: "#64748b" }}>Folio: {viewingPendingQrSale.invoiceNumber}</p>
+              <p style={{ marginBottom: "10px", fontSize: "13px", color: "#475569" }}>
+                Escanea el siguiente código para pagar la venta <strong>${Number(viewingPendingQrSale.amount).toFixed(2)}</strong>
+              </p>
+              {viewingPendingQrSale.qrUrl ? (
+                <>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(viewingPendingQrSale.qrUrl)}`}
+                    alt="QR Code"
+                    width="180"
+                    height="180"
+                  />
+                  <div style={{ marginTop: "10px" }}>
+                    <a
+                      href={viewingPendingQrSale.qrUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontSize: "12px",
+                        color: "#2563eb",
+                        textDecoration: "underline",
+                        fontWeight: "600",
+                        display: "inline-block",
+                        padding: "6px 12px",
+                        backgroundColor: "#f1f5f9",
+                        borderRadius: "6px"
+                      }}
+                    >
+                      🔗 Abrir enlace de pago / Sandbox
+                    </a>
+                  </div>
+                </>
+              ) : (
+                <p style={{ fontSize: "12px", color: "#64748b" }}>Código QR no disponible.</p>
+              )}
+              <p style={{ marginTop: "10px", fontSize: "11px", color: "#64748b" }}>Folio: {viewingPendingQrSale.invoiceNumber}</p>
             </div>
 
             {/* Formulario de Cancelación con PIN si la venta sigue pendiente */}
@@ -5970,7 +5970,7 @@ const Dashboard: React.FC = () => {
                 <div style={{ fontSize: "11px", fontWeight: "700", color: "#dc2626", textTransform: "uppercase" }}>
                   ⚠️ Cancelar Venta (Revertir Stock)
                 </div>
-                
+
                 <div style={{ display: "flex", gap: "8px" }}>
                   <div style={{ flex: 1 }}>
                     <input
@@ -5997,42 +5997,42 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
 
-                  <div style={{ display: "flex", gap: "10px" }}>
-                    <button
-                      onClick={() => handlePendingQrCancel("other_method")}
-                      disabled={pendingCancelLoading}
-                      style={{
-                        flex: 1,
-                        padding: "10px 8px",
-                        borderRadius: "6px",
-                        border: "none",
-                        backgroundColor: "#598ffbff",
-                        color: "white",
-                        fontWeight: "700",
-                        fontSize: "11px",
-                        cursor: pendingCancelLoading ? "default" : "pointer"
-                      }}
-                    >
-                      PAGAR CON OTRO MÉTODO
-                    </button>
-                    <button
-                      onClick={() => handlePendingQrCancel("cancel_def")}
-                      disabled={pendingCancelLoading}
-                      style={{
-                        flex: 1,
-                        padding: "10px 8px",
-                        borderRadius: "6px",
-                        border: "none",
-                        backgroundColor: "#dc2626",
-                        color: "white",
-                        fontWeight: "700",
-                        fontSize: "11px",
-                        cursor: pendingCancelLoading ? "default" : "pointer"
-                      }}
-                    >
-                      CANCELAR DEFINITIVAMENTE
-                    </button>
-                  </div>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button
+                    onClick={() => handlePendingQrCancel("other_method")}
+                    disabled={pendingCancelLoading}
+                    style={{
+                      flex: 1,
+                      padding: "10px 8px",
+                      borderRadius: "6px",
+                      border: "none",
+                      backgroundColor: "#598ffbff",
+                      color: "white",
+                      fontWeight: "700",
+                      fontSize: "11px",
+                      cursor: pendingCancelLoading ? "default" : "pointer"
+                    }}
+                  >
+                    PAGAR CON OTRO MÉTODO
+                  </button>
+                  <button
+                    onClick={() => handlePendingQrCancel("cancel_def")}
+                    disabled={pendingCancelLoading}
+                    style={{
+                      flex: 1,
+                      padding: "10px 8px",
+                      borderRadius: "6px",
+                      border: "none",
+                      backgroundColor: "#dc2626",
+                      color: "white",
+                      fontWeight: "700",
+                      fontSize: "11px",
+                      cursor: pendingCancelLoading ? "default" : "pointer"
+                    }}
+                  >
+                    CANCELAR DEFINITIVAMENTE
+                  </button>
+                </div>
               </div>
             )}
 
@@ -6114,9 +6114,9 @@ const Dashboard: React.FC = () => {
                   <span>ESTADO:</span>
                   <strong>{lastClosedStats.session?.status}</strong>
                 </div>
-                
+
                 <div className="dashed" style={{ borderTop: "1px dashed #cbd5e1", margin: "6px 0" }} />
-                
+
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span>FONDO INICIAL:</span>
                   <strong>${Number(lastClosedStats.initialAmount || 0).toFixed(2)}</strong>
@@ -6129,9 +6129,9 @@ const Dashboard: React.FC = () => {
                   <span>RETIROS CAJA (-):</span>
                   <strong style={{ color: "#dc2626" }}>-${Number(lastClosedStats.cashOut || 0).toFixed(2)}</strong>
                 </div>
-                
+
                 <div className="dashed" style={{ borderTop: "1px dashed #cbd5e1", margin: "6px 0" }} />
-                
+
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span>EFECTIVO ESPERADO:</span>
                   <strong>${Number(lastClosedStats.expectedAmount || 0).toFixed(2)}</strong>
@@ -6179,13 +6179,13 @@ const Dashboard: React.FC = () => {
             </div>
 
             <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions no-print" data-no-ticket-print="true">
-              <button 
+              <button
                 onClick={() => {
                   const printed = printTicketElementById(`Corte Z - Sesion #${lastClosedStats.session?.id}`, "close-thermal-receipt");
                   if (!printed) {
-                    alert("Habilite las ventanas emergentes para imprimir el comprobante.");
+                    showToast("Habilite las ventanas emergentes para imprimir el comprobante.", "info");
                   }
-                }} 
+                }}
                 style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
               >
                 IMPRIMIR
@@ -6208,7 +6208,7 @@ const Dashboard: React.FC = () => {
           <div style={styles.historyModal} className="pos-cashier-modal">
             <h3 style={styles.modalTitle}>Reimprimir Ticket de Venta:</h3>
             <p style={{ fontSize: "12px", color: "#64748b", marginBottom: "14px" }}>Seleccione la venta de la sucursal para reimprimir su comprobante.</p>
-            
+
             {/* Grid de Filtros */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }} className="pos-cashier-grid-2">
               <div style={{ ...styles.inputGroup, gridColumn: "span 2" }}>

@@ -204,6 +204,8 @@ const ProductSelector: React.FC<{
   disabled?: boolean;
 }> = ({ products, selectedIds, onToggle, disabled }) => {
   const [query, setQuery] = useState("");
+  const isMobile = useMediaQuery("(max-width: 1024px)");
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return products;
@@ -220,41 +222,95 @@ const ProductSelector: React.FC<{
         <span style={styles.selectedCount}>{selectedIds.length} seleccionado{selectedIds.length === 1 ? "" : "s"}</span>
       </div>
       <div style={styles.productList}>
-        <table style={ui.table}>
-          <thead>
-            <tr style={ui.theadRow}>
-              <th style={{ ...ui.th, width: 44 }} />
-              <th style={ui.th}>SKU</th>
-              <th style={ui.th}>Nombre</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Precio</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={4} style={styles.productEmpty}>No hay productos activos para mostrar.</td>
+        {isMobile ? (
+          filtered.length === 0 ? (
+            <div style={styles.productEmpty}>No hay productos activos para mostrar.</div>
+          ) : (
+            <div style={{ padding: "8px 10px" }}>
+              {filtered.map((product) => {
+                const isSelected = selectedIds.includes(product.id);
+                return (
+                  <label
+                    key={product.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: 12,
+                      backgroundColor: "#ffffff",
+                      border: isSelected ? "1px solid #1e3a8a" : "1px solid #e2e8f0",
+                      borderRadius: 10,
+                      marginBottom: 8,
+                      cursor: disabled ? "default" : "pointer",
+                      userSelect: "none",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+                      transition: "border-color 0.2s ease",
+                      display: "flex",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center" }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        disabled={disabled}
+                        onChange={() => onToggle(product.id)}
+                        style={styles.check}
+                        aria-label={`Seleccionar ${product.name}`}
+                      />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                        <span style={styles.sku}>{product.sku}</span>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: "#0f172a" }}>
+                          {moneyExact(Number(product.sellPrice))}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#334155", whiteSpace: "normal" }}>
+                        {product.name}
+                      </div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          )
+        ) : (
+          <table style={ui.table}>
+            <thead>
+              <tr style={ui.theadRow}>
+                <th style={{ ...ui.th, width: 44 }} />
+                <th style={ui.th}>SKU</th>
+                <th style={ui.th}>Nombre</th>
+                <th style={{ ...ui.th, textAlign: "right" }}>Precio</th>
               </tr>
-            ) : (
-              filtered.map((product) => (
-                <tr key={product.id}>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(product.id)}
-                      disabled={disabled}
-                      onChange={() => onToggle(product.id)}
-                      style={styles.check}
-                      aria-label={`Seleccionar ${product.name}`}
-                    />
-                  </td>
-                  <td style={{ ...ui.td, fontWeight: 800, color: "#1e3a8a" }}>{product.sku}</td>
-                  <td style={{ ...ui.td, whiteSpace: "normal", fontWeight: 700 }}>{product.name}</td>
-                  <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(Number(product.sellPrice))}</td>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={4} style={styles.productEmpty}>No hay productos activos para mostrar.</td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                filtered.map((product) => (
+                  <tr key={product.id}>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(product.id)}
+                        disabled={disabled}
+                        onChange={() => onToggle(product.id)}
+                        style={styles.check}
+                        aria-label={`Seleccionar ${product.name}`}
+                      />
+                    </td>
+                    <td style={{ ...ui.td, fontWeight: 800, color: "#1e3a8a" }}>{product.sku}</td>
+                    <td style={{ ...ui.td, whiteSpace: "normal", fontWeight: 700 }}>{product.name}</td>
+                    <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(Number(product.sellPrice))}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
