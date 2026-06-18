@@ -1,5 +1,6 @@
 /**
- * Configuración de WebAuthn (Windows Hello / huella / llave de seguridad)
+ * Configuración de WebAuthn — multiplataforma (Windows Hello / Touch ID / Face ID /
+ * huella de Android / llave de seguridad FIDO2)
  * usada como segundo factor de autenticación para ADMIN y GERENTE.
  *
  * El "Relying Party" (RP) debe coincidir con el dominio que el usuario ve en el
