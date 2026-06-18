@@ -6,6 +6,11 @@ import {
   CancelSaleModal,
   CloseOptionsModal,
   PartialCutSummaryModal,
+  TicketViewModal,
+  PartialCutReceiptModal,
+  CloseCashModal,
+  DepositReceiptModal,
+  CloseReceiptModal,
 } from "../components/pos";
 import api, { LONG_OPERATION_TIMEOUT } from "../services/api";
 import {
@@ -4504,282 +4509,24 @@ const Dashboard: React.FC = () => {
       />
 
       {/* MODAL 3: TICKET IMPRESO/PDF (Mockup 3) */}
-      {activeModal === "ticket-view" && selectedSale && (
-        <div style={{ ...styles.modalOverlay, zIndex: ticketEmailModalOpen ? 9998 : 100 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-          <div style={styles.ticketModal} className="pos-cashier-modal">
-            <div id="print-area" style={styles.ticketContainer} className="ticket-print">
-              {selectedSale.status === "CANCELADA" && (
-                <div style={{
-                  textAlign: "center",
-                  color: "#dc2626",
-                  fontWeight: "900",
-                  fontSize: "16px",
-                  border: "2px solid #dc2626",
-                  padding: "4px",
-                  marginBottom: "12px",
-                  borderRadius: "4px",
-                  textTransform: "uppercase"
-                }}>
-                  *** CANCELADO ***
-                </div>
-              )}
-              {selectedSale.status === "PENDIENTE" && (
-                <div style={{
-                  textAlign: "center",
-                  color: "#d97706",
-                  fontWeight: "900",
-                  fontSize: "16px",
-                  border: "2px solid #d97706",
-                  padding: "4px",
-                  marginBottom: "12px",
-                  borderRadius: "4px",
-                  textTransform: "uppercase",
-                  backgroundColor: "#fffbeb"
-                }}>
-                  *** PAGO PENDIENTE ***
-                </div>
-              )}
-              {selectedSale.totalRefunded > 0 && Number(selectedSale.totalRefunded).toFixed(2) === Number(selectedSale.total).toFixed(2) && (
-                <div style={{
-                  textAlign: "center",
-                  color: "#dc2626",
-                  fontWeight: "900",
-                  fontSize: "15px",
-                  border: "2px solid #dc2626",
-                  padding: "4px",
-                  marginBottom: "12px",
-                  borderRadius: "4px",
-                  textTransform: "uppercase",
-                  backgroundColor: "#fef2f2"
-                }}>
-                  *** DEVOLUCIÓN TOTAL ***
-                </div>
-              )}
-              {selectedSale.totalRefunded > 0 && Number(selectedSale.totalRefunded).toFixed(2) !== Number(selectedSale.total).toFixed(2) && (
-                <div style={{
-                  textAlign: "center",
-                  color: "#d97706",
-                  fontWeight: "900",
-                  fontSize: "14px",
-                  border: "2px solid #d97706",
-                  padding: "4px",
-                  marginBottom: "12px",
-                  borderRadius: "4px",
-                  textTransform: "uppercase",
-                  backgroundColor: "#fffbeb"
-                }}>
-                  *** DEVOLUCIÓN PARCIAL ***
-                </div>
-              )}
-              <div style={{ textAlign: "center", marginBottom: "14px" }}>
-                <h4 style={{ textTransform: "uppercase", fontWeight: "800", margin: "0 0 4px 0", fontSize: "14px" }}>LYFRGL</h4>
-                <p style={{ fontSize: "11px", color: "#475569" }}>SUCURSAL: {user?.branch.name}</p>
-                <p style={{ fontSize: "10px", color: "#64748b" }}>TEL: 772 100 2000</p>
-              </div>
-
-              <div style={{ borderBottom: "1px dashed #cbd5e1", paddingBottom: "8px", marginBottom: "8px", fontSize: "11px" }}>
-                <p><strong>Folio:</strong> {selectedSale.invoiceNumber}</p>
-                <p><strong>Fecha:</strong> {new Date(selectedSale.createdAt).toLocaleDateString()}</p>
-                <p><strong>Hora:</strong> {new Date(selectedSale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                <p><strong>Cajero:</strong> {user?.name}</p>
-                <p><strong>Artículos:</strong> {selectedSale.items.reduce((sum: number, item: any) => sum + item.quantity, 0)}</p>
-              </div>
-
-              {selectedSale.status === "CANCELADA" && (
-                <div style={{ textAlign: "center", padding: "6px", borderTop: "2px dashed #dc2626", borderBottom: "2px dashed #dc2626", marginBottom: "10px", color: "#dc2626", fontWeight: "bold" }}>
-                  <h4 style={{ margin: 0, fontSize: "14px" }}>*** CANCELADO ***</h4>
-                  {selectedSale.refundStatus && (
-                    <p style={{ margin: "4px 0 0 0", fontSize: "10px" }}>
-                      REEMBOLSO {selectedSale.refundStatus === "APPROVED" ? "REALIZADO" : "PENDIENTE"}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              <table style={{ width: "100%", fontSize: "10px", borderCollapse: "collapse", marginBottom: "8px", tableLayout: "fixed" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px dashed #111111" }}>
-                    <th style={{ textAlign: "left", paddingBottom: "4px", width: "12%" }}>Cant</th>
-                    <th style={{ textAlign: "left", paddingBottom: "4px", width: "43%" }}>Descripción</th>
-                    <th style={{ textAlign: "right", paddingBottom: "4px", width: "20%" }}>P. Unit</th>
-                    <th style={{ textAlign: "right", paddingBottom: "4px", width: "25%" }}>Importe</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedSale.items.map((item: any, idx: number) => {
-                    const promoDetails = selectedSale.isNewSale === false
-                      ? {
-                          finalPrice: Number(item.product.sellPrice) - (Number(item.discountAmount || 0) / item.quantity),
-                          discountAmount: Number(item.discountAmount || 0),
-                          label: item.product.activePromotion?.name || ""
-                        }
-                      : calculateItemPromotion(item);
-                    const hasDiscount = promoDetails.discountAmount > 0;
-                    return (
-                      <tr key={idx}>
-                        <td style={{ textAlign: "left", padding: "4px 2px 4px 0", whiteSpace: "nowrap" }}>{item.quantity}</td>
-                        <td style={{ padding: "4px 4px 4px 0" }}>
-                          <div>{item.product.name}</div>
-                          {item.product.activePromotion && (
-                            <div style={{ fontSize: "9px", color: "#1e40af", fontWeight: "600" }}>
-                              ({item.product.activePromotion.name})
-                            </div>
-                          )}
-                          {item.returnedQuantity > 0 && (
-                            <div style={{ fontSize: "9px", color: "#dc2626", fontWeight: "700", marginTop: "2px" }}>
-                              ↳ Devuelto: {item.returnedQuantity} ud{item.returnedQuantity > 1 ? 's' : ''}
-                            </div>
-                          )}
-                          {(item.taxes || item.taxDetail) && (item.taxes?.length > 0 || item.taxDetail?.length > 0) && (
-                            <div style={{ fontSize: "9px", color: "#64748b", fontStyle: "italic", marginTop: "2px" }}>
-                              {(item.taxes || item.taxDetail).map((t: any) => `${t.name}: $${Number(t.amount).toFixed(2)}`).join(" | ")}
-                            </div>
-                          )}
-                        </td>
-                        <td style={{ textAlign: "right", padding: "4px 4px 4px 0", whiteSpace: "nowrap" }}>
-                          ${Number(item.product.sellPrice).toFixed(2)}
-                        </td>
-                        <td style={{ textAlign: "right", padding: "4px 0", whiteSpace: "nowrap" }}>
-                          {hasDiscount ? (
-                            <>
-                              <span style={{ textDecoration: "line-through", color: "#94a3b8", marginRight: "4px", fontSize: "10px" }}>
-                                ${(item.product.sellPrice * item.quantity).toFixed(2)}
-                              </span>
-                              <span>
-                                ${(promoDetails.finalPrice * item.quantity).toFixed(2)}
-                              </span>
-                            </>
-                          ) : (
-                            `$${(item.product.sellPrice * item.quantity).toFixed(2)}`
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-
-              <div style={{ borderTop: "1px dashed #cbd5e1", paddingTop: "8px", display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px" }}>
-                {selectedSale.discountAmount > 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", color: "#059669", fontWeight: "700" }}>
-                    <span>Descuento Promos:</span>
-                    <span>-${Number(selectedSale.discountAmount).toFixed(2)}</span>
-                  </div>
-                )}
-                {selectedSale.pointsDiscount > 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", color: "#059669", fontWeight: "700" }}>
-                    <span>Descuento Puntos:</span>
-                    <span>-${Number(selectedSale.pointsDiscount).toFixed(2)}</span>
-                  </div>
-                )}
-                {((Number(selectedSale.discountAmount || 0) + Number(selectedSale.pointsDiscount || 0)) > 0) && (
-                  <div style={{ display: "flex", justifyContent: "space-between", color: "#166534", fontWeight: "800", backgroundColor: "#f0fdf4", padding: "4px 6px", borderRadius: "4px", margin: "2px 0" }}>
-                    <span>¡TU AHORRO TOTAL!:</span>
-                    <span>${(Number(selectedSale.discountAmount || 0) + Number(selectedSale.pointsDiscount || 0)).toFixed(2)}</span>
-                  </div>
-                )}
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>Subtotal:</span>
-                  <span>${selectedSale.subtotal.toFixed(2)}</span>
-                </div>
-                {selectedSale.taxBreakdown && selectedSale.taxBreakdown.length > 0 ? (
-                  selectedSale.taxBreakdown.map((tb: any, i: number) => (
-                    <div key={i} style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span>{tb.name}:</span>
-                      <span>${Number(tb.amount).toFixed(2)}</span>
-                    </div>
-                  ))
-                ) : (
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>IVA (16%):</span>
-                    <span>${selectedSale.tax.toFixed(2)}</span>
-                  </div>
-                )}
-                {selectedSale.taxBreakdown && selectedSale.taxBreakdown.length > 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", fontStyle: "italic", color: "#64748b" }}>
-                    <span>Total Impuestos:</span>
-                    <span>${selectedSale.tax.toFixed(2)}</span>
-                  </div>
-                )}
-                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "800", fontSize: "12px" }}>
-                  <span>TOTAL:</span>
-                  <span>${selectedSale.total.toFixed(2)}</span>
-                </div>
-                {selectedSale.totalRefunded > 0 && (
-                  <>
-                    <div style={{ display: "flex", justifyContent: "space-between", color: "#dc2626", fontWeight: "700", borderTop: "1px dashed #dc2626", paddingTop: "4px", marginTop: "4px" }}>
-                      <span>Total Devuelto:</span>
-                      <span>-${Number(selectedSale.totalRefunded).toFixed(2)}</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", color: "#0f172a", fontWeight: "800", backgroundColor: "#fef2f2", padding: "4px 6px", borderRadius: "4px", margin: "2px 0" }}>
-                      <span>Neto Final:</span>
-                      <span>${(Number(selectedSale.total) - Number(selectedSale.totalRefunded)).toFixed(2)}</span>
-                    </div>
-                  </>
-                )}
-              </div>
-
-               <div style={{ borderTop: "1px solid #cbd5e1", marginTop: "8px", paddingTop: "8px", fontSize: "11px" }}>
-                <p>
-                  <strong>Método de pago:</strong> {selectedSale.paymentMethod}
-                  {selectedSale.cardType && ` (${selectedSale.cardType})`}
-                </p>
-                {selectedSale.paymentMethod === "EFECTIVO" && (
-                  <>
-                    <p><strong>Pagó con:</strong> ${selectedSale.cashReceived.toFixed(2)}</p>
-                    <p><strong>Cambio:</strong> ${selectedSale.changeGiven.toFixed(2)}</p>
-                  </>
-                )}
-                {selectedSale.paymentMethod === "MIXTO" && (
-                  <>
-                    <p><strong>Efectivo:</strong> ${selectedSale.cashReceived.toFixed(2)}</p>
-                    <p><strong>Tarjeta:</strong> ${(selectedSale.total - (selectedSale.cashReceived - selectedSale.changeGiven)).toFixed(2)}</p>
-                    <p><strong>Cambio:</strong> ${selectedSale.changeGiven.toFixed(2)}</p>
-                  </>
-                )}
-                {selectedSale.customerName && (
-                  <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "6px", paddingTop: "6px", fontSize: "10px" }}>
-                    <p><strong>Cliente:</strong> {selectedSale.customerName}</p>
-                    {selectedSale.pointsEarned > 0 && <p><strong>Puntos Ganados:</strong> +{selectedSale.pointsEarned}</p>}
-                    {selectedSale.pointsRedeemed > 0 && <p><strong>Puntos Canjeados:</strong> -{selectedSale.pointsRedeemed} (-${Number(selectedSale.pointsDiscount).toFixed(2)} MXN)</p>}
-                    <p><strong>Saldo Nuevo:</strong> {selectedSale.customerPoints} pts</p>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "12px", paddingTop: "8px", fontSize: "9px", textAlign: "center", color: "#64748b", lineHeight: "1.4", display: "flex", flexDirection: "column", alignItems: "center" }}>
-                <p>Portal de Autofacturación:</p>
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.origin + "/autofacturacion")}`}
-                  alt="QR Facturación"
-                  style={{ width: "100px", height: "100px", marginTop: "6px", marginBottom: "6px" }}
-                />
-                <p style={{ fontWeight: "700", wordBreak: "break-all" }}>{window.location.origin + "/autofacturacion"}</p>
-                <p>Escanea el código QR para facturar tu compra</p>
-              </div>
-
-              <div style={{ textAlign: "center", marginTop: "20px", fontSize: "10px", color: "#64748b" }}>
-                <p>¡GRACIAS POR SU COMPRA!</p>
-                <p>REGRESE PRONTO</p>
-                <p style={{ marginTop: "12px", fontSize: "9px", fontWeight: "600", fontStyle: "italic", borderTop: "1px dashed #cbd5e1", paddingTop: "8px" }}>
-                  Para devoluciones y cancelaciones, es indispensable presentar este ticket original.
-                </p>
-              </div>
-            </div>
-
-            {renderTicketActionButtons({
-              onClose: handleCloseTicket,
-              closeLabel: "CERRAR TICKET",
-              onPrint: handlePrintTicket,
-              emailConfig: {
-                subject: `Ticket de venta ${selectedSale.invoiceNumber}`,
-                elementId: "print-area",
-                defaultEmail: selectedSale.customerEmail || null,
-              },
-            })}
-          </div>
-        </div>
-      )}
+      <TicketViewModal
+        isOpen={activeModal === "ticket-view" && !!selectedSale}
+        selectedSale={selectedSale}
+        user={user}
+        ticketEmailModalOpen={ticketEmailModalOpen}
+        onClose={handleCloseTicket}
+        onPrint={handlePrintTicket}
+        actionButtons={selectedSale ? renderTicketActionButtons({
+          onClose: handleCloseTicket,
+          closeLabel: "CERRAR TICKET",
+          onPrint: handlePrintTicket,
+          emailConfig: {
+            subject: `Ticket de venta ${selectedSale.invoiceNumber}`,
+            elementId: "print-area",
+            defaultEmail: selectedSale.customerEmail || null,
+          },
+        }) : null}
+      />
 
       {/* MODAL: OPCIONES DE CIERRE DE CAJA */}
       <CloseOptionsModal
@@ -4800,197 +4547,35 @@ const Dashboard: React.FC = () => {
       />
 
       {/* MODAL: COMPROBANTE DE CORTE PARCIAL */}
-      {activeModal === "partial-cut-receipt" && partialCutData && (
-        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-          <div style={styles.ticketModal} className="pos-cashier-modal">
-            <h3 style={styles.modalTitle}>Comprobante de Corte Parcial</h3>
-            <p style={{ fontSize: "11px", color: "#64748b", margin: "4px 0 16px 0", textAlign: "center" }}>
-              Corte parcial registrado exitosamente en base de datos.
-            </p>
-            
-            <div style={styles.ticketContainer} id="partial-cut-thermal-receipt" className="ticket-print">
-              <div style={{ textAlign: "center", borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px", marginBottom: "10px" }}>
-                <strong style={{ fontSize: "14px" }}>LYFRGL POS</strong>
-                <p style={{ fontSize: "11px", margin: "2px 0 0 0" }}>SUCURSAL: {user?.branch.name}</p>
-                <p style={{ fontSize: "10px", margin: "2px 0 0 0" }}>CORTE PARCIAL #{partialCutData.cutNumber}</p>
-                <p style={{ fontSize: "9px", margin: "2px 0 0 0", color: "#64748b" }}>
-                  {new Date(partialCutData.createdAt).toLocaleString()}
-                </p>
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "11px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>CAJERO:</span>
-                  <strong>{user?.name}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>SESIÓN DE CAJA:</span>
-                  <strong>#{partialCutData.cashSessionId}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed #cbd5e1", paddingTop: "6px", marginTop: "4px" }}>
-                  <span>VENTAS BRUTAS:</span>
-                  <strong>${Number(partialCutData.totalSales).toFixed(2)}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>EFECTIVO:</span>
-                  <strong>${Number(partialCutData.totalCash).toFixed(2)}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>TARJETA CRÉDITO:</span>
-                  <strong>${Number(partialCutData.totalCreditCard).toFixed(2)}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>TARJETA DÉBITO:</span>
-                  <strong>${Number(partialCutData.totalDebitCard).toFixed(2)}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>CANCELACIONES:</span>
-                  <strong style={{ color: "#dc2626" }}>-${Number(partialCutData.totalRefunds).toFixed(2)}</strong>
-                </div>
-                {partialCutData.totalReturns !== undefined && (
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>DEVOLUCIONES:</span>
-                    <strong style={{ color: "#dc2626" }}>-${Number(partialCutData.totalReturns).toFixed(2)}</strong>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ marginTop: "14px", paddingTop: "8px", borderTop: "2px solid #0f172a", display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
-                <strong>TOTAL NETO:</strong>
-                <strong>${Number(partialCutData.netTotal).toFixed(2)} MXN</strong>
-              </div>
-
-              <div style={{ textAlign: "center", marginTop: "20px", fontSize: "9px", color: "#64748b", borderTop: "1px dashed #cbd5e1", paddingTop: "8px" }}>
-                <span>*** COMPROBANTE DE CORTE PARCIAL ***</span>
-              </div>
-            </div>
-
-            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions no-print" data-no-ticket-print="true">
-              <button 
-                onClick={() => {
-                  const printed = printTicketElementById(`Corte Parcial #${partialCutData.cutNumber}`, "partial-cut-thermal-receipt");
-                  if (!printed) {
-                    alert("Habilite las ventanas emergentes para imprimir el comprobante.");
-                  }
-                }} 
-                style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
-              >
-                IMPRIMIR
-              </button>
-              {renderTicketEmailButton({
-                subject: `Corte parcial #${partialCutData.cutNumber}`,
-                elementId: "partial-cut-thermal-receipt",
-              })}
-              <button onClick={handleCloseModal_partialCut} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
-                CERRAR
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PartialCutReceiptModal
+        isOpen={activeModal === "partial-cut-receipt" && !!partialCutData}
+        partialCutData={partialCutData}
+        user={user}
+        onClose={handleCloseModal_partialCut}
+        onPrint={() => {
+          const printed = printTicketElementById(`Corte Parcial #${partialCutData?.cutNumber}`, "partial-cut-thermal-receipt");
+          if (!printed) alert("Habilite las ventanas emergentes para imprimir el comprobante.");
+        }}
+        emailButton={partialCutData ? renderTicketEmailButton({
+          subject: `Corte parcial #${partialCutData.cutNumber}`,
+          elementId: "partial-cut-thermal-receipt",
+        }) : null}
+      />
 
       {/* MODAL 4: CIERRE DE CAJA / ARQUEO (Mockup 2) */}
-      {activeModal === "close-cash" && (
-        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-          <div style={styles.closeModal} className="pos-cashier-modal">
-            <h3 style={styles.modalTitle}>Cierre de caja:</h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "14px" }}>
-              <div style={styles.summaryRow}>
-                <span>Vendedor:</span>
-                <span style={{ fontWeight: "700" }}>{user?.name}</span>
-              </div>
-              <div style={styles.summaryRow}>
-                <span>Fondo Inicial:</span>
-                <span style={{ fontWeight: "600" }}>${sessionStats?.initialAmount.toFixed(2)}</span>
-              </div>
-              <div style={styles.summaryRow}>
-                <span>Ventas Acumuladas:</span>
-                <span style={{ fontWeight: "600" }}>${sessionStats?.cashIn.toFixed(2)}</span>
-              </div>
-              <div style={styles.summaryRow}>
-                <span>Depósitos/Retiros:</span>
-                <span style={{ fontWeight: "600", color: "#dc2626" }}>-${sessionStats?.cashOut.toFixed(2)}</span>
-              </div>
-              <div style={styles.summaryRow}>
-                <span>Ventas Tarjeta Débito:</span>
-                <span style={{ fontWeight: "600", color: "#0d9488" }}>${sessionStats?.debitCardTotal?.toFixed(2) || "0.00"}</span>
-              </div>
-              <div style={styles.summaryRow}>
-                <span>Ventas Tarjeta Crédito:</span>
-                <span style={{ fontWeight: "600", color: "#0d9488" }}>${sessionStats?.creditCardTotal?.toFixed(2) || "0.00"}</span>
-              </div>
-              <div style={styles.summaryRow}>
-                <span>&nbsp;&nbsp;&nbsp;↳ Pendientes (Resguardo):</span>
-                <span style={{ fontWeight: "600", color: "#d97706" }}>${sessionStats?.pendingDeposits?.toFixed(2) || "0.00"}</span>
-              </div>
-              <div style={styles.summaryRow}>
-                <span>&nbsp;&nbsp;&nbsp;↳ Confirmados:</span>
-                <span style={{ fontWeight: "600", color: "#059669" }}>${sessionStats?.confirmedDeposits?.toFixed(2) || "0.00"}</span>
-              </div>
-              <div style={styles.summaryRow}>
-                <span>&nbsp;&nbsp;&nbsp;↳ Cancelados (Revertidos):</span>
-                <span style={{ fontWeight: "600", color: "#b91c1c" }}>${sessionStats?.cancelledDeposits?.toFixed(2) || "0.00"}</span>
-              </div>
-              <div style={styles.summaryRow}>
-                <span>Reembolsos (x{sessionStats?.refundedSalesCount || 0}):</span>
-                <span style={{ fontWeight: "600", color: "#64748b" }}>${sessionStats?.refundedAmount?.toFixed(2) || "0.00"}</span>
-              </div>
-              <div style={styles.summaryRow}>
-                <span>Devoluciones de Producto (-):</span>
-                <span style={{ fontWeight: "600", color: "#dc2626" }}>${sessionStats?.totalReturnsAmount?.toFixed(2) || "0.00"}</span>
-              </div>
-              <div style={{ ...styles.summaryRow, borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px" }}>
-                <span>Efectivo Esperado en Caja:</span>
-                <span style={{ fontWeight: "800", color: "#1e3a8a" }}>${sessionStats?.expectedAmount.toFixed(2)}</span>
-              </div>
-
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Efectivo Contado (Físico en Caja):</label>
-                <input
-                  type="text"
-                  className="input-corporate"
-                  style={{ fontSize: "16px", fontWeight: "700", textAlign: "center" }}
-                  placeholder="Ingrese el conteo físico"
-                  value={declaredCash}
-                  inputMode="decimal"
-                  onChange={(e) => {
-                    const rawValue = e.target.value.trim();
-                    if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
-                      setDeclaredCashError("El efectivo contado debe ser un monto valido con maximo 3 decimales.");
-                      return;
-                    }
-                    handleDecimalInputChange(rawValue, (value) => {
-                    setDeclaredCash(value);
-                    setDeclaredCashError("");
-                    });
-                  }}
-                />
-                {declaredCashError && <p style={styles.fieldError}>{declaredCashError}</p>}
-              </div>
-
-              <div style={styles.summaryRow}>
-                <span>Diferencia (Sobrante/Faltante):</span>
-                <span style={{ fontWeight: "800", color: calculatedDifference < 0 ? "#dc2626" : "#059669" }}>
-                  ${calculatedDifference.toFixed(2)}
-                </span>
-              </div>
-
-              <div style={{ display: "flex", gap: "10px", marginTop: "14px" }} className="pos-cashier-modal-actions">
-                <button onClick={handleCloseModal_closeCash} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
-                  CANCELAR
-                </button>
-                <button
-                  disabled={closingLoading}
-                  onClick={handleCloseShift}
-                  style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
-                >
-                  {closingLoading ? "Cerrando..." : "CERRAR TURNO"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <CloseCashModal
+        isOpen={activeModal === "close-cash"}
+        sessionStats={sessionStats}
+        user={user}
+        declaredCash={declaredCash}
+        declaredCashError={declaredCashError}
+        calculatedDifference={calculatedDifference}
+        closingLoading={closingLoading}
+        onDeclaredCashChange={setDeclaredCash}
+        onDeclaredCashErrorChange={setDeclaredCashError}
+        onClose={handleCloseModal_closeCash}
+        onConfirmClose={handleCloseShift}
+      />
 
       {/* MODAL 5: DEPOSITO BANCARIO (Resguardo de Efectivo) */}
       {activeModal === "bank-deposit" && (
@@ -5494,201 +5079,22 @@ const Dashboard: React.FC = () => {
       )}
 
       {/* MODAL: COMPROBANTE DE RETIRO/DEPÓSITO BANCARIO (Fase 3.0) */}
-      {activeModal === "deposit-receipt" && lastDeposit && (() => {
-        let mpMeta: any = null;
-        if (lastDeposit.paymentType?.startsWith("MERCADOPAGO_")) {
-          try {
-            mpMeta = JSON.parse(lastDeposit.comments);
-          } catch (e) {}
-        }
-        return (
-          <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-            <div style={styles.ticketModal} className="pos-cashier-modal">
-              <h3 style={styles.modalTitle}>Comprobante de Retiro</h3>
-              <p style={{ fontSize: "11px", color: "#64748b", margin: "4px 0 16px 0", textAlign: "center" }}>
-                Depósito bancario registrado exitosamente en base de datos.
-              </p>
-              
-              <div style={styles.ticketContainer} id="deposit-thermal-receipt" className="ticket-print">
-                <div style={{ textAlign: "center", borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px", marginBottom: "10px" }}>
-                  <strong style={{ fontSize: "14px" }}>LYFRGL POS</strong>
-                  <p style={{ fontSize: "11px", margin: "2px 0 0 0" }}>{user?.branch.name}</p>
-                  <p style={{ fontSize: "9px", margin: "2px 0 0 0", color: "#64748b" }}>
-                    {new Date(lastDeposit.createdAt).toLocaleString()}
-                  </p>
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "11px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>TIPO MOV:</span>
-                    <strong>RETIRO DE CAJA (DEPÓSITO)</strong>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>ID RETIRO:</span>
-                    <strong>#{lastDeposit.id}</strong>
-                  </div>
-                  
-                  {lastDeposit.paymentType?.startsWith("MERCADOPAGO_") ? (
-                    <>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span>MÉTODO RETIRO:</span>
-                        <strong>{lastDeposit.paymentType.replace("MERCADOPAGO_", "")} (Mercado Pago)</strong>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span>REFERENCIA MP:</span>
-                        <strong>{lastDeposit.accountNumber}</strong>
-                      </div>
-                      {mpMeta && mpMeta.convenio && mpMeta.convenio !== "N/A" && (
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                          <span>CONVENIO:</span>
-                          <strong>{mpMeta.convenio}</strong>
-                        </div>
-                      )}
-                      {mpMeta && mpMeta.expirationDate && (
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                          <span>EXPIRA:</span>
-                          <strong>{new Date(mpMeta.expirationDate).toLocaleDateString()}</strong>
-                        </div>
-                      )}
-                      {mpMeta && mpMeta.barcode && mpMeta.barcode !== "N/A" && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: "2px", borderTop: "1px dashed #cbd5e1", paddingTop: "4px", marginTop: "2px" }}>
-                          <span style={{ color: "#64748b" }}>CÓDIGO DE BARRAS:</span>
-                          <strong style={{ fontSize: "10px", wordBreak: "break-all" }}>{mpMeta.barcode}</strong>
-                        </div>
-                      )}
-                      {mpMeta && mpMeta.ticketUrl && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: "2px", borderTop: "1px dashed #cbd5e1", paddingTop: "4px", marginTop: "2px" }} className="no-print">
-                          <span style={{ color: "#64748b" }}>TICKET DIGITAL:</span>
-                          <a 
-                            href={mpMeta.ticketUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            style={{ color: "#2563eb", textDecoration: "underline", wordBreak: "break-all", fontSize: "10px", fontWeight: "bold" }}
-                          >
-                            Ver Instrucciones de Pago
-                          </a>
-                        </div>
-                      )}
-                      {mpMeta && mpMeta.userComments && (
-                        <div style={{ borderTop: "1px dashed #cbd5e1", paddingTop: "6px", marginTop: "4px" }}>
-                          <span>REF/COMENTARIOS:</span>
-                          <p style={{ margin: "2px 0 0 0", fontSize: "10px", fontStyle: "italic", color: "#475569" }}>
-                            {mpMeta.userComments}
-                          </p>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span>CUENTA DESTINO:</span>
-                        <strong>**** **** **** {lastDeposit.accountNumber.slice(-4)}</strong>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span>BENEFICIARIO:</span>
-                        <strong style={{ textAlign: "right" }}>{lastDeposit.targetName}</strong>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span>MÉTODO DE RETIRO:</span>
-                        <strong>{lastDeposit.paymentType}</strong>
-                      </div>
-                      {lastDeposit.comments && (
-                        <div style={{ borderTop: "1px dashed #cbd5e1", paddingTop: "6px", marginTop: "4px" }}>
-                          <span>REF/COMENTARIOS:</span>
-                          <p style={{ margin: "2px 0 0 0", fontSize: "10px", fontStyle: "italic", color: "#475569" }}>
-                            {lastDeposit.comments}
-                          </p>
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>SESIÓN DE CAJA:</span>
-                    <strong>#{lastDeposit.sessionId || lastDeposit.cashSessionId}</strong>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>CAJERO:</span>
-                    <strong>{lastDeposit.userName || user?.name}</strong>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>REFERENCIA:</span>
-                    <strong>{lastDeposit.reference || "N/A"}</strong>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>ESTADO:</span>
-                    <strong style={{ color: lastDeposit.status === "CANCELLED" ? "#b91c1c" : lastDeposit.status === "PENDING" ? "#d97706" : "inherit" }}>
-                      {lastDeposit.status === "CANCELLED" ? "CANCELADO" : lastDeposit.status === "PENDING" ? "PENDIENTE" : (lastDeposit.status || "COMPLETED")}
-                    </strong>
-                  </div>
-                  {lastDeposit.status === "CANCELLED" && lastDeposit.cancelledAt && (
-                    <>
-                      <div style={{ display: "flex", justifyContent: "space-between", color: "#b91c1c" }}>
-                        <span>CANCELADO EL:</span>
-                        <strong>{new Date(lastDeposit.cancelledAt).toLocaleString()}</strong>
-                      </div>
-                      {lastDeposit.cancelReason && (
-                        <div style={{ borderTop: "1px dashed #fca5a5", paddingTop: "4px", marginTop: "2px", color: "#b91c1c" }}>
-                          <span>MOTIVO CANCELACIÓN:</span>
-                          <p style={{ margin: "2px 0 0 0", fontSize: "10px", fontStyle: "italic" }}>
-                            {lastDeposit.cancelReason}
-                          </p>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                <div style={{ marginTop: "14px", paddingTop: "8px", borderTop: "2px solid #0f172a", display: "flex", justifyContent: "space-between", fontSize: "14px" }}>
-                  <strong>TOTAL RETIRADO:</strong>
-                  <strong>${Number(lastDeposit.amount).toFixed(2)} MXN</strong>
-                </div>
-
-                <div style={{ textAlign: "center", marginTop: "20px", fontSize: "9px", color: "#64748b", borderTop: "1px dashed #cbd5e1", paddingTop: "8px" }}>
-                  <span>*** COMPROBANTE DE MOVIMIENTO INTERNO ***</span>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions no-print" data-no-ticket-print="true">
-                <button 
-                  onClick={() => {
-                    const printed = printTicketElementById(`Comprobante de Retiro #${lastDeposit.id}`, "deposit-thermal-receipt");
-                    if (!printed) {
-                      alert("Habilite las ventanas emergentes para imprimir el comprobante.");
-                    }
-                  }} 
-                  style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
-                >
-                  IMPRIMIR
-                </button>
-                {renderTicketEmailButton({
-                  subject: `Comprobante de retiro #${lastDeposit.id}`,
-                  elementId: "deposit-thermal-receipt",
-                })}
-                {lastDeposit.status === "PENDING" && lastDeposit.paymentType?.startsWith("MERCADOPAGO_") && (
-                  <button
-                    type="button"
-                    onClick={() => handleSyncDeposit(lastDeposit.id)}
-                    disabled={syncingDepositId === lastDeposit.id}
-                    style={{
-                      ...styles.modalBtn,
-                      backgroundColor: "#2563eb",
-                      color: "white",
-                      opacity: syncingDepositId === lastDeposit.id ? 0.7 : 1,
-                      cursor: syncingDepositId === lastDeposit.id ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    {syncingDepositId === lastDeposit.id ? "SINCRONIZANDO..." : "VERIFICAR PAGO"}
-                  </button>
-                )}
-                <button onClick={handleCloseModal_bankDeposit} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
-                  CERRAR
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      <DepositReceiptModal
+        isOpen={activeModal === "deposit-receipt" && !!lastDeposit}
+        lastDeposit={lastDeposit}
+        user={user}
+        syncingDepositId={syncingDepositId}
+        onClose={handleCloseModal_bankDeposit}
+        onPrint={() => {
+          const printed = printTicketElementById(`Comprobante de Retiro #${lastDeposit?.id}`, "deposit-thermal-receipt");
+          if (!printed) alert("Habilite las ventanas emergentes para imprimir el comprobante.");
+        }}
+        onSync={handleSyncDeposit}
+        emailButton={lastDeposit ? renderTicketEmailButton({
+          subject: `Comprobante de retiro #${lastDeposit.id}`,
+          elementId: "deposit-thermal-receipt",
+        }) : null}
+      />
 
       {/* MODAL: VER QR DE PAGO PENDIENTE Y CONTROL DE CANCELACIÓN */}
       {viewingPendingQrSale && (
@@ -5849,136 +5255,20 @@ const Dashboard: React.FC = () => {
       )}
 
       {/* MODAL: COMPROBANTE DE CIERRE DE CAJA / Z-CUT */}
-      {activeModal === "close-receipt" && lastClosedStats && (
-        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-          <div style={styles.ticketModal} className="pos-cashier-modal">
-            <h3 style={styles.modalTitle}>Cierre de Turno</h3>
-            <p style={{ fontSize: "11px", color: "#64748b", margin: "4px 0 16px 0", textAlign: "center" }}>
-              Corte Z generado exitosamente.
-            </p>
-
-            <div style={styles.ticketContainer} id="close-thermal-receipt" className="ticket-print">
-              <div style={{ textAlign: "center", borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px", marginBottom: "10px" }}>
-                <strong style={{ fontSize: "14px" }}>LYFRGL POS</strong>
-                <p style={{ fontSize: "11px", margin: "2px 0 0 0" }}>{lastClosedStats.session?.branch?.name || user?.branch?.name}</p>
-                <p style={{ fontSize: "12px", fontWeight: "700", margin: "4px 0 0 0" }}>*** CORTE Z (CIERRE DE CAJA) ***</p>
-                <p style={{ fontSize: "9px", margin: "2px 0 0 0", color: "#64748b" }}>
-                  Fecha Cierre: {lastClosedStats.session?.closedAt ? new Date(lastClosedStats.session.closedAt).toLocaleString() : new Date().toLocaleString()}
-                </p>
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "11px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>CAJERO:</span>
-                  <strong>{lastClosedStats.session?.user?.name || user?.name}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>SUCURSAL:</span>
-                  <strong>{lastClosedStats.session?.branch?.name || user?.branch?.name}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>ID SESIÓN:</span>
-                  <strong>#{lastClosedStats.session?.id}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>HORA APERTURA:</span>
-                  <strong>{lastClosedStats.session?.openedAt ? new Date(lastClosedStats.session.openedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—"}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>HORA CIERRE:</span>
-                  <strong>{lastClosedStats.session?.closedAt ? new Date(lastClosedStats.session.closedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—"}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>ESTADO:</span>
-                  <strong>{lastClosedStats.session?.status}</strong>
-                </div>
-                
-                <div className="dashed" style={{ borderTop: "1px dashed #cbd5e1", margin: "6px 0" }} />
-                
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>FONDO INICIAL:</span>
-                  <strong>${Number(lastClosedStats.initialAmount || 0).toFixed(2)}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>VENTAS EFECTIVO (+):</span>
-                  <strong>${Number(lastClosedStats.cashTotal || 0).toFixed(2)}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>RETIROS CAJA (-):</span>
-                  <strong style={{ color: "#dc2626" }}>-${Number(lastClosedStats.cashOut || 0).toFixed(2)}</strong>
-                </div>
-                
-                <div className="dashed" style={{ borderTop: "1px dashed #cbd5e1", margin: "6px 0" }} />
-                
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>EFECTIVO ESPERADO:</span>
-                  <strong>${Number(lastClosedStats.expectedAmount || 0).toFixed(2)}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>EFECTIVO DECLARADO:</span>
-                  <strong>${Number(lastClosedStats.declaredAmount || 0).toFixed(2)}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>DIFERENCIA:</span>
-                  <strong style={{ color: (lastClosedStats.difference || 0) < 0 ? "#dc2626" : "#059669" }}>
-                    ${Number(lastClosedStats.difference || 0).toFixed(2)}
-                  </strong>
-                </div>
-
-                <div className="dashed" style={{ borderTop: "1px dashed #cbd5e1", margin: "6px 0" }} />
-
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>VENTAS TARJETA DEB:</span>
-                  <strong>${Number(lastClosedStats.debitCardTotal || 0).toFixed(2)}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>VENTAS TARJETA CRE:</span>
-                  <strong>${Number(lastClosedStats.creditCardTotal || 0).toFixed(2)}</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>CANCELACIONES:</span>
-                  <strong>${Number(lastClosedStats.totalRefunds || 0).toFixed(2)}</strong>
-                </div>
-                {lastClosedStats.totalReturnsAmount !== undefined && (
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>DEVOLUCIONES DE PRODUCTO:</span>
-                    <strong style={{ color: "#dc2626" }}>-${Number(lastClosedStats.totalReturnsAmount).toFixed(2)}</strong>
-                  </div>
-                )}
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>TRANS. COMPLETADAS:</span>
-                  <strong>{lastClosedStats.salesCount}</strong>
-                </div>
-              </div>
-
-              <div style={{ textAlign: "center", marginTop: "20px", fontSize: "9px", color: "#64748b", borderTop: "1px dashed #cbd5e1", paddingTop: "8px" }}>
-                <span>*** GRACIAS POR SU JORNADA ***</span>
-              </div>
-            </div>
-
-            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions no-print" data-no-ticket-print="true">
-              <button 
-                onClick={() => {
-                  const printed = printTicketElementById(`Corte Z - Sesion #${lastClosedStats.session?.id}`, "close-thermal-receipt");
-                  if (!printed) {
-                    alert("Habilite las ventanas emergentes para imprimir el comprobante.");
-                  }
-                }} 
-                style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
-              >
-                IMPRIMIR
-              </button>
-              {renderTicketEmailButton({
-                subject: `Corte Z - Sesión #${lastClosedStats.session?.id}`,
-                elementId: "close-thermal-receipt",
-              })}
-              <button onClick={handleCloseModal_closeCash} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
-                SALIR
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CloseReceiptModal
+        isOpen={activeModal === "close-receipt" && !!lastClosedStats}
+        lastClosedStats={lastClosedStats}
+        user={user}
+        onClose={handleCloseModal_closeCash}
+        onPrint={() => {
+          const printed = printTicketElementById(`Corte Z - Sesion #${lastClosedStats?.session?.id}`, "close-thermal-receipt");
+          if (!printed) alert("Habilite las ventanas emergentes para imprimir el comprobante.");
+        }}
+        emailButton={lastClosedStats ? renderTicketEmailButton({
+          subject: `Corte Z - Sesión #${lastClosedStats.session?.id}`,
+          elementId: "close-thermal-receipt",
+        }) : null}
+      />
 
       {/* REIMPRIMIR TICKET MODAL */}
       {activeModal === "ticket-history" && (
