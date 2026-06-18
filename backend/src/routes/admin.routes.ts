@@ -52,6 +52,7 @@ import {
   createReturnCfdi,
 } from "../controllers/return.controller";
 import { createGlobalInvoiceController, getBillingHistoryController } from "../controllers/adminBilling.controller";
+import { getCashierAccessLogs, auditUnlock, getAdminAccessLogs } from "../controllers/securityAudit.controller";
 import { authenticateJWT, authorizeRoles } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -123,6 +124,11 @@ router.get("/reports/products-sold", authorizeRoles(["ADMIN", "GERENTE"]), audit
 router.get("/reports/by-seller", authorizeRoles(["ADMIN", "GERENTE"]), auditReport("Operaciones por Vendedor", "PERSONAL"), reportBySeller);
 router.get("/reports/receivables", authorizeRoles(["ADMIN", "GERENTE"]), auditReport("Cobranza", "VENTAS"), reportReceivables);
 router.get("/reports/audit-logs", authorizeRoles(["ADMIN"]), getReportAuditLogs);
+
+// Seguridad — bitácoras de accesos (inicios de sesión)
+router.get("/security/cashier-access", authorizeRoles(["ADMIN"]), getCashierAccessLogs);
+router.post("/security/audit-unlock", authorizeRoles(["ADMIN"]), auditUnlock);
+router.post("/security/admin-access", authorizeRoles(["ADMIN"]), getAdminAccessLogs);
 
 // Devoluciones (admin)
 router.get("/returns", authorizeRoles(["ADMIN", "GERENTE"]), getAdminReturns);

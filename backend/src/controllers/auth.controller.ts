@@ -4,6 +4,7 @@ import { prisma } from "../app";
 import { comparePassword, generateToken, verifyToken } from "../utils/auth";
 import { lockoutKey, getLockRemaining, registerFailedAttempt, clearFailedAttempts } from "../utils/authSecurity";
 import { buildLoginSecondFactor } from "./webauthn.controller";
+import { recordLoginEvent } from "../utils/authAudit";
 
 const clientIp = (req: Request): string =>
   (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || req.socket.remoteAddress || "unknown";
@@ -16,7 +17,8 @@ const lockMessage = (seconds: number): string => {
 /**
  * Login clásico para Administradores y Gerentes (Email + Contraseña).
  * Paso 1 del flujo de 2 factores: tras validar la contraseña NO se entrega la
- * sesión todavía, sino el reto WebAuthn (Windows Hello) y un token temporal.
+ * sesión todavía, sino el reto WebAuthn (biometría del dispositivo: Windows Hello,
+ * Touch ID, Face ID, huella de Android, o llave de seguridad) y un token temporal.
  */
 export const adminLogin = async (req: Request, res: Response): Promise<void> => {
   const { email, password } = req.body;
@@ -70,8 +72,8 @@ export const adminLogin = async (req: Request, res: Response): Promise<void> => 
     const secondFactor = await buildLoginSecondFactor(user as any);
     res.status(200).json({
       message: secondFactor.mode === "register"
-        ? "Contraseña correcta. Registre su dispositivo de seguridad (Windows Hello) para continuar."
-        : "Contraseña correcta. Confirme su identidad con Windows Hello.",
+        ? "Contraseña correcta. Registre su dispositivo de seguridad (biometría o llave de acceso) para continuar."
+        : "Contraseña correcta. Confirme su identidad con la biometría de su dispositivo.",
       ...secondFactor,
     });
   } catch (error: any) {
@@ -137,6 +139,9 @@ export const cashierLogin = async (req: Request, res: Response): Promise<void> =
     }
 
     clearFailedAttempts(key);
+
+    // Registrar el acceso del cajero en la bitácora de seguridad
+    recordLoginEvent(req, user, "PIN");
 
     const token = generateToken({
       userId: user.id,
@@ -430,6 +435,9 @@ export const verifyOtp = async (req: Request, res: Response) => {
       where: { id: user.id },
       data: { otpCode: null, otpExpiresAt: null },
     });
+
+    // Registrar el acceso del administrador/gerente (vía OTP) en la bitácora
+    recordLoginEvent(req, user, "Contraseña + OTP correo");
 
     const token = generateToken({
       userId: user.id,

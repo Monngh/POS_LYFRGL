@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { ShieldCheck, UserCheck, Delete, KeyRound, AlertCircle, RefreshCw, Lock } from "lucide-react";
 import api from "../services/api";
@@ -60,6 +60,10 @@ const Login: React.FC = () => {
 
   const isMobile = useMediaQuery("(max-width: 860px)");
   const shortScreen = useMediaQuery("(max-height: 860px)");
+  // Dispositivo táctil (tableta/móvil): puntero "grueso". Más fiable que el ancho —
+  // una tablet en horizontal también cuenta como táctil. En computadora (puntero "fino")
+  // se oculta el teclado en pantalla y el NIP se ingresa con el teclado físico.
+  const isTouch = useMediaQuery("(pointer: coarse)");
 
   // Estados de control
   const [activeTab, setActiveTab] = useState<"admin" | "cashier">("cashier"); // Por defecto cajero según maquetas
@@ -97,6 +101,9 @@ const Login: React.FC = () => {
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
   const [lockRemaining, setLockRemaining] = useState(0); // segundos restantes de bloqueo
   const isLocked = lockRemaining > 0;
+
+  // Input físico del NIP (solo en computadora) para captar el teclado físico.
+  const pinInputRef = useRef<HTMLInputElement>(null);
 
   // Cargar sucursales al montar el componente
   useEffect(() => {
@@ -199,11 +206,22 @@ const Login: React.FC = () => {
     return () => clearTimeout(t);
   }, [lockRemaining]);
 
-  // Escuchar teclado físico para el ingreso del PIN de cajero
+  // En computadora: al seleccionar el cajero, enfocar el campo del NIP para que
+  // se pueda teclear de inmediato con el teclado físico (sin teclado en pantalla).
+  useEffect(() => {
+    if (!isTouch && activeTab === "cashier" && cashierEmail && !isLocked) {
+      pinInputRef.current?.focus();
+    }
+  }, [isTouch, activeTab, cashierEmail, isLocked]);
+
+  // Escuchar teclado físico para el ingreso del PIN de cajero.
+  // Solo en dispositivos TÁCTILES (por si tienen teclado Bluetooth); en computadora
+  // el NIP se captura con el input dedicado, así se evita doble registro de teclas.
   useEffect(() => {
     if (activeTab !== "cashier") return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isTouch) return; // en computadora lo maneja el input del NIP
       if (isLocked) return; // bloqueado por seguridad: ignorar el teclado físico
 
       const activeEl = document.activeElement;
@@ -237,7 +255,7 @@ const Login: React.FC = () => {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [activeTab, pinCode, cashierEmail, isLocked]);
+  }, [activeTab, pinCode, cashierEmail, isLocked, isTouch]);
 
   const handleRequestOtp = async () => {
     setOtpLoading(true);
@@ -460,7 +478,7 @@ const Login: React.FC = () => {
           </div>
           <div style={styles.twoFactorHint}>
             <ShieldCheck size={14} color="#1e3a8a" />
-            <span>Verificación en dos pasos: se le pedirá confirmar con <strong>Windows Hello</strong> (huella, rostro o PIN del equipo).</span>
+            <span>Verificación en dos pasos: se le pedirá confirmar con la <strong>biometría de su dispositivo</strong> (huella, rostro, Touch ID, Windows Hello…).</span>
           </div>
           <button
             type="submit"
@@ -662,8 +680,9 @@ const Login: React.FC = () => {
             )}
           </div>
 
-          {/* Display de PIN */}
-          <div style={pinDisplayStyle}>
+          {/* Display de PIN (puntos). En computadora incluye un input invisible
+              que capta el NIP tecleado con el teclado físico. */}
+          <div style={{ ...pinDisplayStyle, position: "relative" }}>
             <span style={styles.pinLabel}>Contraseña / PIN</span>
             <div style={styles.pinCircles}>
               {[0, 1, 2, 3].map((index) => (
@@ -676,6 +695,31 @@ const Login: React.FC = () => {
                 />
               ))}
             </div>
+            {!isTouch && (
+              <input
+                ref={pinInputRef}
+                type="password"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={4}
+                value={pinCode}
+                disabled={isLocked || loading}
+                aria-label="Ingrese su NIP con el teclado"
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+                  setError(null);
+                  setPinCode(digits);
+                  setCashierFieldErrors((prev) => ({ ...prev, pin: undefined }));
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && pinCode.length === 4 && cashierEmail && !isLocked) {
+                    e.preventDefault();
+                    handleCashierSubmit();
+                  }
+                }}
+                style={styles.pinHiddenInput}
+              />
+            )}
           </div>
 
           {cashierFieldErrors.pin && <p style={styles.fieldError}>{cashierFieldErrors.pin}</p>}
@@ -705,58 +749,78 @@ const Login: React.FC = () => {
             </div>
           )}
 
-          {/* Leyenda de seguridad del teclado */}
-          <div style={styles.keypadHint}>
-            <ShieldCheck size={13} color="#64748b" />
-            <span>Teclado seguro: los números cambian de lugar para proteger su PIN.</span>
-          </div>
+          {isTouch ? (
+            /* TABLETA / MÓVIL: teclado en pantalla, barajado (anti-espía) */
+            <>
+              <div style={styles.keypadHint}>
+                <ShieldCheck size={13} color="#64748b" />
+                <span>Teclado seguro: los números cambian de lugar para proteger su PIN.</span>
+              </div>
 
-          {/* PIN Pad — orden aleatorio (anti-espía) */}
-          <div style={{ ...pinPadStyle, ...(isLocked ? { opacity: 0.5, pointerEvents: "none" as const } : {}) }}>
-            {shuffledDigits.slice(0, 9).map((num) => (
+              <div style={{ ...pinPadStyle, ...(isLocked ? { opacity: 0.5, pointerEvents: "none" as const } : {}) }}>
+                {shuffledDigits.slice(0, 9).map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    disabled={isLocked || loading}
+                    style={pinBtnStyle}
+                    onClick={() => handleCashierPinPress(num)}
+                    className="active-tap"
+                  >
+                    {num}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={isLocked || loading}
+                  style={{ ...pinBtnStyle, ...styles.pinBtnAction }}
+                  onClick={handleClearPin}
+                  className="active-tap"
+                >
+                  <Delete size={20} />
+                </button>
+                <button
+                  type="button"
+                  disabled={isLocked || loading}
+                  style={pinBtnStyle}
+                  onClick={() => handleCashierPinPress(shuffledDigits[9])}
+                  className="active-tap"
+                >
+                  {shuffledDigits[9]}
+                </button>
+                <button
+                  type="button"
+                  disabled={loading || pinCode.length < 4 || !cashierEmail || isLocked}
+                  style={{
+                    ...pinBtnStyle,
+                    ...styles.pinBtnOK,
+                    ...(pinCode.length === 4 && cashierEmail && !isLocked ? styles.pinBtnOKReady : {}),
+                  }}
+                  onClick={handleCashierSubmit}
+                  className="active-tap"
+                >
+                  <KeyRound size={20} />
+                </button>
+              </div>
+            </>
+          ) : (
+            /* COMPUTADORA: sin teclado en pantalla; el NIP se teclea físicamente */
+            <>
+              <div style={styles.keypadHint}>
+                <ShieldCheck size={13} color="#64748b" />
+                <span>Escriba su NIP con el teclado físico y presione Acceder.</span>
+              </div>
               <button
-                key={num}
                 type="button"
-                disabled={isLocked || loading}
-                style={pinBtnStyle}
-                onClick={() => handleCashierPinPress(num)}
-                className="active-tap"
+                disabled={loading || pinCode.length < 4 || !cashierEmail || isLocked}
+                onClick={handleCashierSubmit}
+                className="btn-primary active-tap"
+                style={styles.submitBtn}
               >
-                {num}
+                {loading ? "Verificando..." : "ACCEDER ➜"}
               </button>
-            ))}
-            <button
-              type="button"
-              disabled={isLocked || loading}
-              style={{ ...pinBtnStyle, ...styles.pinBtnAction }}
-              onClick={handleClearPin}
-              className="active-tap"
-            >
-              <Delete size={20} />
-            </button>
-            <button
-              type="button"
-              disabled={isLocked || loading}
-              style={pinBtnStyle}
-              onClick={() => handleCashierPinPress(shuffledDigits[9])}
-              className="active-tap"
-            >
-              {shuffledDigits[9]}
-            </button>
-            <button
-              type="button"
-              disabled={loading || pinCode.length < 4 || !cashierEmail || isLocked}
-              style={{
-                ...pinBtnStyle,
-                ...styles.pinBtnOK,
-                ...(pinCode.length === 4 && cashierEmail && !isLocked ? styles.pinBtnOKReady : {}),
-              }}
-              onClick={handleCashierSubmit}
-              className="active-tap"
-            >
-              <KeyRound size={20} />
-            </button>
-          </div>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -1172,6 +1236,22 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: "11px",
     justifyContent: "center",
     marginTop: "2px",
+  },
+  // Input invisible (solo computadora) que cubre los puntos del PIN para captar
+  // el teclado físico; al hacer clic en el área se enfoca y se puede teclear.
+  pinHiddenInput: {
+    position: "absolute" as const,
+    inset: 0,
+    width: "100%",
+    height: "100%",
+    margin: 0,
+    padding: 0,
+    border: "none",
+    background: "transparent",
+    color: "transparent",
+    caretColor: "transparent",
+    cursor: "text",
+    outline: "none",
   },
   autocompleteDropdown: {
     position: "absolute" as const,
