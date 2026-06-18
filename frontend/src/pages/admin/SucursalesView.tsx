@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { X, Plus, Pencil } from "lucide-react";
+import { X, Plus, Pencil, ChevronDown, ChevronUp } from "lucide-react";
 import api from "../../services/api";
 import {
   normalizePhoneInput,
@@ -16,6 +16,7 @@ import {
   TableState,
   SectionHeader,
   fmtDate,
+  useMediaQuery,
 } from "./shared";
 
 // ---------------------------------------------------------------------------
@@ -70,6 +71,16 @@ const validatePhone = (value: string): string | undefined => {
 // Componente
 // ---------------------------------------------------------------------------
 const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
+  const isMobile = useMediaQuery("(max-width: 1024px)");
+  const [expandedBranches, setExpandedBranches] = useState<Record<number, boolean>>({});
+
+  const toggleExpandBranch = (id: number) => {
+    setExpandedBranches((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
   const [rows, setRows] = useState<BranchRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -324,52 +335,245 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
         </span>
       </Toolbar>
 
-      <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-        <table style={ui.table}>
-          <thead>
-            <tr style={ui.theadRow}>
-              <th style={ui.th}>#</th>
-              <th style={ui.th}>Nombre</th>
-              <th style={ui.th}>Dirección</th>
-              <th style={ui.th}>Teléfono</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Empleados</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Ventas</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-              <th style={ui.th}>Alta</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            <TableState colSpan={9} loading={loading} error={error} empty={!loading && filteredRows.length === 0} />
-            {!loading &&
-              !error &&
-              filteredRows.map((b) => (
-                <tr key={b.id}>
-                  <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{b.id}</td>
-                  <td style={{ ...ui.td, fontWeight: 700, color: "#0f172a", whiteSpace: "normal" }}>{b.name}</td>
-                  <td style={{ ...ui.td, color: "#475569", whiteSpace: "normal" }}>{b.address || "—"}</td>
-                  <td style={ui.td}>{b.phone || "—"}</td>
-                  <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{b.employees}</td>
-                  <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{b.sales}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
+      {isMobile ? (
+        /* ── Mobile / Tablet: Card-based layout ── */
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
+          {/* Header row mirroring the fields */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1.5fr 1.6fr",
+            padding: "12px 16px",
+            fontWeight: 700,
+            fontSize: 11,
+            color: "#64748b",
+            textTransform: "uppercase",
+            letterSpacing: "0.4px",
+          }}>
+            <div>Emp.</div>
+            <div style={{ textAlign: "center" }}>Ventas</div>
+            <div>Teléfono</div>
+            <div style={{ textAlign: "right", paddingRight: 8 }}>Acción</div>
+          </div>
+
+          {loading && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              Cargando información...
+            </div>
+          )}
+          {!loading && error && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
+              {error}
+            </div>
+          )}
+          {!loading && !error && filteredRows.length === 0 && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              No hay sucursales registradas.
+            </div>
+          )}
+
+          {!loading &&
+            !error &&
+            filteredRows.map((b) => {
+              const isExpanded = expandedBranches[b.id];
+              return (
+                <div
+                  key={b.id}
+                  style={{
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 12,
+                    marginBottom: 10,
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* Header: Nombre y Estado */}
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "8px 16px 6px 16px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "#64748b",
+                    borderBottom: "1px solid #f1f5f9",
+                    backgroundColor: "#f8fafc",
+                    letterSpacing: "0.2px",
+                  }}>
+                    <span>{b.name.toUpperCase()}</span>
                     <Badge tone={b.active ? "green" : "red"}>{b.active ? "Activa" : "Inactiva"}</Badge>
-                  </td>
-                  <td style={{ ...ui.td, color: "#64748b" }}>{fmtDate(b.createdAt)}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-                      <button style={ui.linkBtn} className="active-tap" onClick={() => openEmployeesModal(b)}>
-                        Empleados
+                  </div>
+
+                  {/* Fila principal */}
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr 1.5fr 1.6fr",
+                    padding: "12px 16px",
+                    alignItems: "center",
+                  }}>
+                    {/* Empleados */}
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>
+                      {b.employees}
+                    </div>
+
+                    {/* Ventas */}
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", textAlign: "center" }}>
+                      {b.sales}
+                    </div>
+
+                    {/* Teléfono */}
+                    <div style={{ fontSize: 12, color: "#475569" }}>
+                      {b.phone || "—"}
+                    </div>
+
+                    {/* Botones de Acción */}
+                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+                      {/* Pencil/Editar */}
+                      <button
+                        onClick={() => openEdit(b)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#eff6ff",
+                          border: "1px solid #bfdbfe",
+                          borderRadius: 8,
+                          width: 34,
+                          height: 34,
+                          cursor: "pointer",
+                          color: "#1e3a8a",
+                          padding: 0,
+                        }}
+                        className="active-tap"
+                        title="Editar sucursal"
+                      >
+                        <Pencil size={14} />
                       </button>
-                      <button style={ui.linkBtn} className="active-tap" onClick={() => openEdit(b)}>
-                        <Pencil size={14} style={{ verticalAlign: "-2px" }} /> Editar
+
+                      {/* Chevron */}
+                      <button
+                        onClick={() => toggleExpandBranch(b.id)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#ffffff",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: 8,
+                          width: 34,
+                          height: 34,
+                          cursor: "pointer",
+                          color: "#64748b",
+                          padding: 0,
+                        }}
+                        className="active-tap"
+                      >
+                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                       </button>
                     </div>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
+                  </div>
+
+                  {/* Detalle expandido */}
+                  {isExpanded && (
+                    <div style={{
+                      padding: "16px",
+                      margin: "0 16px 16px 16px",
+                      backgroundColor: "#f8fafc",
+                      borderRadius: "8px",
+                      border: "1px solid #e2e8f0",
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(185px, 1fr))",
+                      gap: "16px",
+                      textAlign: "left",
+                    }}>
+                      {/* Datos Generales */}
+                      <div>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Dirección y Alta</h4>
+                        <div style={branchDetailRow}>
+                          <span style={branchDetailLabel}>Dirección:</span>
+                          <span style={branchDetailValue}>{b.address || "—"}</span>
+                        </div>
+                        <div style={branchDetailRow}>
+                          <span style={branchDetailLabel}>F. Alta:</span>
+                          <span style={branchDetailValue}>{fmtDate(b.createdAt)}</span>
+                        </div>
+                      </div>
+
+                      {/* Gestión de Personal */}
+                      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "flex-start" }}>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Colaboradores</h4>
+                        <button
+                          onClick={() => openEmployeesModal(b)}
+                          style={{
+                            ...ui.ghostBtn,
+                            color: "#2563eb",
+                            borderColor: "#93c5fd",
+                            fontSize: 12,
+                            padding: "6px 12px",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                          className="active-tap"
+                        >
+                          Ver y gestionar empleados ({b.employees})
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      ) : (
+        /* ── Desktop: Standard table ── */
+        <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
+          <table style={ui.table}>
+            <thead>
+              <tr style={ui.theadRow}>
+                <th style={ui.th}>#</th>
+                <th style={ui.th}>Nombre</th>
+                <th style={ui.th}>Dirección</th>
+                <th style={ui.th}>Teléfono</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Empleados</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Ventas</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                <th style={ui.th}>Alta</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              <TableState colSpan={9} loading={loading} error={error} empty={!loading && filteredRows.length === 0} />
+              {!loading &&
+                !error &&
+                filteredRows.map((b) => (
+                  <tr key={b.id}>
+                    <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{b.id}</td>
+                    <td style={{ ...ui.td, fontWeight: 700, color: "#0f172a", whiteSpace: "normal" }}>{b.name}</td>
+                    <td style={{ ...ui.td, color: "#475569", whiteSpace: "normal" }}>{b.address || "—"}</td>
+                    <td style={ui.td}>{b.phone || "—"}</td>
+                    <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{b.employees}</td>
+                    <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{b.sales}</td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <Badge tone={b.active ? "green" : "red"}>{b.active ? "Activa" : "Inactiva"}</Badge>
+                    </td>
+                    <td style={{ ...ui.td, color: "#64748b" }}>{fmtDate(b.createdAt)}</td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                        <button style={ui.linkBtn} className="active-tap" onClick={() => openEmployeesModal(b)}>
+                          Empleados
+                        </button>
+                        <button style={ui.linkBtn} className="active-tap" onClick={() => openEdit(b)}>
+                          <Pencil size={14} style={{ verticalAlign: "-2px" }} /> Editar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* ------------------------------------------------------------------- */}
       {/* Modal crear / editar                                                  */}
@@ -488,7 +692,18 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
       {showEmployeesModal && selectedBranch && (
         <div style={ui.overlay} onClick={() => setShowEmployeesModal(false)}>
           <div
-            style={{ ...ui.modal, maxWidth: 640, width: "100%", maxHeight: "80vh", overflowY: "auto" }}
+            style={{
+              ...ui.modal,
+              maxWidth: isMobile ? "100%" : 640,
+              width: "100%",
+              height: isMobile ? "100%" : "auto",
+              maxHeight: isMobile ? "100%" : "80vh",
+              borderRadius: isMobile ? 0 : 12,
+              margin: 0,
+              display: "flex",
+              flexDirection: "column",
+              overflowY: "hidden",
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={ui.modalHeader}>
@@ -498,7 +713,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
               </button>
             </div>
 
-            <div style={ui.modalBody}>
+            <div style={{ ...ui.modalBody, flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", minHeight: 0 }}>
               {(() => {
                 const branchEmployees = allEmployees.filter(
                   (e: any) => e.branchId === selectedBranch.id
@@ -509,21 +724,36 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                   </p>
                 ) : (
                   <>
-                    <div style={{ ...ui.tableWrap, boxShadow: "none" }}>
-                    <table style={ui.table}>
-                      <thead>
-                        <tr style={ui.theadRow}>
-                          <th style={ui.th}>Nombre</th>
-                          <th style={{ ...ui.th, textAlign: "center" }}>Rol</th>
-                          <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-                          <th style={{ ...ui.th, textAlign: "center" }}>Acción</th>
-                        </tr>
-                      </thead>
-                      <tbody>
+                    {isMobile ? (
+                      /* ── Mobile / Tablet: Card list for employees ── */
+                      <div style={{ padding: "8px 0", flex: 1, overflowY: "auto", minHeight: 0 }}>
                         {branchEmployees.map((emp: any) => (
-                          <tr key={emp.id}>
-                            <td style={ui.td}>{emp.name}</td>
-                            <td style={{ ...ui.td, textAlign: "center" }}>
+                          <div
+                            key={emp.id}
+                            style={{
+                              backgroundColor: "#ffffff",
+                              border: "1px solid #e2e8f0",
+                              borderRadius: 12,
+                              marginBottom: 10,
+                              boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                              overflow: "hidden",
+                              textAlign: "left",
+                            }}
+                          >
+                            {/* Header: Nombre y Rol */}
+                            <div style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              padding: "8px 16px 6px 16px",
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: "#64748b",
+                              borderBottom: "1px solid #f1f5f9",
+                              backgroundColor: "#f8fafc",
+                              letterSpacing: "0.2px",
+                            }}>
+                              <span>{emp.name.toUpperCase()}</span>
                               <Badge
                                 tone={
                                   emp.role === "ADMIN"
@@ -535,15 +765,28 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                               >
                                 {emp.role}
                               </Badge>
-                            </td>
-                            <td style={{ ...ui.td, textAlign: "center" }}>
+                            </div>
+
+                            {/* Body: Estado y Reasignar */}
+                            <div style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              padding: "12px 16px",
+                            }}>
                               <Badge tone={emp.active ? "green" : "red"}>
                                 {emp.active ? "Activo" : "Inactivo"}
                               </Badge>
-                            </td>
-                            <td style={{ ...ui.td, textAlign: "center" }}>
+
                               <button
-                                style={ui.linkBtn}
+                                style={{
+                                  ...ui.ghostBtn,
+                                  color: "#2563eb",
+                                  borderColor: "#93c5fd",
+                                  fontSize: 12,
+                                  padding: "6px 12px",
+                                }}
+                                className="active-tap"
                                 onClick={() => {
                                   setReassignId(emp.id);
                                   setReassignTarget("");
@@ -551,12 +794,61 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                               >
                                 Reasignar
                               </button>
-                            </td>
-                          </tr>
+                            </div>
+                          </div>
                         ))}
-                      </tbody>
-                    </table>
-                    </div>
+                      </div>
+                    ) : (
+                      /* ── Desktop: Standard table ── */
+                      <div style={{ ...ui.tableWrap, boxShadow: "none" }}>
+                        <table style={ui.table}>
+                          <thead>
+                            <tr style={ui.theadRow}>
+                              <th style={ui.th}>Nombre</th>
+                              <th style={{ ...ui.th, textAlign: "center" }}>Rol</th>
+                              <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                              <th style={{ ...ui.th, textAlign: "center" }}>Acción</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {branchEmployees.map((emp: any) => (
+                              <tr key={emp.id}>
+                                <td style={ui.td}>{emp.name}</td>
+                                <td style={{ ...ui.td, textAlign: "center" }}>
+                                  <Badge
+                                    tone={
+                                      emp.role === "ADMIN"
+                                        ? "red"
+                                        : emp.role === "GERENTE"
+                                          ? "amber"
+                                          : "blue"
+                                    }
+                                  >
+                                    {emp.role}
+                                  </Badge>
+                                </td>
+                                <td style={{ ...ui.td, textAlign: "center" }}>
+                                  <Badge tone={emp.active ? "green" : "red"}>
+                                    {emp.active ? "Activo" : "Inactivo"}
+                                  </Badge>
+                                </td>
+                                <td style={{ ...ui.td, textAlign: "center" }}>
+                                  <button
+                                    style={ui.linkBtn}
+                                    onClick={() => {
+                                      setReassignId(emp.id);
+                                      setReassignTarget("");
+                                    }}
+                                  >
+                                    Reasignar
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
 
                     {/* Formulario de reasignación */}
                     {reassignId !== null && (
@@ -618,6 +910,27 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
       )}
     </div>
   );
+};
+
+const branchDetailRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-start",
+  alignItems: "center",
+  gap: "8px",
+  fontSize: 13,
+  marginBottom: 6,
+};
+
+const branchDetailLabel: React.CSSProperties = {
+  fontWeight: 700,
+  color: "#64748b",
+  minWidth: "95px",
+  display: "inline-block",
+};
+
+const branchDetailValue: React.CSSProperties = {
+  fontWeight: 600,
+  color: "#334155",
 };
 
 export default SucursalesView;
