@@ -1,6 +1,9 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Plus, Trash2, CheckCircle2, Package } from "lucide-react";
 import api from "../../services/api";
+import { useAdminData } from "../../hooks";
+import { DataTable } from "../../components/common";
+import type { Column } from "../../components/common";
 import {
   collectRoundedDecimalMessages,
   DECIMAL_INPUT_REGEX,
@@ -14,7 +17,6 @@ import {
   ui,
   type ViewProps,
   Panel,
-  TableState,
   SectionHeader,
   Badge,
   FilterSelect,
@@ -81,9 +83,7 @@ const statusTone = (s: string) =>
   s === "RECIBIDA" ? "green" : s === "CANCELADA" ? "red" : "amber";
 
 const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
-  const [branches, setBranches] = useState<BranchOption[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
-  const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
   const [supplierProducts, setSupplierProducts] = useState<ProductOption[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
 
@@ -103,43 +103,39 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [success, setSuccess] = useState<string | null>(null);
 
   // Historial de órdenes
-  const [purchases, setPurchases] = useState<PurchaseRow[]>([]);
-  const [purchasesLoading, setPurchasesLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterSupplierId, setFilterSupplierId] = useState("all");
   const [receiving, setReceiving] = useState<number | null>(null);
 
-  // Catálogos
+  // Catálogos via useAdminData
+  const { data: branchesData } = useAdminData<{ branches: BranchOption[] }>("/api/auth/branches");
+  const branches = branchesData?.branches ?? [];
+
+  const { data: suppliersData } = useAdminData<SupplierOption[]>("/api/admin/suppliers");
+  const suppliers = suppliersData ?? [];
+
+  // Historial de compras via useAdminData
+  const { data: purchasesData, loading: purchasesLoading, refetch: refetchPurchases } =
+    useAdminData<PurchaseRow[]>("/api/admin/purchases");
+  const purchases = purchasesData ?? [];
+
+  const isFirstRender = useRef(true);
   useEffect(() => {
-    api
-      .get<{ branches: BranchOption[] }>("/api/auth/branches")
-      .then((r) => setBranches(r.data.branches))
-      .catch(() => {});
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    refetchPurchases();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
+
+  // Catálogo de productos (todos)
+  useEffect(() => {
     api
       .get<{ products: ProductOption[] }>("/api/admin/inventory")
       .then((r) => setProducts(r.data.products))
       .catch(() => {});
-    api
-      .get<SupplierOption[]>("/api/admin/suppliers")
-      .then((r) => setSuppliers(r.data))
-      .catch(() => {});
   }, []);
-
-  const loadPurchases = useCallback(async () => {
-    setPurchasesLoading(true);
-    try {
-      const res = await api.get<PurchaseRow[]>("/api/admin/purchases");
-      setPurchases(res.data);
-    } catch {
-      setPurchases([]);
-    } finally {
-      setPurchasesLoading(false);
-    }
-  }, [refreshToken]);
-
-  useEffect(() => {
-    loadPurchases();
-  }, [loadPurchases]);
 
   // Cargar productos del proveedor seleccionado
   useEffect(() => {
@@ -336,7 +332,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
       setFieldErrors({});
       setLineErrors({});
       setProductTaxes({});
-      await loadPurchases();
+      await refetchPurchases();
     } catch (err: any) {
       setFormError(err.response?.data?.message || "No se pudo registrar la compra.");
     } finally {
@@ -348,7 +344,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
     setReceiving(purchaseId);
     try {
       await api.put(`/api/admin/purchases/${purchaseId}/receive`);
-      await loadPurchases();
+      await refetchPurchases();
     } catch (err: any) {
       alert(err.response?.data?.message || "Error al recibir la compra.");
     } finally {
@@ -361,6 +357,75 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
     if (filterSupplierId !== "all" && String(p.supplier.id) !== filterSupplierId) return false;
     return true;
   });
+
+  const purchaseColumns: Column<PurchaseRow>[] = [
+    {
+      key: "purchaseDate",
+      header: "Fecha",
+      render: (p) => (
+        <>
+          {fmtDate(p.purchaseDate)}{" "}
+          <span style={{ color: "#94a3b8" }}>{fmtTime(p.purchaseDate)}</span>
+        </>
+      ),
+    },
+    {
+      key: "supplier",
+      header: "Proveedor",
+      render: (p) => <span style={{ fontWeight: 600, color: "#0f172a" }}>{p.supplier.name}</span>,
+    },
+    {
+      key: "branch",
+      header: "Sucursal",
+      render: (p) => p.branch.name,
+    },
+    { key: "reference", header: "Referencia" },
+    {
+      key: "details",
+      header: "Artículos",
+      align: "center",
+      render: (p) => (
+        <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+          <Package size={13} color="#64748b" />
+          {p.details.length}
+        </span>
+      ),
+    },
+    {
+      key: "total",
+      header: "Total",
+      align: "right",
+      render: (p) => <span style={{ fontWeight: 700, color: "#1e3a8a" }}>{money(Number(p.total))}</span>,
+    },
+    {
+      key: "status",
+      header: "Estado",
+      align: "center",
+      render: (p) => <Badge tone={statusTone(p.status)}>{p.status}</Badge>,
+    },
+    {
+      key: "id",
+      header: "Acciones",
+      render: (p) =>
+        p.status === "PENDIENTE" ? (
+          <button
+            style={{
+              ...ui.primaryBtn,
+              fontSize: 12,
+              padding: "6px 12px",
+              height: 30,
+              backgroundColor: "#15803d",
+            }}
+            onClick={() => receive(p.id)}
+            disabled={receiving === p.id}
+          >
+            {receiving === p.id ? "Recibiendo..." : "✓ Recibir"}
+          </button>
+        ) : (
+          <span style={{ color: "#94a3b8", fontSize: 12 }}>—</span>
+        ),
+    },
+  ];
 
   return (
     <div>
@@ -627,75 +692,13 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
         </Toolbar>
       </div>
 
-      <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-        <table style={ui.table}>
-          <thead>
-            <tr style={ui.theadRow}>
-              <th style={ui.th}>Fecha</th>
-              <th style={ui.th}>Proveedor</th>
-              <th style={ui.th}>Sucursal</th>
-              <th style={ui.th}>Referencia</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Artículos</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Total</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-              <th style={ui.th}>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <TableState
-              colSpan={8}
-              loading={purchasesLoading}
-              empty={!purchasesLoading && filteredPurchases.length === 0}
-              emptyText="No hay órdenes de compra con los filtros seleccionados."
-            />
-            {!purchasesLoading &&
-              filteredPurchases.map((p) => (
-                <tr key={p.id}>
-                  <td style={ui.td}>
-                    {fmtDate(p.purchaseDate)}{" "}
-                    <span style={{ color: "#94a3b8" }}>{fmtTime(p.purchaseDate)}</span>
-                  </td>
-                  <td style={{ ...ui.td, fontWeight: 600, color: "#0f172a" }}>
-                    {p.supplier.name}
-                  </td>
-                  <td style={ui.td}>{p.branch.name}</td>
-                  <td style={ui.td}>{p.reference}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-                      <Package size={13} color="#64748b" />
-                      {p.details.length}
-                    </span>
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: "#1e3a8a" }}>
-                    {money(Number(p.total))}
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <Badge tone={statusTone(p.status)}>{p.status}</Badge>
-                  </td>
-                  <td style={ui.td}>
-                    {p.status === "PENDIENTE" ? (
-                      <button
-                        style={{
-                          ...ui.primaryBtn,
-                          fontSize: 12,
-                          padding: "6px 12px",
-                          height: 30,
-                          backgroundColor: "#15803d",
-                        }}
-                        onClick={() => receive(p.id)}
-                        disabled={receiving === p.id}
-                      >
-                        {receiving === p.id ? "Recibiendo..." : "✓ Recibir"}
-                      </button>
-                    ) : (
-                      <span style={{ color: "#94a3b8", fontSize: 12 }}>—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={purchaseColumns}
+        data={filteredPurchases}
+        loading={purchasesLoading}
+        emptyMessage="No hay órdenes de compra con los filtros seleccionados."
+        keyExtractor={(p) => p.id}
+      />
     </div>
   );
 };

@@ -1,6 +1,9 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { X, Eye, Printer, Ban } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Eye, Printer, Ban } from "lucide-react";
 import api from "../../services/api";
+import { useAdminData } from "../../hooks";
+import { DataTable, ActionModal } from "../../components/common";
+import type { Column } from "../../components/common";
 import { normalizeIntegerInput, validateInteger, validateReference } from "../../utils/formValidation";
 import {
   ui,
@@ -9,7 +12,6 @@ import {
   SearchInput,
   FilterSelect,
   Badge,
-  TableState,
   SectionHeader,
   money,
   moneyExact,
@@ -110,10 +112,8 @@ const reprintTicket = (d: SaleDetail) => {
 };
 
 const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
-  const [rows, setRows] = useState<SaleRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -134,34 +134,36 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       ? "La fecha «Desde» no puede ser posterior a «Hasta»."
       : null;
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params: Record<string, string> = {};
-      if (branchId !== "all") params.branchId = branchId;
-      if (status !== "all") params.status = status;
-      if (search.trim()) params.search = search.trim();
-      // Aplica el rango solo si es válido; admite un solo extremo (Desde o Hasta)
-      const invalidRange = Boolean(dateFrom && dateTo && dateFrom > dateTo);
-      if (!invalidRange) {
-        if (dateFrom) params.from = dateFrom;
-        if (dateTo) params.to = dateTo;
-      }
-      const res = await api.get<{ sales: SaleRow[] }>("/api/admin/sales", { params });
-      setRows(res.data.sales);
-    } catch (err: any) {
-      setError(err.response?.data?.message || "No se pudieron cargar las ventas.");
-    } finally {
-      setLoading(false);
-    }
-  }, [branchId, status, search, dateFrom, dateTo, refreshToken]);
-
-  // Debounce de la búsqueda
   useEffect(() => {
-    const t = setTimeout(load, 300);
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(t);
-  }, [load]);
+  }, [search]);
+
+  const invalidRange = Boolean(dateFrom && dateTo && dateFrom > dateTo);
+  const filterParams: Record<string, unknown> = {};
+  if (branchId !== "all") filterParams.branchId = branchId;
+  if (status !== "all") filterParams.status = status;
+  if (debouncedSearch.trim()) filterParams.search = debouncedSearch.trim();
+  if (!invalidRange) {
+    if (dateFrom) filterParams.from = dateFrom;
+    if (dateTo) filterParams.to = dateTo;
+  }
+
+  const { data, loading, error, refetch } = useAdminData<{ sales: SaleRow[] }>(
+    "/api/admin/sales",
+    { params: filterParams }
+  );
+  const rows = data?.sales ?? [];
+
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    refetch();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   const openPinModal = () => {
     setPinInput("");
@@ -202,12 +204,12 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       });
       closePinModal();
       setDetail(null);
-      load();
+      refetch();
     } catch (err: any) {
-      const status = err.response?.status;
-      if (status === 401) {
+      const statusCode = err.response?.status;
+      if (statusCode === 401) {
         setCancelError("PIN incorrecto. Solo ADMIN o GERENTE pueden cancelar ventas.");
-      } else if (status === 400) {
+      } else if (statusCode === 400) {
         setCancelError(err.response?.data?.message || "La venta no se puede cancelar.");
       } else {
         setCancelError("Error al cancelar la venta. Intente de nuevo.");
@@ -229,6 +231,63 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setDetailLoading(false);
     }
   };
+
+  const columns: Column<SaleRow>[] = [
+    {
+      key: "invoiceNumber",
+      header: "Folio",
+      render: (s) => <span style={{ fontWeight: 700, color: "#1e3a8a" }}>{s.invoiceNumber}</span>,
+    },
+    {
+      key: "createdAt",
+      header: "Fecha",
+      render: (s) => (
+        <>
+          {fmtDate(s.createdAt)}{" "}
+          <span style={{ color: "#94a3b8" }}>{fmtTime(s.createdAt)}</span>
+        </>
+      ),
+    },
+    { key: "branch", header: "Sucursal" },
+    { key: "cajero", header: "Cajero" },
+    {
+      key: "customer",
+      header: "Cliente",
+      render: (s) => (
+        <span style={{ color: s.customer === "Público General" ? "#94a3b8" : "#334155" }}>
+          {s.customer}
+        </span>
+      ),
+    },
+    { key: "items", header: "Artículos", align: "center" },
+    {
+      key: "paymentMethod",
+      header: "Método",
+      render: (s) => <Badge tone={payTone(s.paymentMethod)}>{s.paymentMethod}</Badge>,
+    },
+    {
+      key: "totalAmount",
+      header: "Total",
+      align: "right",
+      render: (s) => <span style={{ fontWeight: 800, color: "#0f172a" }}>{money(s.totalAmount)}</span>,
+    },
+    {
+      key: "status",
+      header: "Estado",
+      align: "center",
+      render: (s) => <Badge tone={statusTone(s.status)}>{s.status}</Badge>,
+    },
+    {
+      key: "id",
+      header: "Detalle",
+      align: "center",
+      render: (s) => (
+        <button style={ui.linkBtn} onClick={() => openDetail(s.id)} className="active-tap">
+          <Eye size={15} style={{ verticalAlign: "-2px" }} /> Ver
+        </button>
+      ),
+    },
+  ];
 
   return (
     <div>
@@ -279,213 +338,159 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         </span>
       </Toolbar>
 
-      <div style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-        <table className="table-sticky-head" style={{ ...ui.table, minWidth: 1040 }}>
-          <thead>
-            <tr style={ui.theadRow}>
-              <th style={ui.th}>Folio</th>
-              <th style={ui.th}>Fecha</th>
-              <th style={ui.th}>Sucursal</th>
-              <th style={ui.th}>Cajero</th>
-              <th style={ui.th}>Cliente</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Artículos</th>
-              <th style={ui.th}>Método</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Total</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Detalle</th>
-            </tr>
-          </thead>
-          <tbody>
-            <TableState colSpan={10} loading={loading} error={error} empty={!loading && rows.length === 0} />
-            {!loading &&
-              !error &&
-              rows.map((s) => (
-                <tr key={s.id}>
-                  <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.invoiceNumber}</td>
-                  <td style={ui.td}>
-                    {fmtDate(s.createdAt)} <span style={{ color: "#94a3b8" }}>{fmtTime(s.createdAt)}</span>
-                  </td>
-                  <td style={ui.td}>{s.branch}</td>
-                  <td style={ui.td}>{s.cajero}</td>
-                  <td style={{ ...ui.td, color: s.customer === "Público General" ? "#94a3b8" : "#334155" }}>
-                    {s.customer}
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>{s.items}</td>
-                  <td style={ui.td}>
-                    <Badge tone={payTone(s.paymentMethod)}>{s.paymentMethod}</Badge>
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "right", fontWeight: 800, color: "#0f172a" }}>
-                    {money(s.totalAmount)}
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <Badge tone={statusTone(s.status)}>{s.status}</Badge>
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <button style={ui.linkBtn} onClick={() => openDetail(s.id)} className="active-tap">
-                      <Eye size={15} style={{ verticalAlign: "-2px" }} /> Ver
-                    </button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={columns}
+        data={rows}
+        loading={loading}
+        error={error}
+        emptyMessage="No hay ventas con los filtros seleccionados."
+        keyExtractor={(s) => s.id}
+      />
 
       {/* Sub-modal: autorización por PIN para cancelar */}
-      {showPinModal && detail && (
-        <div style={{ ...ui.overlay, zIndex: 300 }} onClick={closePinModal}>
-          <div style={{ ...ui.modal, maxWidth: 380 }} onClick={(e) => e.stopPropagation()}>
-            <div style={ui.modalHeader}>
-              <span style={ui.modalTitle}>Autorizar cancelación</span>
-              <button style={ui.linkBtn} onClick={closePinModal}>
-                <X size={18} color="#64748b" />
-              </button>
-            </div>
-            <div style={ui.modalBody}>
-              <p style={{ fontSize: 13, color: "#334155", marginBottom: 16, lineHeight: 1.5 }}>
-                Venta <strong>{detail.invoiceNumber}</strong> — Esta acción es irreversible. Ingrese el PIN de
-                supervisor o gerente para confirmar.
-              </p>
+      <ActionModal
+        isOpen={showPinModal && !!detail}
+        onClose={closePinModal}
+        title="Autorizar cancelación"
+        size="sm"
+        footer={
+          <>
+            <button style={ui.ghostBtn} className="active-tap" onClick={closePinModal} disabled={cancelLoading}>
+              Cancelar
+            </button>
+            <button
+              style={{ ...ui.primaryBtn, backgroundColor: "#dc2626", opacity: cancelLoading ? 0.7 : 1 }}
+              className="active-tap"
+              onClick={handleCancelSale}
+              disabled={cancelLoading || !pinInput.trim()}
+            >
+              {cancelLoading ? "Procesando..." : "Confirmar cancelación"}
+            </button>
+          </>
+        }
+      >
+        <p style={{ fontSize: 13, color: "#334155", marginBottom: 16, lineHeight: 1.5 }}>
+          Venta <strong>{detail?.invoiceNumber}</strong> — Esta acción es irreversible. Ingrese el PIN de
+          supervisor o gerente para confirmar.
+        </p>
 
-              <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>PIN de autorización</label>
-                <input
-                  style={ui.input}
-                  type="password"
-                  placeholder="PIN"
-                  value={pinInput}
-                  onChange={(e) => {
-                    const value = normalizeIntegerInput(e.target.value).slice(0, 4);
-                    setPinInput(value);
-                    setCancelFieldErrors((prev) => ({
-                      ...prev,
-                      pin: value.length === 4 ? "" : "El PIN debe contener 4 digitos.",
-                    }));
-                  }}
-                  autoFocus
-                  onKeyDown={(e) => e.key === "Enter" && !cancelLoading && handleCancelSale()}
-                />
-                {cancelFieldErrors.pin && <p style={ui.fieldError}>{cancelFieldErrors.pin}</p>}
-              </div>
-
-              <div style={{ marginBottom: 16 }}>
-                <label style={ui.fieldLabel}>Motivo (opcional)</label>
-                <input
-                  style={ui.input}
-                  type="text"
-                  placeholder="Ej. Error de captura"
-                  value={cancelReason}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setCancelReason(value);
-                    setCancelFieldErrors((prev) => ({
-                      ...prev,
-                      reason: validateReference(value, "El motivo", { required: false, max: 180 }) || "",
-                    }));
-                  }}
-                />
-                {cancelFieldErrors.reason && <p style={ui.fieldError}>{cancelFieldErrors.reason}</p>}
-              </div>
-
-              {cancelError && (
-                <p style={{ fontSize: 12, color: "#dc2626", fontWeight: 600, marginBottom: 12 }}>{cancelError}</p>
-              )}
-
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-                <button style={ui.ghostBtn} className="active-tap" onClick={closePinModal} disabled={cancelLoading}>
-                  Cancelar
-                </button>
-                <button
-                  style={{ ...ui.primaryBtn, backgroundColor: "#dc2626", opacity: cancelLoading ? 0.7 : 1 }}
-                  className="active-tap"
-                  onClick={handleCancelSale}
-                  disabled={cancelLoading || !pinInput.trim()}
-                >
-                  {cancelLoading ? "Procesando..." : "Confirmar cancelación"}
-                </button>
-              </div>
-            </div>
-          </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={ui.fieldLabel}>PIN de autorización</label>
+          <input
+            style={ui.input}
+            type="password"
+            placeholder="PIN"
+            value={pinInput}
+            onChange={(e) => {
+              const value = normalizeIntegerInput(e.target.value).slice(0, 4);
+              setPinInput(value);
+              setCancelFieldErrors((prev) => ({
+                ...prev,
+                pin: value.length === 4 ? "" : "El PIN debe contener 4 digitos.",
+              }));
+            }}
+            autoFocus
+            onKeyDown={(e) => e.key === "Enter" && !cancelLoading && handleCancelSale()}
+          />
+          {cancelFieldErrors.pin && <p style={ui.fieldError}>{cancelFieldErrors.pin}</p>}
         </div>
-      )}
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={ui.fieldLabel}>Motivo (opcional)</label>
+          <input
+            style={ui.input}
+            type="text"
+            placeholder="Ej. Error de captura"
+            value={cancelReason}
+            onChange={(e) => {
+              const value = e.target.value;
+              setCancelReason(value);
+              setCancelFieldErrors((prev) => ({
+                ...prev,
+                reason: validateReference(value, "El motivo", { required: false, max: 180 }) || "",
+              }));
+            }}
+          />
+          {cancelFieldErrors.reason && <p style={ui.fieldError}>{cancelFieldErrors.reason}</p>}
+        </div>
+
+        {cancelError && (
+          <p style={{ fontSize: 12, color: "#dc2626", fontWeight: 600, marginBottom: 12 }}>{cancelError}</p>
+        )}
+      </ActionModal>
 
       {/* Modal de detalle */}
-      {(detail || detailLoading) && (
-        <div style={ui.overlay} onClick={() => setDetail(null)}>
-          <div style={{ ...ui.modal, maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
-            <div style={ui.modalHeader}>
-              <span style={ui.modalTitle}>{detailLoading ? "Cargando venta..." : `Venta ${detail?.invoiceNumber}`}</span>
-              <button style={ui.linkBtn} onClick={() => setDetail(null)}>
-                <X size={18} color="#64748b" />
+      <ActionModal
+        isOpen={!!(detail || detailLoading)}
+        onClose={() => setDetail(null)}
+        title={detailLoading ? "Cargando venta..." : `Venta ${detail?.invoiceNumber}`}
+        size="md"
+      >
+        {detail && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+              <Info label="Fecha" value={`${fmtDate(detail.createdAt)} ${fmtTime(detail.createdAt)}`} />
+              <Info label="Estado" value={<Badge tone={statusTone(detail.status)}>{detail.status}</Badge>} />
+              <Info label="Sucursal" value={detail.branch} />
+              <Info label="Cajero" value={detail.cajero} />
+              <Info label="Cliente" value={detail.customer} />
+              <Info label="Método" value={<Badge tone={payTone(detail.paymentMethod)}>{detail.paymentMethod}</Badge>} />
+            </div>
+
+            <div style={{ ...ui.tableWrap, boxShadow: "none", marginBottom: 14 }}>
+              <table style={ui.table}>
+                <thead>
+                  <tr style={ui.theadRow}>
+                    <th style={ui.th}>Producto</th>
+                    <th style={{ ...ui.th, textAlign: "center" }}>Cant</th>
+                    <th style={{ ...ui.th, textAlign: "right" }}>P. unit.</th>
+                    <th style={{ ...ui.th, textAlign: "right" }}>Importe</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.items.map((it, i) => (
+                    <tr key={i}>
+                      <td style={ui.td}>
+                        <div style={{ fontWeight: 600 }}>{it.name}</div>
+                        <div style={{ fontSize: 11, color: "#94a3b8" }}>{it.sku}</div>
+                      </td>
+                      <td style={{ ...ui.td, textAlign: "center" }}>{it.quantity}</td>
+                      <td style={{ ...ui.td, textAlign: "right", color: "#64748b" }}>{moneyExact(it.unitPrice)}</td>
+                      <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{moneyExact(it.importe)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <Row label="Subtotal" value={moneyExact(detail.subtotal)} />
+              {detail.discountAmount > 0 && <Row label="Descuento" value={`- ${moneyExact(detail.discountAmount)}`} />}
+              <Row label="IVA (16%)" value={moneyExact(detail.taxAmount)} />
+              <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 4, paddingTop: 8 }}>
+                <Row label="Total" value={moneyExact(detail.totalAmount)} strong />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20 }}>
+              {detail.status !== "CANCELADA" ? (
+                <button
+                  style={{ ...ui.primaryBtn, backgroundColor: "#dc2626" }}
+                  className="active-tap"
+                  onClick={openPinModal}
+                >
+                  <Ban size={15} /> Cancelar venta
+                </button>
+              ) : (
+                <span />
+              )}
+              <button style={ui.primaryBtn} className="active-tap" onClick={() => reprintTicket(detail)}>
+                <Printer size={15} /> Reimprimir ticket
               </button>
             </div>
-            {detail && (
-              <div style={ui.modalBody}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-                  <Info label="Fecha" value={`${fmtDate(detail.createdAt)} ${fmtTime(detail.createdAt)}`} />
-                  <Info label="Estado" value={<Badge tone={statusTone(detail.status)}>{detail.status}</Badge>} />
-                  <Info label="Sucursal" value={detail.branch} />
-                  <Info label="Cajero" value={detail.cajero} />
-                  <Info label="Cliente" value={detail.customer} />
-                  <Info label="Método" value={<Badge tone={payTone(detail.paymentMethod)}>{detail.paymentMethod}</Badge>} />
-                </div>
-
-                <div style={{ ...ui.tableWrap, boxShadow: "none", marginBottom: 14 }}>
-                <table style={ui.table}>
-                  <thead>
-                    <tr style={ui.theadRow}>
-                      <th style={ui.th}>Producto</th>
-                      <th style={{ ...ui.th, textAlign: "center" }}>Cant</th>
-                      <th style={{ ...ui.th, textAlign: "right" }}>P. unit.</th>
-                      <th style={{ ...ui.th, textAlign: "right" }}>Importe</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detail.items.map((it, i) => (
-                      <tr key={i}>
-                        <td style={ui.td}>
-                          <div style={{ fontWeight: 600 }}>{it.name}</div>
-                          <div style={{ fontSize: 11, color: "#94a3b8" }}>{it.sku}</div>
-                        </td>
-                        <td style={{ ...ui.td, textAlign: "center" }}>{it.quantity}</td>
-                        <td style={{ ...ui.td, textAlign: "right", color: "#64748b" }}>{moneyExact(it.unitPrice)}</td>
-                        <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{moneyExact(it.importe)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <Row label="Subtotal" value={moneyExact(detail.subtotal)} />
-                  {detail.discountAmount > 0 && <Row label="Descuento" value={`- ${moneyExact(detail.discountAmount)}`} />}
-                  <Row label="IVA (16%)" value={moneyExact(detail.taxAmount)} />
-                  <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 4, paddingTop: 8 }}>
-                    <Row label="Total" value={moneyExact(detail.totalAmount)} strong />
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20 }}>
-                  {detail.status !== "CANCELADA" ? (
-                    <button
-                      style={{ ...ui.primaryBtn, backgroundColor: "#dc2626" }}
-                      className="active-tap"
-                      onClick={openPinModal}
-                    >
-                      <Ban size={15} /> Cancelar venta
-                    </button>
-                  ) : (
-                    <span />
-                  )}
-                  <button style={ui.primaryBtn} className="active-tap" onClick={() => reprintTicket(detail)}>
-                    <Printer size={15} /> Reimprimir ticket
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </ActionModal>
     </div>
   );
 };
