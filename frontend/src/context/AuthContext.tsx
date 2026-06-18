@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useContext } from "react";
+import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
 import api from "../services/api";
 
 interface User {
@@ -18,8 +19,13 @@ interface AuthContextType {
   token: string | null;
   user: User | null;
   loading: boolean;
+  webAuthnFailed: boolean;
+  setWebAuthnFailed: (v: boolean) => void;
+  pendingToken: string | null;
   loginAsAdmin: (email: string, password: string) => Promise<void>;
   loginAsCashier: (email: string, pinCode: string) => Promise<void>;
+  requestOtp: () => Promise<{ email: string }>;
+  verifyOtp: (otpCode: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -29,6 +35,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(localStorage.getItem("fmb_pos_token"));
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [webAuthnFailed, setWebAuthnFailed] = useState(false);
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
 
   // Cargar perfil al iniciar si ya hay un token
   useEffect(() => {
@@ -62,19 +70,74 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [token]);
 
+  const persistSession = (receivedToken: string, receivedUser: User) => {
+    localStorage.setItem("fmb_pos_token", receivedToken);
+    localStorage.setItem("fmb_pos_user", JSON.stringify(receivedUser));
+    setToken(receivedToken);
+    setUser(receivedUser);
+  };
+
+  /**
+   * Login de administrador en 2 pasos:
+   *   1) Correo + contraseña.
+   *   2) Segundo factor WebAuthn — biometría del dispositivo, multiplataforma
+   *      (Windows Hello, Touch ID, Face ID, huella de Android o llave de seguridad).
+   *      Si el usuario aún no tiene dispositivo registrado, se enrola en este momento.
+   * Aunque el navegador autocomplete la contraseña, sin el paso 2 no hay acceso.
+   */
   const loginAsAdmin = async (email: string, password: string) => {
     setLoading(true);
+    setWebAuthnFailed(false);
     try {
-      const response = await api.post("/api/auth/admin-login", { email, password });
-      const { token: receivedToken, user: receivedUser } = response.data;
-      
-      localStorage.setItem("fmb_pos_token", receivedToken);
-      localStorage.setItem("fmb_pos_user", JSON.stringify(receivedUser));
-      
-      setToken(receivedToken);
-      setUser(receivedUser);
+      const { data } = await api.post("/api/auth/admin-login", { email, password });
+
+      // Compatibilidad: si el backend devolviera una sesión directa.
+      if (data.token && data.user) {
+        persistSession(data.token, data.user);
+        return;
+      }
+
+      if (!data.requires2FA) {
+        throw new Error(data.message || "Respuesta de autenticación no válida.");
+      }
+
+      const pt = data.pendingToken;
+      setPendingToken(pt); // Guardar para el fallback OTP
+      let verifyData;
+
+      if (data.mode === "register") {
+        // Primer ingreso: enrolar la biometría/llave de acceso del dispositivo.
+        let attResp;
+        try {
+          attResp = await startRegistration({ optionsJSON: data.options });
+        } catch {
+          // WebAuthn falló — activar fallback a OTP sin destruir el pendingToken
+          setWebAuthnFailed(true);
+          setLoading(false);
+          return;
+        }
+        const res = await api.post("/api/auth/webauthn/register-verify", { pendingToken: pt, response: attResp });
+        verifyData = res.data;
+      } else {
+        // Ingreso posterior: confirmar identidad con la biometría del dispositivo.
+        let authResp;
+        try {
+          authResp = await startAuthentication({ optionsJSON: data.options });
+        } catch {
+          // WebAuthn falló — activar fallback a OTP sin destruir el pendingToken
+          setWebAuthnFailed(true);
+          setLoading(false);
+          return;
+        }
+        const res = await api.post("/api/auth/webauthn/login-verify", { pendingToken: pt, response: authResp });
+        verifyData = res.data;
+      }
+
+      persistSession(verifyData.token, verifyData.user);
     } catch (error: any) {
       setLoading(false);
+      // Si ya es un Error con mensaje propio (ceremonial WebAuthn), respétalo.
+      if (error instanceof Error && !(error as any).response) throw error;
       throw new Error(error.response?.data?.message || "Error al iniciar sesión.");
     }
   };
@@ -84,16 +147,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const response = await api.post("/api/auth/cashier-login", { email, pinCode });
       const { token: receivedToken, user: receivedUser } = response.data;
-      
+
       localStorage.setItem("fmb_pos_token", receivedToken);
       localStorage.setItem("fmb_pos_user", JSON.stringify(receivedUser));
-      
+
       setToken(receivedToken);
       setUser(receivedUser);
     } catch (error: any) {
       setLoading(false);
-      throw new Error(error.response?.data?.message || "PIN de acceso incorrecto.");
+      // Propagar los datos estructurados del backend (código, intentos restantes,
+      // segundos de bloqueo) para que el formulario muestre avisos precisos.
+      const err = new Error(error.response?.data?.message || "PIN de acceso incorrecto.");
+      (err as any).info = error.response?.data || {};
+      throw err;
     }
+  };
+
+  const requestOtp = async (): Promise<{ email: string }> => {
+    const res = await api.post("/api/auth/request-otp", { pendingToken });
+    return res.data;
+  };
+
+  const verifyOtp = async (otpCode: string): Promise<void> => {
+    const res = await api.post("/api/auth/verify-otp", { pendingToken, otpCode });
+    setPendingToken(null);
+    setWebAuthnFailed(false);
+    persistSession(res.data.token, res.data.user);
   };
 
   const logout = () => {
@@ -101,11 +180,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem("fmb_pos_user");
     setToken(null);
     setUser(null);
+    setPendingToken(null);
+    setWebAuthnFailed(false);
     setLoading(false);
   };
 
   return (
-    <AuthContext.Provider value={{ token, user, loading, loginAsAdmin, loginAsCashier, logout }}>
+    <AuthContext.Provider value={{
+      token, user, loading,
+      webAuthnFailed, setWebAuthnFailed,
+      pendingToken,
+      loginAsAdmin, loginAsCashier,
+      requestOtp, verifyOtp,
+      logout,
+    }}>
       {children}
     </AuthContext.Provider>
   );

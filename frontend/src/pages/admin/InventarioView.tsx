@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { AlertTriangle, Printer, X, Plus, BadgePercent, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import api from "../../services/api";
+import { useAuth } from "../../context/AuthContext";
 import {
   DECIMAL_INPUT_REGEX,
   handleDecimalInputChange,
@@ -289,6 +290,7 @@ const formatTaxRate = (rate: number | string) => {
 };
 
 const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+  const { user } = useAuth();
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [expandedProducts, setExpandedProducts] = useState<Record<number, boolean>>({});
 
@@ -1070,9 +1072,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b", fontWeight: 600 }}>
               {filteredRows.length} producto{filteredRows.length === 1 ? "" : "s"}
             </span>
-            <button onClick={handleOpenCreate} style={ui.primaryBtn}>
-              <Plus size={15} /> Nuevo producto
-            </button>
+            {user?.role !== "GERENTE" && (
+              <button onClick={handleOpenCreate} style={ui.primaryBtn}>
+                <Plus size={15} /> Nuevo producto
+              </button>
+            )}
           </Toolbar>
 
           {isMobile ? (
@@ -1407,17 +1411,19 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             </div>
                           ))}
                         </div>
-                        <button
-                          onClick={() => { setEditMode(true); setSaveError(null); setPriceFieldErrors({}); }}
-                          style={{
-                            ...ui.ghostBtn,
-                            fontSize: 12,
-                            color: "#2563eb",
-                            borderColor: "#93c5fd",
-                          }}
-                        >
-                          Editar precios
-                        </button>
+                        {user?.role !== "GERENTE" && (
+                          <button
+                            onClick={() => { setEditMode(true); setSaveError(null); setPriceFieldErrors({}); }}
+                            style={{
+                              ...ui.ghostBtn,
+                              fontSize: 12,
+                              color: "#2563eb",
+                              borderColor: "#93c5fd",
+                            }}
+                          >
+                            Editar precios
+                          </button>
+                        )}
                       </>
                     ) : (
                       <>
@@ -1570,31 +1576,43 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     {selectedProduct.inventories.length > 0 && (
                       <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: isMobile ? "wrap" : undefined }}>
                         <button
-                          onClick={() => { setAdjustError(null); setAdjustOpen(true); }}
+                          onClick={() => {
+                            setAdjustError(null);
+                            setAdjustOpen(true);
+                            if (user?.role === "GERENTE" && user.branch?.id) {
+                              setAdjustBranch(user.branch.id);
+                            } else {
+                              setAdjustBranch(0);
+                            }
+                          }}
+                          disabled={user?.role === "GERENTE" && !selectedProduct.inventories.some((inv) => inv.branchId === user.branch?.id)}
                           style={{
                             ...ui.ghostBtn,
                             color: "#b45309",
                             borderColor: "#fcd34d",
                             backgroundColor: "#fffbeb",
+                            opacity: (user?.role === "GERENTE" && !selectedProduct.inventories.some((inv) => inv.branchId === user.branch?.id)) ? 0.5 : 1,
                             ...(isMobile ? { flex: 1, justifyContent: "center" } : {}),
                           }}
                         >
                           Ajustar stock
                         </button>
-                        {selectedProduct.inventories.length > 1 && (
-                          <button
-                            onClick={() => { setTransferError(null); setTransferOpen(true); }}
-                            style={{
-                              ...ui.ghostBtn,
-                              color: "#7c3aed",
-                              borderColor: "#c4b5fd",
-                              backgroundColor: "#f5f3ff",
-                              ...(isMobile ? { flex: 1, justifyContent: "center" } : {}),
-                            }}
-                          >
-                            Trasladar stock
-                          </button>
-                        )}
+                        {selectedProduct.inventories.length > 1 &&
+                          (user?.role !== "GERENTE" ||
+                            selectedProduct.inventories.some((inv) => inv.branchId === user.branch?.id)) && (
+                            <button
+                              onClick={() => { setTransferError(null); setTransferOpen(true); }}
+                              style={{
+                                ...ui.ghostBtn,
+                                color: "#7c3aed",
+                                borderColor: "#c4b5fd",
+                                backgroundColor: "#f5f3ff",
+                                ...(isMobile ? { flex: 1, justifyContent: "center" } : {}),
+                              }}
+                            >
+                              Trasladar stock
+                            </button>
+                          )}
                       </div>
                     )}
                   </div>
@@ -1603,7 +1621,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: "#1e3a8a" }}>Proveedores</div>
-                      {!editingSuppliersMode && (
+                      {!editingSuppliersMode && user?.role !== "GERENTE" && (
                         <button
                           onClick={() => { setEditingSuppliersMode(true); setSuppliersError(null); }}
                           style={{ ...ui.ghostBtn, fontSize: 12, padding: "4px 10px", color: "#2563eb", borderColor: "#93c5fd" }}
@@ -1799,48 +1817,52 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               >
                 {selectedProduct && (
                   <>
-                    <button
-                      onClick={() => handleToggleActive(selectedProduct)}
-                      disabled={statusSaving}
-                      style={{
-                        ...ui.ghostBtn,
-                        color: selectedProduct.active ? "#b91c1c" : "#15803d",
-                        borderColor: selectedProduct.active ? "#fca5a5" : "#86efac",
-                        whiteSpace: "nowrap",
-                        ...(isMobile
-                          ? {
-                              width: "100%",
-                              justifyContent: "center",
-                              fontSize: 12,
-                              padding: "8px 10px",
-                              order: 3,
-                            }
-                          : {}),
-                      }}
-                    >
-                      {statusSaving ? "Procesando..." : selectedProduct.active ? "Desactivar" : "Activar"}
-                    </button>
-                    {!isMobile && <span style={{ flex: 1 }} />}
-                    <button
-                      onClick={() => handleEdit(selectedProduct)}
-                      style={{
-                        ...ui.ghostBtn,
-                        color: "#2563eb",
-                        borderColor: "#93c5fd",
-                        whiteSpace: "nowrap",
-                        ...(isMobile
-                          ? {
-                              width: "100%",
-                              justifyContent: "center",
-                              fontSize: 12,
-                              padding: "8px 10px",
-                              order: 1,
-                            }
-                          : {}),
-                      }}
-                    >
-                      Editar producto
-                    </button>
+                    {user?.role !== "GERENTE" && (
+                      <button
+                        onClick={() => handleToggleActive(selectedProduct)}
+                        disabled={statusSaving}
+                        style={{
+                          ...ui.ghostBtn,
+                          color: selectedProduct.active ? "#b91c1c" : "#15803d",
+                          borderColor: selectedProduct.active ? "#fca5a5" : "#86efac",
+                          whiteSpace: "nowrap",
+                          ...(isMobile
+                            ? {
+                                width: "100%",
+                                justifyContent: "center",
+                                fontSize: 12,
+                                padding: "8px 10px",
+                                order: 3,
+                              }
+                            : { marginRight: "auto" }),
+                        }}
+                      >
+                        {statusSaving ? "Procesando..." : selectedProduct.active ? "Desactivar" : "Activar"}
+                      </button>
+                    )}
+                    {!isMobile && user?.role !== "GERENTE" && <span style={{ flex: 1 }} />}
+                    {user?.role !== "GERENTE" && (
+                      <button
+                        onClick={() => handleEdit(selectedProduct)}
+                        style={{
+                          ...ui.ghostBtn,
+                          color: "#2563eb",
+                          borderColor: "#93c5fd",
+                          whiteSpace: "nowrap",
+                          ...(isMobile
+                            ? {
+                                width: "100%",
+                                justifyContent: "center",
+                                fontSize: 12,
+                                padding: "8px 10px",
+                                order: 1,
+                              }
+                            : {}),
+                        }}
+                      >
+                        Editar producto
+                      </button>
+                    )}
                     <button
                       onClick={printProduct}
                       style={{
@@ -1854,7 +1876,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               padding: "8px 10px",
                               order: 2,
                             }
-                          : {}),
+                          : (user?.role === "GERENTE" ? { marginLeft: "auto" } : {})),
                       }}
                     >
                       <Printer size={15} /> Imprimir ficha
@@ -1911,14 +1933,17 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   <select
                     value={adjustBranch || ""}
                     onChange={(e) => { setAdjustBranch(Number(e.target.value)); setAdjustType(""); setAdjustQuantity(0); setAdjustReason(""); }}
-                    style={{ ...ui.input, cursor: "pointer" }}
+                    disabled={user?.role === "GERENTE"}
+                    style={{ ...ui.input, cursor: user?.role === "GERENTE" ? "default" : "pointer" }}
                   >
                     <option value="">Selecciona sucursal</option>
-                    {selectedProduct.inventories.map((inv) => (
-                      <option key={inv.branchId} value={inv.branchId}>
-                        {inv.branch} — Stock actual: {inv.quantity} uds.
-                      </option>
-                    ))}
+                    {selectedProduct.inventories
+                      .filter((inv) => user?.role !== "GERENTE" || inv.branchId === user.branch?.id)
+                      .map((inv) => (
+                        <option key={inv.branchId} value={inv.branchId}>
+                          {inv.branch} — Stock actual: {inv.quantity} uds.
+                        </option>
+                      ))}
                   </select>
                 </div>
 
@@ -2117,6 +2142,14 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         <option value="">Selecciona destino</option>
                         {selectedProduct.inventories
                           .filter((inv) => inv.branchId !== transferFrom)
+                          .filter((inv) => {
+                            if (user?.role === "GERENTE" && user.branch?.id) {
+                              if (transferFrom !== user.branch.id) {
+                                return inv.branchId === user.branch.id;
+                              }
+                            }
+                            return true;
+                          })
                           .map((inv) => (
                             <option key={inv.branchId} value={inv.branchId}>
                               {inv.branch} — Stock: {inv.quantity} uds.

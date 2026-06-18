@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
-import { ShieldCheck, UserCheck, Delete, KeyRound, AlertCircle, RefreshCw } from "lucide-react";
+import { ShieldCheck, UserCheck, Delete, KeyRound, AlertCircle, RefreshCw, Lock } from "lucide-react";
 import api from "../services/api";
 import {
   type FieldErrors,
@@ -37,11 +37,33 @@ function useMediaQuery(query: string): boolean {
   return matches;
 }
 
+// Baraja los dígitos 0-9 (Fisher-Yates) para que el teclado del PIN cambie de
+// posición y dificulte que alguien "lea" el NIP por la posición de los toques.
+const shuffleDigits = (): string[] => {
+  const d = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+  for (let i = d.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [d[i], d[j]] = [d[j], d[i]];
+  }
+  return d;
+};
+
+// Formatea segundos como MM:SS para la cuenta regresiva de bloqueo.
+const formatMMSS = (totalSeconds: number): string => {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+};
+
 const Login: React.FC = () => {
-  const { loginAsAdmin, loginAsCashier } = useAuth();
+  const { loginAsAdmin, loginAsCashier, webAuthnFailed, setWebAuthnFailed, requestOtp, verifyOtp } = useAuth();
 
   const isMobile = useMediaQuery("(max-width: 860px)");
   const shortScreen = useMediaQuery("(max-height: 860px)");
+  // Dispositivo táctil (tableta/móvil): puntero "grueso". Más fiable que el ancho —
+  // una tablet en horizontal también cuenta como táctil. En computadora (puntero "fino")
+  // se oculta el teclado en pantalla y el NIP se ingresa con el teclado físico.
+  const isTouch = useMediaQuery("(pointer: coarse)");
 
   // Estados de control
   const [activeTab, setActiveTab] = useState<"admin" | "cashier">("cashier"); // Por defecto cajero según maquetas
@@ -60,6 +82,12 @@ const Login: React.FC = () => {
   const [adminPassword, setAdminPassword] = useState("AdminPassword#2026");
   const [adminFieldErrors, setAdminFieldErrors] = useState<FieldErrors<"email" | "password">>({});
 
+  // Fallback OTP (se activa cuando WebAuthn falla)
+  const [otpRequested, setOtpRequested] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpEmail, setOtpEmail] = useState("");
+  const [otpLoading, setOtpLoading] = useState(false);
+
   // Formulario Cajero (PIN)
   const [cashierEmail, setCashierEmail] = useState("");
   const [pinCode, setPinCode] = useState("");
@@ -67,6 +95,15 @@ const Login: React.FC = () => {
   const [showCashierDropdown, setShowCashierDropdown] = useState(false);
   const [cashierFieldErrors, setCashierFieldErrors] = useState<FieldErrors<"cashier" | "pin">>({});
   const [focusedCashierIndex, setFocusedCashierIndex] = useState(-1);
+
+  // Seguridad del PIN: teclado barajado, intentos restantes y bloqueo temporal
+  const [shuffledDigits, setShuffledDigits] = useState<string[]>(() => shuffleDigits());
+  const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
+  const [lockRemaining, setLockRemaining] = useState(0); // segundos restantes de bloqueo
+  const isLocked = lockRemaining > 0;
+
+  // Input físico del NIP (solo en computadora) para captar el teclado físico.
+  const pinInputRef = useRef<HTMLInputElement>(null);
 
   // Cargar sucursales al montar el componente
   useEffect(() => {
@@ -105,7 +142,7 @@ const Login: React.FC = () => {
         setCashiers(cashierList);
         if (cashierList.length > 0) {
           setCashierEmail("");
-          setCashierSearch(""); 
+          setCashierSearch("");
           setCashierFieldErrors({});
         }
       } catch (err) {
@@ -157,11 +194,36 @@ const Login: React.FC = () => {
     setCashierFieldErrors((prev) => ({ ...prev, cashier: error }));
   };
 
-  // Escuchar teclado físico para el ingreso del PIN de cajero
+  // Cuenta regresiva del bloqueo temporal: descuenta 1s y, al llegar a 0,
+  // limpia el aviso de bloqueo automáticamente.
+  useEffect(() => {
+    if (lockRemaining <= 0) return;
+    const t = setTimeout(() => {
+      const next = lockRemaining - 1;
+      setLockRemaining(next);
+      if (next === 0) setError(null);
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [lockRemaining]);
+
+  // En computadora: al seleccionar el cajero, enfocar el campo del NIP para que
+  // se pueda teclear de inmediato con el teclado físico (sin teclado en pantalla).
+  useEffect(() => {
+    if (!isTouch && activeTab === "cashier" && cashierEmail && !isLocked) {
+      pinInputRef.current?.focus();
+    }
+  }, [isTouch, activeTab, cashierEmail, isLocked]);
+
+  // Escuchar teclado físico para el ingreso del PIN de cajero.
+  // Solo en dispositivos TÁCTILES (por si tienen teclado Bluetooth); en computadora
+  // el NIP se captura con el input dedicado, así se evita doble registro de teclas.
   useEffect(() => {
     if (activeTab !== "cashier") return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isTouch) return; // en computadora lo maneja el input del NIP
+      if (isLocked) return; // bloqueado por seguridad: ignorar el teclado físico
+
       const activeEl = document.activeElement;
       const isInputFocused = activeEl && (
         activeEl.tagName === "INPUT" && activeEl.getAttribute("type") === "text"
@@ -193,11 +255,45 @@ const Login: React.FC = () => {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [activeTab, pinCode, cashierEmail]);
+  }, [activeTab, pinCode, cashierEmail, isLocked, isTouch]);
+
+  const handleRequestOtp = async () => {
+    setOtpLoading(true);
+    setError(null);
+    try {
+      const data = await requestOtp();
+      setOtpEmail(data.email);
+      setOtpRequested(true);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Error al enviar el código. Intente de nuevo.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otpCode.length !== 6) {
+      setError("Ingresa el código de 6 dígitos recibido en tu correo.");
+      return;
+    }
+    setOtpLoading(true);
+    setError(null);
+    try {
+      await verifyOtp(otpCode);
+      // verifyOtp llama a persistSession internamente — si llega aquí, sesión iniciada
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Código incorrecto o expirado.");
+      setOtpCode("");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
 
   const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setOtpRequested(false);
+    setOtpCode("");
 
     const errors = validateAdminForm();
     setAdminFieldErrors(errors);
@@ -214,6 +310,7 @@ const Login: React.FC = () => {
   };
 
   const handleCashierPinPress = (num: string) => {
+    if (isLocked) return;
     setError(null);
     if (pinCode.length < 4) {
       setPinCode((prev) => prev + num);
@@ -222,12 +319,14 @@ const Login: React.FC = () => {
   };
 
   const handleClearPin = () => {
+    if (isLocked) return;
     setPinCode("");
     setError(null);
     setCashierFieldErrors((prev) => ({ ...prev, pin: "El PIN es obligatorio." }));
   };
 
   const handleCashierSubmit = async () => {
+    if (isLocked) return;
     const errors = validateCashierForm();
     setCashierFieldErrors(errors);
     if (hasErrors(errors)) return;
@@ -237,8 +336,22 @@ const Login: React.FC = () => {
     try {
       await loginAsCashier(cashierEmail, pinCode);
     } catch (err: any) {
-      setError(err.message || "PIN incorrecto.");
+      const info = err.info || {};
+      // Avisos precisos según el motivo informado por el backend.
+      // Cada motivo usa UN solo aviso dedicado (evita mensajes duplicados).
+      if (info.code === "CUENTA_BLOQUEADA") {
+        setLockRemaining(info.retryAfterSeconds || 0);
+        setRemainingAttempts(null);
+        setError(null); // el banner rojo de bloqueo ya comunica el motivo
+      } else if (info.code === "PIN_INCORRECTO") {
+        setRemainingAttempts(typeof info.remainingAttempts === "number" ? info.remainingAttempts : null);
+        setError(null); // el aviso ámbar ya dice "PIN incorrecto + intentos restantes"
+      } else {
+        setRemainingAttempts(null);
+        setError(err.message || "No se pudo iniciar sesión.");
+      }
       setPinCode(""); // Limpiar PIN al fallar
+      setShuffledDigits(shuffleDigits()); // Re-barajar el teclado tras cada fallo
     } finally {
       setLoading(false);
     }
@@ -298,6 +411,11 @@ const Login: React.FC = () => {
             setActiveTab("cashier");
             setError(null);
             setAdminFieldErrors({});
+            setRemainingAttempts(null);
+            setShuffledDigits(shuffleDigits());
+            setWebAuthnFailed(false);
+            setOtpRequested(false);
+            setOtpCode("");
           }}
         >
           <UserCheck size={16} />
@@ -358,14 +476,92 @@ const Login: React.FC = () => {
             />
             {adminFieldErrors.password && <p style={styles.fieldError}>{adminFieldErrors.password}</p>}
           </div>
+          <div style={styles.twoFactorHint}>
+            <ShieldCheck size={14} color="#1e3a8a" />
+            <span>Verificación en dos pasos: se le pedirá confirmar con la <strong>biometría de su dispositivo</strong> (huella, rostro, Touch ID, Windows Hello…).</span>
+          </div>
           <button
             type="submit"
             disabled={loading}
             className="btn-primary active-tap"
             style={styles.submitBtn}
           >
-            {loading ? "Iniciando..." : "ACEPTAR ➜"}
+            {loading ? "Verificando..." : "ACEPTAR ➜"}
           </button>
+
+          {/* ── Fallback OTP: aparece solo cuando WebAuthn falla ── */}
+          {webAuthnFailed && !otpRequested && (
+            <div style={{ marginTop: "16px", textAlign: "center" }}>
+              <p style={{ color: "#6b7280", fontSize: "13px", marginBottom: "10px" }}>
+                ¿No tienes acceso al dispositivo registrado?
+              </p>
+              <button
+                type="button"
+                onClick={handleRequestOtp}
+                disabled={otpLoading}
+                style={{
+                  background: "none",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "6px",
+                  padding: "8px 16px",
+                  cursor: otpLoading ? "not-allowed" : "pointer",
+                  color: "#374151",
+                  fontSize: "14px",
+                  opacity: otpLoading ? 0.6 : 1,
+                }}
+              >
+                {otpLoading ? "Enviando..." : "📧 Recibir código por correo"}
+              </button>
+            </div>
+          )}
+
+          {webAuthnFailed && otpRequested && (
+            <div style={{ marginTop: "16px" }}>
+              <p style={{ color: "#6b7280", fontSize: "13px", marginBottom: "10px", textAlign: "center" }}>
+                Código enviado a <strong>{otpEmail}</strong>. Ingresa los 6 dígitos:
+              </p>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="000000"
+                className="input-corporate"
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                style={{ textAlign: "center", letterSpacing: "8px", fontSize: "22px", fontWeight: "700" }}
+              />
+              <button
+                type="button"
+                onClick={handleVerifyOtp}
+                disabled={otpLoading || otpCode.length !== 6}
+                className="btn-primary active-tap"
+                style={{
+                  ...styles.submitBtn,
+                  marginTop: "8px",
+                  opacity: otpCode.length === 6 && !otpLoading ? 1 : 0.5,
+                  cursor: otpCode.length === 6 && !otpLoading ? "pointer" : "not-allowed",
+                }}
+              >
+                {otpLoading ? "Verificando..." : "Verificar código"}
+              </button>
+              <p style={{ textAlign: "center", marginTop: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => { setOtpRequested(false); setOtpCode(""); setError(null); }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#6b7280",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                  }}
+                >
+                  Reenviar código
+                </button>
+              </p>
+            </div>
+          )}
         </form>
       )}
 
@@ -484,8 +680,9 @@ const Login: React.FC = () => {
             )}
           </div>
 
-          {/* Display de PIN */}
-          <div style={pinDisplayStyle}>
+          {/* Display de PIN (puntos). En computadora incluye un input invisible
+              que capta el NIP tecleado con el teclado físico. */}
+          <div style={{ ...pinDisplayStyle, position: "relative" }}>
             <span style={styles.pinLabel}>Contraseña / PIN</span>
             <div style={styles.pinCircles}>
               {[0, 1, 2, 3].map((index) => (
@@ -498,53 +695,132 @@ const Login: React.FC = () => {
                 />
               ))}
             </div>
+            {!isTouch && (
+              <input
+                ref={pinInputRef}
+                type="password"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={4}
+                value={pinCode}
+                disabled={isLocked || loading}
+                aria-label="Ingrese su NIP con el teclado"
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+                  setError(null);
+                  setPinCode(digits);
+                  setCashierFieldErrors((prev) => ({ ...prev, pin: undefined }));
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && pinCode.length === 4 && cashierEmail && !isLocked) {
+                    e.preventDefault();
+                    handleCashierSubmit();
+                  }
+                }}
+                style={styles.pinHiddenInput}
+              />
+            )}
           </div>
 
           {cashierFieldErrors.pin && <p style={styles.fieldError}>{cashierFieldErrors.pin}</p>}
 
-          {/* PIN Pad */}
-          <div style={pinPadStyle}>
-            {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
+          {/* Aviso de bloqueo temporal con cuenta regresiva */}
+          {isLocked && (
+            <div style={styles.lockBanner}>
+              <Lock size={18} color="#b91c1c" />
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <span style={{ fontWeight: 700 }}>Acceso bloqueado por seguridad</span>
+                <span style={{ fontSize: "12px" }}>
+                  Demasiados intentos fallidos. Reintente en <strong>{formatMMSS(lockRemaining)}</strong>
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Aviso de intentos restantes (solo si no está bloqueado) */}
+          {!isLocked && remainingAttempts !== null && (
+            <div style={styles.attemptsWarning}>
+              <AlertCircle size={16} color="#b45309" />
+              <span>
+                {remainingAttempts > 0
+                  ? <>PIN incorrecto. Le queda{remainingAttempts === 1 ? "" : "n"} <strong>{remainingAttempts}</strong> intento{remainingAttempts === 1 ? "" : "s"} antes del bloqueo.</>
+                  : <>Último intento fallido. La cuenta será bloqueada.</>}
+              </span>
+            </div>
+          )}
+
+          {isTouch ? (
+            /* TABLETA / MÓVIL: teclado en pantalla, barajado (anti-espía) */
+            <>
+              <div style={styles.keypadHint}>
+                <ShieldCheck size={13} color="#64748b" />
+                <span>Teclado seguro: los números cambian de lugar para proteger su PIN.</span>
+              </div>
+
+              <div style={{ ...pinPadStyle, ...(isLocked ? { opacity: 0.5, pointerEvents: "none" as const } : {}) }}>
+                {shuffledDigits.slice(0, 9).map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    disabled={isLocked || loading}
+                    style={pinBtnStyle}
+                    onClick={() => handleCashierPinPress(num)}
+                    className="active-tap"
+                  >
+                    {num}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={isLocked || loading}
+                  style={{ ...pinBtnStyle, ...styles.pinBtnAction }}
+                  onClick={handleClearPin}
+                  className="active-tap"
+                >
+                  <Delete size={20} />
+                </button>
+                <button
+                  type="button"
+                  disabled={isLocked || loading}
+                  style={pinBtnStyle}
+                  onClick={() => handleCashierPinPress(shuffledDigits[9])}
+                  className="active-tap"
+                >
+                  {shuffledDigits[9]}
+                </button>
+                <button
+                  type="button"
+                  disabled={loading || pinCode.length < 4 || !cashierEmail || isLocked}
+                  style={{
+                    ...pinBtnStyle,
+                    ...styles.pinBtnOK,
+                    ...(pinCode.length === 4 && cashierEmail && !isLocked ? styles.pinBtnOKReady : {}),
+                  }}
+                  onClick={handleCashierSubmit}
+                  className="active-tap"
+                >
+                  <KeyRound size={20} />
+                </button>
+              </div>
+            </>
+          ) : (
+            /* COMPUTADORA: sin teclado en pantalla; el NIP se teclea físicamente */
+            <>
+              <div style={styles.keypadHint}>
+                <ShieldCheck size={13} color="#64748b" />
+                <span>Escriba su NIP con el teclado físico y presione Acceder.</span>
+              </div>
               <button
-                key={num}
                 type="button"
-                style={pinBtnStyle}
-                onClick={() => handleCashierPinPress(num)}
-                className="active-tap"
+                disabled={loading || pinCode.length < 4 || !cashierEmail || isLocked}
+                onClick={handleCashierSubmit}
+                className="btn-primary active-tap"
+                style={styles.submitBtn}
               >
-                {num}
+                {loading ? "Verificando..." : "ACCEDER ➜"}
               </button>
-            ))}
-            <button
-              type="button"
-              style={{ ...pinBtnStyle, ...styles.pinBtnAction }}
-              onClick={handleClearPin}
-              className="active-tap"
-            >
-              <Delete size={20} />
-            </button>
-            <button
-              type="button"
-              style={pinBtnStyle}
-              onClick={() => handleCashierPinPress("0")}
-              className="active-tap"
-            >
-              0
-            </button>
-            <button
-              type="button"
-              disabled={loading || pinCode.length < 4 || !cashierEmail}
-              style={{
-                ...pinBtnStyle,
-                ...styles.pinBtnOK,
-                ...(pinCode.length === 4 && cashierEmail ? styles.pinBtnOKReady : {}),
-              }}
-              onClick={handleCashierSubmit}
-              className="active-tap"
-            >
-              <KeyRound size={20} />
-            </button>
-          </div>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -915,6 +1191,67 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: "6px",
     cursor: "pointer",
     boxShadow: "0 4px 6px rgba(37, 99, 235, 0.2)",
+  },
+  twoFactorHint: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "8px",
+    backgroundColor: "#eff6ff",
+    border: "1px solid #bfdbfe",
+    borderRadius: "8px",
+    padding: "10px 12px",
+    fontSize: "12px",
+    color: "#1e3a8a",
+    lineHeight: "1.4",
+  },
+  lockBanner: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    backgroundColor: "#fef2f2",
+    border: "1px solid #fca5a5",
+    borderRadius: "8px",
+    padding: "10px 14px",
+    color: "#991b1b",
+    fontSize: "13px",
+  },
+  attemptsWarning: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    backgroundColor: "#fffbeb",
+    border: "1px solid #fcd34d",
+    borderRadius: "8px",
+    padding: "9px 12px",
+    color: "#92400e",
+    fontSize: "12.5px",
+    fontWeight: 600,
+    lineHeight: "1.4",
+  },
+  keypadHint: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    color: "#64748b",
+    fontSize: "11px",
+    justifyContent: "center",
+    marginTop: "2px",
+  },
+  // Input invisible (solo computadora) que cubre los puntos del PIN para captar
+  // el teclado físico; al hacer clic en el área se enfoca y se puede teclear.
+  pinHiddenInput: {
+    position: "absolute" as const,
+    inset: 0,
+    width: "100%",
+    height: "100%",
+    margin: 0,
+    padding: 0,
+    border: "none",
+    background: "transparent",
+    color: "transparent",
+    caretColor: "transparent",
+    cursor: "text",
+    outline: "none",
   },
   autocompleteDropdown: {
     position: "absolute" as const,

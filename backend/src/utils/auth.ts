@@ -31,6 +31,25 @@ export const generateToken = (payload: { userId?: number; customerId?: number; e
 };
 
 /**
+ * Genera un token TEMPORAL de "2FA pendiente" (NO es una sesión válida).
+ * Solo sirve para identificar al usuario entre el paso 1 (contraseña) y el
+ * paso 2 (WebAuthn) del login de administrador. Caduca en 5 minutos y no
+ * contiene `role`, por lo que el middleware de autorización lo rechaza.
+ */
+export const generatePendingToken = (userId: number, tfa: "register" | "authenticate"): string => {
+  return jwt.sign({ userId, tfa }, JWT_SECRET, { expiresIn: "5m" });
+};
+
+/**
+ * Genera un token de "acceso a auditoría" de corta vida (10 min), emitido tras
+ * reconfirmar la contraseña del usuario actual. Habilita ver bitácoras sensibles
+ * (ej. accesos de administradores) sin reenviar la contraseña en cada consulta.
+ */
+export const generateAuditToken = (userId: number): string => {
+  return jwt.sign({ userId, scope: "audit" }, JWT_SECRET, { expiresIn: "10m" });
+};
+
+/**
  * Verifica y decodifica un token JWT.
  */
 export const verifyToken = (token: string): any => {

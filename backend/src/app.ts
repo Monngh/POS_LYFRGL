@@ -22,6 +22,10 @@ export const prisma = new PrismaClient();
 
 const app = express();
 
+// Detrás de Nginx (VPS): confiar en el primer proxy para que req.ip y el
+// rate-limit usen la IP real del cliente (X-Forwarded-For), no la del proxy.
+app.set("trust proxy", 1);
+
 // Middlewares globales de seguridad y utilidades
 app.use((req, res, next) => {
   const start = Date.now();

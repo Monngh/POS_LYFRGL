@@ -11,6 +11,9 @@ import { parseReportDateRange, type ValidatedDateRange } from "../utils/dateRang
  */
 
 const parseBranchId = (req: Request): number | undefined => {
+  if (req.user && req.user.role === "GERENTE") {
+    return req.user.branchId;
+  }
   const b = req.query.branchId as string | undefined;
   return b && b !== "all" && !isNaN(Number(b)) ? Number(b) : undefined;
 };

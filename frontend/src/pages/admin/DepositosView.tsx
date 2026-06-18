@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { ChevronDown, ChevronUp, Calendar, User, CreditCard, Eye, Printer, Tag } from "lucide-react";
+import { ChevronDown, ChevronUp, Calendar, CreditCard, Eye } from "lucide-react";
 import api from "../../services/api";
 import {
   ui,
@@ -11,7 +11,6 @@ import {
   money,
   fmtDate,
   fmtTime,
-  fmtDateTime,
   payTone,
   FilterSelect,
   printTicketHtml,

@@ -16,7 +16,7 @@ import { authenticateJWT, authorizeRoles } from "../middlewares/auth.middleware"
 const router = Router();
 
 router.use(authenticateJWT);
-router.use(authorizeRoles(["ADMIN", "GERENTE"]));
+router.use(authorizeRoles(["ADMIN"]));
 
 router.get("/promotion-types", listPromotionTypes);
 router.get("/products/active", listActiveProducts);

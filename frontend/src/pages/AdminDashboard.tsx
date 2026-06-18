@@ -21,6 +21,9 @@ import {
   BadgePercent,
   Tags,
   RotateCcw,
+  ShieldCheck,
+  KeyRound,
+  Lock,
   type LucideIcon,
 } from "lucide-react";
 
@@ -41,6 +44,9 @@ import PromocionesView from "./admin/PromocionesView";
 import DevolucionesView from "./admin/DevolucionesView";
 import FacturacionGlobalView from "./admin/FacturacionGlobalView";
 import HistorialFacturasView from "./admin/HistorialFacturasView";
+import ReportAuditLogView from "./admin/ReportAuditLogView";
+import CajaAccessLogView from "./admin/CajaAccessLogView";
+import AdminAccessLogView from "./admin/AdminAccessLogView";
 import type { ViewProps } from "./admin/shared";
 
 interface BranchOption {
@@ -63,7 +69,7 @@ function useMediaQuery(query: string): boolean {
   return matches;
 }
 
-const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<ViewProps>; branchScoped: boolean }[] = [
+const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<ViewProps>; branchScoped: boolean; adminOnly?: boolean }[] = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, view: DashboardView, branchScoped: true },
   { key: "ventas", label: "Ventas", icon: ShoppingCart, view: VentasView, branchScoped: true },
   { key: "devoluciones", label: "Devoluciones", icon: RotateCcw, view: DevolucionesView, branchScoped: true },
@@ -81,6 +87,22 @@ const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<
   { key: "reportes", label: "Reportes", icon: BarChart3, view: ReportesView, branchScoped: true },
   { key: "facturacion-global", label: "Factura Global", icon: BadgePercent, view: FacturacionGlobalView, branchScoped: true },
   { key: "historial-facturas", label: "Historial Facturas", icon: ClipboardList, view: HistorialFacturasView, branchScoped: false },
+  { key: "auditoria-reportes", label: "Auditoría Reportes", icon: ShieldCheck, view: ReportAuditLogView, branchScoped: false, adminOnly: true },
+  { key: "caja-access", label: "Accesos de Caja", icon: KeyRound, view: CajaAccessLogView, branchScoped: false, adminOnly: true },
+  { key: "admin-access", label: "Accesos Admin", icon: Lock, view: AdminAccessLogView, branchScoped: false, adminOnly: true },
+];
+
+const RESTRICTED_KEYS_GERENTE = [
+  "compras",
+  "sucursales",
+  "proveedores",
+  "impuestos",
+  "promociones",
+  "facturacion-global",
+  "historial-facturas",
+  "auditoria-reportes",
+  "caja-access",
+  "admin-access",
 ];
 
 const NAV_SECTIONS: { label: string; items: string[] }[] = [
@@ -90,6 +112,7 @@ const NAV_SECTIONS: { label: string; items: string[] }[] = [
   { label: "Inventario", items: ["inventario"] },
   { label: "Catálogos", items: ["clientes", "empleados", "sucursales", "proveedores", "impuestos", "promociones"] },
   { label: "Reportes", items: ["reportes"] },
+  { label: "Seguridad", items: ["auditoria-reportes", "caja-access", "admin-access"] },
 ];
 
 const AdminDashboard: React.FC = () => {
@@ -104,6 +127,31 @@ const AdminDashboard: React.FC = () => {
   const [branches, setBranches] = useState<BranchOption[]>([]);
   const [refreshToken, setRefreshToken] = useState(0);
   const [navHistory, setNavHistory] = useState<string[]>([]);
+
+  // Redirigir a dashboard si tiene un rol GERENTE e intenta entrar a una sección prohibida
+  useEffect(() => {
+    if (user?.role === "GERENTE" && RESTRICTED_KEYS_GERENTE.includes(activeNav)) {
+      setActiveNav("dashboard");
+    }
+  }, [user, activeNav]);
+
+  // Si es GERENTE, forzar a sucursal asignada
+  useEffect(() => {
+    if (user?.role === "GERENTE" && user.branch?.id) {
+      setBranchId(user.branch.id.toString());
+    }
+  }, [user]);
+
+  // Filtrar las secciones y elementos navegables permitidos para el rol GERENTE
+  const allowedSections = NAV_SECTIONS.map((section) => {
+    const items = section.items.filter((key) => {
+      if (user?.role === "GERENTE") {
+        return !RESTRICTED_KEYS_GERENTE.includes(key);
+      }
+      return true;
+    });
+    return { ...section, items };
+  }).filter((section) => section.items.length > 0);
 
   // En móvil el menú nunca usa el rail colapsado; siempre cajón completo
   const effectiveCollapsed = isMobile ? false : collapsed;
@@ -173,13 +221,14 @@ const AdminDashboard: React.FC = () => {
         </div>
 
         <nav style={styles.nav} className="admin-sidebar-nav">
-          {NAV_SECTIONS.map((section) => (
+          {allowedSections.map((section) => (
             <React.Fragment key={section.label}>
               {!effectiveCollapsed && (
                 <span style={styles.navSectionLabel}>{section.label}</span>
               )}
               {section.items.map((key) => {
                 const item = NAV_ITEMS.find((n) => n.key === key)!;
+                if (item.adminOnly && user?.role !== "ADMIN") return null;
                 const Icon = item.icon;
                 const isActive = activeNav === item.key;
                 return (
@@ -268,16 +317,23 @@ const AdminDashboard: React.FC = () => {
             <div
               style={{
                 ...styles.selectWrap,
-                opacity: active.branchScoped ? 1 : 0.45,
-                pointerEvents: active.branchScoped ? "auto" : "none",
+                opacity: !active.branchScoped ? 0.45 : (user?.role === "GERENTE" ? 0.8 : 1),
+                pointerEvents: active.branchScoped && user?.role !== "GERENTE" ? "auto" : "none",
                 ...(isMobile ? { maxWidth: 150, padding: "0 8px", gap: 5 } : {}),
               }}
-              title={active.branchScoped ? "Filtrar por sucursal" : "Esta sección no se filtra por sucursal"}
+              title={
+                !active.branchScoped
+                  ? "Esta sección no se filtra por sucursal"
+                  : user?.role === "GERENTE"
+                  ? `Sucursal asignada: ${user.branch?.name}`
+                  : "Filtrar por sucursal"
+              }
             >
               <Store size={15} color="#64748b" style={{ flexShrink: 0 }} />
               <select
                 value={branchId}
                 onChange={(e) => setBranchId(e.target.value)}
+                disabled={user?.role === "GERENTE" || !active.branchScoped}
                 style={{ ...styles.select, ...(isMobile ? { textOverflow: "ellipsis", maxWidth: 110 } : {}) }}
               >
                 <option value="all">Todas las sucursales</option>
