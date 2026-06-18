@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../../context/AuthContext";
+import { ChevronDown, ChevronUp, Calendar, User, Eye, DollarSign } from "lucide-react";
 import api from "../../services/api";
 import { validateReference } from "../../utils/formValidation";
 import {
@@ -16,6 +17,7 @@ import {
   fmtDateTime,
   statusTone,
   printTicketHtml,
+  useMediaQuery,
 } from "./shared";
 
 interface SessionRow {
@@ -55,6 +57,14 @@ interface SessionDetail extends SessionRow {
 
 const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const { user } = useAuth();
+  const isMobile = useMediaQuery("(max-width: 1024px)");
+  const [expandedSessions, setExpandedSessions] = useState<Record<number, boolean>>({});
+  const toggleExpand = (id: number) => {
+    setExpandedSessions((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
 
   const [rows, setRows] = useState<SessionRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -354,67 +364,239 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         </span>
       </Toolbar>
 
-      <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-        <table style={ui.table}>
-          <thead>
-            <tr style={ui.theadRow}>
-              <th style={ui.th}>#</th>
-              <th style={ui.th}>Sucursal</th>
-              <th style={ui.th}>Cajero</th>
-              <th style={ui.th}>Apertura</th>
-              <th style={ui.th}>Cierre</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Fondo</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Ventas</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Esperado</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Declarado</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Diferencia</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            <TableState colSpan={11} loading={loading} error={error} empty={!loading && rows.length === 0} />
-            {!loading &&
-              !error &&
-              rows.map((s) => (
-                <tr
+      {isMobile ? (
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 4px" }}>
+          {loading && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              Cargando información...
+            </div>
+          )}
+          {error && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
+              {error}
+            </div>
+          )}
+          {!loading && !error && rows.length === 0 && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              No hay sesiones de caja para mostrar.
+            </div>
+          )}
+
+          {!loading &&
+            !error &&
+            rows.map((s) => {
+              const isExpanded = expandedSessions[s.id];
+              return (
+                <div
                   key={s.id}
-                  onClick={() => openDetail(s.id)}
-                  onMouseEnter={() => setHoveredRow(s.id)}
-                  onMouseLeave={() => setHoveredRow(null)}
-                  style={{ cursor: "pointer", backgroundColor: hoveredRow === s.id ? "#f8fafc" : "transparent" }}
+                  style={{
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #f1f5f9",
+                    borderRadius: 16,
+                    marginBottom: 12,
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+                    overflow: "hidden",
+                  }}
                 >
-                  <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.id}</td>
-                  <td style={ui.td}>{s.branch}</td>
-                  <td style={ui.td}>{s.cajero}</td>
-                  <td style={ui.td}>
-                    {fmtDate(s.openedAt)} <span style={{ color: "#94a3b8" }}>{fmtTime(s.openedAt)}</span>
-                  </td>
-                  <td style={ui.td}>
-                    {s.closedAt ? (
-                      <>
-                        {fmtDate(s.closedAt)} <span style={{ color: "#94a3b8" }}>{fmtTime(s.closedAt)}</span>
-                      </>
-                    ) : (
-                      <span style={{ color: "#94a3b8" }}>—</span>
+                  {/* Encabezado: Sucursal y Cajero */}
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "10px 16px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "#64748b",
+                    borderBottom: "1px solid #f1f5f9",
+                    backgroundColor: "#f8fafc",
+                    letterSpacing: "0.2px"
+                  }}>
+                    <span>{s.branch.toUpperCase()}</span>
+                    <span>CAJERO: {s.cajero.toUpperCase()}</span>
+                  </div>
+
+                  {/* Cuerpo principal */}
+                  <div style={{ padding: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                      <div style={{ flex: 1 }}>
+                        {/* ID de Caja y Estado */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                          <span style={{ fontSize: 16, fontWeight: 700, color: "#2563eb" }}>
+                            Caja #{s.id}
+                          </span>
+                          <Badge tone={statusTone(s.status)}>{s.status}</Badge>
+                        </div>
+
+                        {/* Fecha de apertura */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569", marginBottom: 6 }}>
+                          <Calendar size={14} color="#2563eb" />
+                          <span>Apertura: {fmtDate(s.openedAt)} {fmtTime(s.openedAt)}</span>
+                        </div>
+
+                        {/* Fondo inicial */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569" }}>
+                          <DollarSign size={14} color="#2563eb" />
+                          <span>Fondo Inicial: {money(s.initialAmount)}</span>
+                        </div>
+                      </div>
+
+                      {/* Chevron Button */}
+                      <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
+                        <button
+                          onClick={() => toggleExpand(s.id)}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: "#ffffff",
+                            border: "1px solid #cbd5e1",
+                            borderRadius: 8,
+                            width: 38,
+                            height: 38,
+                            cursor: "pointer",
+                            color: "#2563eb",
+                            padding: 0,
+                          }}
+                          className="active-tap"
+                        >
+                          {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Detalle expandible */}
+                    {isExpanded && (
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
+                        {/* Botón Ver Detalle */}
+                        <div style={{ marginBottom: 12 }}>
+                          <button
+                            onClick={() => openDetail(s.id)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "#2563eb",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              padding: 0,
+                              fontSize: 13,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                            className="active-tap"
+                          >
+                            <Eye size={15} /> Ver detalle (Arqueo/Movimientos)
+                          </button>
+                        </div>
+
+                        {/* Contenedor de datos faltantes */}
+                        <div style={{
+                          backgroundColor: "#f8fafc",
+                          borderRadius: 12,
+                          border: "1px solid #e2e8f0",
+                          padding: 16,
+                        }}>
+                          {/* Detalles de Cierre */}
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Detalle de Cierre</h4>
+                          <div style={detailRowStyle}>
+                            <span style={detailLabelStyle}>Cierre:</span>
+                            <span style={detailValueStyle}>
+                              {s.closedAt ? `${fmtDate(s.closedAt)} ${fmtTime(s.closedAt)}` : "Caja Abierta / Activa"}
+                            </span>
+                          </div>
+                          <div style={detailRowStyle}>
+                            <span style={detailLabelStyle}>Ventas:</span>
+                            <span style={detailValueStyle}>{s.salesCount} transacciones</span>
+                          </div>
+
+                          {/* Resumen Económico */}
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginTop: 16, marginBottom: 10 }}>Resumen Económico</h4>
+                          <div style={detailRowStyle}>
+                            <span style={detailLabelStyle}>Esperado:</span>
+                            <span style={detailValueStyle}>{money(s.expectedAmount)}</span>
+                          </div>
+                          <div style={detailRowStyle}>
+                            <span style={detailLabelStyle}>Declarado:</span>
+                            <span style={detailValueStyle}>
+                              {s.declaredAmount !== null ? money(s.declaredAmount) : "—"}
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 12 }}>
+                            <span style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Diferencia:</span>
+                            <span style={{ fontSize: 18, fontWeight: 800, color: diffColor(s.difference) }}>
+                              {s.difference !== null ? (s.difference >= 0 ? `+${money(s.difference)}` : money(s.difference)) : "—"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     )}
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "right" }}>{money(s.initialAmount)}</td>
-                  <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{s.salesCount}</td>
-                  <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{money(s.expectedAmount)}</td>
-                  <td style={{ ...ui.td, textAlign: "right" }}>
-                    {s.declaredAmount !== null ? money(s.declaredAmount) : <span style={{ color: "#94a3b8" }}>—</span>}
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "right", fontWeight: 800, color: diffColor(s.difference) }}>
-                    {s.difference !== null ? money(s.difference) : "—"}
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <Badge tone={statusTone(s.status)}>{s.status}</Badge>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+      ) : (
+        <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
+          <table style={ui.table}>
+            <thead>
+              <tr style={ui.theadRow}>
+                <th style={ui.th}>#</th>
+                <th style={ui.th}>Sucursal</th>
+                <th style={ui.th}>Cajero</th>
+                <th style={ui.th}>Apertura</th>
+                <th style={ui.th}>Cierre</th>
+                <th style={{ ...ui.th, textAlign: "right" }}>Fondo</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Ventas</th>
+                <th style={{ ...ui.th, textAlign: "right" }}>Esperado</th>
+                <th style={{ ...ui.th, textAlign: "right" }}>Declarado</th>
+                <th style={{ ...ui.th, textAlign: "right" }}>Diferencia</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              <TableState colSpan={11} loading={loading} error={error} empty={!loading && rows.length === 0} />
+              {!loading &&
+                !error &&
+                rows.map((s) => (
+                  <tr
+                    key={s.id}
+                    onClick={() => openDetail(s.id)}
+                    onMouseEnter={() => setHoveredRow(s.id)}
+                    onMouseLeave={() => setHoveredRow(null)}
+                    style={{ cursor: "pointer", backgroundColor: hoveredRow === s.id ? "#f8fafc" : "transparent" }}
+                  >
+                    <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.id}</td>
+                    <td style={ui.td}>{s.branch}</td>
+                    <td style={ui.td}>{s.cajero}</td>
+                    <td style={ui.td}>
+                      {fmtDate(s.openedAt)} <span style={{ color: "#94a3b8" }}>{fmtTime(s.openedAt)}</span>
+                    </td>
+                    <td style={ui.td}>
+                      {s.closedAt ? (
+                        <>
+                          {fmtDate(s.closedAt)} <span style={{ color: "#94a3b8" }}>{fmtTime(s.closedAt)}</span>
+                        </>
+                      ) : (
+                        <span style={{ color: "#94a3b8" }}>—</span>
+                      )}
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "right" }}>{money(s.initialAmount)}</td>
+                    <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{s.salesCount}</td>
+                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{money(s.expectedAmount)}</td>
+                    <td style={{ ...ui.td, textAlign: "right" }}>
+                      {s.declaredAmount !== null ? money(s.declaredAmount) : <span style={{ color: "#94a3b8" }}>—</span>}
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 800, color: diffColor(s.difference) }}>
+                      {s.difference !== null ? money(s.difference) : "—"}
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <Badge tone={statusTone(s.status)}>{s.status}</Badge>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* ===================== MODAL DETALLE DE CAJA ===================== */}
       {detailOpen && (
@@ -747,5 +929,26 @@ const PayRow: React.FC<{ label: string; value: string }> = ({ label, value }) =>
     <span style={{ fontWeight: 700, color: "#334155" }}>{value}</span>
   </div>
 );
+
+const detailRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-start",
+  alignItems: "center",
+  gap: "8px",
+  fontSize: 13,
+  marginBottom: 6,
+};
+
+const detailLabelStyle: React.CSSProperties = {
+  fontWeight: 700,
+  color: "#64748b",
+  minWidth: "85px",
+  display: "inline-block",
+};
+
+const detailValueStyle: React.CSSProperties = {
+  fontWeight: 600,
+  color: "#334155",
+};
 
 export default CajasView;
