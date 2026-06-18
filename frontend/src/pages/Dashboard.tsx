@@ -1177,12 +1177,7 @@ const Dashboard: React.FC = () => {
   const [qrUrl, setQrUrl] = useState("");
   const [qrReference, setQrReference] = useState("");
   const [qrChecking, setQrChecking] = useState(false);
-  const [qrExpiresAt] = useState("");
 
-  const isQrExpired = (sale: any) => {
-    if (!sale || !sale.qrExpiresAt) return false;
-    return new Date(sale.qrExpiresAt).getTime() < Date.now();
-  };
 
   const checkQrStatus = async () => {
     setQrChecking(true);
