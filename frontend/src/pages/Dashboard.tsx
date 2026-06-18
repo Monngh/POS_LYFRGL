@@ -16,6 +16,8 @@ import {
   ReturnsModal,
 } from "../components/pos";
 import api, { LONG_OPERATION_TIMEOUT } from "../services/api";
+import { useCashSession } from "../hooks/pos/useCashSession";
+import { usePosCustomer } from "../hooks/pos/usePosCustomer";
 import {
   printTicketElementById,
   TICKET_PRINT_MEDIA_STYLES,
@@ -116,21 +118,6 @@ const getCheckoutErrorMessage = (err: any, fallback: string): string => {
   return [message, detail].filter(Boolean).join(" Detalle: ") || err?.message || fallback;
 };
 
-interface CashSession {
-  id: number;
-  branchId: number;
-  userId: number;
-  openedAt: string;
-  closedAt: string | null;
-  initialAmount: number;
-  expectedAmount: number;
-  declaredAmount: number | null;
-  difference: number | null;
-  cashIn: number;
-  cashOut: number;
-  status: string;
-}
-
 // Filtros inline de mafer (review-p2/p3): bloquean caracteres inválidos mientras el usuario escribe.
 // Trabajan como pre-filtros antes de los handlers de submit que ya tiene main.
 const validateNameInput = (value: string): string =>
@@ -169,11 +156,6 @@ const Dashboard: React.FC = () => {
   const [view, setView] = useState<"dashboard" | "apertura" | "sales-terminal">("dashboard");
   // Bloqueo: el turno de caja del usuario está abierto en otro equipo
   const [cajaLockedByOtherDevice, setCajaLockedByOtherDevice] = useState(false);
-  const [session, setSession] = useState<CashSession | null>(null);
-  const [sessionStats, setSessionStats] = useState<any>(null);
-  const [lastClosedStats, setLastClosedStats] = useState<any>(null);
-  const [recentSales, setRecentSales] = useState<Sale[]>([]);
-  const [recentDeposits, setRecentDeposits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Estado para filas expandidas en tablas responsive
@@ -198,6 +180,64 @@ const Dashboard: React.FC = () => {
   const showToast = (message: string, type: "error" | "success" | "info" = "error") => {
     setToast({ message, type });
   };
+
+  const {
+    session,
+    setSession,
+    sessionStats,
+    lastClosedStats,
+    setLastClosedStats,
+    recentSales,
+    recentDeposits,
+    initialFund,
+    setInitialFund,
+    initialFundError,
+    setInitialFundError,
+    openingLoading,
+    partialCutLoading,
+    partialCutData,
+    setPartialCutData,
+    declaredCash,
+    setDeclaredCash,
+    declaredCashError,
+    setDeclaredCashError,
+    closingLoading,
+    calculatedDifference,
+    loadDashboardData,
+    handleOpenCash,
+    handleCloseShift,
+    handleSavePartialCut,
+  } = useCashSession({
+    user,
+    onToast: showToast,
+    onSetView: setView,
+    onSetLoading: setLoading,
+    onSetCajaLockedByOtherDevice: setCajaLockedByOtherDevice,
+    onSetActiveModal: setActiveModal,
+  });
+
+  const {
+    selectedCustomer,
+    setSelectedCustomer,
+    customerSearch,
+    setCustomerSearch,
+    customerSearchError,
+    customerSearchResults,
+    setCustomerSearchResults,
+    isCustomerDropdownOpen,
+    setIsCustomerDropdownOpen,
+    isNewCustomerModalOpen,
+    setIsNewCustomerModalOpen,
+    newCustomerForm,
+    setNewCustomerForm,
+    setNewCustomerField,
+    newCustomerFieldErrors,
+    setNewCustomerFieldErrors,
+    newCustomerLoading,
+    newCustomerError,
+    setNewCustomerError,
+    handleRegisterCustomerSubmit,
+  } = usePosCustomer({ onToast: showToast, view });
 
   const handleLogoutClick = () => {
     if (session && session.status === "ABIERTA" && user?.role === "CAJERO") {
@@ -261,10 +301,6 @@ const Dashboard: React.FC = () => {
     }
   }, [toast]);
 
-  // Estados para Corte Parcial
-  const [partialCutLoading, setPartialCutLoading] = useState(false);
-  const [partialCutData, setPartialCutData] = useState<any>(null);
-
   // Componente de notificación flotante Toast (Fase 3.5)
   const renderToast = () => {
     if (!toast) return null;
@@ -313,98 +349,6 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
     );
-  };
-
-  // ---------------------------------------------------------------------------
-  // 1. CARGA DE DATOS DE SESIÓN Y VISTA INICIAL
-  // ---------------------------------------------------------------------------
-  const checkSessionStatus = async () => {
-    if (!user) return;
-    
-    // Si es Administrador o Gerente, va directo al Dashboard admin
-    if (user.role === "ADMIN" || user.role === "GERENTE") {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const resStatus = await api.get("/api/cash-session/status");
-      if (resStatus.data.isOpen) {
-        // La caja está abierta pero vinculada a otra computadora: bloquear la terminal
-        if (resStatus.data.isOwnedByThisDevice === false) {
-          setSession(null);
-          setCajaLockedByOtherDevice(true);
-          return;
-        }
-        setCajaLockedByOtherDevice(false);
-        setSession(resStatus.data.session);
-        setView("dashboard");
-        await loadDashboardData();
-      } else {
-        setCajaLockedByOtherDevice(false);
-        setSession(null);
-        setView("apertura");
-      }
-    } catch (err) {
-      console.error("Error al validar sesión de caja:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadDashboardData = async () => {
-    try {
-      const [resStats, resSales, resDeposits] = await Promise.all([
-        api.get("/api/cash-session/stats"),
-        api.get("/api/sales/my-recent"),
-        api.get("/api/sales/deposits").catch(() => ({ data: { deposits: [] } }))
-      ]);
-      setSessionStats(resStats.data.stats);
-      setRecentSales(resSales.data.sales);
-      setRecentDeposits(resDeposits.data.deposits || []);
-    } catch (err) {
-      console.error("Error al cargar datos del Dashboard:", err);
-    }
-  };
-
-  useEffect(() => {
-    checkSessionStatus();
-  }, [user]);
-
-  // ---------------------------------------------------------------------------
-  // 2. APERTURA DE CAJA (Mockup 8)
-  // ---------------------------------------------------------------------------
-  const [initialFund, setInitialFund] = useState("500.00");
-  const [initialFundError, setInitialFundError] = useState("");
-  const [openingLoading, setOpeningLoading] = useState(false);
-
-  const handleOpenCash = async () => {
-    const initialFundValidation = validateDecimalField(initialFund, "El fondo inicial", {
-      invalidMessage: "El fondo inicial debe ser un monto valido con maximo 3 decimales.",
-    });
-    if (!initialFundValidation.ok) {
-      setInitialFundError(initialFundValidation.error);
-      showToast(initialFundValidation.error);
-      return;
-    }
-    setInitialFundError("");
-    const initialFundValue = initialFundValidation.value;
-    setOpeningLoading(true);
-    try {
-      if (initialFundValue.roundedMessage) {
-        showToast(initialFundValue.roundedMessage, "info");
-      }
-      const res = await api.post("/api/cash-session/open", {
-        initialAmount: initialFundValue.value
-      });
-      setSession(res.data.session);
-      setView("dashboard");
-      await loadDashboardData();
-    } catch (err: any) {
-      showToast(err.response?.data?.message || "Error al abrir la caja registradora.");
-    } finally {
-      setOpeningLoading(false);
-    }
   };
 
   // ---------------------------------------------------------------------------
@@ -499,26 +443,6 @@ const Dashboard: React.FC = () => {
   const [cartPinLoading, setCartPinLoading] = useState(false);
   const [cartQtyDraft, setCartQtyDraft] = useState<Record<number, string>>({});
 
-  // Interfaces y Estados para Clientes y Lealtad (Fase 3.6/3.7)
-  interface Customer {
-    id: number;
-    name: string;
-    phone: string;
-    email?: string;
-    points: number;
-  }
-
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [customerSearch, setCustomerSearch] = useState("");
-  const [customerSearchError, setCustomerSearchError] = useState("");
-  const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([]);
-  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
-  const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
-  const [newCustomerForm, setNewCustomerForm] = useState({ name: "", phone: "", email: "" });
-  const [newCustomerFieldErrors, setNewCustomerFieldErrors] = useState<Partial<Record<keyof typeof newCustomerForm, string>>>({});
-  const [newCustomerLoading, setNewCustomerLoading] = useState(false);
-  const [newCustomerError, setNewCustomerError] = useState<string | null>(null);
-
   // Puntos a redimir en el cobro
   const [pointsToRedeem, setPointsToRedeem] = useState<number>(0);
   const [usePoints, setUsePoints] = useState<boolean>(false);
@@ -533,36 +457,6 @@ const Dashboard: React.FC = () => {
   const [ticketEmailElementId, setTicketEmailElementId] = useState<string | null>(null);
   const [ticketEmailHtml, setTicketEmailHtml] = useState<string | null>(null);
 
-
-  // Efecto de búsqueda predictiva para Clientes en la caja
-  useEffect(() => {
-    if (view !== "sales-terminal") return;
-    const query = customerSearch.trim();
-    const searchError = validateSearchText(query, "La busqueda de cliente", { max: 120 });
-    setCustomerSearchError(searchError || "");
-    if (!query) {
-      setCustomerSearchResults([]);
-      setIsCustomerDropdownOpen(false);
-      return;
-    }
-    if (searchError) {
-      setCustomerSearchResults([]);
-      setIsCustomerDropdownOpen(false);
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      try {
-        const res = await api.get(`/api/sales/customers/search?query=${query}`);
-        setCustomerSearchResults(res.data.customers || []);
-        setIsCustomerDropdownOpen(true);
-      } catch (err) {
-        console.error("Error al buscar clientes:", err);
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [customerSearch, view]);
 
   const loadSaleSimulation = async () => {
     if (cart.length === 0) {
@@ -588,80 +482,6 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     loadSaleSimulation();
   }, [cart]);
-
-  const validateNewCustomerField = (field: keyof typeof newCustomerForm, value: string) => {
-    if (field === "name") return validateSafeText(value, "El nombre", { required: true, min: 2, max: 100 });
-    if (field === "phone") return validatePhone(value, { required: true, minDigits: 10, maxDigits: 15 });
-    if (field === "email") return validateEmail(value, { required: false });
-    return undefined;
-  };
-
-  const validateNewCustomerForm = () => {
-    const errors: Partial<Record<keyof typeof newCustomerForm, string>> = {};
-    (Object.keys(newCustomerForm) as Array<keyof typeof newCustomerForm>).forEach((field) => {
-      const error = validateNewCustomerField(field, newCustomerForm[field]);
-      if (error) errors[field] = error;
-    });
-    return errors;
-  };
-
-  const setNewCustomerField =
-    (field: keyof typeof newCustomerForm) =>
-    (value: string) => {
-      const nextValue =
-        field === "phone"
-          ? normalizePhoneInput(value).slice(0, 20)
-          : field === "email"
-            ? normalizeEmailInput(value)
-            : field === "name"
-              ? validateNameInput(value)
-              : value;
-      setNewCustomerForm((prev) => ({ ...prev, [field]: nextValue }));
-      setNewCustomerError(null);
-      setNewCustomerFieldErrors((prev) => {
-        const next = { ...prev };
-        const error = validateNewCustomerField(field, nextValue);
-        if (error) next[field] = error;
-        else delete next[field];
-        return next;
-      });
-    };
-
-  const handleRegisterCustomerSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const errors = validateNewCustomerForm();
-    if (Object.keys(errors).length > 0) {
-      setNewCustomerFieldErrors(errors);
-      setNewCustomerError(null);
-      return;
-    }
-    const { name, phone, email } = newCustomerForm;
-    if (!name.trim() || !phone.trim()) {
-      setNewCustomerError("El nombre y el teléfono son obligatorios.");
-      return;
-    }
-    setNewCustomerLoading(true);
-    setNewCustomerError(null);
-    try {
-      const res = await api.post("/api/sales/customers", {
-        name: name.trim(),
-        phone: phone.trim(),
-        email: email.trim() || undefined
-      });
-      setSelectedCustomer(res.data.customer);
-      setCustomerSearch("");
-      setCustomerSearchResults([]);
-      setIsCustomerDropdownOpen(false);
-      setIsNewCustomerModalOpen(false);
-      setNewCustomerForm({ name: "", phone: "", email: "" });
-      setNewCustomerFieldErrors({});
-      showToast("Cliente registrado y seleccionado.", "success");
-    } catch (err: any) {
-      setNewCustomerError(err.response?.data?.message || "Error al registrar cliente.");
-    } finally {
-      setNewCustomerLoading(false);
-    }
-  };
 
   const handleProductBarcodeSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1671,63 +1491,6 @@ const Dashboard: React.FC = () => {
       setShowDraftConfirm(true);
     } else {
       setView("sales-terminal");
-    }
-  };
-
-  // ---------------------------------------------------------------------------
-  // 8. CIERRE DE CAJA Y CORTE PARCIAL (Mockup 2)
-  // ---------------------------------------------------------------------------
-  const [declaredCash, setDeclaredCash] = useState("");
-  const [declaredCashError, setDeclaredCashError] = useState("");
-  const [closingLoading, setClosingLoading] = useState(false);
-
-  const calculatedDifference = sessionStats
-    ? roundToTwoDecimals(Number(declaredCash) || 0) - sessionStats.expectedAmount
-    : 0;
-
-  const handleCloseShift = async () => {
-    const declaredCashValidation = validateDecimalField(declaredCash, "El efectivo contado", {
-      invalidMessage: "El efectivo contado debe ser un monto valido con maximo 3 decimales.",
-    });
-    if (!declaredCashValidation.ok) {
-      setDeclaredCashError(declaredCashValidation.error);
-      showToast(declaredCashValidation.error);
-      return;
-    }
-    setDeclaredCashError("");
-    const declaredCashValue = declaredCashValidation.value;
-    setClosingLoading(true);
-    try {
-      if (declaredCashValue.roundedMessage) {
-        showToast(declaredCashValue.roundedMessage, "info");
-      }
-      const res = await api.post("/api/cash-session/close", {
-        declaredAmount: declaredCashValue.value
-      });
-      showToast("Turno cerrado con éxito. Generando reporte de arqueo...", "success");
-      setLastClosedStats(res.data.stats);
-      setSession(null);
-      setActiveModal("close-receipt");
-      setDeclaredCash("");
-      setDeclaredCashError("");
-    } catch (err: any) {
-      showToast(err.response?.data?.message || "Error al cerrar turno.");
-    } finally {
-      setClosingLoading(false);
-    }
-  };
-
-  const handleSavePartialCut = async () => {
-    setPartialCutLoading(true);
-    try {
-      const res = await api.post("/api/cash-session/cut");
-      setPartialCutData(res.data.cut);
-      setActiveModal("partial-cut-receipt");
-      await loadDashboardData();
-    } catch (err: any) {
-      showToast(err.response?.data?.message || "Error al registrar el corte de caja.");
-    } finally {
-      setPartialCutLoading(false);
     }
   };
 
