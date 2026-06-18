@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { Plus, Trash2, CheckCircle2, Package } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, Package, ChevronDown, ChevronUp, Calendar, User, Tag, Eye } from "lucide-react";
 import api from "../../services/api";
 import {
   collectRoundedDecimalMessages,
@@ -22,6 +22,8 @@ import {
   money,
   fmtDate,
   fmtTime,
+  fmtDateTime,
+  useMediaQuery,
 } from "./shared";
 
 interface BranchOption {
@@ -81,6 +83,15 @@ const statusTone = (s: string) =>
   s === "RECIBIDA" ? "green" : s === "CANCELADA" ? "red" : "amber";
 
 const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
+  const isMobile = useMediaQuery("(max-width: 1024px)");
+  const [expandedPurchases, setExpandedPurchases] = useState<Record<number, boolean>>({});
+  const toggleExpand = (id: number) => {
+    setExpandedPurchases((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
   const [branches, setBranches] = useState<BranchOption[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
@@ -627,75 +638,217 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
         </Toolbar>
       </div>
 
-      <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-        <table style={ui.table}>
-          <thead>
-            <tr style={ui.theadRow}>
-              <th style={ui.th}>Fecha</th>
-              <th style={ui.th}>Proveedor</th>
-              <th style={ui.th}>Sucursal</th>
-              <th style={ui.th}>Referencia</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Artículos</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Total</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-              <th style={ui.th}>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <TableState
-              colSpan={8}
-              loading={purchasesLoading}
-              empty={!purchasesLoading && filteredPurchases.length === 0}
-              emptyText="No hay órdenes de compra con los filtros seleccionados."
-            />
-            {!purchasesLoading &&
-              filteredPurchases.map((p) => (
-                <tr key={p.id}>
-                  <td style={ui.td}>
-                    {fmtDate(p.purchaseDate)}{" "}
-                    <span style={{ color: "#94a3b8" }}>{fmtTime(p.purchaseDate)}</span>
-                  </td>
-                  <td style={{ ...ui.td, fontWeight: 600, color: "#0f172a" }}>
-                    {p.supplier.name}
-                  </td>
-                  <td style={ui.td}>{p.branch.name}</td>
-                  <td style={ui.td}>{p.reference}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-                      <Package size={13} color="#64748b" />
-                      {p.details.length}
-                    </span>
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: "#1e3a8a" }}>
-                    {money(Number(p.total))}
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <Badge tone={statusTone(p.status)}>{p.status}</Badge>
-                  </td>
-                  <td style={ui.td}>
-                    {p.status === "PENDIENTE" ? (
+      {isMobile ? (
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 4px" }}>
+          {purchasesLoading && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              Cargando información...
+            </div>
+          )}
+          {!purchasesLoading && filteredPurchases.length === 0 && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              No hay órdenes de compra con los filtros seleccionados.
+            </div>
+          )}
+
+          {!purchasesLoading &&
+            filteredPurchases.map((p) => {
+              const isExpanded = expandedPurchases[p.id];
+              return (
+                <div
+                  key={p.id}
+                  style={{
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #f1f5f9",
+                    borderRadius: 16,
+                    padding: 16,
+                    marginBottom: 12,
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      {/* Top: Referencia & Total */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                        <span style={{ fontSize: 16, fontWeight: 700, color: "#2563eb" }}>
+                          {p.reference}
+                        </span>
+                        <span style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>
+                          {money(Number(p.total))}
+                        </span>
+                      </div>
+
+                      {/* Sucursal y Proveedor */}
+                      <div style={{ fontSize: 14, color: "#64748b", marginBottom: 8, fontWeight: 600 }}>
+                        {p.branch.name} <span style={{ color: "#cbd5e1", margin: "0 6px" }}>|</span> {p.supplier.name}
+                      </div>
+
+                      {/* Fecha */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569" }}>
+                        <Calendar size={14} color="#2563eb" />
+                        <span>{fmtDate(p.purchaseDate)} {fmtTime(p.purchaseDate)}</span>
+                      </div>
+                    </div>
+
+                    {/* Chevron Button */}
+                    <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
                       <button
+                        onClick={() => toggleExpand(p.id)}
                         style={{
-                          ...ui.primaryBtn,
-                          fontSize: 12,
-                          padding: "6px 12px",
-                          height: 30,
-                          backgroundColor: "#15803d",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#ffffff",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: 8,
+                          width: 38,
+                          height: 38,
+                          cursor: "pointer",
+                          color: "#2563eb",
+                          padding: 0,
                         }}
-                        onClick={() => receive(p.id)}
-                        disabled={receiving === p.id}
+                        className="active-tap"
                       >
-                        {receiving === p.id ? "Recibiendo..." : "✓ Recibir"}
+                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                       </button>
-                    ) : (
-                      <span style={{ color: "#94a3b8", fontSize: 12 }}>—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
+                    </div>
+                  </div>
+
+                  {/* Expanded Content */}
+                  {isExpanded && (
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
+                      {/* Details container */}
+                      <div style={{
+                        backgroundColor: "#f8fafc",
+                        borderRadius: 12,
+                        border: "1px solid #e2e8f0",
+                        padding: 16,
+                      }}>
+                        {/* Estado */}
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Estado de la Orden</h4>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                          <Badge tone={statusTone(p.status)}>{p.status}</Badge>
+                          {p.status === "PENDIENTE" && (
+                            <button
+                              style={{
+                                ...ui.primaryBtn,
+                                fontSize: 12,
+                                padding: "6px 12px",
+                                height: 30,
+                                backgroundColor: "#15803d",
+                              }}
+                              onClick={() => receive(p.id)}
+                              disabled={receiving === p.id}
+                              className="active-tap"
+                            >
+                              {receiving === p.id ? "Recibiendo..." : "✓ Recibir mercancía"}
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Artículos */}
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Artículos ({p.details.length})</h4>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {p.details.map((d) => (
+                            <div key={d.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, borderBottom: "1px dashed #e2e8f0", paddingBottom: 6 }}>
+                              <div>
+                                <span style={{ fontWeight: 700, color: "#334155" }}>{d.product.name}</span>
+                                <div style={{ fontSize: 11, color: "#94a3b8" }}>SKU: {d.product.sku}</div>
+                              </div>
+                              <div style={{ textAlign: "right" }}>
+                                <span style={{ fontWeight: 600, color: "#475569" }}>{d.quantity} u.</span>
+                                <span style={{ color: "#94a3b8", margin: "0 4px" }}>x</span>
+                                <span style={{ fontWeight: 600, color: "#64748b" }}>{money(d.unitCost)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Notas si existen */}
+                        {p.notes && (
+                          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e2e8f0" }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Notas:</div>
+                            <div style={{ fontSize: 13, color: "#334155", marginTop: 2 }}>{p.notes}</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      ) : (
+        <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
+          <table style={ui.table}>
+            <thead>
+              <tr style={ui.theadRow}>
+                <th style={ui.th}>Fecha</th>
+                <th style={ui.th}>Proveedor</th>
+                <th style={ui.th}>Sucursal</th>
+                <th style={ui.th}>Referencia</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Artículos</th>
+                <th style={{ ...ui.th, textAlign: "right" }}>Total</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                <th style={ui.th}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <TableState
+                colSpan={8}
+                loading={purchasesLoading}
+                empty={!purchasesLoading && filteredPurchases.length === 0}
+                emptyText="No hay órdenes de compra con los filtros seleccionados."
+              />
+              {!purchasesLoading &&
+                filteredPurchases.map((p) => (
+                  <tr key={p.id}>
+                    <td style={ui.td}>
+                      {fmtDate(p.purchaseDate)}{" "}
+                      <span style={{ color: "#94a3b8" }}>{fmtTime(p.purchaseDate)}</span>
+                    </td>
+                    <td style={{ ...ui.td, fontWeight: 600, color: "#0f172a" }}>
+                      {p.supplier.name}
+                    </td>
+                    <td style={ui.td}>{p.branch.name}</td>
+                    <td style={ui.td}>{p.reference}</td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                        <Package size={13} color="#64748b" />
+                        {p.details.length}
+                      </span>
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: "#1e3a8a" }}>
+                      {money(Number(p.total))}
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <Badge tone={statusTone(p.status)}>{p.status}</Badge>
+                    </td>
+                    <td style={ui.td}>
+                      {p.status === "PENDIENTE" ? (
+                        <button
+                          style={{
+                            ...ui.primaryBtn,
+                            fontSize: 12,
+                            padding: "6px 12px",
+                            height: 30,
+                            backgroundColor: "#15803d",
+                          }}
+                          onClick={() => receive(p.id)}
+                          disabled={receiving === p.id}
+                        >
+                          {receiving === p.id ? "Recibiendo..." : "✓ Recibir"}
+                        </button>
+                      ) : (
+                        <span style={{ color: "#94a3b8", fontSize: 12 }}>—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { X, Plus, Pencil } from "lucide-react";
+import { X, Plus, Pencil, ChevronDown, ChevronUp } from "lucide-react";
 import api from "../../services/api";
 import {
   collectRoundedDecimalMessages,
@@ -17,7 +17,9 @@ import {
   SectionHeader,
   money,
   fmtDate,
+  useMediaQuery,
 } from "./shared";
+
 
 interface CustomerRow {
   id: number;
@@ -202,6 +204,16 @@ const validateCustomerForm = (form: FormState): {
 };
 
 const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
+  const isMobile = useMediaQuery("(max-width: 1024px)");
+  const [expandedCustomers, setExpandedCustomers] = useState<Record<number, boolean>>({});
+
+  const toggleExpandCustomer = (id: number) => {
+    setExpandedCustomers((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
   const [rows, setRows] = useState<CustomerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -359,64 +371,276 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
         </span>
       </Toolbar>
 
-      <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-        <table style={ui.table}>
-          <thead>
-            <tr style={ui.theadRow}>
-              <th style={ui.th}>Nombre / Razón Social</th>
-              <th style={ui.th}>RFC</th>
-              <th style={ui.th}>CP · Régimen · Uso CFDI</th>
-              <th style={ui.th}>Contacto</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Crédito</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Saldo</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Compras</th>
-              <th style={ui.th}>Alta</th>
-              <th style={{ ...ui.th, textAlign: "center" }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            <TableState colSpan={9} loading={loading} error={error} empty={!loading && rows.length === 0} />
-            {!loading &&
-              !error &&
-              rows.map((c) => (
-                <tr key={c.id}>
-                  <td style={{ ...ui.td, fontWeight: 700, color: "#0f172a", whiteSpace: "normal" }}>{c.name}</td>
-                  <td style={{ ...ui.td, color: "#64748b", fontFamily: "monospace", fontSize: 12 }}>{c.taxId || "—"}</td>
-                  <td style={{ ...ui.td, whiteSpace: "normal", fontSize: 12 }}>
-                    {c.zipCode || c.taxRegime || c.cfdiUse ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 1, color: "#475569" }}>
-                        {c.zipCode && <span>CP: {c.zipCode}</span>}
-                        {c.taxRegime && <span>Rég: {c.taxRegime}</span>}
-                        {c.cfdiUse && <span>CFDI: {c.cfdiUse}</span>}
+      {isMobile ? (
+        /* ── Mobile / Tablet: Card-based layout ── */
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
+          {/* Header row mirroring the fields */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1.2fr 1fr 2fr 1.6fr",
+            padding: "12px 16px",
+            fontWeight: 700,
+            fontSize: 11,
+            color: "#64748b",
+            textTransform: "uppercase",
+            letterSpacing: "0.4px",
+          }}>
+            <div>Saldo</div>
+            <div style={{ textAlign: "center" }}>Compras</div>
+            <div>Contacto</div>
+            <div style={{ textAlign: "right", paddingRight: 8 }}>Acción</div>
+          </div>
+
+          {loading && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              Cargando información...
+            </div>
+          )}
+          {!loading && rows.length === 0 && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              No hay clientes registrados.
+            </div>
+          )}
+
+          {!loading &&
+            rows.map((c) => {
+              const isExpanded = expandedCustomers[c.id];
+              return (
+                <div
+                  key={c.id}
+                  style={{
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 12,
+                    marginBottom: 10,
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* Header: Nombre y RFC */}
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "8px 16px 6px 16px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "#64748b",
+                    borderBottom: "1px solid #f1f5f9",
+                    backgroundColor: "#f8fafc",
+                    letterSpacing: "0.2px",
+                  }}>
+                    <span>{c.name.toUpperCase()}</span>
+                    <span style={{ fontFamily: "monospace" }}>{c.taxId || "SIN RFC"}</span>
+                  </div>
+
+                  {/* Fila principal */}
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.2fr 1fr 2fr 1.6fr",
+                    padding: "12px 16px",
+                    alignItems: "center",
+                  }}>
+                    {/* Saldo */}
+                    <div style={{ fontSize: 13, fontWeight: 700, color: c.balance > 0 ? "#b91c1c" : "#334155" }}>
+                      {money(c.balance)}
+                    </div>
+
+                    {/* Compras */}
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", textAlign: "center" }}>
+                      {c.salesCount}
+                    </div>
+
+                    {/* Contacto */}
+                    <div style={{ fontSize: 12, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {c.phone || c.email || "—"}
+                    </div>
+
+                    {/* Botones de Acción */}
+                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+                      {/* Pencil/Editar */}
+                      <button
+                        onClick={() => openEdit(c)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#eff6ff",
+                          border: "1px solid #bfdbfe",
+                          borderRadius: 8,
+                          width: 34,
+                          height: 34,
+                          cursor: "pointer",
+                          color: "#1e3a8a",
+                          padding: 0,
+                        }}
+                        className="active-tap"
+                        title="Editar cliente"
+                      >
+                        <Pencil size={14} />
+                      </button>
+
+                      {/* Chevron */}
+                      <button
+                        onClick={() => toggleExpandCustomer(c.id)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#ffffff",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: 8,
+                          width: 34,
+                          height: 34,
+                          cursor: "pointer",
+                          color: "#64748b",
+                          padding: 0,
+                        }}
+                        className="active-tap"
+                      >
+                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Detalle expandido */}
+                  {isExpanded && (
+                    <div style={{
+                      padding: "16px",
+                      margin: "0 16px 16px 16px",
+                      backgroundColor: "#f8fafc",
+                      borderRadius: "8px",
+                      border: "1px solid #e2e8f0",
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                      gap: "16px",
+                      textAlign: "left",
+                    }}>
+                      {/* Datos Fiscales */}
+                      <div>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Datos CFDI</h4>
+                        <div style={cliDetailRow}>
+                          <span style={cliDetailLabel}>RFC:</span>
+                          <span style={{ ...cliDetailValue, fontFamily: "monospace" }}>{c.taxId || "—"}</span>
+                        </div>
+                        <div style={cliDetailRow}>
+                          <span style={cliDetailLabel}>C. Postal:</span>
+                          <span style={cliDetailValue}>{c.zipCode || "—"}</span>
+                        </div>
+                        <div style={cliDetailRow}>
+                          <span style={cliDetailLabel}>Régimen:</span>
+                          <span style={cliDetailValue}>{c.taxRegime || "—"}</span>
+                        </div>
+                        <div style={cliDetailRow}>
+                          <span style={cliDetailLabel}>Uso CFDI:</span>
+                          <span style={cliDetailValue}>{c.cfdiUse || "—"}</span>
+                        </div>
                       </div>
-                    ) : (
-                      <span style={{ color: "#cbd5e1" }}>—</span>
-                    )}
-                  </td>
-                  <td style={{ ...ui.td, whiteSpace: "normal" }}>
-                    <div>{c.email || "—"}</div>
-                    <div style={{ fontSize: 11, color: "#94a3b8" }}>{c.phone || ""}</div>
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "right" }}>{money(c.creditLimit)}</td>
-                  <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: c.balance > 0 ? "#b91c1c" : "#334155" }}>
-                    {money(c.balance)}
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{c.salesCount}</td>
-                  <td style={{ ...ui.td, color: "#64748b" }}>{fmtDate(c.createdAt)}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <button
-                      onClick={() => openEdit(c)}
-                      style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 4, color: "#1e3a8a" }}
-                      title="Editar cliente"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
+
+                      {/* Información de Contacto */}
+                      <div>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Contacto y Alta</h4>
+                        <div style={cliDetailRow}>
+                          <span style={cliDetailLabel}>Correo:</span>
+                          <span style={cliDetailValue}>{c.email || "—"}</span>
+                        </div>
+                        <div style={cliDetailRow}>
+                          <span style={cliDetailLabel}>Teléfono:</span>
+                          <span style={cliDetailValue}>{c.phone || "—"}</span>
+                        </div>
+                        <div style={cliDetailRow}>
+                          <span style={cliDetailLabel}>Dirección:</span>
+                          <span style={cliDetailValue}>{c.address || "—"}</span>
+                        </div>
+                        <div style={cliDetailRow}>
+                          <span style={cliDetailLabel}>F. Alta:</span>
+                          <span style={cliDetailValue}>{fmtDate(c.createdAt)}</span>
+                        </div>
+                      </div>
+
+                      {/* Límites de Crédito */}
+                      <div>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Crédito y Historial</h4>
+                        <div style={cliDetailRow}>
+                          <span style={cliDetailLabel}>Límite Crédito:</span>
+                          <span style={cliDetailValue}>{money(c.creditLimit)}</span>
+                        </div>
+                        <div style={cliDetailRow}>
+                          <span style={cliDetailLabel}>Saldo Actual:</span>
+                          <span style={{ ...cliDetailValue, color: c.balance > 0 ? "#b91c1c" : "#334155" }}>{money(c.balance)}</span>
+                        </div>
+                        <div style={cliDetailRow}>
+                          <span style={cliDetailLabel}>Compras:</span>
+                          <span style={cliDetailValue}>{c.salesCount} compras</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      ) : (
+        /* ── Desktop: Standard table ── */
+        <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
+          <table style={ui.table}>
+            <thead>
+              <tr style={ui.theadRow}>
+                <th style={ui.th}>Nombre / Razón Social</th>
+                <th style={ui.th}>RFC</th>
+                <th style={ui.th}>CP · Régimen · Uso CFDI</th>
+                <th style={ui.th}>Contacto</th>
+                <th style={{ ...ui.th, textAlign: "right" }}>Crédito</th>
+                <th style={{ ...ui.th, textAlign: "right" }}>Saldo</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Compras</th>
+                <th style={ui.th}>Alta</th>
+                <th style={{ ...ui.th, textAlign: "center" }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              <TableState colSpan={9} loading={loading} error={error} empty={!loading && rows.length === 0} />
+              {!loading &&
+                !error &&
+                rows.map((c) => (
+                  <tr key={c.id}>
+                    <td style={{ ...ui.td, fontWeight: 700, color: "#0f172a", whiteSpace: "normal" }}>{c.name}</td>
+                    <td style={{ ...ui.td, color: "#64748b", fontFamily: "monospace", fontSize: 12 }}>{c.taxId || "—"}</td>
+                    <td style={{ ...ui.td, whiteSpace: "normal", fontSize: 12 }}>
+                      {c.zipCode || c.taxRegime || c.cfdiUse ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 1, color: "#475569" }}>
+                          {c.zipCode && <span>CP: {c.zipCode}</span>}
+                          {c.taxRegime && <span>Rég: {c.taxRegime}</span>}
+                          {c.cfdiUse && <span>CFDI: {c.cfdiUse}</span>}
+                        </div>
+                      ) : (
+                        <span style={{ color: "#cbd5e1" }}>—</span>
+                      )}
+                    </td>
+                    <td style={{ ...ui.td, whiteSpace: "normal" }}>
+                      <div>{c.email || "—"}</div>
+                      <div style={{ fontSize: 11, color: "#94a3b8" }}>{c.phone || ""}</div>
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "right" }}>{money(c.creditLimit)}</td>
+                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: c.balance > 0 ? "#b91c1c" : "#334155" }}>
+                      {money(c.balance)}
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{c.salesCount}</td>
+                    <td style={{ ...ui.td, color: "#64748b" }}>{fmtDate(c.createdAt)}</td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <button
+                        onClick={() => openEdit(c)}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 4, color: "#1e3a8a" }}
+                        title="Editar cliente"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Modal crear / editar */}
       {showForm && (
@@ -539,4 +763,26 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
   );
 };
 
+const cliDetailRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-start",
+  alignItems: "center",
+  gap: "8px",
+  fontSize: 13,
+  marginBottom: 6,
+};
+
+const cliDetailLabel: React.CSSProperties = {
+  fontWeight: 700,
+  color: "#64748b",
+  minWidth: "95px",
+  display: "inline-block",
+};
+
+const cliDetailValue: React.CSSProperties = {
+  fontWeight: 600,
+  color: "#334155",
+};
+
 export default ClientesView;
+
