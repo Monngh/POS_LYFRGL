@@ -488,7 +488,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                     ))}
                   </select>
                   {l.productId && productTaxes[l.productId] !== undefined && (
-                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>
                       {productTaxes[l.productId].length > 0
                         ? productTaxes[l.productId].map((t) => {
                             const pct = `${(t.rate * 100).toFixed(0)}%`;
@@ -549,20 +549,20 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
             <Plus size={15} /> Agregar producto
           </button>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-            <div style={{ fontSize: 13, color: "#475569" }}>
-              Subtotal: <strong style={{ color: "#0f172a" }}>{money(computedTotals.subtotal)}</strong>
+            <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+              Subtotal: <strong style={{ color: "var(--text)" }}>{money(computedTotals.subtotal)}</strong>
             </div>
             {computedTotals.taxEntries.map((t) => (
-              <div key={t.name} style={{ fontSize: 12, color: "#64748b" }}>
+              <div key={t.name} style={{ fontSize: 12, color: "var(--text-muted)" }}>
                 {t.name}: <span>{money(t.amount)}</span>
               </div>
             ))}
             {computedTotals.taxEntries.length === 0 && computedTotals.subtotal > 0 && (
-              <div style={{ fontSize: 12, color: "#94a3b8", fontStyle: "italic" }}>
+              <div style={{ fontSize: 12, color: "var(--text-faint)", fontStyle: "italic" }}>
                 Sin impuestos asignados
               </div>
             )}
-            <div style={{ fontSize: 15, fontWeight: 800, color: "#1e3a8a", borderTop: "1px solid #e2e8f0", paddingTop: 4, marginTop: 2 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--accent-strong)", borderTop: "1px solid var(--border)", paddingTop: 4, marginTop: 2 }}>
               Total estimado: {money(computedTotals.total)}
             </div>
           </div>
@@ -612,7 +612,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
           gap: 10,
         }}
       >
-        <h3 style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>
+        <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>
           Órdenes de compra
         </h3>
         <Toolbar>
@@ -640,12 +640,12 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
       {isMobile ? (
         <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 4px" }}>
           {purchasesLoading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
             </div>
           )}
           {!purchasesLoading && filteredPurchases.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               No hay órdenes de compra con los filtros seleccionados.
             </div>
           )}
@@ -657,8 +657,8 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <div
                   key={p.id}
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #f1f5f9",
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--surface-3)",
                     borderRadius: 16,
                     padding: 16,
                     marginBottom: 12,
@@ -672,18 +672,18 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                         <span style={{ fontSize: 16, fontWeight: 700, color: "#2563eb" }}>
                           {p.reference}
                         </span>
-                        <span style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>
+                        <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>
                           {money(Number(p.total))}
                         </span>
                       </div>
 
                       {/* Sucursal y Proveedor */}
-                      <div style={{ fontSize: 14, color: "#64748b", marginBottom: 8, fontWeight: 600 }}>
-                        {p.branch.name} <span style={{ color: "#cbd5e1", margin: "0 6px" }}>|</span> {p.supplier.name}
+                      <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 8, fontWeight: 600 }}>
+                        {p.branch.name} <span style={{ color: "var(--border-strong)", margin: "0 6px" }}>|</span> {p.supplier.name}
                       </div>
 
                       {/* Fecha */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
                         <Calendar size={14} color="#2563eb" />
                         <span>{fmtDate(p.purchaseDate)} {fmtTime(p.purchaseDate)}</span>
                       </div>
@@ -697,8 +697,8 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#ffffff",
-                          border: "1px solid #cbd5e1",
+                          backgroundColor: "var(--surface)",
+                          border: "1px solid var(--border-strong)",
                           borderRadius: 8,
                           width: 38,
                           height: 38,
@@ -715,16 +715,16 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
 
                   {/* Expanded Content */}
                   {isExpanded && (
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--surface-3)" }}>
                       {/* Details container */}
                       <div style={{
-                        backgroundColor: "#f8fafc",
+                        backgroundColor: "var(--surface-2)",
                         borderRadius: 12,
-                        border: "1px solid #e2e8f0",
+                        border: "1px solid var(--border)",
                         padding: 16,
                       }}>
                         {/* Estado */}
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Estado de la Orden</h4>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Estado de la Orden</h4>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                           <Badge tone={statusTone(p.status)}>{p.status}</Badge>
                           {p.status === "PENDIENTE" && (
@@ -746,18 +746,18 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                         </div>
 
                         {/* Artículos */}
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Artículos ({p.details.length})</h4>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Artículos ({p.details.length})</h4>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                           {p.details.map((d) => (
                             <div key={d.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, borderBottom: "1px dashed #e2e8f0", paddingBottom: 6 }}>
                               <div>
-                                <span style={{ fontWeight: 700, color: "#334155" }}>{d.product.name}</span>
-                                <div style={{ fontSize: 11, color: "#94a3b8" }}>SKU: {d.product.sku}</div>
+                                <span style={{ fontWeight: 700, color: "var(--text-secondary)" }}>{d.product.name}</span>
+                                <div style={{ fontSize: 11, color: "var(--text-faint)" }}>SKU: {d.product.sku}</div>
                               </div>
                               <div style={{ textAlign: "right" }}>
-                                <span style={{ fontWeight: 600, color: "#475569" }}>{d.quantity} u.</span>
-                                <span style={{ color: "#94a3b8", margin: "0 4px" }}>x</span>
-                                <span style={{ fontWeight: 600, color: "#64748b" }}>{money(d.unitCost)}</span>
+                                <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>{d.quantity} u.</span>
+                                <span style={{ color: "var(--text-faint)", margin: "0 4px" }}>x</span>
+                                <span style={{ fontWeight: 600, color: "var(--text-muted)" }}>{money(d.unitCost)}</span>
                               </div>
                             </div>
                           ))}
@@ -765,9 +765,9 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                         
                         {/* Notas si existen */}
                         {p.notes && (
-                          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e2e8f0" }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Notas:</div>
-                            <div style={{ fontSize: 13, color: "#334155", marginTop: 2 }}>{p.notes}</div>
+                          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Notas:</div>
+                            <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>{p.notes}</div>
                           </div>
                         )}
                       </div>
@@ -804,9 +804,9 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                   <tr key={p.id}>
                     <td style={ui.td}>
                       {fmtDate(p.purchaseDate)}{" "}
-                      <span style={{ color: "#94a3b8" }}>{fmtTime(p.purchaseDate)}</span>
+                      <span style={{ color: "var(--text-faint)" }}>{fmtTime(p.purchaseDate)}</span>
                     </td>
-                    <td style={{ ...ui.td, fontWeight: 600, color: "#0f172a" }}>
+                    <td style={{ ...ui.td, fontWeight: 600, color: "var(--text)" }}>
                       {p.supplier.name}
                     </td>
                     <td style={ui.td}>{p.branch.name}</td>
@@ -817,7 +817,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                         {p.details.length}
                       </span>
                     </td>
-                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: "#1e3a8a" }}>
+                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: "var(--accent-strong)" }}>
                       {money(Number(p.total))}
                     </td>
                     <td style={{ ...ui.td, textAlign: "center" }}>
@@ -839,7 +839,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                           {receiving === p.id ? "Recibiendo..." : "✓ Recibir"}
                         </button>
                       ) : (
-                        <span style={{ color: "#94a3b8", fontSize: 12 }}>—</span>
+                        <span style={{ color: "var(--text-faint)", fontSize: 12 }}>—</span>
                       )}
                     </td>
                   </tr>

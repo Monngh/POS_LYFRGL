@@ -192,9 +192,9 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
 
       <Toolbar>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: "#1e3a8a" }}>Desde:</label>
+          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Desde:</label>
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} onBlur={applyFilters} style={inputStyle} />
-          <label style={{ fontSize: 12, fontWeight: 600, color: "#1e3a8a" }}>Hasta:</label>
+          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Hasta:</label>
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} onBlur={applyFilters} style={inputStyle} />
           <input
             type="text"
@@ -219,7 +219,7 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
             Limpiar filtros
           </button>
         </div>
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>
+        <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
           {visible.length} registro{visible.length !== 1 ? "s" : ""}
         </span>
       </Toolbar>
@@ -251,19 +251,19 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
               !error &&
               visible.map((row) => (
                 <tr key={row.id}>
-                  <td style={{ ...ui.td, whiteSpace: "nowrap", color: "#475569" }}>{fmtDateTime(row.createdAt)}</td>
+                  <td style={{ ...ui.td, whiteSpace: "nowrap", color: "var(--text-secondary)" }}>{fmtDateTime(row.createdAt)}</td>
                   <td style={ui.td}>
-                    <div style={{ fontWeight: 700, color: "#0f172a" }}>{row.user.name}</div>
-                    <div style={{ fontSize: 11, color: "#64748b" }}>{row.user.email}</div>
+                    <div style={{ fontWeight: 700, color: "var(--text)" }}>{row.user.name}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{row.user.email}</div>
                   </td>
                   <td style={{ ...ui.td, textAlign: "center" }}>
                     <RoleBadge role={row.role} />
                   </td>
-                  <td style={{ ...ui.td, color: "#64748b" }}>
-                    {row.branch?.name ?? <span style={{ color: "#cbd5e1" }}>—</span>}
+                  <td style={{ ...ui.td, color: "var(--text-muted)" }}>
+                    {row.branch?.name ?? <span style={{ color: "var(--border-strong)" }}>—</span>}
                   </td>
-                  <td style={{ ...ui.td, textAlign: "center", fontSize: 12, color: "#475569" }}>{row.method}</td>
-                  <td style={{ ...ui.td, fontFamily: "monospace", fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>
+                  <td style={{ ...ui.td, textAlign: "center", fontSize: 12, color: "var(--text-secondary)" }}>{row.method}</td>
+                  <td style={{ ...ui.td, fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
                     {row.ipAddress ?? "—"}
                   </td>
                 </tr>
@@ -291,8 +291,8 @@ const lockStyles: { [k: string]: React.CSSProperties } = {
   card: {
     width: "100%",
     maxWidth: 420,
-    backgroundColor: "#ffffff",
-    border: "1px solid #e2e8f0",
+    backgroundColor: "var(--surface)",
+    border: "1px solid var(--border)",
     borderRadius: 12,
     padding: 28,
     boxShadow: "0 10px 15px -3px rgba(0,0,0,0.05)",
@@ -311,12 +311,12 @@ const lockStyles: { [k: string]: React.CSSProperties } = {
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { fontSize: 18, fontWeight: 800, color: "#0f172a", margin: 0 },
-  desc: { fontSize: 13.5, color: "#64748b", margin: 0, lineHeight: 1.5 },
+  title: { fontSize: 18, fontWeight: 800, color: "var(--text)", margin: 0 },
+  desc: { fontSize: 13.5, color: "var(--text-muted)", margin: 0, lineHeight: 1.5 },
   input: {
     width: "100%",
     padding: "10px 14px",
-    border: "1px solid #cbd5e1",
+    border: "1px solid var(--border-strong)",
     borderRadius: 8,
     fontSize: 14,
     fontFamily: "inherit",

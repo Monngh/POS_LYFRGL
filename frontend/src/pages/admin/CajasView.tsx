@@ -178,7 +178,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     if (!selectedDetail) return;
 
     const d = selectedDetail;
-    const diffColor = d.difference === null ? "#94a3b8" : d.difference >= 0 ? "#15803d" : "#b91c1c";
+    const diffColor = d.difference === null ? "var(--text-faint)" : d.difference >= 0 ? "#15803d" : "#b91c1c";
     const diffStr =
       d.difference !== null
         ? `${d.difference >= 0 ? "+" : ""}$${d.difference.toFixed(2)}`
@@ -304,7 +304,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const openCount = rows.filter((r) => r.status === "ABIERTA").length;
   const diffColor = (d: number | null) =>
-    d === null ? "#94a3b8" : d < 0 ? "#b91c1c" : d > 0 ? "#15803d" : "#334155";
+    d === null ? "var(--text-faint)" : d < 0 ? "#b91c1c" : d > 0 ? "#15803d" : "var(--text-secondary)";
 
   const movTypeColor = (type: string) =>
     type === "VENTA" ? "#15803d" : type === "CANCELACIÓN" ? "#b91c1c" : "#2563eb";
@@ -332,14 +332,14 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           ]}
         />
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>Desde:</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)" }}>Desde:</span>
           <input
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
             style={dateInput}
           />
-          <span style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>Hasta:</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)" }}>Hasta:</span>
           <input
             type="date"
             value={to}
@@ -359,7 +359,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         {openCount > 0 && (
           <span style={{ fontSize: 13, color: "#15803d", fontWeight: 700 }}>{openCount} caja(s) abierta(s)</span>
         )}
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b", fontWeight: 600 }}>
+        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
           {rows.length} sesión{rows.length === 1 ? "" : "es"}
         </span>
       </Toolbar>
@@ -367,7 +367,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       {isMobile ? (
         <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 4px" }}>
           {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
             </div>
           )}
@@ -377,7 +377,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </div>
           )}
           {!loading && !error && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               No hay sesiones de caja para mostrar.
             </div>
           )}
@@ -390,8 +390,8 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <div
                   key={s.id}
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #f1f5f9",
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--surface-3)",
                     borderRadius: 16,
                     marginBottom: 12,
                     boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
@@ -405,9 +405,9 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     padding: "10px 16px",
                     fontSize: 11,
                     fontWeight: 700,
-                    color: "#64748b",
-                    borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "#f8fafc",
+                    color: "var(--text-muted)",
+                    borderBottom: "1px solid var(--surface-3)",
+                    backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px"
                   }}>
                     <span>{s.branch.toUpperCase()}</span>
@@ -427,13 +427,13 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         </div>
 
                         {/* Fecha de apertura */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569", marginBottom: 6 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", marginBottom: 6 }}>
                           <Calendar size={14} color="#2563eb" />
                           <span>Apertura: {fmtDate(s.openedAt)} {fmtTime(s.openedAt)}</span>
                         </div>
 
                         {/* Fondo inicial */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
                           <DollarSign size={14} color="#2563eb" />
                           <span>Fondo Inicial: {money(s.initialAmount)}</span>
                         </div>
@@ -447,8 +447,8 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             display: "inline-flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            backgroundColor: "#ffffff",
-                            border: "1px solid #cbd5e1",
+                            backgroundColor: "var(--surface)",
+                            border: "1px solid var(--border-strong)",
                             borderRadius: 8,
                             width: 38,
                             height: 38,
@@ -465,7 +465,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                     {/* Detalle expandible */}
                     {isExpanded && (
-                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--surface-3)" }}>
                         {/* Botón Ver Detalle */}
                         <div style={{ marginBottom: 12 }}>
                           <button
@@ -490,13 +490,13 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                         {/* Contenedor de datos faltantes */}
                         <div style={{
-                          backgroundColor: "#f8fafc",
+                          backgroundColor: "var(--surface-2)",
                           borderRadius: 12,
-                          border: "1px solid #e2e8f0",
+                          border: "1px solid var(--border)",
                           padding: 16,
                         }}>
                           {/* Detalles de Cierre */}
-                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Detalle de Cierre</h4>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Detalle de Cierre</h4>
                           <div style={detailRowStyle}>
                             <span style={detailLabelStyle}>Cierre:</span>
                             <span style={detailValueStyle}>
@@ -509,7 +509,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           </div>
 
                           {/* Resumen Económico */}
-                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginTop: 16, marginBottom: 10 }}>Resumen Económico</h4>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginTop: 16, marginBottom: 10 }}>Resumen Económico</h4>
                           <div style={detailRowStyle}>
                             <span style={detailLabelStyle}>Esperado:</span>
                             <span style={detailValueStyle}>{money(s.expectedAmount)}</span>
@@ -521,7 +521,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             </span>
                           </div>
                           <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 12 }}>
-                            <span style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Diferencia:</span>
+                            <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>Diferencia:</span>
                             <span style={{ fontSize: 18, fontWeight: 800, color: diffColor(s.difference) }}>
                               {s.difference !== null ? (s.difference >= 0 ? `+${money(s.difference)}` : money(s.difference)) : "—"}
                             </span>
@@ -562,28 +562,28 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     onClick={() => openDetail(s.id)}
                     onMouseEnter={() => setHoveredRow(s.id)}
                     onMouseLeave={() => setHoveredRow(null)}
-                    style={{ cursor: "pointer", backgroundColor: hoveredRow === s.id ? "#f8fafc" : "transparent" }}
+                    style={{ cursor: "pointer", backgroundColor: hoveredRow === s.id ? "var(--surface-2)" : "transparent" }}
                   >
-                    <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.id}</td>
+                    <td style={{ ...ui.td, fontWeight: 700, color: "var(--accent-strong)" }}>{s.id}</td>
                     <td style={ui.td}>{s.branch}</td>
                     <td style={ui.td}>{s.cajero}</td>
                     <td style={ui.td}>
-                      {fmtDate(s.openedAt)} <span style={{ color: "#94a3b8" }}>{fmtTime(s.openedAt)}</span>
+                      {fmtDate(s.openedAt)} <span style={{ color: "var(--text-faint)" }}>{fmtTime(s.openedAt)}</span>
                     </td>
                     <td style={ui.td}>
                       {s.closedAt ? (
                         <>
-                          {fmtDate(s.closedAt)} <span style={{ color: "#94a3b8" }}>{fmtTime(s.closedAt)}</span>
+                          {fmtDate(s.closedAt)} <span style={{ color: "var(--text-faint)" }}>{fmtTime(s.closedAt)}</span>
                         </>
                       ) : (
-                        <span style={{ color: "#94a3b8" }}>—</span>
+                        <span style={{ color: "var(--text-faint)" }}>—</span>
                       )}
                     </td>
                     <td style={{ ...ui.td, textAlign: "right" }}>{money(s.initialAmount)}</td>
                     <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{s.salesCount}</td>
                     <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{money(s.expectedAmount)}</td>
                     <td style={{ ...ui.td, textAlign: "right" }}>
-                      {s.declaredAmount !== null ? money(s.declaredAmount) : <span style={{ color: "#94a3b8" }}>—</span>}
+                      {s.declaredAmount !== null ? money(s.declaredAmount) : <span style={{ color: "var(--text-faint)" }}>—</span>}
                     </td>
                     <td style={{ ...ui.td, textAlign: "right", fontWeight: 800, color: diffColor(s.difference) }}>
                       {s.difference !== null ? money(s.difference) : "—"}
@@ -612,7 +612,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   Caja #{selectedDetail?.id ?? "…"}
                 </span>
                 {selectedDetail && (
-                  <span style={{ marginLeft: 10, fontSize: 13, color: "#64748b" }}>
+                  <span style={{ marginLeft: 10, fontSize: 13, color: "var(--text-muted)" }}>
                     Cajero: <strong>{selectedDetail.cajero}</strong> | Sucursal: <strong>{selectedDetail.branch}</strong>
                   </span>
                 )}
@@ -626,7 +626,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             {/* Body */}
             <div style={ui.modalBody}>
               {detailLoading && (
-                <p style={{ textAlign: "center", color: "#94a3b8", padding: "24px 0", fontSize: 13 }}>
+                <p style={{ textAlign: "center", color: "var(--text-faint)", padding: "24px 0", fontSize: 13 }}>
                   Cargando detalles...
                 </p>
               )}
@@ -637,7 +637,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               {!detailLoading && !detailError && selectedDetail && (
                 <>
                   {/* Apertura */}
-                  <p style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
+                  <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 16 }}>
                     Apertura: {fmtDateTime(selectedDetail.openedAt)}
                     {selectedDetail.closedAt && (
                       <> &nbsp;·&nbsp; Cierre: {fmtDateTime(selectedDetail.closedAt)}</>
@@ -655,7 +655,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <FinRow label="Monto inicial (fondo):" value={money(selectedDetail.initialAmount)} />
                     <FinRow label="+ Ventas (efectivo neto):" value={money(selectedDetail.cashIn)} />
                     <FinRow label="– Depósitos (salidas):" value={money(selectedDetail.cashOut)} />
-                    <div style={{ borderTop: "1px solid #e2e8f0", margin: "8px 0" }} />
+                    <div style={{ borderTop: "1px solid var(--border)", margin: "8px 0" }} />
                     <FinRow label="= Esperado (teórico):" value={money(selectedDetail.expectedAmount)} bold />
                     <div style={{ borderTop: "1px dashed #cbd5e1", margin: "8px 0" }} />
                     <FinRow
@@ -674,7 +674,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       bold
                       color={
                         selectedDetail.difference === null
-                          ? "#94a3b8"
+                          ? "var(--text-faint)"
                           : selectedDetail.difference >= 0
                             ? "#15803d"
                             : "#b91c1c"
@@ -690,7 +690,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <PayRow label="Tarjeta débito" value={money(selectedDetail.payBreakdown.tarjetaDebito)} />
                     <PayRow label="MercadoPago QR" value={money(selectedDetail.payBreakdown.mercadoPago)} />
                   </div>
-                  <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 13, fontWeight: 700, color: "#0f172a", paddingTop: 6, borderTop: "1px solid #f1f5f9" }}>
+                  <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 13, fontWeight: 700, color: "var(--text)", paddingTop: 6, borderTop: "1px solid var(--surface-3)" }}>
                     Total ventas: {money(selectedDetail.payBreakdown.totalVentas)}
                   </div>
 
@@ -699,11 +699,11 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     Últimos movimientos ({selectedDetail.movements.length})
                   </p>
                   {selectedDetail.movements.length === 0 ? (
-                    <p style={{ fontSize: 13, color: "#94a3b8", textAlign: "center", padding: "12px 0" }}>
+                    <p style={{ fontSize: 13, color: "var(--text-faint)", textAlign: "center", padding: "12px 0" }}>
                       Sin movimientos registrados.
                     </p>
                   ) : (
-                    <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, overflowX: "auto", overflowY: "hidden", maxWidth: "100%" }}>
+                    <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflowX: "auto", overflowY: "hidden", maxWidth: "100%" }}>
                       <table style={{ ...ui.table, fontSize: 12 }}>
                         <thead>
                           <tr style={ui.theadRow}>
@@ -727,7 +727,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               <td style={{ ...ui.td, fontSize: 12, textAlign: "right", fontWeight: 700, color: m.amount >= 0 ? "#15803d" : "#b91c1c" }}>
                                 {m.amount >= 0 ? "+" : ""}{money(m.amount)}
                               </td>
-                              <td style={{ ...ui.td, fontSize: 12, textAlign: "right", color: "#475569" }}>
+                              <td style={{ ...ui.td, fontSize: 12, textAlign: "right", color: "var(--text-secondary)" }}>
                                 {money(m.balance)}
                               </td>
                             </tr>
@@ -744,7 +744,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             <div
               style={{
                 padding: "14px 22px",
-                borderTop: "1px solid #e2e8f0",
+                borderTop: "1px solid var(--border)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
@@ -836,7 +836,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <button
                   style={{
                     ...ui.primaryBtn,
-                    backgroundColor: forceLoading || !forceReason.trim() ? "#94a3b8" : "#b91c1c",
+                    backgroundColor: forceLoading || !forceReason.trim() ? "var(--text-faint)" : "#b91c1c",
                     cursor: forceLoading || !forceReason.trim() ? "not-allowed" : "pointer",
                   }}
                   onClick={handleForceClose}
@@ -858,14 +858,14 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 // ---------------------------------------------------------------------------
 
 const dateInput: React.CSSProperties = {
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--border)",
   borderRadius: 8,
   height: 38,
   padding: "0 10px",
   fontSize: 13,
   fontWeight: 500,
-  color: "#334155",
-  backgroundColor: "#ffffff",
+  color: "var(--text-secondary)",
+  backgroundColor: "var(--surface)",
   outline: "none",
   fontFamily: "inherit",
   cursor: "pointer",
@@ -880,10 +880,10 @@ const clearBtn: React.CSSProperties = {
   justifyContent: "center",
   width: 28,
   height: 28,
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--border)",
   borderRadius: 6,
-  backgroundColor: "#ffffff",
-  color: "#64748b",
+  backgroundColor: "var(--surface)",
+  color: "var(--text-muted)",
   cursor: "pointer",
   fontSize: 12,
 };
@@ -895,15 +895,15 @@ const clearBtn: React.CSSProperties = {
 const sectionLabel: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
-  color: "#64748b",
+  color: "var(--text-muted)",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
   marginBottom: 10,
 };
 
 const finBox: React.CSSProperties = {
-  backgroundColor: "#f8fafc",
-  border: "1px solid #e2e8f0",
+  backgroundColor: "var(--surface-2)",
+  border: "1px solid var(--border)",
   borderRadius: 8,
   padding: "12px 16px",
   display: "flex",
@@ -918,15 +918,15 @@ const FinRow: React.FC<{ label: string; value: string; bold?: boolean; color?: s
   color,
 }) => (
   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, alignItems: "center" }}>
-    <span style={{ color: "#475569" }}>{label}</span>
-    <span style={{ fontWeight: bold ? 800 : 600, color: color ?? "#0f172a" }}>{value}</span>
+    <span style={{ color: "var(--text-secondary)" }}>{label}</span>
+    <span style={{ fontWeight: bold ? 800 : 600, color: color ?? "var(--text)" }}>{value}</span>
   </div>
 );
 
 const PayRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-    <span style={{ color: "#64748b" }}>{label}</span>
-    <span style={{ fontWeight: 700, color: "#334155" }}>{value}</span>
+    <span style={{ color: "var(--text-muted)" }}>{label}</span>
+    <span style={{ fontWeight: 700, color: "var(--text-secondary)" }}>{value}</span>
   </div>
 );
 
@@ -941,14 +941,14 @@ const detailRowStyle: React.CSSProperties = {
 
 const detailLabelStyle: React.CSSProperties = {
   fontWeight: 700,
-  color: "#64748b",
+  color: "var(--text-muted)",
   minWidth: "85px",
   display: "inline-block",
 };
 
 const detailValueStyle: React.CSSProperties = {
   fontWeight: 600,
-  color: "#334155",
+  color: "var(--text-secondary)",
 };
 
 export default CajasView;
