@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Eye, RefreshCw } from "lucide-react";
+import { ArrowLeft, Eye, RefreshCw, ChevronDown, ChevronUp, Calendar, User, Tag } from "lucide-react";
 import api from "../../services/api";
 import {
   ui,
@@ -15,6 +15,7 @@ import {
   fmtDate,
   fmtDateTime,
   fmtTime,
+  useMediaQuery,
 } from "./shared";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -166,6 +167,7 @@ const ReturnDetailSubView: React.FC<{
   detail: ReturnDetailData;
   onBack: () => void;
 }> = ({ detail, onBack }) => {
+  const isMobile = useMediaQuery("(max-width: 1024px)");
   const [current, setCurrent] = useState(detail);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionMsg, setActionMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -286,41 +288,115 @@ const ReturnDetailSubView: React.FC<{
         <div style={{ padding: "16px 20px 12px" }}>
           <h3 style={secTitle}>Productos Devueltos</h3>
         </div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={ui.table}>
-            <thead>
-              <tr style={ui.theadRow}>
-                <th style={ui.th}>Producto (SKU)</th>
-                <th style={{ ...ui.th, textAlign: "center" }}>Cant.</th>
-                <th style={{ ...ui.th, textAlign: "right" }}>P.Unit.</th>
-                <th style={{ ...ui.th, textAlign: "right" }}>Impuesto</th>
-                <th style={{ ...ui.th, textAlign: "right" }}>Descuento</th>
-                <th style={{ ...ui.th, textAlign: "center" }}>Destino</th>
-              </tr>
-            </thead>
-            <tbody>
-              {current.details.map((d) => (
-                <tr key={d.id}>
-                  <td style={ui.td}>
-                    <div style={{ fontWeight: 700 }}>{d.productName}</div>
-                    <div style={{ fontSize: 11, color: "#94a3b8" }}>{d.sku}</div>
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>{d.quantity}</td>
-                  <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(d.unitPrice)}</td>
-                  <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(d.taxAmount)}</td>
-                  <td style={{ ...ui.td, textAlign: "right" }}>
-                    {d.discountAmount > 0 ? moneyExact(d.discountAmount) : "—"}
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <Badge tone={destTone(d.destination)}>
-                      {destLabel[d.destination] || d.destination}
-                    </Badge>
-                  </td>
+        {isMobile ? (
+          /* ── Mobile / Tablet: Card-based product list ── */
+          <div style={{ padding: "0 20px 16px" }}>
+            <div style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: "#94a3b8",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+              padding: "0 0 10px 0",
+              borderBottom: "1px solid #e2e8f0",
+              marginBottom: 0,
+            }}>
+              DETALLE DE PRODUCTOS
+            </div>
+            {current.details.map((d, i) => (
+              <div
+                key={d.id}
+                style={{
+                  padding: "14px 0",
+                  borderBottom: i < current.details.length - 1 ? "1px solid #f1f5f9" : "none",
+                }}
+              >
+                {/* Row 1: Product name + Cantidad badge */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a", lineHeight: 1.3 }}>{d.productName}</div>
+                    <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2, fontWeight: 600 }}>{d.sku}</div>
+                  </div>
+                  <div style={{
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 8,
+                    padding: "4px 12px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "#334155",
+                    backgroundColor: "#ffffff",
+                    whiteSpace: "nowrap",
+                    marginLeft: 12,
+                  }}>
+                    Cantidad: <strong>{d.quantity}</strong>
+                  </div>
+                </div>
+                {/* Row 2: Unitario + Importe */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, color: "#64748b", fontWeight: 500 }}>
+                    Unitario: {moneyExact(d.unitPrice)}
+                  </span>
+                  <span style={{ fontSize: 14, color: "#0f172a" }}>
+                    Importe: <strong style={{ fontWeight: 800 }}>{moneyExact(d.unitPrice * d.quantity - d.discountAmount)}</strong>
+                  </span>
+                </div>
+                {/* Row 3: Tax, Discount, Destino */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", marginTop: 4 }}>
+                  {d.taxAmount > 0 && (
+                    <span style={{ fontSize: 12, color: "#64748b", fontWeight: 500 }}>
+                      Impuesto: {moneyExact(d.taxAmount)}
+                    </span>
+                  )}
+                  {d.discountAmount > 0 && (
+                    <span style={{ fontSize: 12, color: "#64748b", fontWeight: 500 }}>
+                      Descuento: {moneyExact(d.discountAmount)}
+                    </span>
+                  )}
+                  <Badge tone={destTone(d.destination)}>
+                    {destLabel[d.destination] || d.destination}
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          /* ── Desktop: Standard table ── */
+          <div style={{ overflowX: "auto" }}>
+            <table style={ui.table}>
+              <thead>
+                <tr style={ui.theadRow}>
+                  <th style={ui.th}>Producto (SKU)</th>
+                  <th style={{ ...ui.th, textAlign: "center" }}>Cant.</th>
+                  <th style={{ ...ui.th, textAlign: "right" }}>P.Unit.</th>
+                  <th style={{ ...ui.th, textAlign: "right" }}>Impuesto</th>
+                  <th style={{ ...ui.th, textAlign: "right" }}>Descuento</th>
+                  <th style={{ ...ui.th, textAlign: "center" }}>Destino</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {current.details.map((d) => (
+                  <tr key={d.id}>
+                    <td style={ui.td}>
+                      <div style={{ fontWeight: 700 }}>{d.productName}</div>
+                      <div style={{ fontSize: 11, color: "#94a3b8" }}>{d.sku}</div>
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>{d.quantity}</td>
+                    <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(d.unitPrice)}</td>
+                    <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(d.taxAmount)}</td>
+                    <td style={{ ...ui.td, textAlign: "right" }}>
+                      {d.discountAmount > 0 ? moneyExact(d.discountAmount) : "—"}
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <Badge tone={destTone(d.destination)}>
+                        {destLabel[d.destination] || d.destination}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Panel>
 
       {/* Sección 3: Resumen económico */}
@@ -454,6 +530,8 @@ const ReturnDetailSubView: React.FC<{
 // ─── Main list view ───────────────────────────────────────────────────────────
 
 const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+  const isMobile = useMediaQuery("(max-width: 1024px)");
+  const [expandedReturns, setExpandedReturns] = useState<Record<number, boolean>>({});
   const [rows, setRows] = useState<ReturnRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -467,6 +545,13 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const [detail, setDetail] = useState<ReturnDetailData | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  const toggleExpand = (id: number) => {
+    setExpandedReturns((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
 
   const LIMIT = 20;
 
@@ -593,72 +678,283 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         )}
       </Toolbar>
 
-      <p className="flex items-center gap-1 text-xs text-slate-400 mb-2 sm:hidden">
-        <span>↔</span> Desliza para ver todas las columnas
-      </p>
+      {!isMobile && (
+        <p className="flex items-center gap-1 text-xs text-slate-400 mb-2 sm:hidden">
+          <span>↔</span> Desliza para ver todas las columnas
+        </p>
+      )}
 
-      <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-        <table style={{ ...ui.table, minWidth: 680 }}>
-          <thead>
-            <tr style={ui.theadRow}>
-              <th style={ui.th}>Folio Devolución</th>
-              <th style={ui.th}>Folio Venta</th>
-              <th style={ui.th}>Cliente</th>
-              <th style={ui.th}>Fecha</th>
-              <th style={ui.th}>Sucursal</th>
-              <th style={ui.th}>Método</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Monto</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            <TableState
-              colSpan={9}
-              loading={loading}
-              error={error}
-              empty={!loading && !error && filtered.length === 0}
-              emptyText="No hay devoluciones para mostrar."
-            />
-            {!loading &&
-              !error &&
-              filtered.map((r) => (
-                <tr key={r.id}>
-                  <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>
-                    {r.returnNumber}
-                  </td>
-                  <td style={{ ...ui.td, color: "#64748b" }}>{r.saleNumber}</td>
-                  <td style={ui.td}>{r.clientName}</td>
-                  <td style={ui.td}>
-                    {fmtDate(r.date)}{" "}
-                    <span style={{ color: "#94a3b8" }}>{fmtTime(r.date)}</span>
-                  </td>
-                  <td style={ui.td}>{r.branchName}</td>
-                  <td style={ui.td}>
-                    <Badge tone={payTone(r.paymentMethod)}>
-                      {payLabel[r.paymentMethod] || r.paymentMethod}
-                    </Badge>
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "right", fontWeight: 800, color: "#0f172a" }}>
-                    {moneyExact(r.totalRefunded)}
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <Badge tone={statusTone(r.status)}>{statusLabel(r.status)}</Badge>
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <button
-                      style={ui.linkBtn}
-                      onClick={() => openDetail(r.id)}
-                      className="active-tap"
-                    >
-                      <Eye size={15} style={{ verticalAlign: "-2px" }} /> Ver
-                    </button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
+      {isMobile ? (
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
+          {loading && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              Cargando información...
+            </div>
+          )}
+          {error && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
+              {error}
+            </div>
+          )}
+          {!loading && !error && filtered.length === 0 && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              No hay devoluciones para mostrar.
+            </div>
+          )}
+
+          {!loading &&
+            !error &&
+            filtered.map((r) => {
+              const isExpanded = expandedReturns[r.id];
+              const formattedMethod = payLabel[r.paymentMethod] || r.paymentMethod;
+              const formattedStatus = statusLabel(r.status);
+              return (
+                <div
+                  key={r.id}
+                  style={{
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #f1f5f9",
+                    borderRadius: 16,
+                    padding: 16,
+                    marginBottom: 12,
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      {/* Title: Folio & Amount */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                        <button
+                          onClick={() => openDetail(r.id)}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "#2563eb",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            padding: 0,
+                            fontSize: 16,
+                            textAlign: "left",
+                          }}
+                          className="active-tap"
+                        >
+                          {r.returnNumber}
+                        </button>
+                        <span style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>
+                          {moneyExact(r.totalRefunded)}
+                        </span>
+                      </div>
+
+                      {/* Sucursal */}
+                      <div style={{ fontSize: 14, color: "#64748b", marginBottom: 8 }}>
+                        {r.branchName}
+                      </div>
+
+                      {/* Fecha */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569", marginBottom: 6 }}>
+                        <Calendar size={14} color="#2563eb" />
+                        <span>{fmtDateTime(r.date)}</span>
+                      </div>
+
+                      {/* Cliente */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569" }}>
+                        <User size={14} color="#2563eb" />
+                        <span>Cliente: {r.clientName}</span>
+                      </div>
+                    </div>
+
+                    {/* Chevron Button */}
+                    <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
+                      <button
+                        onClick={() => toggleExpand(r.id)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#ffffff",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: 8,
+                          width: 38,
+                          height: 38,
+                          cursor: "pointer",
+                          color: "#2563eb",
+                          padding: 0,
+                        }}
+                        className="active-tap"
+                      >
+                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expanded Content */}
+                  {isExpanded && (
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
+                      {/* Venta box */}
+                      <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        backgroundColor: "#eff6ff",
+                        color: "#1e40af",
+                        padding: "10px 12px",
+                        borderRadius: 8,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        marginBottom: 12,
+                      }}>
+                        <Tag size={15} color="#2563eb" />
+                        <span>Venta: {r.saleNumber}</span>
+                      </div>
+
+                      {/* Ver detalle link */}
+                      <div style={{ marginBottom: 16 }}>
+                        <button
+                          onClick={() => openDetail(r.id)}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "#2563eb",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            padding: 0,
+                            fontSize: 13,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                          className="active-tap"
+                        >
+                          <Eye size={15} /> Ver detalle
+                        </button>
+                      </div>
+
+                      {/* Details container from Image 2 */}
+                      <div style={{
+                        backgroundColor: "#f8fafc",
+                        borderRadius: 12,
+                        border: "1px solid #e2e8f0",
+                        padding: 16,
+                      }}>
+                        {/* Datos de Devolución */}
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Datos de Devolución</h4>
+                        <div style={detailRowStyle}>
+                          <span style={detailLabelStyle}>Folio Dev:</span>
+                          <span style={detailValueStyle}>{r.returnNumber}</span>
+                        </div>
+                        <div style={detailRowStyle}>
+                          <span style={detailLabelStyle}>Folio Venta:</span>
+                          <span style={detailValueStyle}>{r.saleNumber}</span>
+                        </div>
+                        <div style={detailRowStyle}>
+                          <span style={detailLabelStyle}>Autorizado:</span>
+                          <span style={detailValueStyle}>{r.authorizedBy ? r.authorizedBy.name : "—"}</span>
+                        </div>
+
+                        {/* Detalle de Operación */}
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginTop: 16, marginBottom: 10 }}>Detalle de Operación</h4>
+                        <div style={detailRowStyle}>
+                          <span style={detailLabelStyle}>Fecha:</span>
+                          <span style={detailValueStyle}>{fmtDateTime(r.date)}</span>
+                        </div>
+                        <div style={detailRowStyle}>
+                          <span style={detailLabelStyle}>Sucursal:</span>
+                          <span style={detailValueStyle}>{r.branchName}</span>
+                        </div>
+                        <div style={detailRowStyle}>
+                          <span style={detailLabelStyle}>Cliente:</span>
+                          <span style={detailValueStyle}>{r.clientName}</span>
+                        </div>
+
+                        {/* Resumen Económico */}
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginTop: 16, marginBottom: 10 }}>Resumen Económico</h4>
+                        <div style={detailRowStyle}>
+                          <span style={detailLabelStyle}>Método:</span>
+                          <span style={detailValueStyle}>
+                            <Badge tone={payTone(r.paymentMethod)}>{formattedMethod}</Badge>
+                          </span>
+                        </div>
+                        <div style={detailRowStyle}>
+                          <span style={detailLabelStyle}>Estado:</span>
+                          <span style={detailValueStyle}>
+                            <Badge tone={statusTone(r.status)}>{formattedStatus}</Badge>
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 12 }}>
+                          <span style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Reembolso:</span>
+                          <span style={{ fontSize: 18, fontWeight: 800, color: "#15803d" }}>{moneyExact(r.totalRefunded)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      ) : (
+        <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
+          <table style={{ ...ui.table, minWidth: 680 }}>
+            <thead>
+              <tr style={ui.theadRow}>
+                <th style={ui.th}>Folio Devolución</th>
+                <th style={ui.th}>Folio Venta</th>
+                <th style={ui.th}>Cliente</th>
+                <th style={ui.th}>Fecha</th>
+                <th style={ui.th}>Sucursal</th>
+                <th style={ui.th}>Método</th>
+                <th style={{ ...ui.th, textAlign: "right" }}>Monto</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              <TableState
+                colSpan={9}
+                loading={loading}
+                error={error}
+                empty={!loading && !error && filtered.length === 0}
+                emptyText="No hay devoluciones para mostrar."
+              />
+              {!loading &&
+                !error &&
+                filtered.map((r) => (
+                  <tr key={r.id}>
+                    <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>
+                      {r.returnNumber}
+                    </td>
+                    <td style={{ ...ui.td, color: "#64748b" }}>{r.saleNumber}</td>
+                    <td style={ui.td}>{r.clientName}</td>
+                    <td style={ui.td}>
+                      {fmtDate(r.date)}{" "}
+                      <span style={{ color: "#94a3b8" }}>{fmtTime(r.date)}</span>
+                    </td>
+                    <td style={ui.td}>{r.branchName}</td>
+                    <td style={ui.td}>
+                      <Badge tone={payTone(r.paymentMethod)}>
+                        {payLabel[r.paymentMethod] || r.paymentMethod}
+                      </Badge>
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 800, color: "#0f172a" }}>
+                      {moneyExact(r.totalRefunded)}
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <Badge tone={statusTone(r.status)}>{statusLabel(r.status)}</Badge>
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <button
+                        style={ui.linkBtn}
+                        onClick={() => openDetail(r.id)}
+                        className="active-tap"
+                      >
+                        <Eye size={15} style={{ verticalAlign: "-2px" }} /> Ver
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Paginación */}
       {totalPages > 1 && (
@@ -723,6 +1019,27 @@ const sumRow: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
+};
+
+const detailRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-start",
+  alignItems: "center",
+  gap: "8px",
+  fontSize: 13,
+  marginBottom: 6,
+};
+
+const detailLabelStyle: React.CSSProperties = {
+  fontWeight: 700,
+  color: "#64748b",
+  minWidth: "85px",
+  display: "inline-block",
+};
+
+const detailValueStyle: React.CSSProperties = {
+  fontWeight: 600,
+  color: "#334155",
 };
 
 export default DevolucionesView;

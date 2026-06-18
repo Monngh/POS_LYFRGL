@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { X, Plus, Activity, Pencil } from "lucide-react";
+import { X, Plus, Activity, Pencil, ChevronDown, ChevronUp } from "lucide-react";
 import api from "../../services/api";
 import {
   collectRoundedDecimalMessages,
@@ -30,6 +30,7 @@ import {
   fmtTime,
   roleTone,
   statusTone,
+  useMediaQuery,
 } from "./shared";
 
 interface EmployeeRow {
@@ -82,6 +83,16 @@ type FormState = typeof emptyForm;
 type FieldErrors = Partial<Record<keyof FormState, string>>;
 
 const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+  const isMobile = useMediaQuery("(max-width: 1024px)");
+  const [expandedEmployees, setExpandedEmployees] = useState<Record<number, boolean>>({});
+
+  const toggleExpandEmployee = (id: number) => {
+    setExpandedEmployees((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
   const [rows, setRows] = useState<EmployeeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -379,55 +390,250 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         </span>
       </Toolbar>
 
-      <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-        <table style={ui.table}>
-          <thead>
-            <tr style={ui.theadRow}>
-              <th style={ui.th}>Nombre</th>
-              <th style={ui.th}>Correo</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Rol</th>
-              <th style={ui.th}>Sucursal</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-              <th style={ui.th}>Alta</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Operaciones</th>
-              <th style={{ ...ui.th, textAlign: "center" }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            <TableState colSpan={8} loading={loading} error={error} empty={!loading && rows.length === 0} />
-            {!loading &&
-              !error &&
-              rows.map((u) => (
-                <tr key={u.id}>
-                  <td style={{ ...ui.td, fontWeight: 700, color: "#0f172a", whiteSpace: "normal" }}>{u.name}</td>
-                  <td style={{ ...ui.td, color: "#475569" }}>{u.email}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
+      {isMobile ? (
+        /* ── Mobile / Tablet: Card-based layout ── */
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
+          {/* Header row mirroring the fields */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1.5fr 1fr 1fr 1.6fr",
+            padding: "12px 16px",
+            fontWeight: 700,
+            fontSize: 11,
+            color: "#64748b",
+            textTransform: "uppercase",
+            letterSpacing: "0.4px",
+          }}>
+            <div>Sucursal</div>
+            <div style={{ textAlign: "center" }}>Estado</div>
+            <div style={{ textAlign: "center" }}>Operaciones</div>
+            <div style={{ textAlign: "right", paddingRight: 8 }}>Acción</div>
+          </div>
+
+          {loading && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              Cargando información...
+            </div>
+          )}
+          {!loading && error && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
+              {error}
+            </div>
+          )}
+          {!loading && !error && rows.length === 0 && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              No hay empleados registrados.
+            </div>
+          )}
+
+          {!loading &&
+            !error &&
+            rows.map((u) => {
+              const isExpanded = expandedEmployees[u.id];
+              return (
+                <div
+                  key={u.id}
+                  style={{
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 12,
+                    marginBottom: 10,
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* Header: Nombre y Rol */}
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "8px 16px 6px 16px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "#64748b",
+                    borderBottom: "1px solid #f1f5f9",
+                    backgroundColor: "#f8fafc",
+                    letterSpacing: "0.2px",
+                  }}>
+                    <span>{u.name.toUpperCase()}</span>
                     <Badge tone={roleTone(u.role)}>{u.role}</Badge>
-                  </td>
-                  <td style={ui.td}>{u.branch}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <Badge tone={u.active ? "green" : "red"}>{u.active ? "Activo" : "Inactivo"}</Badge>
-                  </td>
-                  <td style={{ ...ui.td, color: "#64748b" }}>{fmtDate(u.createdAt)}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <button style={ui.linkBtn} className="active-tap" onClick={() => openOps(u.id)}>
-                      <Activity size={14} style={{ verticalAlign: "-2px" }} /> Ver
-                    </button>
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <button
-                      onClick={() => openEdit(u)}
-                      style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 4, color: "#1e3a8a" }}
-                      title="Editar empleado"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
+                  </div>
+
+                  {/* Fila principal */}
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.5fr 1fr 1fr 1.6fr",
+                    padding: "12px 16px",
+                    alignItems: "center",
+                  }}>
+                    {/* Sucursal */}
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>
+                      {u.branch}
+                    </div>
+
+                    {/* Estado */}
+                    <div style={{ display: "flex", justifyContent: "center" }}>
+                      <Badge tone={u.active ? "green" : "red"}>{u.active ? "Activo" : "Inactivo"}</Badge>
+                    </div>
+
+                    {/* Operaciones */}
+                    <div style={{ display: "flex", justifyContent: "center" }}>
+                      <button style={ui.linkBtn} className="active-tap" onClick={() => openOps(u.id)}>
+                        <Activity size={14} style={{ verticalAlign: "-2px" }} /> Ver
+                      </button>
+                    </div>
+
+                    {/* Botones de Acción */}
+                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+                      {/* Pencil/Editar */}
+                      <button
+                        onClick={() => openEdit(u)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#eff6ff",
+                          border: "1px solid #bfdbfe",
+                          borderRadius: 8,
+                          width: 34,
+                          height: 34,
+                          cursor: "pointer",
+                          color: "#1e3a8a",
+                          padding: 0,
+                        }}
+                        className="active-tap"
+                        title="Editar empleado"
+                      >
+                        <Pencil size={14} />
+                      </button>
+
+                      {/* Chevron */}
+                      <button
+                        onClick={() => toggleExpandEmployee(u.id)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#ffffff",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: 8,
+                          width: 34,
+                          height: 34,
+                          cursor: "pointer",
+                          color: "#64748b",
+                          padding: 0,
+                        }}
+                        className="active-tap"
+                      >
+                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Detalle expandido */}
+                  {isExpanded && (
+                    <div style={{
+                      padding: "16px",
+                      margin: "0 16px 16px 16px",
+                      backgroundColor: "#f8fafc",
+                      borderRadius: "8px",
+                      border: "1px solid #e2e8f0",
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                      gap: "16px",
+                      textAlign: "left",
+                    }}>
+                      {/* Información de Contacto */}
+                      <div>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Contacto y Registro</h4>
+                        <div style={empDetailRow}>
+                          <span style={empDetailLabel}>Correo:</span>
+                          <span style={empDetailValue}>{u.email}</span>
+                        </div>
+                        <div style={empDetailRow}>
+                          <span style={empDetailLabel}>Teléfono:</span>
+                          <span style={empDetailValue}>{u.phone || "—"}</span>
+                        </div>
+                        <div style={empDetailRow}>
+                          <span style={empDetailLabel}>F. Alta:</span>
+                          <span style={empDetailValue}>{fmtDate(u.createdAt)}</span>
+                        </div>
+                      </div>
+
+                      {/* Configuración Salarial */}
+                      <div>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Sueldo y Comisiones</h4>
+                        <div style={empDetailRow}>
+                          <span style={empDetailLabel}>Sueldo base:</span>
+                          <span style={empDetailValue}>
+                            {u.baseSalary != null ? money(u.baseSalary) : "—"}
+                          </span>
+                        </div>
+                        <div style={empDetailRow}>
+                          <span style={empDetailLabel}>Comisión:</span>
+                          <span style={empDetailValue}>
+                            {u.commissionRate != null ? `${u.commissionRate}%` : "—"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      ) : (
+        /* ── Desktop: Standard table ── */
+        <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
+          <table style={ui.table}>
+            <thead>
+              <tr style={ui.theadRow}>
+                <th style={ui.th}>Nombre</th>
+                <th style={ui.th}>Correo</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Rol</th>
+                <th style={ui.th}>Sucursal</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                <th style={ui.th}>Alta</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Operaciones</th>
+                <th style={{ ...ui.th, textAlign: "center" }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              <TableState colSpan={8} loading={loading} error={error} empty={!loading && rows.length === 0} />
+              {!loading &&
+                !error &&
+                rows.map((u) => (
+                  <tr key={u.id}>
+                    <td style={{ ...ui.td, fontWeight: 700, color: "#0f172a", whiteSpace: "normal" }}>{u.name}</td>
+                    <td style={{ ...ui.td, color: "#475569" }}>{u.email}</td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <Badge tone={roleTone(u.role)}>{u.role}</Badge>
+                    </td>
+                    <td style={ui.td}>{u.branch}</td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <Badge tone={u.active ? "green" : "red"}>{u.active ? "Activo" : "Inactivo"}</Badge>
+                    </td>
+                    <td style={{ ...ui.td, color: "#64748b" }}>{fmtDate(u.createdAt)}</td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <button style={ui.linkBtn} className="active-tap" onClick={() => openOps(u.id)}>
+                        <Activity size={14} style={{ verticalAlign: "-2px" }} /> Ver
+                      </button>
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <button
+                        onClick={() => openEdit(u)}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 4, color: "#1e3a8a" }}
+                        title="Editar empleado"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Modal alta / edición de empleado */}
       {showForm && (
@@ -556,7 +762,19 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       {/* Modal operaciones del vendedor */}
       {(ops || opsLoading) && (
         <div style={ui.overlay} onClick={() => setOps(null)}>
-          <div style={{ ...ui.modal, maxWidth: 600 }} onClick={(e) => e.stopPropagation()}>
+          <div
+            style={{
+              ...ui.modal,
+              maxWidth: isMobile ? "100%" : 600,
+              width: "100%",
+              height: isMobile ? "100%" : "auto",
+              maxHeight: isMobile ? "100%" : "85vh",
+              borderRadius: isMobile ? 0 : 12,
+              margin: 0,
+              overflowY: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div style={ui.modalHeader}>
               <span style={ui.modalTitle}>{opsLoading ? "Cargando operaciones..." : `Operaciones · ${ops?.employee.name}`}</span>
               <button style={ui.linkBtn} onClick={() => setOps(null)}>
@@ -565,7 +783,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </div>
             {ops && (
               <div style={ui.modalBody}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 18 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(3, 1fr)", gap: 10, marginBottom: 18 }}>
                   <Mini label="Ventas" value={String(ops.summary.salesCount)} />
                   <Mini label="Total vendido" value={money(ops.summary.salesTotal)} />
                   <Mini label="Canceladas" value={String(ops.summary.cancelledCount)} />
@@ -581,54 +799,122 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 </div>
 
                 <h4 style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a", marginBottom: 8 }}>Últimas ventas</h4>
-                <div style={{ ...ui.tableWrap, boxShadow: "none", marginBottom: 18 }}>
-                <table style={ui.table}>
-                  <thead>
-                    <tr style={ui.theadRow}>
-                      <th style={ui.th}>Folio</th>
-                      <th style={ui.th}>Fecha</th>
-                      <th style={{ ...ui.th, textAlign: "right" }}>Total</th>
-                      <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ops.recentSales.length === 0 && <TableState colSpan={4} empty emptyText="Sin ventas registradas." />}
-                    {ops.recentSales.map((s) => (
-                      <tr key={s.id}>
-                        <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.invoiceNumber}</td>
-                        <td style={ui.td}>{fmtDate(s.createdAt)} {fmtTime(s.createdAt)}</td>
-                        <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{money(s.totalAmount)}</td>
-                        <td style={{ ...ui.td, textAlign: "center" }}><Badge tone={statusTone(s.status)}>{s.status}</Badge></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                {isMobile ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18, overflowY: "auto", maxHeight: 220, paddingRight: 4 }}>
+                    {ops.recentSales.length === 0 ? (
+                      <p style={{ textAlign: "center", color: "#94a3b8", fontSize: 13, padding: 12 }}>Sin ventas registradas.</p>
+                    ) : (
+                      ops.recentSales.map((s) => (
+                        <div
+                          key={s.id}
+                          style={{
+                            backgroundColor: "#ffffff",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: 10,
+                            padding: "10px 14px",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 6,
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontWeight: 700, color: "#1e3a8a", fontSize: 13 }}>{s.invoiceNumber}</span>
+                            <Badge tone={statusTone(s.status)}>{s.status}</Badge>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#475569" }}>
+                            <span>{fmtDate(s.createdAt)} {fmtTime(s.createdAt)}</span>
+                            <span style={{ fontWeight: 700, color: "#0f172a" }}>{money(s.totalAmount)}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ ...ui.tableWrap, boxShadow: "none", marginBottom: 18, overflowY: "auto", maxHeight: 220 }}>
+                    <table style={ui.table}>
+                      <thead>
+                        <tr style={ui.theadRow}>
+                          <th style={ui.th}>Folio</th>
+                          <th style={ui.th}>Fecha</th>
+                          <th style={{ ...ui.th, textAlign: "right" }}>Total</th>
+                          <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ops.recentSales.length === 0 && <TableState colSpan={4} empty emptyText="Sin ventas registradas." />}
+                        {ops.recentSales.map((s) => (
+                          <tr key={s.id}>
+                            <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.invoiceNumber}</td>
+                            <td style={ui.td}>{fmtDate(s.createdAt)} {fmtTime(s.createdAt)}</td>
+                            <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{money(s.totalAmount)}</td>
+                            <td style={{ ...ui.td, textAlign: "center" }}><Badge tone={statusTone(s.status)}>{s.status}</Badge></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
                 <h4 style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a", marginBottom: 8 }}>Últimos turnos de caja</h4>
-                <table style={ui.table}>
-                  <thead>
-                    <tr style={ui.theadRow}>
-                      <th style={ui.th}>#</th>
-                      <th style={ui.th}>Apertura</th>
-                      <th style={{ ...ui.th, textAlign: "right" }}>Diferencia</th>
-                      <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ops.recentSessions.length === 0 && <TableState colSpan={4} empty emptyText="Sin turnos registrados." />}
-                    {ops.recentSessions.map((s) => (
-                      <tr key={s.id}>
-                        <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.id}</td>
-                        <td style={ui.td}>{fmtDate(s.openedAt)} {fmtTime(s.openedAt)}</td>
-                        <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: s.difference && s.difference < 0 ? "#b91c1c" : "#334155" }}>
-                          {s.difference !== null ? money(s.difference) : "—"}
-                        </td>
-                        <td style={{ ...ui.td, textAlign: "center" }}><Badge tone={statusTone(s.status)}>{s.status}</Badge></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                {isMobile ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, overflowY: "auto", maxHeight: 220, paddingRight: 4 }}>
+                    {ops.recentSessions.length === 0 ? (
+                      <p style={{ textAlign: "center", color: "#94a3b8", fontSize: 13, padding: 12 }}>Sin turnos registrados.</p>
+                    ) : (
+                      ops.recentSessions.map((s) => (
+                        <div
+                          key={s.id}
+                          style={{
+                            backgroundColor: "#ffffff",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: 10,
+                            padding: "10px 14px",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 6,
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontWeight: 700, color: "#1e3a8a", fontSize: 13 }}>Turno #{s.id}</span>
+                            <Badge tone={statusTone(s.status)}>{s.status}</Badge>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#475569" }}>
+                            <span>{fmtDate(s.openedAt)} {fmtTime(s.openedAt)}</span>
+                            <span style={{ fontWeight: 700, color: s.difference && s.difference < 0 ? "#b91c1c" : "#334155" }}>
+                              {s.difference !== null ? money(s.difference) : "—"}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ ...ui.tableWrap, boxShadow: "none", overflowY: "auto", maxHeight: 220 }}>
+                    <table style={ui.table}>
+                      <thead>
+                        <tr style={ui.theadRow}>
+                          <th style={ui.th}>#</th>
+                          <th style={ui.th}>Apertura</th>
+                          <th style={{ ...ui.th, textAlign: "right" }}>Diferencia</th>
+                          <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ops.recentSessions.length === 0 && <TableState colSpan={4} empty emptyText="Sin turnos registrados." />}
+                        {ops.recentSessions.map((s) => (
+                          <tr key={s.id}>
+                            <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.id}</td>
+                            <td style={ui.td}>{fmtDate(s.openedAt)} {fmtTime(s.openedAt)}</td>
+                            <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: s.difference && s.difference < 0 ? "#b91c1c" : "#334155" }}>
+                              {s.difference !== null ? money(s.difference) : "—"}
+                            </td>
+                            <td style={{ ...ui.td, textAlign: "center" }}><Badge tone={statusTone(s.status)}>{s.status}</Badge></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -645,6 +931,27 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: 600,
     marginTop: 5,
   },
+};
+
+const empDetailRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-start",
+  alignItems: "center",
+  gap: "8px",
+  fontSize: 13,
+  marginBottom: 6,
+};
+
+const empDetailLabel: React.CSSProperties = {
+  fontWeight: 700,
+  color: "#64748b",
+  minWidth: "95px",
+  display: "inline-block",
+};
+
+const empDetailValue: React.CSSProperties = {
+  fontWeight: 600,
+  color: "#334155",
 };
 
 const Mini: React.FC<{ label: string; value: string; accent?: "blue" | "green" }> = ({ label, value, accent }) => {
