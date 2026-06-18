@@ -22,6 +22,8 @@ import {
   Tags,
   RotateCcw,
   ShieldCheck,
+  KeyRound,
+  Lock,
   type LucideIcon,
 } from "lucide-react";
 
@@ -43,6 +45,8 @@ import DevolucionesView from "./admin/DevolucionesView";
 import FacturacionGlobalView from "./admin/FacturacionGlobalView";
 import HistorialFacturasView from "./admin/HistorialFacturasView";
 import ReportAuditLogView from "./admin/ReportAuditLogView";
+import CajaAccessLogView from "./admin/CajaAccessLogView";
+import AdminAccessLogView from "./admin/AdminAccessLogView";
 import type { ViewProps } from "./admin/shared";
 
 interface BranchOption {
@@ -84,6 +88,8 @@ const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<
   { key: "facturacion-global", label: "Factura Global", icon: BadgePercent, view: FacturacionGlobalView, branchScoped: true },
   { key: "historial-facturas", label: "Historial Facturas", icon: ClipboardList, view: HistorialFacturasView, branchScoped: false },
   { key: "auditoria-reportes", label: "Auditoría Reportes", icon: ShieldCheck, view: ReportAuditLogView, branchScoped: false, adminOnly: true },
+  { key: "caja-access", label: "Accesos de Caja", icon: KeyRound, view: CajaAccessLogView, branchScoped: false, adminOnly: true },
+  { key: "admin-access", label: "Accesos Admin", icon: Lock, view: AdminAccessLogView, branchScoped: false, adminOnly: true },
 ];
 
 const RESTRICTED_KEYS_GERENTE = [
@@ -95,6 +101,8 @@ const RESTRICTED_KEYS_GERENTE = [
   "facturacion-global",
   "historial-facturas",
   "auditoria-reportes",
+  "caja-access",
+  "admin-access",
 ];
 
 const NAV_SECTIONS: { label: string; items: string[] }[] = [
@@ -103,7 +111,8 @@ const NAV_SECTIONS: { label: string; items: string[] }[] = [
   { label: "Caja y finanzas", items: ["cajas", "depositos", "facturacion-global", "historial-facturas"] },
   { label: "Inventario", items: ["inventario"] },
   { label: "Catálogos", items: ["clientes", "empleados", "sucursales", "proveedores", "impuestos", "promociones"] },
-  { label: "Reportes", items: ["reportes", "auditoria-reportes"] },
+  { label: "Reportes", items: ["reportes"] },
+  { label: "Seguridad", items: ["auditoria-reportes", "caja-access", "admin-access"] },
 ];
 
 const AdminDashboard: React.FC = () => {
