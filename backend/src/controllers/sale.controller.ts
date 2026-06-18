@@ -58,6 +58,8 @@ const numberOrZero = (value: unknown): number => {
   return Number(value);
 };
 
+const normalizePhoneDigits = (value: string | null | undefined): string => (value || "").replace(/\D/g, "");
+
 const saleProcessingError = (error: any): { status: number; message: string; detail: string } => {
   const detail = error?.message || "Error desconocido.";
 
@@ -1635,33 +1637,33 @@ export const confirmQrPayment = async (req: Request, res: Response): Promise<voi
 };
 
 /**
- * Buscar clientes por nombre o teléfono (acceso para cajero)
+ * Vincular cliente por telefono completo (acceso para cajero).
+ * No expone nombres, correos ni listas de coincidencias en el flujo de caja.
  */
 export const searchCustomers = async (req: Request, res: Response): Promise<void> => {
   try {
     const query = typeof req.query.query === "string" ? req.query.query.trim() : "";
-    if (!query) {
+    const phoneDigits = normalizePhoneDigits(query);
+    if (!phoneDigits || phoneDigits.length < 10 || phoneDigits.length > 15) {
       res.status(200).json({ customers: [] });
       return;
     }
 
-    const customers = await prisma.customer.findMany({
+    const candidates = await prisma.customer.findMany({
       where: {
-        OR: [
-          { name: { contains: query } },
-          { phone: { contains: query } }
-        ]
+        phone: { contains: phoneDigits.slice(-4) }
       },
       orderBy: { name: "asc" },
-      take: 10,
+      take: 25,
       select: {
         id: true,
-        name: true,
         phone: true,
-        email: true,
         points: true,
       }
     });
+    const customers = candidates
+      .filter((customer) => normalizePhoneDigits(customer.phone) === phoneDigits)
+      .slice(0, 1);
 
     res.status(200).json({ customers });
   } catch (error: any) {
