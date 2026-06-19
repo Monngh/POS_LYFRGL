@@ -77,6 +77,8 @@ interface ProductTaxEntry {
 }
 
 const newLine = (): Line => ({ productId: "", quantity: "", unitCost: "" });
+const MAX_PURCHASE_QUANTITY = 100_000;
+const MAX_PURCHASE_UNIT_COST = 1_000_000;
 
 const statusTone = (s: string) =>
   s === "RECIBIDA" ? "green" : s === "CANCELADA" ? "red" : "amber";
@@ -207,10 +209,10 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
     );
     setLineErrors((prev) => {
       const next = { ...prev };
-      if (next[i]) {
-        next[i] = { ...next[i] };
-        delete next[i].productId;
-      }
+      const duplicate = productId && lines.some((line, index) => index !== i && line.productId === productId);
+      next[i] = { ...(next[i] || {}) };
+      if (duplicate) next[i].productId = "Este producto ya fue agregado en otro renglon.";
+      else delete next[i].productId;
       return next;
     });
     setFormError(null);
@@ -255,19 +257,24 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
   };
 
   const removeLine = (i: number) => {
-    setLines((ls) => (ls.length === 1 ? ls : ls.filter((_, idx) => idx !== i)));
-    setLineErrors({});
+    if (lines.length === 1) return;
+    setLines((ls) => ls.filter((_, idx) => idx !== i));
+    setLineErrors((prev) => {
+      const next: LineFieldErrors = {};
+      Object.entries(prev).forEach(([rawIndex, errors]) => {
+        const index = Number(rawIndex);
+        if (index < i) next[index] = errors;
+        if (index > i) next[index - 1] = errors;
+      });
+      return next;
+    });
     setExpandedLines((prev) => {
       const next = { ...prev };
       delete next[i];
       const updated: Record<number, boolean> = {};
       Object.keys(next).forEach((k) => {
         const idx = Number(k);
-        if (idx > i) {
-          updated[idx - 1] = next[idx];
-        } else {
-          updated[idx] = next[idx];
-        }
+        updated[idx > i ? idx - 1 : idx] = next[idx];
       });
       return updated;
     });
@@ -294,15 +301,16 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
   })();
 
   const submit = async () => {
+    if (saving) return;
     setFormError(null);
     setSuccess(null);
     const nextFieldErrors: TopFieldErrors = {};
     const nextLineErrors: LineFieldErrors = {};
-    if (!branchId) {
-      nextFieldErrors.branchId = "Seleccione la sucursal de destino.";
+    if (!branchId || !branches.some((branch) => String(branch.id) === branchId)) {
+      nextFieldErrors.branchId = "Seleccione una sucursal de destino valida.";
     }
-    if (!supplierId) {
-      nextFieldErrors.supplierId = "Seleccione el proveedor.";
+    if (!supplierId || !suppliers.some((supplier) => String(supplier.id) === supplierId)) {
+      nextFieldErrors.supplierId = "Seleccione un proveedor valido.";
     }
     const referenceError = validateReference(reference, "La referencia", { required: true, max: 80 });
     if (referenceError) {
@@ -312,24 +320,40 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
     if (notesError) {
       nextFieldErrors.notes = notesError;
     }
-    const selectedLines = lines.filter((l) => l.productId);
+    const selectedLines = lines
+      .map((line, originalIndex) => ({ line, originalIndex }))
+      .filter(({ line }) => line.productId);
     if (selectedLines.length === 0) {
       nextLineErrors[0] = { productId: "Agregue al menos un producto." };
     }
+    const productCounts = selectedLines.reduce<Record<string, number>>((counts, { line }) => {
+      counts[line.productId] = (counts[line.productId] || 0) + 1;
+      return counts;
+    }, {});
     const details: Array<{ productId: number; quantity: number; unitCost: number }> = [];
     const roundedValues: Array<DecimalFieldValue | null> = [];
-    for (const [index, line] of selectedLines.entries()) {
-      const originalIndex = lines.indexOf(line);
+    for (const [index, selectedLine] of selectedLines.entries()) {
+      const { line, originalIndex } = selectedLine;
       const rowErrors: Partial<Record<keyof Line, string>> = {};
+      if (!supplierProducts.some((product) => String(product.id) === line.productId)) {
+        rowErrors.productId = `El producto del renglon ${index + 1} no pertenece al catalogo del proveedor.`;
+      } else if (productCounts[line.productId] > 1) {
+        rowErrors.productId = "Este producto esta repetido en la orden de compra.";
+      }
       const quantity = Number(line.quantity);
-      const quantityError = validateInteger(line.quantity, `La cantidad del renglon ${index + 1}`, { min: 1 });
+      const quantityError = validateInteger(line.quantity, `La cantidad del renglon ${index + 1}`, {
+        min: 1,
+        max: MAX_PURCHASE_QUANTITY,
+      });
       if (quantityError || !Number.isInteger(quantity) || quantity <= 0) {
-        rowErrors.quantity = `La cantidad del renglon ${index + 1} debe ser un entero mayor a 0.`;
+        rowErrors.quantity = quantityError || `La cantidad del renglon ${index + 1} debe ser un entero mayor a 0.`;
       }
 
       const unitCostValidation = line.unitCost.trim()
         ? validateDecimalField(line.unitCost, `El costo unitario del renglon ${index + 1}`, {
             invalidMessage: `El costo unitario del renglon ${index + 1} debe ser un numero valido con maximo 3 decimales.`,
+            max: MAX_PURCHASE_UNIT_COST,
+            maxMessage: `El costo unitario del renglon ${index + 1} no puede exceder ${MAX_PURCHASE_UNIT_COST}.`,
           })
         : null;
       if (unitCostValidation && !unitCostValidation.ok) {
@@ -447,6 +471,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
               value={supplierId}
               onChange={(e) => {
                 setSupplierId(e.target.value);
+                setSupplierProducts([]);
                 setLines([newLine()]);
                 setLineErrors({});
                 setFieldErrors((prev) => ({ ...prev, supplierId: undefined }));
@@ -471,6 +496,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                 setFieldErrors((prev) => ({ ...prev, reference: validateReference(e.target.value, "La referencia", { required: true, max: 80 }) }));
               }}
               placeholder="Folio o nota"
+              maxLength={80}
             />
             {fieldErrors.reference && <p style={styles.fieldError}>{fieldErrors.reference}</p>}
           </div>
@@ -486,6 +512,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
               setFieldErrors((prev) => ({ ...prev, notes: validateReference(e.target.value, "Las notas", { required: false, max: 200 }) }));
             }}
             placeholder="Observaciones sobre la compra..."
+            maxLength={200}
           />
           {fieldErrors.notes && <p style={styles.fieldError}>{fieldErrors.notes}</p>}
         </div>
@@ -723,6 +750,8 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                         value={l.quantity}
                         onChange={(e) => setLine(i, "quantity", e.target.value)}
                         placeholder="0"
+                        inputMode="numeric"
+                        maxLength={6}
                       />
                       {lineErrors[i]?.quantity && <p style={styles.fieldError}>{lineErrors[i]?.quantity}</p>}
                     </td>
@@ -734,6 +763,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                         value={l.unitCost}
                         onChange={(e) => setDecimalLine(i, "unitCost", e.target.value)}
                         placeholder="0.00"
+                        maxLength={11}
                       />
                       {lineErrors[i]?.unitCost && <p style={styles.fieldError}>{lineErrors[i]?.unitCost}</p>}
                     </td>

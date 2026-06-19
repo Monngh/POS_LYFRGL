@@ -1,7 +1,12 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { X, Eye, Printer, Ban, ChevronDown, ChevronUp } from "lucide-react";
 import api from "../../services/api";
-import { normalizeIntegerInput, validateInteger, validateReference } from "../../utils/formValidation";
+import {
+  normalizeIntegerInput,
+  validateInteger,
+  validateReference,
+  validateSearchText,
+} from "../../utils/formValidation";
 import {
   ui,
   type ViewProps,
@@ -145,6 +150,13 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       : null;
 
   const load = useCallback(async () => {
+    const searchError = validateSearchText(search, "La busqueda", { max: 120 });
+    if (searchError) {
+      setRows([]);
+      setError(searchError);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -190,11 +202,11 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   };
 
   const handleCancelSale = async () => {
-    if (!detail) return;
+    if (!detail || cancelLoading) return;
     const fieldErrors: Partial<Record<"pin" | "reason", string>> = {};
     const pinError = validateInteger(pinInput, "El PIN", { min: 0 });
     if (pinError || pinInput.length !== 4) fieldErrors.pin = "El PIN debe contener 4 digitos.";
-    const reasonError = validateReference(cancelReason, "El motivo", { required: false, max: 180 });
+    const reasonError = validateReference(cancelReason, "El motivo", { required: true, max: 180 });
     if (reasonError) fieldErrors.reason = reasonError;
     if (Object.keys(fieldErrors).length > 0) {
       setCancelFieldErrors(fieldErrors);
@@ -208,7 +220,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       await api.post("/api/sales/authorize-cancel", {
         invoiceNumber: detail.invoiceNumber,
         pinCode: pinInput,
-        reason: cancelReason.trim() || undefined,
+        reason: cancelReason.trim(),
       });
       closePinModal();
       setDetail(null);
@@ -245,7 +257,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       <SectionHeader title="Ventas" subtitle="Historial de transacciones registradas en SQL Server" />
 
       <Toolbar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Buscar por folio (V-...)" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Buscar por folio (V-...)" maxLength={120} />
         <FilterSelect
           value={status}
           onChange={setStatus}
@@ -601,7 +613,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               </div>
 
               <div style={{ marginBottom: 16 }}>
-                <label style={ui.fieldLabel}>Motivo (opcional)</label>
+                <label style={ui.fieldLabel}>Motivo *</label>
                 <input
                   style={ui.input}
                   type="text"
@@ -612,9 +624,10 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     setCancelReason(value);
                     setCancelFieldErrors((prev) => ({
                       ...prev,
-                      reason: validateReference(value, "El motivo", { required: false, max: 180 }) || "",
+                      reason: validateReference(value, "El motivo", { required: true, max: 180 }) || "",
                     }));
                   }}
+                  maxLength={180}
                 />
                 {cancelFieldErrors.reason && <p style={ui.fieldError}>{cancelFieldErrors.reason}</p>}
               </div>

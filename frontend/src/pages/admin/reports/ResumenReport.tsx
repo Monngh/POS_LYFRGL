@@ -8,6 +8,7 @@ import {
   daysAgoInputValue,
   formatReportRangeLabel,
   getReportDateRange,
+  isReportPeriod,
   validateReportDateRange,
   type ReportPeriod,
 } from "./reportPeriods";
@@ -44,6 +45,12 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (!isReportPeriod(period)) {
+      setData(null);
+      setError("Selecciona un periodo valido.");
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -63,7 +70,7 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
     } finally {
       setLoading(false);
     }
-  }, [from, to, branchId]);
+  }, [from, to, branchId, period]);
 
   useEffect(() => {
     load();
@@ -87,7 +94,11 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
   const dateRangeError = validateReportDateRange(from, to);
 
   const handlePeriodChange = (value: string) => {
-    const nextPeriod = value as ReportPeriod;
+    if (!isReportPeriod(value)) {
+      setError("Selecciona un periodo valido.");
+      return;
+    }
+    const nextPeriod: ReportPeriod = value;
     setPeriod(nextPeriod);
 
     if (nextPeriod === CUSTOM_REPORT_PERIOD) return;
@@ -172,6 +183,7 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
             style={{ ...ui.filterSelect, height: 38, ...(dateRangeError ? { borderColor: "#fca5a5" } : {}) }}
             value={from}
             onChange={(e) => handleDateChange("from", e.target.value)}
+            max={to || undefined}
             aria-invalid={Boolean(dateRangeError)}
           />
         </div>
@@ -182,6 +194,7 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
             style={{ ...ui.filterSelect, height: 38, ...(dateRangeError ? { borderColor: "#fca5a5" } : {}) }}
             value={to}
             onChange={(e) => handleDateChange("to", e.target.value)}
+            min={from || undefined}
             aria-invalid={Boolean(dateRangeError)}
           />
         </div>

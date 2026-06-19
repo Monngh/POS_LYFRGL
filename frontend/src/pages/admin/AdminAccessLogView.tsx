@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from "react";
 import { ShieldAlert, Lock, ChevronDown, ChevronUp } from "lucide-react";
 import api from "../../services/api";
+import { validateDateRange, validateSearchText } from "../../utils/formValidation";
 import {
   ui,
   type ViewProps,
@@ -62,6 +63,8 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [userSearch, setUserSearch] = useState("");
+  const dateError = from && to ? validateDateRange(from, to) : undefined;
+  const userSearchError = validateSearchText(userSearch, "La busqueda de usuario", { max: 120 });
 
   const toggleExpand = (id: number) => {
     setExpandedLogs((prev) => ({
@@ -79,6 +82,13 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
 
   const load = useCallback(
     async (token: string, f: string, t: string) => {
+      const invalidRange = f && t ? validateDateRange(f, t) : undefined;
+      if (invalidRange) {
+        setRows([]);
+        setError(invalidRange);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setError(null);
       try {
@@ -103,7 +113,12 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
 
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (unlockLoading) return;
     if (!password.trim()) return;
+    if (password.length > 128) {
+      setUnlockError("La contrasena no puede exceder 128 caracteres.");
+      return;
+    }
     setUnlockLoading(true);
     setUnlockError(null);
     try {
@@ -138,13 +153,15 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
     if (auditToken) load(auditToken, "", "");
   };
 
-  const visible = userSearch.trim()
-    ? rows.filter(
-        (r) =>
-          r.user.name.toLowerCase().includes(userSearch.toLowerCase()) ||
-          r.user.email.toLowerCase().includes(userSearch.toLowerCase())
-      )
-    : rows;
+  const visible = userSearchError
+    ? []
+    : userSearch.trim()
+      ? rows.filter(
+          (r) =>
+            r.user.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+            r.user.email.toLowerCase().includes(userSearch.toLowerCase())
+        )
+      : rows;
 
   // ---- Pantalla de candado (antes de mostrar los registros) ----
   if (!unlocked) {
@@ -175,6 +192,7 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
                 }}
                 placeholder="Su contraseña actual"
                 style={lockStyles.input}
+                maxLength={128}
               />
               {unlockError && (
                 <div style={lockStyles.error}>
@@ -202,16 +220,31 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
 
       <Toolbar>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Desde:</label>
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} onBlur={applyFilters} style={inputStyle} />
-          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Hasta:</label>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} onBlur={applyFilters} style={inputStyle} />
+          <label style={{ fontSize: 12, fontWeight: 600, color: "#1e3a8a" }}>Desde:</label>
+          <input
+            type="date"
+            value={from}
+            max={to || undefined}
+            onChange={(e) => setFrom(e.target.value)}
+            onBlur={applyFilters}
+            style={{ ...inputStyle, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
+          />
+          <label style={{ fontSize: 12, fontWeight: 600, color: "#1e3a8a" }}>Hasta:</label>
+          <input
+            type="date"
+            value={to}
+            min={from || undefined}
+            onChange={(e) => setTo(e.target.value)}
+            onBlur={applyFilters}
+            style={{ ...inputStyle, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
+          />
           <input
             type="text"
             placeholder="Buscar usuario..."
             value={userSearch}
             onChange={(e) => setUserSearch(e.target.value)}
             style={{ ...inputStyle, minWidth: 160 }}
+            maxLength={120}
           />
           <button
             onClick={clearFilters}
@@ -228,6 +261,11 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
           >
             Limpiar filtros
           </button>
+          {(dateError || userSearchError) && (
+            <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 600 }}>
+              {dateError || userSearchError}
+            </span>
+          )}
         </div>
         <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
           {visible.length} registro{visible.length !== 1 ? "s" : ""}
