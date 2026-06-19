@@ -185,7 +185,7 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       <SectionHeader title="Dashboard" subtitle="Métricas en tiempo real desde SQL Server" />
 
       {/* Tarjetas de métricas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-mets-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((card) => {
           const Icon = card.icon;
           return (
@@ -205,7 +205,7 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       </div>
 
       {/* ── Fila 3: Operaciones del día ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" style={{ marginTop: 16 }}>
+      <div className="grid grid-mets-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4" style={{ marginTop: 16 }}>
         {/* Widget: Estado de cajas */}
         <div style={s.metricCard}>
           <div style={s.metricHead}>

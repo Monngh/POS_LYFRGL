@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { AlertTriangle, Printer, X, Plus, BadgePercent } from "lucide-react";
+import { AlertTriangle, Printer, X, Plus, BadgePercent, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -22,7 +22,9 @@ import {
   fmtDate,
   fmtTime,
   printHtml,
+  useMediaQuery,
 } from "./shared";
+
 
 interface ProductRow {
   id: number;
@@ -289,6 +291,16 @@ const formatTaxRate = (rate: number | string) => {
 
 const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const { user } = useAuth();
+  const isMobile = useMediaQuery("(max-width: 1024px)");
+  const [expandedProducts, setExpandedProducts] = useState<Record<number, boolean>>({});
+
+  const toggleExpandProduct = (id: number) => {
+    setExpandedProducts((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
   const [activeTab, setActiveTab] = useState<"existencias" | "kardex">("existencias");
   const [rows, setRows] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1067,55 +1079,66 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             )}
           </Toolbar>
 
-          <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-            <table style={ui.table}>
-              <thead>
-                <tr style={ui.theadRow}>
-                  <th style={ui.th}>SKU</th>
-                  <th style={ui.th}>Producto</th>
-                  <th style={{ ...ui.th, textAlign: "right" }}>Costo</th>
-                  <th style={{ ...ui.th, textAlign: "right" }}>Precio</th>
-                  <th style={{ ...ui.th, textAlign: "center" }}>Stock</th>
-                  <th style={{ ...ui.th, textAlign: "center" }}>Mínimo</th>
-                  <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                <TableState colSpan={7} loading={loading} error={error} empty={!loading && filteredRows.length === 0} />
-                {!loading &&
-                  !error &&
-                  filteredRows.map((p) => (
-                    <tr
+          {isMobile ? (
+            /* ── Mobile / Tablet: Card-based layout ── */
+            <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
+              {/* Header row mirroring the fields */}
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "3fr 1.3fr 1fr 1.5fr",
+                padding: "12px 16px",
+                fontWeight: 700,
+                fontSize: 11,
+                color: "#64748b",
+                textTransform: "uppercase",
+                letterSpacing: "0.4px",
+              }}>
+                <div>Producto</div>
+                <div>Precio</div>
+                <div style={{ textAlign: "center" }}>Stock</div>
+                <div style={{ textAlign: "right", paddingRight: 8 }}>Acción</div>
+              </div>
+
+              {loading && (
+                <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+                  Cargando información...
+                </div>
+              )}
+              {!loading && filteredRows.length === 0 && (
+                <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+                  No hay productos registrados.
+                </div>
+              )}
+
+              {!loading &&
+                filteredRows.map((p) => {
+                  const isExpanded = expandedProducts[p.id];
+                  return (
+                    <div
                       key={p.id}
-                      onClick={() => openProductDetail(p.id)}
-                      onMouseEnter={() => setHoveredRow(p.id)}
-                      onMouseLeave={() => setHoveredRow(null)}
                       style={{
-                        cursor: "pointer",
-                        backgroundColor:
-                          hoveredRow === p.id
-                            ? "#eff6ff"
-                            : p.low
-                              ? "#fffbeb"
-                              : undefined,
+                        backgroundColor: p.low ? "#fffbeb" : "#ffffff",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: 12,
+                        marginBottom: 10,
+                        boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                        overflow: "hidden",
                       }}
                     >
-                      <td style={{ ...ui.td, color: "#94a3b8", fontWeight: 600 }}>{p.sku}</td>
-                      <td style={{ ...ui.td, fontWeight: 600, color: "#0f172a", whiteSpace: "normal" }}>{p.name}</td>
-                      <td style={{ ...ui.td, textAlign: "right" }}>{money(p.costPrice)}</td>
-                      <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{money(p.sellPrice)}</td>
-                      <td
-                        style={{
-                          ...ui.td,
-                          textAlign: "center",
-                          fontWeight: 800,
-                          color: p.low ? "#b45309" : "#0f172a",
-                        }}
-                      >
-                        {p.stock}
-                      </td>
-                      <td style={{ ...ui.td, textAlign: "center", color: "#64748b" }}>{p.minStock}</td>
-                      <td style={{ ...ui.td, textAlign: "center" }}>
+                      {/* Header: SKU y Estado */}
+                      <div style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: "8px 16px 6px 16px",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "#64748b",
+                        borderBottom: "1px solid #f1f5f9",
+                        backgroundColor: "#f8fafc",
+                        letterSpacing: "0.2px",
+                      }}>
+                        <span>{p.sku}</span>
                         {!p.active ? (
                           <Badge tone="red">Inactivo</Badge>
                         ) : p.low ? (
@@ -1123,19 +1146,222 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         ) : (
                           <Badge tone="green">Disponible</Badge>
                         )}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+
+                      {/* Fila principal */}
+                      <div style={{
+                        display: "grid",
+                        gridTemplateColumns: "3fr 1.3fr 1fr 1.5fr",
+                        padding: "12px 16px",
+                        alignItems: "center",
+                      }}>
+                        {/* Producto */}
+                        <div style={{ fontSize: 13, color: "#0f172a", fontWeight: 600, paddingRight: 8, whiteSpace: "normal" }}>
+                          {p.name}
+                        </div>
+
+                        {/* Precio */}
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>
+                          {money(p.sellPrice)}
+                        </div>
+
+                        {/* Stock */}
+                        <div style={{
+                          fontSize: 13,
+                          fontWeight: 800,
+                          textAlign: "center",
+                          color: p.low ? "#b45309" : "#15803d",
+                        }}>
+                          {p.stock}
+                        </div>
+
+                        {/* Botones de Acción */}
+                        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+                          {/* Eye/Detalle */}
+                          <button
+                            onClick={() => openProductDetail(p.id)}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              backgroundColor: "#eff6ff",
+                              border: "1px solid #bfdbfe",
+                              borderRadius: 8,
+                              width: 34,
+                              height: 34,
+                              cursor: "pointer",
+                              color: "#2563eb",
+                              padding: 0,
+                            }}
+                            className="active-tap"
+                            title="Ver detalle"
+                          >
+                            <Eye size={16} />
+                          </button>
+
+                          {/* Chevron */}
+                          <button
+                            onClick={() => toggleExpandProduct(p.id)}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              backgroundColor: "#ffffff",
+                              border: "1px solid #cbd5e1",
+                              borderRadius: 8,
+                              width: 34,
+                              height: 34,
+                              cursor: "pointer",
+                              color: "#64748b",
+                              padding: 0,
+                            }}
+                            className="active-tap"
+                          >
+                            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Detalle expandido */}
+                      {isExpanded && (
+                        <div style={{
+                          padding: "16px",
+                          margin: "0 16px 16px 16px",
+                          backgroundColor: "#f8fafc",
+                          borderRadius: "8px",
+                          border: "1px solid #e2e8f0",
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                          gap: "16px",
+                        }}>
+                          {/* Información General */}
+                          <div>
+                            <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Información General</h4>
+                            <div style={invDetailRow}>
+                              <span style={invDetailLabel}>Código Barras:</span>
+                              <span style={invDetailValue}>{p.barcode || "—"}</span>
+                            </div>
+                            <div style={invDetailRow}>
+                              <span style={invDetailLabel}>Descripción:</span>
+                              <span style={invDetailValue}>{p.description || "—"}</span>
+                            </div>
+                          </div>
+
+                          {/* Valores Económicos */}
+                          <div>
+                            <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Valores Económicos</h4>
+                            <div style={invDetailRow}>
+                              <span style={invDetailLabel}>Costo:</span>
+                              <span style={invDetailValue}>{money(p.costPrice)}</span>
+                            </div>
+                            <div style={invDetailRow}>
+                              <span style={invDetailLabel}>Precio:</span>
+                              <span style={invDetailValue}>{money(p.sellPrice)}</span>
+                            </div>
+                            <div style={invDetailRow}>
+                              <span style={invDetailLabel}>Margen:</span>
+                              <span style={{ ...invDetailValue, color: "#15803d" }}>
+                                {p.sellPrice > 0
+                                  ? `${(((p.sellPrice - p.costPrice) / p.sellPrice) * 100).toFixed(1)}%`
+                                  : "—"}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Stock y Sucursales */}
+                          <div>
+                            <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Stock y Sucursales</h4>
+                            <div style={invDetailRow}>
+                              <span style={invDetailLabel}>Stock Actual:</span>
+                              <span style={{ ...invDetailValue, color: p.low ? "#b45309" : "#15803d" }}>{p.stock}</span>
+                            </div>
+                            <div style={invDetailRow}>
+                              <span style={invDetailLabel}>Stock Mínimo:</span>
+                              <span style={invDetailValue}>{p.minStock}</span>
+                            </div>
+                            <div style={invDetailRow}>
+                              <span style={invDetailLabel}>Sucursales:</span>
+                              <span style={invDetailValue}>{p.branchCount || "—"}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          ) : (
+            /* ── Desktop: Standard table ── */
+            <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
+              <table style={ui.table}>
+                <thead>
+                  <tr style={ui.theadRow}>
+                    <th style={ui.th}>SKU</th>
+                    <th style={ui.th}>Producto</th>
+                    <th style={{ ...ui.th, textAlign: "right" }}>Costo</th>
+                    <th style={{ ...ui.th, textAlign: "right" }}>Precio</th>
+                    <th style={{ ...ui.th, textAlign: "center" }}>Stock</th>
+                    <th style={{ ...ui.th, textAlign: "center" }}>Mínimo</th>
+                    <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <TableState colSpan={7} loading={loading} error={error} empty={!loading && filteredRows.length === 0} />
+                  {!loading &&
+                    !error &&
+                    filteredRows.map((p) => (
+                      <tr
+                        key={p.id}
+                        onClick={() => openProductDetail(p.id)}
+                        onMouseEnter={() => setHoveredRow(p.id)}
+                        onMouseLeave={() => setHoveredRow(null)}
+                        style={{
+                          cursor: "pointer",
+                          backgroundColor:
+                            hoveredRow === p.id
+                              ? "#eff6ff"
+                              : p.low
+                                ? "#fffbeb"
+                                : undefined,
+                        }}
+                      >
+                        <td style={{ ...ui.td, color: "#94a3b8", fontWeight: 600 }}>{p.sku}</td>
+                        <td style={{ ...ui.td, fontWeight: 600, color: "#0f172a", whiteSpace: "normal" }}>{p.name}</td>
+                        <td style={{ ...ui.td, textAlign: "right" }}>{money(p.costPrice)}</td>
+                        <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{money(p.sellPrice)}</td>
+                        <td
+                          style={{
+                            ...ui.td,
+                            textAlign: "center",
+                            fontWeight: 800,
+                            color: p.low ? "#b45309" : "#0f172a",
+                          }}
+                        >
+                          {p.stock}
+                        </td>
+                        <td style={{ ...ui.td, textAlign: "center", color: "#64748b" }}>{p.minStock}</td>
+                        <td style={{ ...ui.td, textAlign: "center" }}>
+                          {!p.active ? (
+                            <Badge tone="red">Inactivo</Badge>
+                          ) : p.low ? (
+                            <Badge tone="amber">Stock bajo</Badge>
+                          ) : (
+                            <Badge tone="green">Disponible</Badge>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       )}
 
       {/* =================== MODAL DETALLE =================== */}
       {detailOpen && (
         <div style={ui.overlay} onClick={closeDetail}>
-          <div style={{ ...ui.modal, maxWidth: 680 }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ ...ui.modal, maxWidth: isMobile ? "100%" : 680, ...(isMobile ? { width: "100%", height: "100%", borderRadius: 0, margin: 0 } : {}) }} onClick={(e) => e.stopPropagation()}>
             <div style={ui.modalHeader}>
               <div>
                 <div style={ui.modalTitle}>
@@ -1166,7 +1392,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   <div style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 16, marginBottom: 20 }}>
                     {!editMode ? (
                       <>
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 12 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 12, marginBottom: 12 }}>
                           {[
                             { label: "Costo", value: money(selectedProduct.costPrice) },
                             { label: "Precio venta", value: money(selectedProduct.sellPrice) },
@@ -1261,49 +1487,94 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#1e3a8a", marginBottom: 10 }}>
                       Stock por sucursal
                     </div>
-                    <div style={{ ...ui.tableWrap, boxShadow: "none" }}>
-                      <table style={ui.table}>
-                        <thead>
-                          <tr style={ui.theadRow}>
-                            <th style={ui.th}>Sucursal</th>
-                            <th style={{ ...ui.th, textAlign: "center" }}>Stock</th>
-                            <th style={{ ...ui.th, textAlign: "center" }}>Mín</th>
-                            <th style={{ ...ui.th, textAlign: "center" }}>Máx</th>
-                            <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedProduct.inventories.length === 0 && (
-                            <tr>
-                              <td colSpan={5} style={{ ...ui.td, textAlign: "center", color: "#94a3b8" }}>
-                                Sin inventario registrado
-                              </td>
+
+                    {isMobile ? (
+                      /* ── Mobile: card-based branch stock ── */
+                      <div style={{ maxHeight: 220, overflowY: "auto", paddingRight: 4 }}>
+                        {selectedProduct.inventories.length === 0 && (
+                          <div style={{ textAlign: "center", padding: "20px 16px", color: "#94a3b8", fontSize: 13 }}>
+                            Sin inventario registrado
+                          </div>
+                        )}
+                        {selectedProduct.inventories.map((inv) => (
+                          <div key={inv.id} style={{
+                            backgroundColor: inv.quantity <= inv.minStock ? "#fffbeb" : "#ffffff",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: 10,
+                            marginBottom: 8,
+                            padding: "12px 14px",
+                          }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>{inv.branch}</span>
+                              {inv.quantity <= inv.minStock ? (
+                                <Badge tone="amber">Stock bajo</Badge>
+                              ) : (
+                                <Badge tone="green">OK</Badge>
+                              )}
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                              <div style={{ textAlign: "center" }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.3px" }}>Stock</div>
+                                <div style={{ fontSize: 15, fontWeight: 800, color: inv.quantity <= inv.minStock ? "#b45309" : "#0f172a" }}>{inv.quantity}</div>
+                              </div>
+                              <div style={{ textAlign: "center" }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.3px" }}>Mín</div>
+                                <div style={{ fontSize: 15, fontWeight: 700, color: "#64748b" }}>{inv.minStock}</div>
+                              </div>
+                              <div style={{ textAlign: "center" }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.3px" }}>Máx</div>
+                                <div style={{ fontSize: 15, fontWeight: 700, color: "#64748b" }}>{inv.maxStock}</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      /* ── Desktop: standard table ── */
+                      <div style={{ ...ui.tableWrap, boxShadow: "none" }}>
+                        <table style={ui.table}>
+                          <thead>
+                            <tr style={ui.theadRow}>
+                              <th style={ui.th}>Sucursal</th>
+                              <th style={{ ...ui.th, textAlign: "center" }}>Stock</th>
+                              <th style={{ ...ui.th, textAlign: "center" }}>Mín</th>
+                              <th style={{ ...ui.th, textAlign: "center" }}>Máx</th>
+                              <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
                             </tr>
-                          )}
-                          {selectedProduct.inventories.map((inv) => (
-                            <tr key={inv.id}>
-                              <td style={ui.td}>{inv.branch}</td>
-                              <td style={{ ...ui.td, textAlign: "center", fontWeight: 800, color: inv.quantity <= inv.minStock ? "#b45309" : "#0f172a" }}>
-                                {inv.quantity}
-                              </td>
-                              <td style={{ ...ui.td, textAlign: "center", color: "#64748b" }}>{inv.minStock}</td>
-                              <td style={{ ...ui.td, textAlign: "center", color: "#64748b" }}>{inv.maxStock}</td>
-                              <td style={{ ...ui.td, textAlign: "center" }}>
-                                {inv.quantity <= inv.minStock ? (
-                                  <Badge tone="amber">Stock bajo</Badge>
-                                ) : (
-                                  <Badge tone="green">OK</Badge>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody>
+                            {selectedProduct.inventories.length === 0 && (
+                              <tr>
+                                <td colSpan={5} style={{ ...ui.td, textAlign: "center", color: "#94a3b8" }}>
+                                  Sin inventario registrado
+                                </td>
+                              </tr>
+                            )}
+                            {selectedProduct.inventories.map((inv) => (
+                              <tr key={inv.id}>
+                                <td style={ui.td}>{inv.branch}</td>
+                                <td style={{ ...ui.td, textAlign: "center", fontWeight: 800, color: inv.quantity <= inv.minStock ? "#b45309" : "#0f172a" }}>
+                                  {inv.quantity}
+                                </td>
+                                <td style={{ ...ui.td, textAlign: "center", color: "#64748b" }}>{inv.minStock}</td>
+                                <td style={{ ...ui.td, textAlign: "center", color: "#64748b" }}>{inv.maxStock}</td>
+                                <td style={{ ...ui.td, textAlign: "center" }}>
+                                  {inv.quantity <= inv.minStock ? (
+                                    <Badge tone="amber">Stock bajo</Badge>
+                                  ) : (
+                                    <Badge tone="green">OK</Badge>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
 
                     {/* Action buttons under stock table */}
                     {selectedProduct.inventories.length > 0 && (
-                      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: isMobile ? "wrap" : undefined }}>
                         <button
                           onClick={() => {
                             setAdjustError(null);
@@ -1321,6 +1592,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             borderColor: "#fcd34d",
                             backgroundColor: "#fffbeb",
                             opacity: (user?.role === "GERENTE" && !selectedProduct.inventories.some((inv) => inv.branchId === user.branch?.id)) ? 0.5 : 1,
+                            ...(isMobile ? { flex: 1, justifyContent: "center" } : {}),
                           }}
                         >
                           Ajustar stock
@@ -1413,59 +1685,137 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#1e3a8a", marginBottom: 10 }}>
                       Últimos 20 movimientos Kardex
                     </div>
-                    <div style={{ ...ui.tableWrap, boxShadow: "none" }}>
-                      <table style={ui.table}>
-                        <thead>
-                          <tr style={ui.theadRow}>
-                            <th style={ui.th}>Fecha</th>
-                            <th style={ui.th}>Sucursal</th>
-                            <th style={{ ...ui.th, textAlign: "center" }}>Tipo</th>
-                            <th style={{ ...ui.th, textAlign: "center" }}>Cambio</th>
-                            <th style={{ ...ui.th, textAlign: "center" }}>Saldo</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedProduct.recentKardex.length === 0 && (
-                            <tr>
-                              <td colSpan={5} style={{ ...ui.td, textAlign: "center", color: "#94a3b8" }}>
-                                Sin movimientos registrados
-                              </td>
+
+                    {isMobile ? (
+                      /* ── Mobile: card-based kardex ── */
+                      <div style={{ maxHeight: 320, overflowY: "auto", paddingRight: 4 }}>
+                        {selectedProduct.recentKardex.length === 0 && (
+                          <div style={{ textAlign: "center", padding: "20px 16px", color: "#94a3b8", fontSize: 13 }}>
+                            Sin movimientos registrados
+                          </div>
+                        )}
+                        {selectedProduct.recentKardex.map((k) => (
+                          <div key={k.id} style={{
+                            backgroundColor: "#ffffff",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: 10,
+                            marginBottom: 8,
+                            overflow: "hidden",
+                          }}>
+                            {/* Header: Fecha y Badge tipo */}
+                            <div style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              padding: "8px 14px 6px 14px",
+                              borderBottom: "1px solid #f1f5f9",
+                              backgroundColor: "#f8fafc",
+                            }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>
+                                {fmtDate(k.date)} <span style={{ color: "#94a3b8" }}>{fmtTime(k.date)}</span>
+                              </span>
+                              <Badge tone={k.quantityChange >= 0 ? "green" : "red"}>
+                                {k.movementType.replace(/_/g, " ")}
+                              </Badge>
+                            </div>
+                            {/* Body: Sucursal, Cambio, Saldo */}
+                            <div style={{ padding: "10px 14px", display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 8, alignItems: "center" }}>
+                              <div>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.3px" }}>Sucursal</div>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>{k.branch}</div>
+                              </div>
+                              <div style={{ textAlign: "center" }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.3px" }}>Cambio</div>
+                                <div style={{ fontSize: 15, fontWeight: 800, color: k.quantityChange >= 0 ? "#15803d" : "#b91c1c" }}>
+                                  {k.quantityChange >= 0 ? "+" : ""}{k.quantityChange}
+                                </div>
+                              </div>
+                              <div style={{ textAlign: "center" }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.3px" }}>Saldo</div>
+                                <div style={{ fontSize: 15, fontWeight: 700, color: "#0f172a" }}>{k.balanceAfter}</div>
+                              </div>
+                            </div>
+                            {/* Reason if present */}
+                            {k.reason && (
+                              <div style={{ padding: "0 14px 10px 14px", fontSize: 12, color: "#64748b" }}>
+                                <span style={{ fontWeight: 700, color: "#94a3b8" }}>Motivo:</span> {k.reason}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      /* ── Desktop: standard table ── */
+                      <div style={{ ...ui.tableWrap, boxShadow: "none" }}>
+                        <table style={ui.table}>
+                          <thead>
+                            <tr style={ui.theadRow}>
+                              <th style={ui.th}>Fecha</th>
+                              <th style={ui.th}>Sucursal</th>
+                              <th style={{ ...ui.th, textAlign: "center" }}>Tipo</th>
+                              <th style={{ ...ui.th, textAlign: "center" }}>Cambio</th>
+                              <th style={{ ...ui.th, textAlign: "center" }}>Saldo</th>
                             </tr>
-                          )}
-                          {selectedProduct.recentKardex.map((k) => (
-                            <tr key={k.id}>
-                              <td style={ui.td}>
-                                {fmtDate(k.date)}{" "}
-                                <span style={{ color: "#94a3b8" }}>{fmtTime(k.date)}</span>
-                              </td>
-                              <td style={ui.td}>{k.branch}</td>
-                              <td style={{ ...ui.td, textAlign: "center" }}>
-                                <Badge tone={k.quantityChange >= 0 ? "green" : "red"}>
-                                  {k.movementType.replace(/_/g, " ")}
-                                </Badge>
-                              </td>
-                              <td style={{ ...ui.td, textAlign: "center", fontWeight: 800, color: k.quantityChange >= 0 ? "#15803d" : "#b91c1c" }}>
-                                {k.quantityChange >= 0 ? "+" : ""}
-                                {k.quantityChange}
-                              </td>
-                              <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>
-                                {k.balanceAfter}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody>
+                            {selectedProduct.recentKardex.length === 0 && (
+                              <tr>
+                                <td colSpan={5} style={{ ...ui.td, textAlign: "center", color: "#94a3b8" }}>
+                                  Sin movimientos registrados
+                                </td>
+                              </tr>
+                            )}
+                            {selectedProduct.recentKardex.map((k) => (
+                              <tr key={k.id}>
+                                <td style={ui.td}>
+                                  {fmtDate(k.date)}{" "}
+                                  <span style={{ color: "#94a3b8" }}>{fmtTime(k.date)}</span>
+                                </td>
+                                <td style={ui.td}>{k.branch}</td>
+                                <td style={{ ...ui.td, textAlign: "center" }}>
+                                  <Badge tone={k.quantityChange >= 0 ? "green" : "red"}>
+                                    {k.movementType.replace(/_/g, " ")}
+                                  </Badge>
+                                </td>
+                                <td style={{ ...ui.td, textAlign: "center", fontWeight: 800, color: k.quantityChange >= 0 ? "#15803d" : "#b91c1c" }}>
+                                  {k.quantityChange >= 0 ? "+" : ""}
+                                  {k.quantityChange}
+                                </td>
+                                <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>
+                                  {k.balanceAfter}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
             </div>
 
             {/* Footer */}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid #e2e8f0", alignItems: "center" }}>
-              {selectedProduct && (
-                <>
-                  {user?.role !== "GERENTE" && (
+            <div style={{ borderTop: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
+              <div
+                style={
+                  isMobile
+                    ? {
+                        display: "grid",
+                        gridTemplateColumns: selectedProduct ? "1fr 1fr" : "1fr",
+                        gap: 8,
+                        padding: "12px 16px",
+                      }
+                    : {
+                        display: "flex",
+                        gap: 10,
+                        padding: "14px 22px",
+                        alignItems: "center",
+                      }
+                }
+              >
+                {selectedProduct && (
+                  <>
                     <button
                       onClick={() => handleToggleActive(selectedProduct)}
                       disabled={statusSaving}
@@ -1473,30 +1823,84 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         ...ui.ghostBtn,
                         color: selectedProduct.active ? "#b91c1c" : "#15803d",
                         borderColor: selectedProduct.active ? "#fca5a5" : "#86efac",
-                        marginRight: "auto"
+                        marginRight: "auto",
+                        whiteSpace: "nowrap",
+                        ...(isMobile
+                          ? {
+                              width: "100%",
+                              justifyContent: "center",
+                              fontSize: 12,
+                              padding: "8px 10px",
+                              order: 3,
+                            }
+                          : {}),
                       }}
                     >
                       {statusSaving ? "Procesando..." : selectedProduct.active ? "Desactivar" : "Activar"}
                     </button>
-                  )}
-                  {user?.role !== "GERENTE" && (
+                    {!isMobile && <span style={{ flex: 1 }} />}
+                    {user?.role !== "GERENTE" && (
                     <button
                       onClick={() => handleEdit(selectedProduct)}
                       style={{
                         ...ui.ghostBtn,
                         color: "#2563eb",
                         borderColor: "#93c5fd",
+                        whiteSpace: "nowrap",
+                        ...(isMobile
+                          ? {
+                              width: "100%",
+                              justifyContent: "center",
+                              fontSize: 12,
+                              padding: "8px 10px",
+                              order: 1,
+                            }
+                          : {}),
                       }}
                     >
                       Editar producto
                     </button>
                   )}
-                  <button onClick={printProduct} style={{ ...ui.primaryBtn, ...(user?.role === "GERENTE" ? { marginLeft: "auto" } : {}) }}>
-                    <Printer size={15} /> Imprimir ficha
-                  </button>
-                </>
-              )}
-              <button onClick={closeDetail} style={ui.ghostBtn}>Cerrar</button>
+                    <button
+                      onClick={printProduct}
+                      style={{
+                        ...ui.primaryBtn,
+                        ...(user?.role === "GERENTE" ? { marginLeft: "auto" } : {}),
+                        whiteSpace: "nowrap",
+                        ...(isMobile
+                          ? {
+                              width: "100%",
+                              justifyContent: "center",
+                              fontSize: 12,
+                              padding: "8px 10px",
+                              order: 2,
+                            }
+                          : {}),
+                      }}
+                    >
+                      <Printer size={15} /> Imprimir ficha
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={closeDetail}
+                  style={{
+                    ...ui.ghostBtn,
+                    whiteSpace: "nowrap",
+                    ...(isMobile
+                      ? {
+                          width: "100%",
+                          justifyContent: "center",
+                          fontSize: 12,
+                          padding: "8px 10px",
+                          order: 4,
+                        }
+                      : {}),
+                  }}
+                >
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2060,4 +2464,26 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
 };
 
+const invDetailRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-start",
+  alignItems: "center",
+  gap: "8px",
+  fontSize: 13,
+  marginBottom: 6,
+};
+
+const invDetailLabel: React.CSSProperties = {
+  fontWeight: 700,
+  color: "#64748b",
+  minWidth: "105px",
+  display: "inline-block",
+};
+
+const invDetailValue: React.CSSProperties = {
+  fontWeight: 600,
+  color: "#334155",
+};
+
 export default InventarioView;
+

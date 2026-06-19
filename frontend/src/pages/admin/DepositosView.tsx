@@ -3,6 +3,7 @@ import api from "../../services/api";
 import { useAdminData } from "../../hooks";
 import { DataTable, ActionModal } from "../../components/common";
 import type { Column } from "../../components/common";
+import { Calendar, ChevronDown, ChevronUp, CreditCard, Eye } from "lucide-react"
 import {
   type ViewProps,
   Toolbar,
@@ -14,6 +15,7 @@ import {
   payTone,
   FilterSelect,
   printTicketHtml,
+  useMediaQuery
 } from "./shared";
 
 interface DepositRow {
@@ -54,7 +56,38 @@ const renderComments = (raw: string | null | undefined) => {
   }
 };
 
+const detailRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-start",
+  alignItems: "center",
+  gap: "8px",
+  fontSize: 13,
+  marginBottom: 6,
+};
+
+const detailLabelStyle: React.CSSProperties = {
+  fontWeight: 700,
+  color: "#64748b",
+  minWidth: "85px",
+  display: "inline-block",
+};
+
+const detailValueStyle: React.CSSProperties = {
+  fontWeight: 600,
+  color: "#334155",
+};
+
 const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+  const isMobile = useMediaQuery("(max-width: 1024px)");
+  const [expandedDeposits, setExpandedDeposits] = useState<Record<number, boolean>>({});
+
+  const toggleExpand = (id: number) => {
+    setExpandedDeposits((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
   const [from, setFrom] = useState<string>("");
   const [to, setTo] = useState<string>("");
   const [account, setAccount] = useState<string>("");
@@ -314,16 +347,241 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         </span>
       </Toolbar>
 
-      <div className="table-sticky-head">
-        <DataTable
-          columns={columns}
-          data={rows}
-          loading={loading}
-          error={loadError || mutationError}
-          emptyMessage="No hay depósitos bancarios registrados."
-          keyExtractor={(d) => d.id}
-        />
-      </div>
+      {isMobile ? (
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 4px" }}>
+          {loading && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              Cargando información...
+            </div>
+          )}
+          {loadError && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
+              {loadError}
+            </div>
+          )}
+          {!loading && !loadError && rows.length === 0 && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              No hay depósitos bancarios registrados.
+            </div>
+          )}
+
+          {!loading &&
+            !loadError &&
+            rows.map((d) => {
+              const isExpanded = expandedDeposits[d.id];
+              return (
+                <div
+                  key={d.id}
+                  style={{
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #f1f5f9",
+                    borderRadius: 16,
+                    marginBottom: 12,
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* Encabezado: Sucursal y Tipo */}
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "10px 16px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "#64748b",
+                    borderBottom: "1px solid #f1f5f9",
+                    backgroundColor: "#f8fafc",
+                    letterSpacing: "0.2px"
+                  }}>
+                    <span>{d.branch.toUpperCase()}</span>
+                    <span>TIPO: {d.paymentType.toUpperCase()}</span>
+                  </div>
+
+                  {/* Cuerpo principal */}
+                  <div style={{ padding: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                      <div style={{ flex: 1 }}>
+                        {/* ID de Depósito y Monto */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                          <button
+                            onClick={() => openDetail(d)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "#2563eb",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              padding: 0,
+                              fontSize: 16,
+                              textAlign: "left",
+                            }}
+                            className="active-tap"
+                          >
+                            Depósito #{d.id}
+                          </button>
+                          <span style={{ fontSize: 16, fontWeight: 800, color: "#b91c1c" }}>
+                            -{money(d.amount)}
+                          </span>
+                        </div>
+
+                        {/* Beneficiario */}
+                        <div style={{ fontSize: 14, color: "#64748b", marginBottom: 8, fontWeight: 600 }}>
+                          {d.targetName}
+                        </div>
+
+                        {/* Fecha */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569", marginBottom: 6 }}>
+                          <Calendar size={14} color="#2563eb" />
+                          <span>{fmtDate(d.createdAt)} {fmtTime(d.createdAt)}</span>
+                        </div>
+
+                        {/* Cuenta Destino */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569" }}>
+                          <CreditCard size={14} color="#2563eb" />
+                          <span>Cuenta: <span style={{ fontFamily: "monospace" }}>{d.accountMasked}</span></span>
+                        </div>
+                      </div>
+
+                      {/* Chevron Button */}
+                      <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
+                        <button
+                          onClick={() => toggleExpand(d.id)}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: "#ffffff",
+                            border: "1px solid #cbd5e1",
+                            borderRadius: 8,
+                            width: 38,
+                            height: 38,
+                            cursor: "pointer",
+                            color: "#2563eb",
+                            padding: 0,
+                          }}
+                          className="active-tap"
+                        >
+                          {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Detalle expandible */}
+                    {isExpanded && (
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
+                        {/* Botón Ver Detalle */}
+                        <div style={{ marginBottom: 12 }}>
+                          <button
+                            onClick={() => openDetail(d)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "#2563eb",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              padding: 0,
+                              fontSize: 13,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                            className="active-tap"
+                          >
+                            <Eye size={15} /> Ver detalle completo
+                          </button>
+                        </div>
+
+                        {/* Contenedor de datos faltantes */}
+                        <div style={{
+                          backgroundColor: "#f8fafc",
+                          borderRadius: 12,
+                          border: "1px solid #e2e8f0",
+                          padding: 16,
+                        }}>
+                          {/* Datos del Depósito */}
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Datos del Depósito</h4>
+                          <div style={detailRowStyle}>
+                            <span style={detailLabelStyle}>Folio Dep:</span>
+                            <span style={detailValueStyle}>#{d.id}</span>
+                          </div>
+                          <div style={detailRowStyle}>
+                            <span style={detailLabelStyle}>Sesión:</span>
+                            <span style={detailValueStyle}>#{d.sessionId}</span>
+                          </div>
+                          <div style={detailRowStyle}>
+                            <span style={detailLabelStyle}>Cuenta Nro:</span>
+                            <span style={{ ...detailValueStyle, fontFamily: "monospace" }}>{d.accountNumber}</span>
+                          </div>
+
+                          {/* Estado y Confirmación */}
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginTop: 16, marginBottom: 10 }}>Estado y Confirmación</h4>
+                          <div style={detailRowStyle}>
+                            <span style={detailLabelStyle}>Estado:</span>
+                            <span style={detailValueStyle}>
+                              <Badge tone={d.status === "CONFIRMADO" || d.status === "COMPLETED" ? "green" : "red"}>{d.status}</Badge>
+                            </span>
+                          </div>
+
+                          <div style={{ ...detailRowStyle, marginTop: 8 }}>
+                            <span style={detailLabelStyle}>Confirmado:</span>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                              <input
+                                type="checkbox"
+                                checked={d.status === "COMPLETED" || d.status === "CONFIRMADO"}
+                                onChange={() => confirmDeposit(d.id)}
+                                disabled={
+                                  confirmingDepositId === d.id ||
+                                  d.status === "CANCELLED" ||
+                                  d.status === "CANCELADO" ||
+                                  d.status === "COMPLETED" ||
+                                  d.status === "CONFIRMADO"
+                                }
+                                style={{
+                                  cursor:
+                                    confirmingDepositId === d.id ||
+                                    d.status === "CANCELLED" ||
+                                    d.status === "CANCELADO" ||
+                                    d.status === "COMPLETED" ||
+                                    d.status === "CONFIRMADO"
+                                      ? "not-allowed"
+                                      : "pointer",
+                                  width: "18px",
+                                  height: "18px",
+                                }}
+                              />
+                              <span style={{ fontSize: 12, color: "#64748b" }}>
+                                {d.status === "COMPLETED" || d.status === "CONFIRMADO" ? "Confirmado" : "Pendiente de confirmar"}
+                              </span>
+                            </span>
+                          </div>
+
+                          {/* Comentarios si existen */}
+                          {d.comments && (
+                            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e2e8f0" }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 4 }}>Comentarios:</div>
+                              <div style={{ fontSize: 13, color: "#334155" }}>{renderComments(d.comments)}</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+      ) : (
+        <div className="table-sticky-head">
+          <DataTable
+            columns={columns}
+            data={rows}
+            loading={loading}
+            error={loadError || mutationError}
+            emptyMessage="No hay depósitos bancarios registrados."
+            keyExtractor={(d) => d.id}
+          />
+        </div>
+      )}
 
       <ActionModal
         isOpen={detailOpen && !!selectedDeposit}
