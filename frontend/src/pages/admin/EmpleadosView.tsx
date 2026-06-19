@@ -70,6 +70,7 @@ const emptyForm = {
   name: "",
   email: "",
   password: "",
+  confirmPassword: "",
   role: "CAJERO",
   branchId: "",
   pinCode: "",
@@ -150,11 +151,12 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     const emailError = validateEmail(candidate.email, { required: true });
     if (emailError) errors.email = emailError;
 
-    const phoneError = validatePhone(candidate.phone, { required: false, minDigits: 10, maxDigits: 15 });
+    const phoneError = candidate.phone ? validatePhone(candidate.phone, { required: false }) : undefined;
     if (phoneError) errors.phone = phoneError;
 
     if (editingId === null) {
       if (!candidate.password || candidate.password.length < 6) errors.password = "La contrasena debe tener al menos 6 caracteres.";
+      if (candidate.password !== candidate.confirmPassword) errors.confirmPassword = "Las contrasenas no coinciden.";
       if (!candidate.branchId) errors.branchId = "Seleccione una sucursal.";
       if (!["CAJERO", "GERENTE", "ADMIN"].includes(candidate.role)) errors.role = "Seleccione un rol valido.";
       if (candidate.role === "CAJERO") {
@@ -168,7 +170,9 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
     const baseSalaryValidation = candidate.baseSalary.trim()
       ? validateDecimalField(candidate.baseSalary, "El sueldo base", {
+          max: 100000,
           invalidMessage: "El sueldo base debe ser un numero valido con maximo 3 decimales.",
+          maxMessage: "El sueldo base no puede ser mayor a 100,000.",
         })
       : null;
     if (baseSalaryValidation && !baseSalaryValidation.ok) errors.baseSalary = baseSalaryValidation.error;
@@ -199,6 +203,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       name: u.name,
       email: u.email,
       password: "",
+      confirmPassword: "",
       role: u.role,
       branchId: "",
       pinCode: "",
@@ -224,6 +229,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
 
     const validation = validateEmployeeForm();
     if (Object.keys(validation).length > 0) {
@@ -234,7 +240,9 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
     const baseSalaryValidation = form.baseSalary.trim()
       ? validateDecimalField(form.baseSalary, "El sueldo base", {
+          max: 100000,
           invalidMessage: "El sueldo base debe ser un numero valido con maximo 3 decimales.",
+          maxMessage: "El sueldo base no puede ser mayor a 100,000.",
         })
       : null;
     if (baseSalaryValidation && !baseSalaryValidation.ok) {
@@ -703,17 +711,22 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       {fieldErrors.branchId && <p style={styles.fieldError}>{fieldErrors.branchId}</p>}
                     </div>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 6 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
                     <div>
                       <label style={ui.fieldLabel}>Contraseña *</label>
                       <input style={ui.input} type="password" value={form.password} onChange={set("password")} placeholder="Mínimo 6 caracteres" />
                       {fieldErrors.password && <p style={styles.fieldError}>{fieldErrors.password}</p>}
                     </div>
                     <div>
-                      <label style={ui.fieldLabel}>PIN {form.role === "CAJERO" ? "(4 dígitos) *" : "(opcional)"}</label>
-                      <input style={ui.input} value={form.pinCode} onChange={set("pinCode")} maxLength={4} placeholder="0000" />
-                      {fieldErrors.pinCode && <p style={styles.fieldError}>{fieldErrors.pinCode}</p>}
+                      <label style={ui.fieldLabel}>Confirmar Contraseña *</label>
+                      <input style={ui.input} type="password" value={form.confirmPassword} onChange={set("confirmPassword")} placeholder="Repite la contraseña" />
+                      {fieldErrors.confirmPassword && <p style={styles.fieldError}>{fieldErrors.confirmPassword}</p>}
                     </div>
+                  </div>
+                  <div style={{ marginBottom: 6 }}>
+                    <label style={ui.fieldLabel}>PIN {form.role === "CAJERO" ? "(4 dígitos) *" : "(opcional)"}</label>
+                    <input style={ui.input} value={form.pinCode} onChange={set("pinCode")} maxLength={4} placeholder="0000" />
+                    {fieldErrors.pinCode && <p style={styles.fieldError}>{fieldErrors.pinCode}</p>}
                   </div>
                   <p style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 8 }}>
                     Los cajeros acceden con correo + PIN; administradores y gerentes con correo + contraseña.

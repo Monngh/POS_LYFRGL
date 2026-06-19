@@ -121,6 +121,32 @@ const BARCODE_REGEX = /^[0-9]+$/;
 const SAT_PRODUCT_KEY_REGEX = /^[0-9]{8}$/;
 const SAT_UNIT_KEY_REGEX = /^[A-Za-z0-9]+$/;
 
+const VALID_SAT_PRODUCT_KEYS = [
+  "01010101",
+  "50192100",
+  "50202300",
+  "50181900",
+  "50161800",
+  "50131700",
+  "50201700",
+  "50221300",
+  "50111500",
+  "50151500",
+  "50401500",
+  "50411500",
+  "50202200",
+  "53131600",
+  "51101500"
+];
+
+const VALID_SAT_UNIT_KEYS = [
+  "H87",
+  "KGM",
+  "LTR",
+  "MTR",
+  "E48"
+];
+
 type ValidationSuccess<T> = {
   ok: true;
   value: T;
@@ -178,6 +204,9 @@ const validateProductForm = (form: typeof emptyForm, requireSku: boolean): Valid
   if (requireSku && !sku) {
     return { ok: false, error: "El SKU es obligatorio." };
   }
+  if (sku && sku.length > 50) {
+    return { ok: false, error: "El SKU no puede exceder los 50 caracteres." };
+  }
   if (sku && !SKU_REGEX.test(sku)) {
     return { ok: false, error: "El SKU solo puede contener letras, números, guion medio y guion bajo." };
   }
@@ -187,8 +216,14 @@ const validateProductForm = (form: typeof emptyForm, requireSku: boolean): Valid
   if (!PRODUCT_TEXT_REGEX.test(name)) {
     return { ok: false, error: "El nombre contiene caracteres no permitidos." };
   }
+  if (barcode && (barcode.length < 8 || barcode.length > 14)) {
+    return { ok: false, error: "El código de barras debe tener entre 8 y 14 caracteres." };
+  }
   if (barcode && !BARCODE_REGEX.test(barcode)) {
     return { ok: false, error: "El código de barras solo puede contener números." };
+  }
+  if (description && description.length > 100) {
+    return { ok: false, error: "La descripción no puede exceder los 100 caracteres." };
   }
   if (description && !PRODUCT_TEXT_REGEX.test(description)) {
     return { ok: false, error: "La descripción contiene caracteres no permitidos." };
@@ -196,8 +231,14 @@ const validateProductForm = (form: typeof emptyForm, requireSku: boolean): Valid
   if (!SAT_PRODUCT_KEY_REGEX.test(satProductKey)) {
     return { ok: false, error: "La clave SAT debe contener 8 números." };
   }
+  if (!VALID_SAT_PRODUCT_KEYS.includes(satProductKey)) {
+    return { ok: false, error: "La clave SAT no se encuentra en el catálogo permitido." };
+  }
   if (!SAT_UNIT_KEY_REGEX.test(satUnitKey)) {
     return { ok: false, error: "La clave de unidad SAT solo puede contener letras y números." };
+  }
+  if (!VALID_SAT_UNIT_KEYS.includes(satUnitKey)) {
+    return { ok: false, error: "La clave de unidad SAT no se encuentra en el catálogo permitido." };
   }
 
   const cost = validateMoneyField(form.costPrice, "costo");
@@ -218,6 +259,16 @@ const validateProductForm = (form: typeof emptyForm, requireSku: boolean): Valid
   const sellValue = getValidationValue(sell);
   if (!sellValue) {
     return { ok: false, error: "El precio debe ser un número válido." };
+  }
+
+  if (costValue.value > 1000000) {
+    return { ok: false, error: "El costo no puede ser mayor a $1,000,000.00." };
+  }
+  if (sellValue.value > 1000000) {
+    return { ok: false, error: "El precio no puede ser mayor a $1,000,000.00." };
+  }
+  if (sellValue.value < costValue.value) {
+    return { ok: false, error: "El precio de venta no puede ser menor al precio de costo." };
   }
 
   return {
@@ -246,23 +297,51 @@ const validateProductFormFields = (form: typeof emptyForm, requireSku: boolean):
   const satUnitKey = form.satUnitKey.trim() || "H87";
 
   if (requireSku && !sku) errors.sku = "El SKU es obligatorio.";
+  else if (sku && sku.length > 50) errors.sku = "El SKU no puede exceder los 50 caracteres.";
   else if (sku && !SKU_REGEX.test(sku)) errors.sku = "El SKU solo puede contener letras, numeros, guion medio y guion bajo.";
 
   if (!name) errors.name = "El nombre del producto es requerido.";
   else if (!PRODUCT_TEXT_REGEX.test(name)) errors.name = "El nombre contiene caracteres no permitidos.";
 
-  if (barcode && !BARCODE_REGEX.test(barcode)) errors.barcode = "El codigo de barras solo puede contener numeros.";
-  if (description && !PRODUCT_TEXT_REGEX.test(description)) errors.description = "La descripcion contiene caracteres no permitidos.";
+  if (barcode && (barcode.length < 8 || barcode.length > 14)) errors.barcode = "El codigo de barras debe tener entre 8 y 14 caracteres.";
+  else if (barcode && !BARCODE_REGEX.test(barcode)) errors.barcode = "El codigo de barras solo puede contener numeros.";
+  
+  if (description && description.length > 100) errors.description = "La descripción no puede exceder los 100 caracteres.";
+  else if (description && !PRODUCT_TEXT_REGEX.test(description)) errors.description = "La descripcion contiene caracteres no permitidos.";
+  
   if (!SAT_PRODUCT_KEY_REGEX.test(satProductKey)) errors.satProductKey = "La clave SAT debe contener 8 numeros.";
+  else if (!VALID_SAT_PRODUCT_KEYS.includes(satProductKey)) errors.satProductKey = "La clave SAT no se encuentra en el catálogo permitido.";
+
   if (!SAT_UNIT_KEY_REGEX.test(satUnitKey)) errors.satUnitKey = "La clave de unidad SAT solo puede contener letras y numeros.";
+  else if (!VALID_SAT_UNIT_KEYS.includes(satUnitKey)) errors.satUnitKey = "La clave de unidad SAT no se encuentra en el catálogo permitido.";
 
   const cost = validateMoneyField(form.costPrice, "costo");
   const costError = getValidationError(cost);
   if (costError) errors.costPrice = costError;
+  else {
+    const costValue = getValidationValue(cost);
+    if (costValue && costValue.value > 1000000) {
+      errors.costPrice = "El costo no puede ser mayor a $1,000,000.00.";
+    }
+  }
 
   const sell = validateMoneyField(form.sellPrice, "precio");
   const sellError = getValidationError(sell);
   if (sellError) errors.sellPrice = sellError;
+  else {
+    const sellValue = getValidationValue(sell);
+    if (sellValue && sellValue.value > 1000000) {
+      errors.sellPrice = "El precio no puede ser mayor a $1,000,000.00.";
+    }
+  }
+
+  if (!errors.costPrice && !errors.sellPrice) {
+    const costValue = getValidationValue(cost);
+    const sellValue = getValidationValue(sell);
+    if (costValue && sellValue && sellValue.value < costValue.value) {
+      errors.sellPrice = "El precio de venta no puede ser menor al precio de costo.";
+    }
+  }
 
   return errors;
 };
@@ -891,6 +970,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       ? `${adjustReason.trim()} - ${adjustObservations.trim()}`
       : adjustReason.trim();
 
+    if (cleanReason.length > 100) {
+      setAdjustError("El motivo y observaciones no pueden superar los 100 caracteres en total.");
+      return;
+    }
+
     if (!PRODUCT_TEXT_REGEX.test(cleanReason)) {
       setAdjustError("El motivo u observaciones contiene caracteres no permitidos.");
       return;
@@ -927,6 +1011,10 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setTransferError(null);
     if (!transferFrom || !transferTo || !transferQty) {
       setTransferError("Completa todos los campos.");
+      return;
+    }
+    if (transferFrom === transferTo) {
+      setTransferError("El origen y destino deben ser diferentes.");
       return;
     }
     const transferQuantityError = validateInteger(transferQty ? String(transferQty) : "", "La cantidad", { min: 1 });

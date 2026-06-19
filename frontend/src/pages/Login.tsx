@@ -78,8 +78,8 @@ const Login: React.FC = () => {
   const [loadingCashiers, setLoadingCashiers] = useState(false);
 
   // Formulario Admin
-  const [adminEmail, setAdminEmail] = useState("admin@fmb.com");
-  const [adminPassword, setAdminPassword] = useState("AdminPassword#2026");
+  const [adminEmail, setAdminEmail] = useState(import.meta.env.DEV ? "admin@fmb.com" : "");
+  const [adminPassword, setAdminPassword] = useState(import.meta.env.DEV ? "AdminPassword#2026" : "");
   const [adminFieldErrors, setAdminFieldErrors] = useState<FieldErrors<"email" | "password">>({});
 
   // Fallback OTP (se activa cuando WebAuthn falla)
@@ -163,10 +163,17 @@ const Login: React.FC = () => {
 
   const hasErrors = (errors: FieldErrors) => Object.values(errors).some(Boolean);
 
-  const validateAdminForm = () => ({
-    email: validateEmail(adminEmail, { required: true }),
-    password: normalizeSpaces(adminPassword) ? undefined : "La contrasena es obligatoria.",
-  });
+  const validateAdminForm = () => {
+    const emailErr = validateEmail(adminEmail, { required: true });
+    let passwordErr = normalizeSpaces(adminPassword) ? undefined : "La contrasena es obligatoria.";
+    if (!passwordErr && adminPassword.length > 16) {
+      passwordErr = "La contraseña no puede exceder los 16 caracteres.";
+    }
+    return {
+      email: emailErr,
+      password: passwordErr,
+    };
+  };
 
   const validateCashierForm = () => ({
     cashier:
@@ -176,13 +183,24 @@ const Login: React.FC = () => {
   });
 
   const setAdminField = (field: "email" | "password", value: string) => {
-    const next = field === "email" ? normalizeEmailInput(value) : value;
+    const next = field === "email" ? normalizeEmailInput(value) : value.slice(0, 16);
     if (field === "email") setAdminEmail(next);
     if (field === "password") setAdminPassword(next);
-    setAdminFieldErrors((prev) => ({
-      ...prev,
-      [field]: field === "email" ? validateEmail(next, { required: true }) : normalizeSpaces(next) ? undefined : "La contrasena es obligatoria.",
-    }));
+    setAdminFieldErrors((prev) => {
+      let error: string | undefined;
+      if (field === "email") {
+        error = validateEmail(next, { required: true });
+      } else {
+        error = normalizeSpaces(next) ? undefined : "La contrasena es obligatoria.";
+        if (!error && next.length > 16) {
+          error = "La contraseña no puede exceder los 16 caracteres.";
+        }
+      }
+      return {
+        ...prev,
+        [field]: error,
+      };
+    });
   };
 
   const setCashierSearchField = (value: string) => {
@@ -291,6 +309,7 @@ const Login: React.FC = () => {
 
   const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setError(null);
     setOtpRequested(false);
     setOtpCode("");
@@ -326,7 +345,7 @@ const Login: React.FC = () => {
   };
 
   const handleCashierSubmit = async () => {
-    if (isLocked) return;
+    if (loading || isLocked) return;
     const errors = validateCashierForm();
     setCashierFieldErrors(errors);
     if (hasErrors(errors)) return;
@@ -467,11 +486,18 @@ const Login: React.FC = () => {
             <input
               type="password"
               required
+              maxLength={16}
               className="input-corporate"
               placeholder="••••••••"
               value={adminPassword}
               onChange={(e) => setAdminField("password", e.target.value)}
-              onBlur={() => setAdminFieldErrors((prev) => ({ ...prev, password: normalizeSpaces(adminPassword) ? undefined : "La contrasena es obligatoria." }))}
+              onBlur={() => setAdminFieldErrors((prev) => {
+                let error = normalizeSpaces(adminPassword) ? undefined : "La contrasena es obligatoria.";
+                if (!error && adminPassword.length > 16) {
+                  error = "La contraseña no puede exceder los 16 caracteres.";
+                }
+                return { ...prev, password: error };
+              })}
               style={adminFieldErrors.password ? styles.inputInvalid : undefined}
             />
             {adminFieldErrors.password && <p style={styles.fieldError}>{adminFieldErrors.password}</p>}
