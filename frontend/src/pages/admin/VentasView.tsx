@@ -284,7 +284,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         {dateError && (
           <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 600 }}>{dateError}</span>
         )}
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b", fontWeight: 600 }}>
+        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
           {rows.length} registro{rows.length === 1 ? "" : "s"}
         </span>
       </Toolbar>
@@ -299,7 +299,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               padding: "12px 16px",
               fontWeight: 700,
               fontSize: 11,
-              color: "#64748b",
+              color: "var(--text-muted)",
               textTransform: "uppercase",
               letterSpacing: "0.4px"
             }}>
@@ -310,7 +310,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </div>
 
             {loading && (
-              <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
                 Cargando información...
               </div>
             )}
@@ -320,7 +320,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               </div>
             )}
             {!loading && !error && rows.length === 0 && (
-              <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
                 No hay registros para mostrar.
               </div>
             )}
@@ -335,8 +335,8 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   <div
                     key={s.id}
                     style={{
-                      backgroundColor: "#ffffff",
-                      border: "1px solid #e2e8f0",
+                      backgroundColor: "var(--surface)",
+                      border: "1px solid var(--border)",
                       borderRadius: 12,
                       marginBottom: 10,
                       boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
@@ -350,9 +350,9 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       padding: "8px 16px 6px 16px",
                       fontSize: 11,
                       fontWeight: 700,
-                      color: "#64748b",
-                      borderBottom: "1px solid #f1f5f9",
-                      backgroundColor: "#f8fafc",
+                      color: "var(--text-muted)",
+                      borderBottom: "1px solid var(--surface-3)",
+                      backgroundColor: "var(--surface-2)",
                       letterSpacing: "0.2px"
                     }}>
                       <span>{s.branch.toUpperCase()}</span>
@@ -387,13 +387,13 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       </div>
 
                       {/* Fecha */}
-                      <div style={{ fontSize: 13, color: "#334155" }}>
+                      <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
                         <div>{fmtDate(s.createdAt)}</div>
-                        <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{fmtTime(s.createdAt)}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2 }}>{fmtTime(s.createdAt)}</div>
                       </div>
 
                       {/* Precio */}
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
                         {money(s.totalAmount)}
                       </div>
 
@@ -405,13 +405,13 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             display: "inline-flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            backgroundColor: "#ffffff",
-                            border: "1px solid #cbd5e1",
+                            backgroundColor: "var(--surface)",
+                            border: "1px solid var(--border-strong)",
                             borderRadius: 8,
                             width: 34,
                             height: 34,
                             cursor: "pointer",
-                            color: "#64748b",
+                            color: "var(--text-muted)",
                             padding: 0,
                           }}
                           className="active-tap"
@@ -424,13 +424,13 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             display: "inline-flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            backgroundColor: "#ffffff",
-                            border: "1px solid #cbd5e1",
+                            backgroundColor: "var(--surface)",
+                            border: "1px solid var(--border-strong)",
                             borderRadius: 8,
                             width: 34,
                             height: 34,
                             cursor: "pointer",
-                            color: "#64748b",
+                            color: "var(--text-muted)",
                             padding: 0,
                           }}
                           className="active-tap"
@@ -445,16 +445,16 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       <div style={{
                         padding: "16px",
                         margin: "0 16px 16px 16px",
-                        backgroundColor: "#f8fafc",
+                        backgroundColor: "var(--surface-2)",
                         borderRadius: "8px",
-                        border: "1px solid #e2e8f0",
+                        border: "1px solid var(--border)",
                         display: "grid",
                         gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
                         gap: "16px",
                       }}>
                         {/* Datos de la Transacción */}
                         <div>
-                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Datos de la Transacción</h4>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Datos de la Transacción</h4>
                           <div style={detailRowStyle}>
                             <span style={detailLabelStyle}>Folio:</span>
                             <span style={detailValueStyle}>{s.invoiceNumber}</span>
@@ -471,7 +471,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                         {/* Detalle de Venta */}
                         <div>
-                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Detalle de Venta</h4>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Detalle de Venta</h4>
                           <div style={detailRowStyle}>
                             <span style={detailLabelStyle}>Cliente:</span>
                             <span style={detailValueStyle}>{s.customer}</span>
@@ -496,10 +496,10 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                         {/* Resumen de Pago */}
                         <div>
-                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Resumen de Pago</h4>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Resumen de Pago</h4>
                           <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 8 }}>
-                            <span style={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}>Total:</span>
-                            <span style={{ fontSize: 20, fontWeight: 800, color: "#1e3a8a" }}>{moneyExact(s.totalAmount)}</span>
+                            <span style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>Total:</span>
+                            <span style={{ fontSize: 20, fontWeight: 800, color: "var(--accent-strong)" }}>{moneyExact(s.totalAmount)}</span>
                           </div>
                         </div>
                       </div>
@@ -532,20 +532,20 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 !error &&
                 rows.map((s) => (
                   <tr key={s.id}>
-                    <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.invoiceNumber}</td>
+                    <td style={{ ...ui.td, fontWeight: 700, color: "var(--accent-strong)" }}>{s.invoiceNumber}</td>
                     <td style={ui.td}>
-                      {fmtDate(s.createdAt)} <span style={{ color: "#94a3b8" }}>{fmtTime(s.createdAt)}</span>
+                      {fmtDate(s.createdAt)} <span style={{ color: "var(--text-faint)" }}>{fmtTime(s.createdAt)}</span>
                     </td>
                     <td style={ui.td}>{s.branch}</td>
                     <td style={ui.td}>{s.cajero}</td>
-                    <td style={{ ...ui.td, color: s.customer === "Público General" ? "#94a3b8" : "#334155" }}>
+                    <td style={{ ...ui.td, color: s.customer === "Público General" ? "var(--text-faint)" : "var(--text-secondary)" }}>
                       {s.customer}
                     </td>
                     <td style={{ ...ui.td, textAlign: "center" }}>{s.items}</td>
                     <td style={ui.td}>
                       <Badge tone={payTone(s.paymentMethod)}>{s.paymentMethod}</Badge>
                     </td>
-                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 800, color: "#0f172a" }}>
+                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 800, color: "var(--text)" }}>
                       {money(s.totalAmount)}
                     </td>
                     <td style={{ ...ui.td, textAlign: "center" }}>
@@ -574,7 +574,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               </button>
             </div>
             <div style={ui.modalBody}>
-              <p style={{ fontSize: 13, color: "#334155", marginBottom: 16, lineHeight: 1.5 }}>
+              <p style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 16, lineHeight: 1.5 }}>
                 Venta <strong>{detail.invoiceNumber}</strong> — Esta acción es irreversible. Ingrese el PIN de
                 supervisor o gerente para confirmar.
               </p>
@@ -668,11 +668,11 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <div style={{
                       fontSize: 11,
                       fontWeight: 700,
-                      color: "#94a3b8",
+                      color: "var(--text-faint)",
                       textTransform: "uppercase",
                       letterSpacing: "0.5px",
                       padding: "0 0 10px 0",
-                      borderBottom: "1px solid #e2e8f0",
+                      borderBottom: "1px solid var(--border)",
                       marginBottom: 0,
                     }}>
                       DETALLE DE PRODUCTOS
@@ -682,23 +682,23 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         key={i}
                         style={{
                           padding: "14px 0",
-                          borderBottom: i < detail.items.length - 1 ? "1px solid #f1f5f9" : "none",
+                          borderBottom: i < detail.items.length - 1 ? "1px solid var(--surface-3)" : "none",
                         }}
                       >
                         {/* Row 1: Product name + Cantidad badge */}
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a", lineHeight: 1.3 }}>{it.name}</div>
-                            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2, fontWeight: 600 }}>{it.sku}</div>
+                            <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text)", lineHeight: 1.3 }}>{it.name}</div>
+                            <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2, fontWeight: 600 }}>{it.sku}</div>
                           </div>
                           <div style={{
-                            border: "1px solid #e2e8f0",
+                            border: "1px solid var(--border)",
                             borderRadius: 8,
                             padding: "4px 12px",
                             fontSize: 12,
                             fontWeight: 600,
-                            color: "#334155",
-                            backgroundColor: "#ffffff",
+                            color: "var(--text-secondary)",
+                            backgroundColor: "var(--surface)",
                             whiteSpace: "nowrap",
                             marginLeft: 12,
                           }}>
@@ -707,10 +707,10 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         </div>
                         {/* Row 2: Unitario + Importe */}
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontSize: 13, color: "#64748b", fontWeight: 500 }}>
+                          <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 500 }}>
                             Unitario: {moneyExact(it.unitPrice)}
                           </span>
-                          <span style={{ fontSize: 14, color: "#0f172a" }}>
+                          <span style={{ fontSize: 14, color: "var(--text)" }}>
                             Importe: <strong style={{ fontWeight: 800 }}>{moneyExact(it.importe)}</strong>
                           </span>
                         </div>
@@ -734,10 +734,10 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         <tr key={i}>
                           <td style={ui.td}>
                             <div style={{ fontWeight: 600 }}>{it.name}</div>
-                            <div style={{ fontSize: 11, color: "#94a3b8" }}>{it.sku}</div>
+                            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{it.sku}</div>
                           </td>
                           <td style={{ ...ui.td, textAlign: "center" }}>{it.quantity}</td>
-                          <td style={{ ...ui.td, textAlign: "right", color: "#64748b" }}>{moneyExact(it.unitPrice)}</td>
+                          <td style={{ ...ui.td, textAlign: "right", color: "var(--text-muted)" }}>{moneyExact(it.unitPrice)}</td>
                           <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{moneyExact(it.importe)}</td>
                         </tr>
                       ))}
@@ -750,7 +750,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   <Row label="Subtotal" value={moneyExact(detail.subtotal)} />
                   {detail.discountAmount > 0 && <Row label="Descuento" value={`- ${moneyExact(detail.discountAmount)}`} />}
                   <Row label="IVA (16%)" value={moneyExact(detail.taxAmount)} />
-                  <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 4, paddingTop: 8 }}>
+                  <div style={{ borderTop: "1px solid var(--border)", marginTop: 4, paddingTop: 8 }}>
                     <Row label="Total" value={moneyExact(detail.totalAmount)} strong />
                   </div>
                 </div>
@@ -783,35 +783,35 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 const inlineLabel: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: "#64748b",
+  color: "var(--text-muted)",
 };
 
 const dateInputStyle: React.CSSProperties = {
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--border)",
   borderRadius: 8,
   padding: "0 10px",
   height: 36,
   fontSize: 13,
-  color: "#334155",
+  color: "var(--text-secondary)",
   fontFamily: "inherit",
-  backgroundColor: "#ffffff",
+  backgroundColor: "var(--surface)",
   outline: "none",
   cursor: "pointer",
 };
 
 const Info: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <div>
-    <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.4px" }}>
+    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
       {label}
     </div>
-    <div style={{ fontSize: 13, fontWeight: 600, color: "#334155", marginTop: 3 }}>{value}</div>
+    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", marginTop: 3 }}>{value}</div>
   </div>
 );
 
 const Row: React.FC<{ label: string; value: string; strong?: boolean }> = ({ label, value, strong }) => (
   <div style={{ display: "flex", justifyContent: "space-between", fontSize: strong ? 16 : 13 }}>
-    <span style={{ color: strong ? "#0f172a" : "#64748b", fontWeight: strong ? 800 : 500 }}>{label}</span>
-    <span style={{ color: strong ? "#1e3a8a" : "#334155", fontWeight: strong ? 800 : 700 }}>{value}</span>
+    <span style={{ color: strong ? "var(--text)" : "var(--text-muted)", fontWeight: strong ? 800 : 500 }}>{label}</span>
+    <span style={{ color: strong ? "var(--accent-strong)" : "var(--text-secondary)", fontWeight: strong ? 800 : 700 }}>{value}</span>
   </div>
 );
 
@@ -826,14 +826,14 @@ const detailRowStyle: React.CSSProperties = {
 
 const detailLabelStyle: React.CSSProperties = {
   fontWeight: 700,
-  color: "#64748b",
+  color: "var(--text-muted)",
   minWidth: "85px",
   display: "inline-block",
 };
 
 const detailValueStyle: React.CSSProperties = {
   fontWeight: 600,
-  color: "#334155",
+  color: "var(--text-secondary)",
 };
 
 export default VentasView;
