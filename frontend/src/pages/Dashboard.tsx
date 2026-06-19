@@ -587,7 +587,6 @@ const Dashboard: React.FC = () => {
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerSearchError, setCustomerSearchError] = useState("");
   const [isPhoneVisible, setIsPhoneVisible] = useState(false);
-  const [isPhoneFocused, setIsPhoneFocused] = useState(false);
   const [customerLookupStatus, setCustomerLookupStatus] = useState<CustomerLookupStatus>("idle");
   const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
   const [newCustomerForm, setNewCustomerForm] = useState({ name: "", phone: "", email: "" });
@@ -2973,7 +2972,6 @@ const Dashboard: React.FC = () => {
                         setNewCustomerFieldErrors({});
                         setNewCustomerForm({ name: "", phone: getPhoneDigits(customerSearch), email: "" });
                         setIsPhoneVisible(false);
-                        setIsPhoneFocused(false);
                         setIsNewCustomerModalOpen(true);
                       }}
                     >
