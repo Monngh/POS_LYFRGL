@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { Plus, Trash2, CheckCircle2, Package, ChevronDown, ChevronUp, Calendar } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, Package, ChevronDown, ChevronUp, Calendar, X } from "lucide-react";
 import api from "../../services/api";
 import {
   collectRoundedDecimalMessages,
@@ -29,16 +29,19 @@ interface BranchOption {
   id: number;
   name: string;
 }
+
 interface ProductOption {
   id: number;
   sku: string;
   name: string;
   costPrice: number;
 }
+
 interface SupplierOption {
   id: number;
   name: string;
 }
+
 interface PurchaseRow {
   id: number;
   reference: string;
@@ -97,7 +100,6 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [supplierProducts, setSupplierProducts] = useState<ProductOption[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
 
-  // Formulario nueva orden
   const [branchId, setBranchId] = useState("");
   const [supplierId, setSupplierId] = useState("");
   const [reference, setReference] = useState("");
@@ -106,14 +108,12 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [fieldErrors, setFieldErrors] = useState<TopFieldErrors>({});
   const [lineErrors, setLineErrors] = useState<LineFieldErrors>({});
   const [expandedLines, setExpandedLines] = useState<Record<number, boolean>>({ 0: true });
-  // Caché de impuestos por productId (se carga al seleccionar)
   const [productTaxes, setProductTaxes] = useState<Record<string, ProductTaxEntry[]>>({});
 
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Historial de órdenes
   const [purchases, setPurchases] = useState<PurchaseRow[]>([]);
   const [purchasesLoading, setPurchasesLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState("all");
@@ -125,15 +125,15 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
     api
       .get<{ branches: BranchOption[] }>("/api/auth/branches")
       .then((r) => setBranches(r.data.branches))
-      .catch(() => {});
+      .catch(() => { });
     api
       .get<{ products: ProductOption[] }>("/api/admin/inventory")
       .then((r) => setProducts(r.data.products))
-      .catch(() => {});
+      .catch(() => { });
     api
       .get<SupplierOption[]>("/api/admin/suppliers")
       .then((r) => setSuppliers(r.data))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const loadPurchases = useCallback(async () => {
@@ -329,8 +329,8 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
 
       const unitCostValidation = line.unitCost.trim()
         ? validateDecimalField(line.unitCost, `El costo unitario del renglon ${index + 1}`, {
-            invalidMessage: `El costo unitario del renglon ${index + 1} debe ser un numero valido con maximo 3 decimales.`,
-          })
+          invalidMessage: `El costo unitario del renglon ${index + 1} debe ser un numero valido con maximo 3 decimales.`,
+        })
         : null;
       if (unitCostValidation && !unitCostValidation.ok) {
         rowErrors.unitCost = unitCostValidation.error;
@@ -409,6 +409,10 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
     return true;
   });
 
+  const selectedSupplierName = filterSupplierId !== "all"
+    ? suppliers.find(s => String(s.id) === filterSupplierId)?.name
+    : "Todos los proveedores";
+
   return (
     <div>
       <SectionHeader
@@ -468,7 +472,10 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
               value={reference}
               onChange={(e) => {
                 setReference(e.target.value);
-                setFieldErrors((prev) => ({ ...prev, reference: validateReference(e.target.value, "La referencia", { required: true, max: 80 }) }));
+                setFieldErrors((prev) => ({
+                  ...prev,
+                  reference: validateReference(e.target.value, "La referencia", { required: true, max: 80 })
+                }));
               }}
               placeholder="Folio o nota"
             />
@@ -483,7 +490,10 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
             value={notes}
             onChange={(e) => {
               setNotes(e.target.value);
-              setFieldErrors((prev) => ({ ...prev, notes: validateReference(e.target.value, "Las notas", { required: false, max: 200 }) }));
+              setFieldErrors((prev) => ({
+                ...prev,
+                notes: validateReference(e.target.value, "Las notas", { required: false, max: 200 })
+              }));
             }}
             placeholder="Observaciones sobre la compra..."
           />
@@ -491,88 +501,263 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
         </div>
 
         {isMobile ? (
-          <div
-            style={{
-              maxHeight: "380px",
-              overflowY: "auto",
-              paddingRight: 4,
-              marginBottom: 16,
-              border: "1px solid #e2e8f0",
-              borderRadius: "12px",
-              padding: "8px",
-              backgroundColor: "#f8fafc",
-            }}
-          >
-            {lines.map((l, i) => {
-              const pool = supplierId && supplierProducts.length > 0 ? supplierProducts : products;
-              const prod = pool.find((p) => String(p.id) === l.productId);
-              const isExpanded = expandedLines[i] !== false;
-              const hasTaxes = l.productId && productTaxes[l.productId] !== undefined;
+          <>
+            <div
+              style={{
+                maxHeight: "380px",
+                overflowY: "auto",
+                paddingRight: 4,
+                marginBottom: 16,
+                border: "1px solid #e2e8f0",
+                borderRadius: "12px",
+                padding: "8px",
+                backgroundColor: "#f8fafc",
+              }}
+            >
+              {lines.map((l, i) => {
+                const pool = supplierId && supplierProducts.length > 0 ? supplierProducts : products;
+                const prod = pool.find((p) => String(p.id) === l.productId);
+                const isExpanded = expandedLines[i] !== false;
+                const hasTaxes = l.productId && productTaxes[l.productId] !== undefined;
 
-              const toggleLineExpand = (idx: number) => {
-                setExpandedLines((prev) => ({
-                  ...prev,
-                  [idx]: prev[idx] === false ? true : false,
-                }));
-              };
+                const toggleLineExpand = (idx: number) => {
+                  setExpandedLines((prev) => ({
+                    ...prev,
+                    [idx]: prev[idx] === false ? true : false,
+                  }));
+                };
 
-              return (
-                <div
-                  key={i}
-                  style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: 12,
-                    padding: 16,
-                    marginBottom: 12,
-                    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 12,
-                  }}
-                >
-                  {/* Header of the card */}
+                return (
                   <div
+                    key={i}
                     style={{
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 12,
+                      padding: 12,
+                      marginBottom: 10,
+                      boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
                       display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                      cursor: "pointer",
+                      flexDirection: "column",
+                      gap: 10,
                     }}
-                    onClick={() => toggleLineExpand(i)}
                   >
-                    <div style={{ flex: 1, paddingRight: 8 }}>
-                      {prod ? (
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>
-                          {prod.name} ({prod.sku})
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "#64748b" }}>
-                          Seleccione producto...
-                        </div>
-                      )}
-                      {hasTaxes && (
-                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
-                          {productTaxes[l.productId].length > 0
-                            ? productTaxes[l.productId].map((t) => {
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        cursor: "pointer",
+                      }}
+                      onClick={() => toggleLineExpand(i)}
+                    >
+                      <div style={{ flex: 1, paddingRight: 8 }}>
+                        {prod ? (
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>
+                            {prod.name} ({prod.sku})
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b" }}>
+                            Seleccione producto...
+                          </div>
+                        )}
+                        {hasTaxes && (
+                          <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 3 }}>
+                            {productTaxes[l.productId].length > 0
+                              ? productTaxes[l.productId].map((t) => {
                                 const pct = `${(t.rate * 100).toFixed(0)}%`;
                                 return t.name.includes(pct) ? t.name : `${t.name} ${pct}`;
                               }).join(" · ")
-                            : "Sin impuestos"}
-                        </div>
-                      )}
+                              : "Sin impuestos"}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", color: "#64748b" }}>
+                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                      </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", color: "#64748b" }}>
-                      {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                    </div>
-                  </div>
 
-                  {/* Card Body */}
-                  {isExpanded && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12, borderTop: "1px solid #f1f5f9", paddingTop: 12 }}>
-                      {/* Product Selector in expanded body */}
-                      <div>
-                        <label style={ui.fieldLabel}>Producto *</label>
+                    {isExpanded && (
+                      <div style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 10,
+                        borderTop: "1px solid #f1f5f9",
+                        paddingTop: 10
+                      }}>
+                        <div>
+                          <label style={{ ...ui.fieldLabel, fontSize: 12 }}>Producto *</label>
+                          <select
+                            style={{ ...ui.input, padding: "6px 8px", fontSize: 13 }}
+                            value={l.productId}
+                            onChange={(e) => onPickProduct(i, e.target.value)}
+                            disabled={!supplierId || loadingProducts}
+                          >
+                            <option value="">
+                              {loadingProducts
+                                ? "Cargando productos..."
+                                : supplierId && supplierProducts.length === 0
+                                  ? "Sin productos asignados"
+                                  : "Seleccione producto..."}
+                            </option>
+                            {(supplierId ? supplierProducts : products).map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} ({p.sku}) — ${p.costPrice}
+                              </option>
+                            ))}
+                          </select>
+                          {lineErrors[i]?.productId && <p style={styles.fieldError}>{lineErrors[i]?.productId}</p>}
+                        </div>
+
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: 13, fontWeight: 500, color: "#334155" }}>Cantidad</span>
+                          <div style={{ width: 100 }}>
+                            <input
+                              style={{ ...ui.input, padding: "6px 8px", textAlign: "center", fontSize: 13 }}
+                              value={l.quantity}
+                              onChange={(e) => setLine(i, "quantity", e.target.value)}
+                              placeholder="0"
+                            />
+                            {lineErrors[i]?.quantity && (
+                              <p style={{ ...styles.fieldError, fontSize: 11, textAlign: "right" }}>
+                                {lineErrors[i]?.quantity}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: 13, fontWeight: 500, color: "#334155" }}>Costo unitario</span>
+                          <div style={{ width: 100 }}>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              style={{ ...ui.input, padding: "6px 8px", textAlign: "center", fontSize: 13 }}
+                              value={l.unitCost}
+                              onChange={(e) => setDecimalLine(i, "unitCost", e.target.value)}
+                              placeholder="0.00"
+                            />
+                            {lineErrors[i]?.unitCost && (
+                              <p style={{ ...styles.fieldError, fontSize: 11, textAlign: "right" }}>
+                                {lineErrors[i]?.unitCost}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            backgroundColor: "#f0f5fa",
+                            borderRadius: "8px",
+                            padding: "8px 12px",
+                            marginTop: 2,
+                          }}
+                        >
+                          <span style={{ fontSize: 13, fontWeight: 500, color: "#334155" }}>Importe</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>
+                              {money((Number(l.quantity) || 0) * (Number(l.unitCost) || 0))}
+                            </span>
+                            <button
+                              onClick={() => removeLine(i)}
+                              style={{
+                                backgroundColor: "#ffffff",
+                                border: "1px solid #cbd5e1",
+                                borderRadius: "6px",
+                                width: 32,
+                                height: 32,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                cursor: "pointer",
+                                color: "#dc2626",
+                                padding: 0,
+                              }}
+                              className="active-tap"
+                              title="Quitar renglón"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 14,
+              borderTop: "1px solid #e2e8f0",
+              paddingTop: 12
+            }}>
+              <button
+                style={{
+                  ...ui.ghostBtn,
+                  fontSize: 14,
+                  padding: "10px 16px",
+                  fontWeight: 700,
+                  backgroundColor: "#f1f5f9",
+                  borderRadius: "10px",
+                  border: "1px dashed #94a3b8",
+                  color: "#2563eb"
+                }}
+                className="active-tap"
+                onClick={addLine}
+              >
+                <Plus size={18} /> Agregar producto
+              </button>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                  Subtotal: <strong style={{ color: "var(--text)" }}>{money(computedTotals.subtotal)}</strong>
+                </div>
+                {computedTotals.taxEntries.map((t) => (
+                  <div key={t.name} style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                    {t.name}: <span>{money(t.amount)}</span>
+                  </div>
+                ))}
+                {computedTotals.taxEntries.length === 0 && computedTotals.subtotal > 0 && (
+                  <div style={{ fontSize: 11, color: "var(--text-faint)", fontStyle: "italic" }}>
+                    Sin impuestos asignados
+                  </div>
+                )}
+                <div style={{
+                  fontSize: 14,
+                  fontWeight: 800,
+                  color: "var(--accent-strong)",
+                  borderTop: "1px solid var(--border)",
+                  paddingTop: 3,
+                  marginTop: 2
+                }}>
+                  Total: {money(computedTotals.total)}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ ...ui.tableWrap, boxShadow: "none" }}>
+              <table style={ui.table}>
+                <thead>
+                  <tr style={ui.theadRow}>
+                    <th style={ui.th}>Producto</th>
+                    <th style={{ ...ui.th, width: 120, textAlign: "center" }}>Cantidad</th>
+                    <th style={{ ...ui.th, width: 150, textAlign: "center" }}>Costo unitario</th>
+                    <th style={{ ...ui.th, width: 130, textAlign: "right" }}>Importe</th>
+                    <th style={{ ...ui.th, width: 50 }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lines.map((l, i) => (
+                    <tr key={i}>
+                      <td style={ui.td}>
                         <select
                           style={{ ...ui.input, padding: "8px 10px" }}
                           value={l.productId}
@@ -583,8 +768,8 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                             {loadingProducts
                               ? "Cargando productos..."
                               : supplierId && supplierProducts.length === 0
-                              ? "Sin productos asignados a este proveedor"
-                              : "Seleccione producto..."}
+                                ? "Sin productos asignados a este proveedor"
+                                : "Seleccione producto..."}
                           </option>
                           {(supplierId ? supplierProducts : products).map((p) => (
                             <option key={p.id} value={p.id}>
@@ -592,200 +777,95 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                             </option>
                           ))}
                         </select>
-                        {lineErrors[i]?.productId && <p style={styles.fieldError}>{lineErrors[i]?.productId}</p>}
-                      </div>
-
-                      {/* Cantidad Input */}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: 14, fontWeight: 500, color: "#334155" }}>Cantidad</span>
-                        <div style={{ width: 120 }}>
-                          <input
-                            style={{ ...ui.input, padding: "8px 10px", textAlign: "center" }}
-                            value={l.quantity}
-                            onChange={(e) => setLine(i, "quantity", e.target.value)}
-                            placeholder="0"
-                          />
-                          {lineErrors[i]?.quantity && <p style={{ ...styles.fieldError, textAlign: "right" }}>{lineErrors[i]?.quantity}</p>}
-                        </div>
-                      </div>
-
-                      {/* Costo unitario Input */}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: 14, fontWeight: 500, color: "#334155" }}>Costo unitario</span>
-                        <div style={{ width: 120 }}>
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            style={{ ...ui.input, padding: "8px 10px", textAlign: "center" }}
-                            value={l.unitCost}
-                            onChange={(e) => setDecimalLine(i, "unitCost", e.target.value)}
-                            placeholder="0.00"
-                          />
-                          {lineErrors[i]?.unitCost && <p style={{ ...styles.fieldError, textAlign: "right" }}>{lineErrors[i]?.unitCost}</p>}
-                        </div>
-                      </div>
-
-                      {/* Importe row and Trash button inside highlight box */}
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          backgroundColor: "#f0f5fa",
-                          borderRadius: "8px",
-                          padding: "10px 12px",
-                          marginTop: 4,
-                        }}
-                      >
-                        <span style={{ fontSize: 14, fontWeight: 500, color: "#334155" }}>Importe</span>
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                          <span style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>
-                            {money((Number(l.quantity) || 0) * (Number(l.unitCost) || 0))}
-                          </span>
-                          <button
-                            onClick={() => removeLine(i)}
-                            style={{
-                              backgroundColor: "#ffffff",
-                              border: "1px solid #cbd5e1",
-                              borderRadius: "8px",
-                              width: 36,
-                              height: 36,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              cursor: "pointer",
-                              color: "#dc2626",
-                              padding: 0,
-                            }}
-                            className="active-tap"
-                            title="Quitar renglón"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div style={{ ...ui.tableWrap, boxShadow: "none" }}>
-            <table style={ui.table}>
-              <thead>
-                <tr style={ui.theadRow}>
-                  <th style={ui.th}>Producto</th>
-                  <th style={{ ...ui.th, width: 120, textAlign: "center" }}>Cantidad</th>
-                  <th style={{ ...ui.th, width: 150, textAlign: "center" }}>Costo unitario</th>
-                  <th style={{ ...ui.th, width: 130, textAlign: "right" }}>Importe</th>
-                  <th style={{ ...ui.th, width: 50 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((l, i) => (
-                  <tr key={i}>
-                    <td style={ui.td}>
-                      <select
-                        style={{ ...ui.input, padding: "8px 10px" }}
-                        value={l.productId}
-                        onChange={(e) => onPickProduct(i, e.target.value)}
-                        disabled={!supplierId || loadingProducts}
-                      >
-                        <option value="">
-                          {loadingProducts
-                            ? "Cargando productos..."
-                            : supplierId && supplierProducts.length === 0
-                            ? "Sin productos asignados a este proveedor"
-                            : "Seleccione producto..."}
-                        </option>
-                        {(supplierId ? supplierProducts : products).map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} ({p.sku}) — ${p.costPrice}
-                          </option>
-                        ))}
-                      </select>
-                      {l.productId && productTaxes[l.productId] !== undefined && (
-                        <div style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>
-                          {productTaxes[l.productId].length > 0
-                            ? productTaxes[l.productId].map((t) => {
+                        {l.productId && productTaxes[l.productId] !== undefined && (
+                          <div style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>
+                            {productTaxes[l.productId].length > 0
+                              ? productTaxes[l.productId].map((t) => {
                                 const pct = `${(t.rate * 100).toFixed(0)}%`;
                                 return t.name.includes(pct) ? t.name : `${t.name} ${pct}`;
                               }).join(" · ")
-                            : "Sin impuestos"}
-                        </div>
-                      )}
-                      {lineErrors[i]?.productId && <p style={styles.fieldError}>{lineErrors[i]?.productId}</p>}
-                    </td>
-                    <td style={ui.td}>
-                      <input
-                        style={{ ...ui.input, padding: "8px 10px", textAlign: "center" }}
-                        value={l.quantity}
-                        onChange={(e) => setLine(i, "quantity", e.target.value)}
-                        placeholder="0"
-                      />
-                      {lineErrors[i]?.quantity && <p style={styles.fieldError}>{lineErrors[i]?.quantity}</p>}
-                    </td>
-                    <td style={ui.td}>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        style={{ ...ui.input, padding: "8px 10px", textAlign: "center" }}
-                        value={l.unitCost}
-                        onChange={(e) => setDecimalLine(i, "unitCost", e.target.value)}
-                        placeholder="0.00"
-                      />
-                      {lineErrors[i]?.unitCost && <p style={styles.fieldError}>{lineErrors[i]?.unitCost}</p>}
-                    </td>
-                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>
-                      {money((Number(l.quantity) || 0) * (Number(l.unitCost) || 0))}
-                    </td>
-                    <td style={{ ...ui.td, textAlign: "center" }}>
-                      <button
-                        onClick={() => removeLine(i)}
-                        style={{ background: "none", border: "none", cursor: "pointer" }}
-                        title="Quitar renglón"
-                      >
-                        <Trash2 size={16} color="#b91c1c" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                              : "Sin impuestos"}
+                          </div>
+                        )}
+                        {lineErrors[i]?.productId && <p style={styles.fieldError}>{lineErrors[i]?.productId}</p>}
+                      </td>
+                      <td style={ui.td}>
+                        <input
+                          style={{ ...ui.input, padding: "8px 10px", textAlign: "center" }}
+                          value={l.quantity}
+                          onChange={(e) => setLine(i, "quantity", e.target.value)}
+                          placeholder="0"
+                        />
+                        {lineErrors[i]?.quantity && <p style={styles.fieldError}>{lineErrors[i]?.quantity}</p>}
+                      </td>
+                      <td style={ui.td}>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          style={{ ...ui.input, padding: "8px 10px", textAlign: "center" }}
+                          value={l.unitCost}
+                          onChange={(e) => setDecimalLine(i, "unitCost", e.target.value)}
+                          placeholder="0.00"
+                        />
+                        {lineErrors[i]?.unitCost && <p style={styles.fieldError}>{lineErrors[i]?.unitCost}</p>}
+                      </td>
+                      <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>
+                        {money((Number(l.quantity) || 0) * (Number(l.unitCost) || 0))}
+                      </td>
+                      <td style={{ ...ui.td, textAlign: "center" }}>
+                        <button
+                          onClick={() => removeLine(i)}
+                          style={{ background: "none", border: "none", cursor: "pointer" }}
+                          title="Quitar renglón"
+                        >
+                          <Trash2 size={16} color="#b91c1c" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginTop: 14,
-          }}
-        >
-          <button style={ui.ghostBtn} className="active-tap" onClick={addLine}>
-            <Plus size={15} /> Agregar producto
-          </button>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-            <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-              Subtotal: <strong style={{ color: "var(--text)" }}>{money(computedTotals.subtotal)}</strong>
-            </div>
-            {computedTotals.taxEntries.map((t) => (
-              <div key={t.name} style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                {t.name}: <span>{money(t.amount)}</span>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginTop: 14,
+              }}
+            >
+              <button style={ui.ghostBtn} className="active-tap" onClick={addLine}>
+                <Plus size={15} /> Agregar producto
+              </button>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                  Subtotal: <strong style={{ color: "var(--text)" }}>{money(computedTotals.subtotal)}</strong>
+                </div>
+                {computedTotals.taxEntries.map((t) => (
+                  <div key={t.name} style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                    {t.name}: <span>{money(t.amount)}</span>
+                  </div>
+                ))}
+                {computedTotals.taxEntries.length === 0 && computedTotals.subtotal > 0 && (
+                  <div style={{ fontSize: 12, color: "var(--text-faint)", fontStyle: "italic" }}>
+                    Sin impuestos asignados
+                  </div>
+                )}
+                <div style={{
+                  fontSize: 15,
+                  fontWeight: 800,
+                  color: "var(--accent-strong)",
+                  borderTop: "1px solid var(--border)",
+                  paddingTop: 4,
+                  marginTop: 2
+                }}>
+                  Total estimado: {money(computedTotals.total)}
+                </div>
               </div>
-            ))}
-            {computedTotals.taxEntries.length === 0 && computedTotals.subtotal > 0 && (
-              <div style={{ fontSize: 12, color: "var(--text-faint)", fontStyle: "italic" }}>
-                Sin impuestos asignados
-              </div>
-            )}
-            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--accent-strong)", borderTop: "1px solid var(--border)", paddingTop: 4, marginTop: 2 }}>
-              Total estimado: {money(computedTotals.total)}
             </div>
-          </div>
-        </div>
+          </>
+        )}
 
         {formError && (
           <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 14 }}>
@@ -828,32 +908,154 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
           justifyContent: "space-between",
           marginBottom: 12,
           flexWrap: "wrap",
-          gap: 10,
+          gap: 8,
         }}
       >
         <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>
           Órdenes de compra
         </h3>
-        <Toolbar>
-          <FilterSelect
-            value={filterStatus}
-            onChange={setFilterStatus}
-            options={[
-              { value: "all", label: "Todos los estados" },
-              { value: "PENDIENTE", label: "Pendiente" },
-              { value: "RECIBIDA", label: "Recibida" },
-              { value: "CANCELADA", label: "Cancelada" },
-            ]}
-          />
-          <FilterSelect
-            value={filterSupplierId}
-            onChange={setFilterSupplierId}
-            options={[
-              { value: "all", label: "Todos los proveedores" },
-              ...suppliers.map((s) => ({ value: String(s.id), label: s.name })),
-            ]}
-          />
-        </Toolbar>
+
+        {isMobile ? (
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            width: "100%",
+            gap: 6,
+            marginTop: 4
+          }}>
+            <select
+              style={{
+                ...ui.input,
+                padding: "8px 12px",
+                fontSize: 13,
+                backgroundColor: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                borderRadius: "8px",
+                fontWeight: 500,
+                color: "#0f172a",
+                width: "100%",
+                appearance: "auto"
+              }}
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+            >
+              <option value="all">Todos los estados</option>
+              <option value="PENDIENTE">Pendiente</option>
+              <option value="RECIBIDA">Recibida</option>
+              <option value="CANCELADA">Cancelada</option>
+            </select>
+
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              backgroundColor: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: "8px",
+              padding: "4px 8px",
+              minHeight: "42px"
+            }}>
+              <select
+                style={{
+                  flex: 1,
+                  border: "none",
+                  background: "transparent",
+                  padding: "8px 4px",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: "#0f172a",
+                  outline: "none",
+                  fontFamily: "inherit",
+                  minWidth: 0,
+                  appearance: "auto"
+                }}
+                value={filterSupplierId}
+                onChange={(e) => setFilterSupplierId(e.target.value)}
+              >
+                <option value="all">Todos los proveedores</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={String(s.id)}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              {filterSupplierId !== "all" && (
+                <button
+                  onClick={() => setFilterSupplierId("all")}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "#e2e8f0",
+                    border: "none",
+                    borderRadius: "50%",
+                    width: 24,
+                    height: 24,
+                    cursor: "pointer",
+                    color: "#64748b",
+                    padding: 0,
+                    flexShrink: 0
+                  }}
+                  className="active-tap"
+                  title="Limpiar filtro de proveedor"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {filterSupplierId !== "all" && (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "2px 0"
+              }}>
+                <span style={{
+                  fontSize: 11,
+                  color: "#64748b",
+                  fontWeight: 500
+                }}>
+                  Filtrado por:
+                </span>
+                <span style={{
+                  backgroundColor: "#dbeafe",
+                  color: "#1e40af",
+                  padding: "2px 10px",
+                  borderRadius: "12px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4
+                }}>
+                  {selectedSupplierName}
+                </span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <Toolbar>
+            <FilterSelect
+              value={filterStatus}
+              onChange={setFilterStatus}
+              options={[
+                { value: "all", label: "Todos los estados" },
+                { value: "PENDIENTE", label: "Pendiente" },
+                { value: "RECIBIDA", label: "Recibida" },
+                { value: "CANCELADA", label: "Cancelada" },
+              ]}
+            />
+            <FilterSelect
+              value={filterSupplierId}
+              onChange={setFilterSupplierId}
+              options={[
+                { value: "all", label: "Todos los proveedores" },
+                ...suppliers.map((s) => ({ value: String(s.id), label: s.name })),
+              ]}
+            />
+          </Toolbar>
+        )}
       </div>
 
       {isMobile ? (
@@ -879,36 +1081,32 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                     backgroundColor: "var(--surface)",
                     border: "1px solid var(--surface-3)",
                     borderRadius: 16,
-                    padding: 16,
+                    padding: 14,
                     marginBottom: 12,
                     boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-                    <div style={{ flex: 1 }}>
-                      {/* Top: Referencia & Total */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                        <span style={{ fontSize: 16, fontWeight: 700, color: "#2563eb" }}>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: "#2563eb", wordBreak: "break-word" }}>
                           {p.reference}
                         </span>
-                        <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", whiteSpace: "nowrap" }}>
                           {money(Number(p.total))}
                         </span>
                       </div>
 
-                      {/* Sucursal y Proveedor */}
-                      <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 8, fontWeight: 600 }}>
-                        {p.branch.name} <span style={{ color: "var(--border-strong)", margin: "0 6px" }}>|</span> {p.supplier.name}
+                      <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 6, fontWeight: 600 }}>
+                        {p.branch.name} <span style={{ color: "var(--border-strong)", margin: "0 4px" }}>|</span> {p.supplier.name}
                       </div>
 
-                      {/* Fecha */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
-                        <Calendar size={14} color="#2563eb" />
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-secondary)" }}>
+                        <Calendar size={13} color="#2563eb" />
                         <span>{fmtDate(p.purchaseDate)} {fmtTime(p.purchaseDate)}</span>
                       </div>
                     </div>
 
-                    {/* Chevron Button */}
                     <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
                       <button
                         onClick={() => toggleExpand(p.id)}
@@ -919,61 +1117,70 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                           backgroundColor: "var(--surface)",
                           border: "1px solid var(--border-strong)",
                           borderRadius: 8,
-                          width: 38,
-                          height: 38,
+                          width: 36,
+                          height: 36,
                           cursor: "pointer",
                           color: "#2563eb",
                           padding: 0,
                         }}
                         className="active-tap"
                       >
-                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                        {isExpanded ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
                       </button>
                     </div>
                   </div>
 
-                  {/* Expanded Content */}
                   {isExpanded && (
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--surface-3)" }}>
-                      {/* Details container */}
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--surface-3)" }}>
                       <div style={{
                         backgroundColor: "var(--surface-2)",
-                        borderRadius: 12,
+                        borderRadius: 10,
                         border: "1px solid var(--border)",
-                        padding: 16,
+                        padding: 12,
                       }}>
-                        {/* Estado */}
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Estado de la Orden</h4>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                        <h4 style={{ fontSize: 12, fontWeight: 800, color: "var(--text)", marginBottom: 8 }}>
+                          Estado de la Orden
+                        </h4>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                           <Badge tone={statusTone(p.status)}>{p.status}</Badge>
                           {p.status === "PENDIENTE" && (
                             <button
                               style={{
                                 ...ui.primaryBtn,
-                                fontSize: 12,
-                                padding: "6px 12px",
-                                height: 30,
+                                fontSize: 11,
+                                padding: "5px 10px",
+                                height: 28,
                                 backgroundColor: "#15803d",
                               }}
                               onClick={() => receive(p.id)}
                               disabled={receiving === p.id}
                               className="active-tap"
                             >
-                              {receiving === p.id ? "Recibiendo..." : "✓ Recibir mercancía"}
+                              {receiving === p.id ? "Recibiendo..." : "✓ Recibir"}
                             </button>
                           )}
                         </div>
 
-                        {/* Artículos */}
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Artículos ({p.details.length})</h4>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        <h4 style={{ fontSize: 12, fontWeight: 800, color: "var(--text)", marginBottom: 8 }}>
+                          Artículos ({p.details.length})
+                        </h4>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                           {p.details.map((d) => (
-                            <div key={d.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, borderBottom: "1px dashed #e2e8f0", paddingBottom: 6 }}>
-                              <div>
-                                <span style={{ fontWeight: 700, color: "var(--text-secondary)" }}>{d.product.name}</span>
-                                <div style={{ fontSize: 11, color: "var(--text-faint)" }}>SKU: {d.product.sku}</div>
+                            <div key={d.id} style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              fontSize: 12,
+                              borderBottom: "1px dashed #e2e8f0",
+                              paddingBottom: 5
+                            }}>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <span style={{ fontWeight: 700, color: "var(--text-secondary)", wordBreak: "break-word" }}>
+                                  {d.product.name}
+                                </span>
+                                <div style={{ fontSize: 10, color: "var(--text-faint)" }}>SKU: {d.product.sku}</div>
                               </div>
-                              <div style={{ textAlign: "right" }}>
+                              <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                                 <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>{d.quantity} u.</span>
                                 <span style={{ color: "var(--text-faint)", margin: "0 4px" }}>x</span>
                                 <span style={{ fontWeight: 600, color: "var(--text-muted)" }}>{money(d.unitCost)}</span>
@@ -981,12 +1188,15 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                             </div>
                           ))}
                         </div>
-                        
-                        {/* Notas si existen */}
+
                         {p.notes && (
-                          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Notas:</div>
-                            <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>{p.notes}</div>
+                          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>
+                              Notas:
+                            </div>
+                            <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2, wordBreak: "break-word" }}>
+                              {p.notes}
+                            </div>
                           </div>
                         )}
                       </div>

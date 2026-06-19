@@ -8,6 +8,8 @@ import {
   TableState,
   SectionHeader,
   useMediaQuery,
+  fmtDate,
+  fmtTime,
 } from "./shared";
 
 interface AccessLogRow {
@@ -34,8 +36,8 @@ const MethodBadge: React.FC<{ method: string }> = ({ method }) => (
       borderRadius: 12,
       fontSize: 11,
       fontWeight: 700,
-      backgroundColor: "#dbeafe",
-      color: "#1d4ed8",
+      backgroundColor: method === "PASSWORD" ? "#dbeafe" : "#fef3c7",
+      color: method === "PASSWORD" ? "#1d4ed8" : "#92400e",
       whiteSpace: "nowrap",
     }}
   >
@@ -60,13 +62,23 @@ const CajaAccessLogView: React.FC<ViewProps> = ({ refreshToken }) => {
     }));
   };
 
+  // Carga de datos corregida con balanceo de Zona Horaria Local -> UTC
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const params: Record<string, string> = {};
-      if (from) params.from = from;
-      if (to) params.to = to;
+
+      // Ajustamos los límites de tiempo basados en la zona horaria del usuario
+      if (from) {
+        const localFrom = new Date(`${from}T00:00:00`);
+        params.from = localFrom.toISOString();
+      }
+      if (to) {
+        const localTo = new Date(`${to}T23:59:59.999`);
+        params.to = localTo.toISOString();
+      }
+
       const res = await api.get<{ logs: AccessLogRow[] }>("/api/admin/security/cashier-access", { params });
       setRows(res.data.logs);
     } catch (err: any) {
@@ -88,10 +100,10 @@ const CajaAccessLogView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const visible = userSearch.trim()
     ? rows.filter(
-        (r) =>
-          r.user.name.toLowerCase().includes(userSearch.toLowerCase()) ||
-          r.user.email.toLowerCase().includes(userSearch.toLowerCase())
-      )
+      (r) =>
+        r.user.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+        r.user.email.toLowerCase().includes(userSearch.toLowerCase())
+    )
     : rows;
 
   return (
@@ -101,194 +113,284 @@ const CajaAccessLogView: React.FC<ViewProps> = ({ refreshToken }) => {
         subtitle="Historial de inicios de sesión de cajeros en las terminales"
       />
 
-      <Toolbar>
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Desde:</label>
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={inputStyle} />
-          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Hasta:</label>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={inputStyle} />
-          <input
-            type="text"
-            placeholder="Buscar cajero..."
-            value={userSearch}
-            onChange={(e) => setUserSearch(e.target.value)}
-            style={{ ...inputStyle, minWidth: 160 }}
-          />
+      {isMobile ? (
+        /* Filtros móvil */
+        <div style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          marginBottom: 16,
+          padding: "12px",
+          backgroundColor: "var(--surface-2)",
+          borderRadius: 12,
+          border: "1px solid var(--border)"
+        }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Desde:</label>
+            <input
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              style={{
+                ...ui.input,
+                padding: "6px 10px",
+                fontSize: 13,
+                flex: 1,
+                minWidth: 0
+              }}
+            />
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Hasta:</label>
+            <input
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              style={{
+                ...ui.input,
+                padding: "6px 10px",
+                fontSize: 13,
+                flex: 1,
+                minWidth: 0
+              }}
+            />
+          </div>
+          <div>
+            <input
+              type="text"
+              placeholder="Buscar cajero..."
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+              style={{
+                ...ui.input,
+                padding: "6px 10px",
+                fontSize: 13,
+                width: "100%"
+              }}
+            />
+          </div>
           <button
             onClick={clearFilters}
             style={{
+              ...ui.ghostBtn,
               padding: "8px 14px",
-              background: "#f3f4f6",
-              border: "1px solid #d1d5db",
-              borderRadius: 6,
-              cursor: "pointer",
               fontSize: 13,
+              backgroundColor: "#f1f5f9",
+              border: "1px solid #e2e8f0",
+              borderRadius: "8px",
+              color: "#64748b",
               fontWeight: 600,
-              color: "#374151",
+              width: "100%"
             }}
+            className="active-tap"
           >
             Limpiar filtros
           </button>
+          <div style={{
+            fontSize: 12,
+            color: "var(--text-muted)",
+            fontWeight: 600,
+            textAlign: "center",
+            paddingTop: 4,
+            borderTop: "1px solid var(--border)"
+          }}>
+            {visible.length} registro{visible.length !== 1 ? "s" : ""}
+          </div>
         </div>
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-          {visible.length} registro{visible.length !== 1 ? "s" : ""}
-        </span>
-      </Toolbar>
+      ) : (
+        <Toolbar>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Desde:</label>
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={inputStyle} />
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Hasta:</label>
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={inputStyle} />
+            <input
+              type="text"
+              placeholder="Buscar cajero..."
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+              style={{ ...inputStyle, minWidth: 160 }}
+            />
+            <button
+              onClick={clearFilters}
+              style={{
+                padding: "8px 14px",
+                background: "#f3f4f6",
+                border: "1px solid #d1d5db",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 600,
+                color: "#374151",
+              }}
+              className="active-tap"
+            >
+              Limpiar filtros
+            </button>
+          </div>
+          <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+            {visible.length} registro{visible.length !== 1 ? "s" : ""}
+          </span>
+        </Toolbar>
+      )}
 
       {isMobile ? (
-        <div style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-          <div style={{ padding: "8px 16px" }}>
-            {/* Cabecera de columnas */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "2.5fr 2.5fr 1fr",
-              padding: "12px 16px",
-              fontWeight: 700,
-              fontSize: 11,
-              color: "#64748b",
-              textTransform: "uppercase",
-              letterSpacing: "0.4px"
-            }}>
-              <div>Fecha</div>
-              <div>Sucursal</div>
-              <div style={{ textAlign: "right", paddingRight: 8 }}>Mas</div>
-            </div>
-
-            {loading && (
-              <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
-                Cargando información...
-              </div>
-            )}
-            {error && (
-              <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
-                {error}
-              </div>
-            )}
-            {!loading && !error && visible.length === 0 && (
-              <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
-                No hay registros para mostrar.
-              </div>
-            )}
-
-            {!loading &&
-              !error &&
-              visible.map((row) => {
-                const isExpanded = expandedLogs[row.id];
-                return (
-                  <div
-                    key={row.id}
-                    style={{
-                      backgroundColor: "#ffffff",
-                      border: "1px solid #e2e8f0",
-                      borderRadius: 12,
-                      marginBottom: 10,
-                      boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
-                      overflow: "hidden",
-                    }}
-                  >
-                    {/* Cabecera de tarjeta gris con el nombre del cajero y método badge */}
-                    <div style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "8px 16px 6px 16px",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: "#64748b",
-                      borderBottom: "1px solid #f1f5f9",
-                      backgroundColor: "#f8fafc",
-                      letterSpacing: "0.2px"
-                    }}>
-                      <span>{row.user.name.toUpperCase()}</span>
-                      <MethodBadge method={row.method} />
-                    </div>
-
-                    {/* Fila base */}
-                    <div style={{
-                      display: "grid",
-                      gridTemplateColumns: "2.5fr 2.5fr 1fr",
-                      padding: "12px 16px",
-                      alignItems: "center",
-                    }}>
-                      {/* Fecha y Hora */}
-                      <div style={{ fontSize: 13, color: "#334155" }}>
-                        <div>{fmtDateTime(row.createdAt).split(" ")[0]}</div>
-                        <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
-                          {fmtDateTime(row.createdAt).split(" ").slice(1).join(" ")}
-                        </div>
-                      </div>
-
-                      {/* Sucursal */}
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>
-                        {row.branch?.name ?? "—"}
-                      </div>
-
-                      {/* Botón de Expansión */}
-                      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                        <button
-                          onClick={() => toggleExpand(row.id)}
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            backgroundColor: "#ffffff",
-                            border: "1px solid #cbd5e1",
-                            borderRadius: 8,
-                            width: 34,
-                            height: 34,
-                            cursor: "pointer",
-                            color: "#64748b",
-                            padding: 0,
-                          }}
-                          className="active-tap"
-                        >
-                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Contenido desplegable */}
-                    {isExpanded && (
-                      <div style={{
-                        padding: "16px",
-                        margin: "0 16px 16px 16px",
-                        backgroundColor: "#f8fafc",
-                        borderRadius: "8px",
-                        border: "1px solid #e2e8f0",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "8px",
-                      }}>
-                        <div style={detailRowStyle}>
-                          <span style={detailLabelStyle}>Cajero:</span>
-                          <span style={detailValueStyle}>{row.user.name} ({row.user.email})</span>
-                        </div>
-                        <div style={detailRowStyle}>
-                          <span style={detailLabelStyle}>Sucursal:</span>
-                          <span style={detailValueStyle}>{row.branch?.name ?? "—"}</span>
-                        </div>
-                        <div style={detailRowStyle}>
-                          <span style={detailLabelStyle}>Método:</span>
-                          <span style={detailValueStyle}>{row.method}</span>
-                        </div>
-                        <div style={detailRowStyle}>
-                          <span style={detailLabelStyle}>Dispositivo:</span>
-                          <span style={{ ...detailValueStyle, fontFamily: "monospace" }}>
-                            {row.deviceId ?? "—"}
-                          </span>
-                        </div>
-                        <div style={detailRowStyle}>
-                          <span style={detailLabelStyle}>Dirección IP:</span>
-                          <span style={{ ...detailValueStyle, fontFamily: "monospace" }}>
-                            {row.ipAddress ?? "—"}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 4px" }}>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1.8fr 1.8fr 1.2fr",
+            padding: "10px 12px",
+            fontWeight: 700,
+            fontSize: 10,
+            color: "var(--text-muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.3px",
+          }}>
+            <div>Fecha</div>
+            <div>Sucursal</div>
+            <div style={{ textAlign: "right" }}>Acción</div>
           </div>
+
+          {loading && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+              Cargando información...
+            </div>
+          )}
+          {error && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
+              {error}
+            </div>
+          )}
+          {!loading && !error && visible.length === 0 && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+              No hay registros para mostrar.
+            </div>
+          )}
+
+          {!loading &&
+            !error &&
+            visible.map((row) => {
+              const isExpanded = expandedLogs[row.id];
+              return (
+                <div
+                  key={row.id}
+                  style={{
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 12,
+                    marginBottom: 10,
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "6px 12px 5px 12px",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: "var(--text-muted)",
+                    borderBottom: "1px solid var(--surface-3)",
+                    backgroundColor: "var(--surface-2)",
+                    letterSpacing: "0.2px",
+                    textTransform: "uppercase"
+                  }}>
+                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "55%" }}>
+                      {row.user.name}
+                    </span>
+                    <MethodBadge method={row.method} />
+                  </div>
+
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.8fr 1.8fr 1.2fr",
+                    padding: "10px 12px",
+                    alignItems: "center",
+                    gap: "4px"
+                  }}>
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                      <div>{fmtDate(row.createdAt)}</div>
+                      <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 1 }}>
+                        {fmtTime(row.createdAt)}
+                      </div>
+                    </div>
+
+                    <div style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "var(--text-secondary)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis"
+                    }}>
+                      {row.branch?.name ?? "—"}
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      <button
+                        onClick={() => toggleExpand(row.id)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "var(--surface)",
+                          border: "1px solid var(--border-strong)",
+                          borderRadius: 6,
+                          width: 30,
+                          height: 30,
+                          cursor: "pointer",
+                          color: "var(--text-muted)",
+                          padding: 0,
+                        }}
+                        className="active-tap"
+                      >
+                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <div style={{
+                      padding: "12px",
+                      margin: "0 12px 12px 12px",
+                      backgroundColor: "var(--surface-2)",
+                      borderRadius: "8px",
+                      border: "1px solid var(--border)",
+                      display: "grid",
+                      gridTemplateColumns: "1fr",
+                      gap: "6px",
+                      textAlign: "left",
+                    }}>
+                      <div style={detailRowStyle}>
+                        <span style={detailLabelStyle}>Cajero:</span>
+                        <span style={detailValueStyle}>{row.user.name} ({row.user.email})</span>
+                      </div>
+                      <div style={detailRowStyle}>
+                        <span style={detailLabelStyle}>Sucursal:</span>
+                        <span style={detailValueStyle}>{row.branch?.name ?? "—"}</span>
+                      </div>
+                      <div style={detailRowStyle}>
+                        <span style={detailLabelStyle}>Método:</span>
+                        <span style={detailValueStyle}>{row.method}</span>
+                      </div>
+                      <div style={detailRowStyle}>
+                        <span style={detailLabelStyle}>Dispositivo:</span>
+                        <span style={{ ...detailValueStyle, fontFamily: "monospace", fontSize: 11, wordBreak: "break-all" }}>
+                          {row.deviceId ?? "—"}
+                        </span>
+                      </div>
+                      <div style={detailRowStyle}>
+                        <span style={detailLabelStyle}>Dirección IP:</span>
+                        <span style={{ ...detailValueStyle, fontFamily: "monospace", fontSize: 11 }}>
+                          {row.ipAddress ?? "—"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
         </div>
       ) : (
         <div
@@ -354,28 +456,33 @@ const inputStyle: React.CSSProperties = {
   minWidth: 0,
   maxWidth: 180,
   fontFamily: "inherit",
+  backgroundColor: "var(--surface)",
+  color: "var(--text-secondary)",
+  outline: "none",
 };
 
 const detailRowStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "flex-start",
   alignItems: "flex-start",
-  gap: "8px",
-  fontSize: 13,
-  marginBottom: 4,
+  gap: "6px",
+  fontSize: 12,
+  marginBottom: 3,
 };
 
 const detailLabelStyle: React.CSSProperties = {
   fontWeight: 700,
-  color: "#64748b",
-  minWidth: "100px",
+  color: "var(--text-muted)",
+  minWidth: "70px",
   display: "inline-block",
+  fontSize: "inherit",
 };
 
 const detailValueStyle: React.CSSProperties = {
   fontWeight: 600,
-  color: "#334155",
+  color: "var(--text-secondary)",
   flex: 1,
+  fontSize: "inherit",
+  wordBreak: "break-word",
 };
-
 export default CajaAccessLogView;
