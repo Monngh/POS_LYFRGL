@@ -105,6 +105,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [lines, setLines] = useState<Line[]>([newLine()]);
   const [fieldErrors, setFieldErrors] = useState<TopFieldErrors>({});
   const [lineErrors, setLineErrors] = useState<LineFieldErrors>({});
+  const [expandedLines, setExpandedLines] = useState<Record<number, boolean>>({ 0: true });
   // Caché de impuestos por productId (se carga al seleccionar)
   const [productTaxes, setProductTaxes] = useState<Record<string, ProductTaxEntry[]>>({});
 
@@ -212,6 +213,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
       }
       return next;
     });
+    setFormError(null);
     // Cargar impuestos del producto si no están en caché
     if (productId && productTaxes[productId] === undefined) {
       api
@@ -230,10 +232,45 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
     }
   };
 
-  const addLine = () => setLines((ls) => [...ls, newLine()]);
+  const addLine = () => {
+    const hasIncomplete = lines.some((l) => {
+      if (!l.productId) return true;
+      const qty = Number(l.quantity);
+      if (!l.quantity || isNaN(qty) || qty <= 0 || !Number.isInteger(qty)) return true;
+      const cost = Number(l.unitCost);
+      if (!l.unitCost || isNaN(cost) || cost < 0) return true;
+      return false;
+    });
+
+    if (hasIncomplete) {
+      setFormError("Debe completar los datos del producto anterior antes de agregar uno nuevo.");
+      return;
+    }
+    setFormError(null);
+    setLines((ls) => {
+      const nextLines = [...ls, newLine()];
+      setExpandedLines((prev) => ({ ...prev, [nextLines.length - 1]: true }));
+      return nextLines;
+    });
+  };
+
   const removeLine = (i: number) => {
     setLines((ls) => (ls.length === 1 ? ls : ls.filter((_, idx) => idx !== i)));
     setLineErrors({});
+    setExpandedLines((prev) => {
+      const next = { ...prev };
+      delete next[i];
+      const updated: Record<number, boolean> = {};
+      Object.keys(next).forEach((k) => {
+        const idx = Number(k);
+        if (idx > i) {
+          updated[idx - 1] = next[idx];
+        } else {
+          updated[idx] = next[idx];
+        }
+      });
+      return updated;
+    });
   };
 
   const computedTotals = (() => {
@@ -453,89 +490,271 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
           {fieldErrors.notes && <p style={styles.fieldError}>{fieldErrors.notes}</p>}
         </div>
 
-        <div style={{ ...ui.tableWrap, boxShadow: "none" }}>
-        <table style={ui.table}>
-          <thead>
-            <tr style={ui.theadRow}>
-              <th style={ui.th}>Producto</th>
-              <th style={{ ...ui.th, width: 120, textAlign: "center" }}>Cantidad</th>
-              <th style={{ ...ui.th, width: 150, textAlign: "center" }}>Costo unitario</th>
-              <th style={{ ...ui.th, width: 130, textAlign: "right" }}>Importe</th>
-              <th style={{ ...ui.th, width: 50 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((l, i) => (
-              <tr key={i}>
-                <td style={ui.td}>
-                  <select
-                    style={{ ...ui.input, padding: "8px 10px" }}
-                    value={l.productId}
-                    onChange={(e) => onPickProduct(i, e.target.value)}
-                    disabled={!supplierId || loadingProducts}
+        {isMobile ? (
+          <div
+            style={{
+              maxHeight: "380px",
+              overflowY: "auto",
+              paddingRight: 4,
+              marginBottom: 16,
+              border: "1px solid #e2e8f0",
+              borderRadius: "12px",
+              padding: "8px",
+              backgroundColor: "#f8fafc",
+            }}
+          >
+            {lines.map((l, i) => {
+              const pool = supplierId && supplierProducts.length > 0 ? supplierProducts : products;
+              const prod = pool.find((p) => String(p.id) === l.productId);
+              const isExpanded = expandedLines[i] !== false;
+              const hasTaxes = l.productId && productTaxes[l.productId] !== undefined;
+
+              const toggleLineExpand = (idx: number) => {
+                setExpandedLines((prev) => ({
+                  ...prev,
+                  [idx]: prev[idx] === false ? true : false,
+                }));
+              };
+
+              return (
+                <div
+                  key={i}
+                  style={{
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 12,
+                    padding: 16,
+                    marginBottom: 12,
+                    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 12,
+                  }}
+                >
+                  {/* Header of the card */}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => toggleLineExpand(i)}
                   >
-                    <option value="">
-                      {loadingProducts
-                        ? "Cargando productos..."
-                        : supplierId && supplierProducts.length === 0
-                        ? "Sin productos asignados a este proveedor"
-                        : "Seleccione producto..."}
-                    </option>
-                    {(supplierId ? supplierProducts : products).map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.sku}) — ${p.costPrice}
-                      </option>
-                    ))}
-                  </select>
-                  {l.productId && productTaxes[l.productId] !== undefined && (
-                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>
-                      {productTaxes[l.productId].length > 0
-                        ? productTaxes[l.productId].map((t) => {
-                            const pct = `${(t.rate * 100).toFixed(0)}%`;
-                            return t.name.includes(pct) ? t.name : `${t.name} ${pct}`;
-                          }).join(" · ")
-                        : "Sin impuestos"}
+                    <div style={{ flex: 1, paddingRight: 8 }}>
+                      {prod ? (
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>
+                          {prod.name} ({prod.sku})
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#64748b" }}>
+                          Seleccione producto...
+                        </div>
+                      )}
+                      {hasTaxes && (
+                        <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
+                          {productTaxes[l.productId].length > 0
+                            ? productTaxes[l.productId].map((t) => {
+                                const pct = `${(t.rate * 100).toFixed(0)}%`;
+                                return t.name.includes(pct) ? t.name : `${t.name} ${pct}`;
+                              }).join(" · ")
+                            : "Sin impuestos"}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", color: "#64748b" }}>
+                      {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    </div>
+                  </div>
+
+                  {/* Card Body */}
+                  {isExpanded && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12, borderTop: "1px solid #f1f5f9", paddingTop: 12 }}>
+                      {/* Product Selector in expanded body */}
+                      <div>
+                        <label style={ui.fieldLabel}>Producto *</label>
+                        <select
+                          style={{ ...ui.input, padding: "8px 10px" }}
+                          value={l.productId}
+                          onChange={(e) => onPickProduct(i, e.target.value)}
+                          disabled={!supplierId || loadingProducts}
+                        >
+                          <option value="">
+                            {loadingProducts
+                              ? "Cargando productos..."
+                              : supplierId && supplierProducts.length === 0
+                              ? "Sin productos asignados a este proveedor"
+                              : "Seleccione producto..."}
+                          </option>
+                          {(supplierId ? supplierProducts : products).map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name} ({p.sku}) — ${p.costPrice}
+                            </option>
+                          ))}
+                        </select>
+                        {lineErrors[i]?.productId && <p style={styles.fieldError}>{lineErrors[i]?.productId}</p>}
+                      </div>
+
+                      {/* Cantidad Input */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 14, fontWeight: 500, color: "#334155" }}>Cantidad</span>
+                        <div style={{ width: 120 }}>
+                          <input
+                            style={{ ...ui.input, padding: "8px 10px", textAlign: "center" }}
+                            value={l.quantity}
+                            onChange={(e) => setLine(i, "quantity", e.target.value)}
+                            placeholder="0"
+                          />
+                          {lineErrors[i]?.quantity && <p style={{ ...styles.fieldError, textAlign: "right" }}>{lineErrors[i]?.quantity}</p>}
+                        </div>
+                      </div>
+
+                      {/* Costo unitario Input */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 14, fontWeight: 500, color: "#334155" }}>Costo unitario</span>
+                        <div style={{ width: 120 }}>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            style={{ ...ui.input, padding: "8px 10px", textAlign: "center" }}
+                            value={l.unitCost}
+                            onChange={(e) => setDecimalLine(i, "unitCost", e.target.value)}
+                            placeholder="0.00"
+                          />
+                          {lineErrors[i]?.unitCost && <p style={{ ...styles.fieldError, textAlign: "right" }}>{lineErrors[i]?.unitCost}</p>}
+                        </div>
+                      </div>
+
+                      {/* Importe row and Trash button inside highlight box */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          backgroundColor: "#f0f5fa",
+                          borderRadius: "8px",
+                          padding: "10px 12px",
+                          marginTop: 4,
+                        }}
+                      >
+                        <span style={{ fontSize: 14, fontWeight: 500, color: "#334155" }}>Importe</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <span style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>
+                            {money((Number(l.quantity) || 0) * (Number(l.unitCost) || 0))}
+                          </span>
+                          <button
+                            onClick={() => removeLine(i)}
+                            style={{
+                              backgroundColor: "#ffffff",
+                              border: "1px solid #cbd5e1",
+                              borderRadius: "8px",
+                              width: 36,
+                              height: 36,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              color: "#dc2626",
+                              padding: 0,
+                            }}
+                            className="active-tap"
+                            title="Quitar renglón"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
-                  {lineErrors[i]?.productId && <p style={styles.fieldError}>{lineErrors[i]?.productId}</p>}
-                </td>
-                <td style={ui.td}>
-                  <input
-                    style={{ ...ui.input, padding: "8px 10px", textAlign: "center" }}
-                    value={l.quantity}
-                    onChange={(e) => setLine(i, "quantity", e.target.value)}
-                    placeholder="0"
-                  />
-                  {lineErrors[i]?.quantity && <p style={styles.fieldError}>{lineErrors[i]?.quantity}</p>}
-                </td>
-                <td style={ui.td}>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    style={{ ...ui.input, padding: "8px 10px", textAlign: "center" }}
-                    value={l.unitCost}
-                    onChange={(e) => setDecimalLine(i, "unitCost", e.target.value)}
-                    placeholder="0.00"
-                  />
-                  {lineErrors[i]?.unitCost && <p style={styles.fieldError}>{lineErrors[i]?.unitCost}</p>}
-                </td>
-                <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>
-                  {money((Number(l.quantity) || 0) * (Number(l.unitCost) || 0))}
-                </td>
-                <td style={{ ...ui.td, textAlign: "center" }}>
-                  <button
-                    onClick={() => removeLine(i)}
-                    style={{ background: "none", border: "none", cursor: "pointer" }}
-                    title="Quitar renglón"
-                  >
-                    <Trash2 size={16} color="#b91c1c" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ ...ui.tableWrap, boxShadow: "none" }}>
+            <table style={ui.table}>
+              <thead>
+                <tr style={ui.theadRow}>
+                  <th style={ui.th}>Producto</th>
+                  <th style={{ ...ui.th, width: 120, textAlign: "center" }}>Cantidad</th>
+                  <th style={{ ...ui.th, width: 150, textAlign: "center" }}>Costo unitario</th>
+                  <th style={{ ...ui.th, width: 130, textAlign: "right" }}>Importe</th>
+                  <th style={{ ...ui.th, width: 50 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {lines.map((l, i) => (
+                  <tr key={i}>
+                    <td style={ui.td}>
+                      <select
+                        style={{ ...ui.input, padding: "8px 10px" }}
+                        value={l.productId}
+                        onChange={(e) => onPickProduct(i, e.target.value)}
+                        disabled={!supplierId || loadingProducts}
+                      >
+                        <option value="">
+                          {loadingProducts
+                            ? "Cargando productos..."
+                            : supplierId && supplierProducts.length === 0
+                            ? "Sin productos asignados a este proveedor"
+                            : "Seleccione producto..."}
+                        </option>
+                        {(supplierId ? supplierProducts : products).map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} ({p.sku}) — ${p.costPrice}
+                          </option>
+                        ))}
+                      </select>
+                      {l.productId && productTaxes[l.productId] !== undefined && (
+                        <div style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>
+                          {productTaxes[l.productId].length > 0
+                            ? productTaxes[l.productId].map((t) => {
+                                const pct = `${(t.rate * 100).toFixed(0)}%`;
+                                return t.name.includes(pct) ? t.name : `${t.name} ${pct}`;
+                              }).join(" · ")
+                            : "Sin impuestos"}
+                        </div>
+                      )}
+                      {lineErrors[i]?.productId && <p style={styles.fieldError}>{lineErrors[i]?.productId}</p>}
+                    </td>
+                    <td style={ui.td}>
+                      <input
+                        style={{ ...ui.input, padding: "8px 10px", textAlign: "center" }}
+                        value={l.quantity}
+                        onChange={(e) => setLine(i, "quantity", e.target.value)}
+                        placeholder="0"
+                      />
+                      {lineErrors[i]?.quantity && <p style={styles.fieldError}>{lineErrors[i]?.quantity}</p>}
+                    </td>
+                    <td style={ui.td}>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        style={{ ...ui.input, padding: "8px 10px", textAlign: "center" }}
+                        value={l.unitCost}
+                        onChange={(e) => setDecimalLine(i, "unitCost", e.target.value)}
+                        placeholder="0.00"
+                      />
+                      {lineErrors[i]?.unitCost && <p style={styles.fieldError}>{lineErrors[i]?.unitCost}</p>}
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>
+                      {money((Number(l.quantity) || 0) * (Number(l.unitCost) || 0))}
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <button
+                        onClick={() => removeLine(i)}
+                        style={{ background: "none", border: "none", cursor: "pointer" }}
+                        title="Quitar renglón"
+                      >
+                        <Trash2 size={16} color="#b91c1c" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         <div
           style={{

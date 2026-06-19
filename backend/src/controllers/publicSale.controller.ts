@@ -166,7 +166,7 @@ export const getTicketDetails = async (req: Request, res: Response): Promise<voi
         sku: d.product.sku,
         quantity: d.quantity,
         unitPrice: Number(d.unitPrice),
-        total: Number(d.unitPrice) * d.quantity
+        total: (Number(d.unitPrice) * d.quantity) - Number(d.discountAmount)
       }))
     });
   } catch (error: any) {
