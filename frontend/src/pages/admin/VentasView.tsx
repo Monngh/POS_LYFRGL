@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Eye, Printer, Ban } from "lucide-react";
+import { Ban, ChevronDown, ChevronUp, Eye, Printer } from "lucide-react";
 import api from "../../services/api";
 import { useAdminData } from "../../hooks";
 import { DataTable, ActionModal } from "../../components/common";
@@ -20,6 +20,7 @@ import {
   statusTone,
   payTone,
   printTicketHtml,
+  useMediaQuery
 } from "./shared";
 
 interface SaleRow {
@@ -111,7 +112,38 @@ const reprintTicket = (d: SaleDetail) => {
   printTicketHtml(`Ticket ${d.invoiceNumber}`, body);
 };
 
+const detailRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-start",
+  alignItems: "center",
+  gap: "8px",
+  fontSize: 13,
+  marginBottom: 6,
+};
+
+const detailLabelStyle: React.CSSProperties = {
+  fontWeight: 700,
+  color: "#64748b",
+  minWidth: "85px",
+  display: "inline-block",
+};
+
+const detailValueStyle: React.CSSProperties = {
+  fontWeight: 600,
+  color: "#334155",
+};
+
 const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+  const isMobile = useMediaQuery("(max-width: 1024px)");
+  const [expandedSales, setExpandedSales] = useState<Record<number, boolean>>({});
+
+  const toggleExpand = (id: number) => {
+    setExpandedSales((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState("all");
@@ -338,14 +370,236 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         </span>
       </Toolbar>
 
-      <DataTable
-        columns={columns}
-        data={rows}
-        loading={loading}
-        error={error}
-        emptyMessage="No hay ventas con los filtros seleccionados."
-        keyExtractor={(s) => s.id}
-      />
+      {isMobile ? (
+        <div style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
+          <div style={{ padding: "8px 16px" }}>
+            {/* Cabecera de columnas */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "1.5fr 2.5fr 1.5fr 1.5fr",
+              padding: "12px 16px",
+              fontWeight: 700,
+              fontSize: 11,
+              color: "#64748b",
+              textTransform: "uppercase",
+              letterSpacing: "0.4px"
+            }}>
+              <div>Folio</div>
+              <div>Fecha</div>
+              <div>Precio</div>
+              <div style={{ textAlign: "right", paddingRight: 8 }}>Mas</div>
+            </div>
+
+            {loading && (
+              <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+                Cargando información...
+              </div>
+            )}
+            {error && (
+              <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
+                {error}
+              </div>
+            )}
+            {!loading && !error && rows.length === 0 && (
+              <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+                No hay registros para mostrar.
+              </div>
+            )}
+
+            {!loading &&
+              !error &&
+              rows.map((s) => {
+                const isExpanded = expandedSales[s.id];
+                const formattedMethod = s.paymentMethod ? (s.paymentMethod.charAt(0).toUpperCase() + s.paymentMethod.slice(1).toLowerCase()) : "";
+                const formattedStatus = s.status ? (s.status.charAt(0).toUpperCase() + s.status.slice(1).toLowerCase()) : "";
+                return (
+                  <div
+                    key={s.id}
+                    style={{
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 12,
+                      marginBottom: 10,
+                      boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {/* Encabezado del registro con Sucursal y Cajero */}
+                    <div style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "8px 16px 6px 16px",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "#64748b",
+                      borderBottom: "1px solid #f1f5f9",
+                      backgroundColor: "#f8fafc",
+                      letterSpacing: "0.2px"
+                    }}>
+                      <span>{s.branch.toUpperCase()}</span>
+                      <span>CAJERO: {s.cajero.toUpperCase()}</span>
+                    </div>
+
+                    {/* Fila base */}
+                    <div style={{
+                      display: "grid",
+                      gridTemplateColumns: "1.5fr 2.5fr 1.5fr 1.5fr",
+                      padding: "12px 16px",
+                      alignItems: "center",
+                    }}>
+                      {/* Folio */}
+                      <div>
+                        <button
+                          onClick={() => openDetail(s.id)}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "#2563eb",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            padding: 0,
+                            fontSize: 13,
+                            textAlign: "left",
+                          }}
+                          className="active-tap"
+                        >
+                          {s.invoiceNumber}
+                        </button>
+                      </div>
+
+                      {/* Fecha */}
+                      <div style={{ fontSize: 13, color: "#334155" }}>
+                        <div>{fmtDate(s.createdAt)}</div>
+                        <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{fmtTime(s.createdAt)}</div>
+                      </div>
+
+                      {/* Precio */}
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>
+                        {money(s.totalAmount)}
+                      </div>
+
+                      {/* Acciones (MAS) */}
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, alignItems: "center" }}>
+                        <button
+                          onClick={() => toggleExpand(s.id)}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: "#ffffff",
+                            border: "1px solid #cbd5e1",
+                            borderRadius: 8,
+                            width: 34,
+                            height: 34,
+                            cursor: "pointer",
+                            color: "#64748b",
+                            padding: 0,
+                          }}
+                          className="active-tap"
+                        >
+                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </button>
+                        <button
+                          onClick={() => openDetail(s.id)}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: "#ffffff",
+                            border: "1px solid #cbd5e1",
+                            borderRadius: 8,
+                            width: 34,
+                            height: 34,
+                            cursor: "pointer",
+                            color: "#64748b",
+                            padding: 0,
+                          }}
+                          className="active-tap"
+                        >
+                          <Eye size={16} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Tarjeta desplegable de datos adicionales */}
+                    {isExpanded && (
+                      <div style={{
+                        padding: "16px",
+                        margin: "0 16px 16px 16px",
+                        backgroundColor: "#f8fafc",
+                        borderRadius: "8px",
+                        border: "1px solid #e2e8f0",
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                        gap: "16px",
+                      }}>
+                        {/* Datos de la Transacción */}
+                        <div>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Datos de la Transacción</h4>
+                          <div style={detailRowStyle}>
+                            <span style={detailLabelStyle}>Folio:</span>
+                            <span style={detailValueStyle}>{s.invoiceNumber}</span>
+                          </div>
+                          <div style={detailRowStyle}>
+                            <span style={detailLabelStyle}>Fecha:</span>
+                            <span style={detailValueStyle}>{fmtDate(s.createdAt)} {fmtTime(s.createdAt)}</span>
+                          </div>
+                          <div style={detailRowStyle}>
+                            <span style={detailLabelStyle}>Cajero:</span>
+                            <span style={detailValueStyle}>{s.cajero}</span>
+                          </div>
+                        </div>
+
+                        {/* Detalle de Venta */}
+                        <div>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Detalle de Venta</h4>
+                          <div style={detailRowStyle}>
+                            <span style={detailLabelStyle}>Cliente:</span>
+                            <span style={detailValueStyle}>{s.customer}</span>
+                          </div>
+                          <div style={detailRowStyle}>
+                            <span style={detailLabelStyle}>Artículos:</span>
+                            <span style={detailValueStyle}>{s.items}</span>
+                          </div>
+                          <div style={detailRowStyle}>
+                            <span style={detailLabelStyle}>Método:</span>
+                            <span style={detailValueStyle}>
+                              <Badge tone={payTone(s.paymentMethod)}>{formattedMethod}</Badge>
+                            </span>
+                          </div>
+                          <div style={detailRowStyle}>
+                            <span style={detailLabelStyle}>Estado:</span>
+                            <span style={detailValueStyle}>
+                              <Badge tone={statusTone(s.status)}>{formattedStatus}</Badge>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Resumen de Pago */}
+                        <div>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Resumen de Pago</h4>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 8 }}>
+                            <span style={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}>Total:</span>
+                            <span style={{ fontSize: 20, fontWeight: 800, color: "#1e3a8a" }}>{moneyExact(s.totalAmount)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={rows}
+          loading={loading}
+          error={error}
+          emptyMessage="No hay ventas con los filtros seleccionados."
+          keyExtractor={(s) => s.id}
+        />
+      )}
 
       {/* Sub-modal: autorización por PIN para cancelar */}
       <ActionModal

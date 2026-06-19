@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Plus, Activity, Pencil } from "lucide-react";
+import { Activity, ChevronDown, ChevronUp, Pencil, Plus } from "lucide-react";
 import api from "../../services/api";
 import { useAdminData } from "../../hooks";
 import { DataTable, ActionModal } from "../../components/common";
@@ -33,6 +33,7 @@ import {
   fmtTime,
   roleTone,
   statusTone,
+  useMediaQuery
 } from "./shared";
 
 interface EmployeeRow {
@@ -84,7 +85,38 @@ const emptyForm = {
 type FormState = typeof emptyForm;
 type FieldErrors = Partial<Record<keyof FormState, string>>;
 
+const empDetailRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-start",
+  alignItems: "center",
+  gap: "8px",
+  fontSize: 13,
+  marginBottom: 6,
+};
+
+const empDetailLabel: React.CSSProperties = {
+  fontWeight: 700,
+  color: "#64748b",
+  minWidth: "95px",
+  display: "inline-block",
+};
+
+const empDetailValue: React.CSSProperties = {
+  fontWeight: 600,
+  color: "#334155",
+};
+
 const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+  const isMobile = useMediaQuery("(max-width: 1024px)");
+  const [expandedEmployees, setExpandedEmployees] = useState<Record<number, boolean>>({});
+
+  const toggleExpandEmployee = (id: number) => {
+    setExpandedEmployees((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [role, setRole] = useState("all");
@@ -444,15 +476,209 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         </span>
       </Toolbar>
 
-      <div className="table-sticky-head">
-        <DataTable
-          columns={columns}
-          data={rows}
-          loading={loading}
-          error={error}
-          keyExtractor={(u) => u.id}
-        />
-      </div>
+      {isMobile ? (
+        /* ── Mobile / Tablet: Card-based layout ── */
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
+          {/* Header row mirroring the fields */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1.5fr 1fr 1fr 1.6fr",
+            padding: "12px 16px",
+            fontWeight: 700,
+            fontSize: 11,
+            color: "#64748b",
+            textTransform: "uppercase",
+            letterSpacing: "0.4px",
+          }}>
+            <div>Sucursal</div>
+            <div style={{ textAlign: "center" }}>Estado</div>
+            <div style={{ textAlign: "center" }}>Operaciones</div>
+            <div style={{ textAlign: "right", paddingRight: 8 }}>Acción</div>
+          </div>
+
+          {loading && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              Cargando información...
+            </div>
+          )}
+          {!loading && error && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
+              {error}
+            </div>
+          )}
+          {!loading && !error && rows.length === 0 && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              No hay empleados registrados.
+            </div>
+          )}
+
+          {!loading &&
+            !error &&
+            rows.map((u) => {
+              const isExpanded = expandedEmployees[u.id];
+              return (
+                <div
+                  key={u.id}
+                  style={{
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 12,
+                    marginBottom: 10,
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* Header: Nombre y Rol */}
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "8px 16px 6px 16px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "#64748b",
+                    borderBottom: "1px solid #f1f5f9",
+                    backgroundColor: "#f8fafc",
+                    letterSpacing: "0.2px",
+                  }}>
+                    <span>{u.name.toUpperCase()}</span>
+                    <Badge tone={roleTone(u.role)}>{u.role}</Badge>
+                  </div>
+
+                  {/* Fila principal */}
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.5fr 1fr 1fr 1.6fr",
+                    padding: "12px 16px",
+                    alignItems: "center",
+                  }}>
+                    {/* Sucursal */}
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>
+                      {u.branch}
+                    </div>
+
+                    {/* Estado */}
+                    <div style={{ display: "flex", justifyContent: "center" }}>
+                      <Badge tone={u.active ? "green" : "red"}>{u.active ? "Activo" : "Inactivo"}</Badge>
+                    </div>
+
+                    {/* Operaciones */}
+                    <div style={{ display: "flex", justifyContent: "center" }}>
+                      <button style={ui.linkBtn} className="active-tap" onClick={() => openOps(u.id)}>
+                        <Activity size={14} style={{ verticalAlign: "-2px" }} /> Ver
+                      </button>
+                    </div>
+
+                    {/* Botones de Acción */}
+                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+                      {/* Pencil/Editar */}
+                      <button
+                        onClick={() => openEdit(u)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#eff6ff",
+                          border: "1px solid #bfdbfe",
+                          borderRadius: 8,
+                          width: 34,
+                          height: 34,
+                          cursor: "pointer",
+                          color: "#1e3a8a",
+                          padding: 0,
+                        }}
+                        className="active-tap"
+                        title="Editar empleado"
+                      >
+                        <Pencil size={14} />
+                      </button>
+
+                      {/* Chevron */}
+                      <button
+                        onClick={() => toggleExpandEmployee(u.id)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#ffffff",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: 8,
+                          width: 34,
+                          height: 34,
+                          cursor: "pointer",
+                          color: "#64748b",
+                          padding: 0,
+                        }}
+                        className="active-tap"
+                      >
+                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Detalle expandido */}
+                  {isExpanded && (
+                    <div style={{
+                      padding: "16px",
+                      margin: "0 16px 16px 16px",
+                      backgroundColor: "#f8fafc",
+                      borderRadius: "8px",
+                      border: "1px solid #e2e8f0",
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                      gap: "16px",
+                      textAlign: "left",
+                    }}>
+                      {/* Información de Contacto */}
+                      <div>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Contacto y Registro</h4>
+                        <div style={empDetailRow}>
+                          <span style={empDetailLabel}>Correo:</span>
+                          <span style={empDetailValue}>{u.email}</span>
+                        </div>
+                        <div style={empDetailRow}>
+                          <span style={empDetailLabel}>Teléfono:</span>
+                          <span style={empDetailValue}>{u.phone || "—"}</span>
+                        </div>
+                        <div style={empDetailRow}>
+                          <span style={empDetailLabel}>F. Alta:</span>
+                          <span style={empDetailValue}>{fmtDate(u.createdAt)}</span>
+                        </div>
+                      </div>
+
+                      {/* Configuración Salarial */}
+                      <div>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Sueldo y Comisiones</h4>
+                        <div style={empDetailRow}>
+                          <span style={empDetailLabel}>Sueldo base:</span>
+                          <span style={empDetailValue}>
+                            {u.baseSalary != null ? money(u.baseSalary) : "—"}
+                          </span>
+                        </div>
+                        <div style={empDetailRow}>
+                          <span style={empDetailLabel}>Comisión:</span>
+                          <span style={empDetailValue}>
+                            {u.commissionRate != null ? `${u.commissionRate}%` : "—"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      ) : (
+        <div className="table-sticky-head">
+          <DataTable
+            columns={columns}
+            data={rows}
+            loading={loading}
+            error={error}
+            keyExtractor={(u) => u.id}
+          />
+        </div>
+      )}
 
       {/* Modal alta / edición de empleado */}
       <ActionModal
