@@ -366,9 +366,9 @@ const Dashboard: React.FC = () => {
   // ---------------------------------------------------------------------------
   const checkSessionStatus = async () => {
     if (!user) return;
-
-    // Si es Administrador, va directo al Dashboard admin
-    if (user.role === "ADMIN") {
+    
+    // Si es Administrador o Gerente, va directo al Dashboard admin
+    if (user.role === "ADMIN" || user.role === "GERENTE") {
       setLoading(false);
       return;
     }
@@ -724,25 +724,25 @@ const Dashboard: React.FC = () => {
 
   const setNewCustomerField =
     (field: keyof typeof newCustomerForm) =>
-    (value: string) => {
-      const nextValue =
-        field === "phone"
-          ? normalizePhoneInput(value).slice(0, 20)
-          : field === "email"
-            ? normalizeEmailInput(value)
-            : field === "name"
-              ? validateNameInput(value)
-              : value;
-      setNewCustomerForm((prev) => ({ ...prev, [field]: nextValue }));
-      setNewCustomerError(null);
-      setNewCustomerFieldErrors((prev) => {
-        const next = { ...prev };
-        const error = validateNewCustomerField(field, nextValue);
-        if (error) next[field] = error;
-        else delete next[field];
-        return next;
-      });
-    };
+      (value: string) => {
+        const nextValue =
+          field === "phone"
+            ? normalizePhoneInput(value).slice(0, 20)
+            : field === "email"
+              ? normalizeEmailInput(value)
+              : field === "name"
+                ? validateNameInput(value)
+                : value;
+        setNewCustomerForm((prev) => ({ ...prev, [field]: nextValue }));
+        setNewCustomerError(null);
+        setNewCustomerFieldErrors((prev) => {
+          const next = { ...prev };
+          const error = validateNewCustomerField(field, nextValue);
+          if (error) next[field] = error;
+          else delete next[field];
+          return next;
+        });
+      };
 
   const handleRegisterCustomerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1188,7 +1188,7 @@ const Dashboard: React.FC = () => {
           invoiceNumber: qrReference,
           paymentId: res.data.paymentId || `mock-${Date.now()}`
         }, { timeout: LONG_OPERATION_TIMEOUT });
-        alert("Pago aprobado exitosamente.");
+        showToast("Pago aprobado exitosamente.", "success");
         setQrModalOpen(false);
         setCart([]);
         setPaymentMethod("EFECTIVO");
@@ -1206,11 +1206,11 @@ const Dashboard: React.FC = () => {
 
         setActiveModal("ticket-view");
       } else if (res.data.status === "rejected") {
-        alert("Pago rechazado.");
+        showToast("Pago rechazado.", "error");
       } else {
-        alert("El pago aún no ha sido completado. Estado: " + res.data.status);
+        showToast("El pago aún no ha sido completado. Estado: " + res.data.status, "info");
       }
-    } catch (err) {
+    } catch(err) {
       alert("Error al verificar pago.");
     } finally {
       setQrChecking(false);
@@ -1369,7 +1369,7 @@ const Dashboard: React.FC = () => {
         setQrReference(saleInvoice);
         setCheckoutModalOpen(false);
         setQrModalOpen(true);
-      } catch (err: any) {
+      } catch(err: any) {
         alert(getCheckoutErrorMessage(err, "Error al procesar pago QR"));
       } finally {
         setCheckoutLoading(false);
@@ -1457,7 +1457,7 @@ const Dashboard: React.FC = () => {
     const title = selectedSale?.invoiceNumber ? `Ticket ${selectedSale.invoiceNumber}` : "Ticket";
     const printed = printTicketElementById(title, "print-area");
     if (!printed) {
-      alert("Habilite las ventanas emergentes para imprimir el ticket.");
+      showToast("Habilite las ventanas emergentes para imprimir el ticket.", "info");
     }
   };
 
@@ -1582,7 +1582,7 @@ const Dashboard: React.FC = () => {
         pdfBase64,
         pdfFilename: ticketPdfFilename(ticketEmailSubject),
       });
-      showToast(res.data.message, "success");
+      showToast("¡Enviado! El ticket se ha enviado con éxito al correo: " + email, "success");
       setTicketEmailModalOpen(false);
     } catch (err: any) {
       const msg =
@@ -1784,9 +1784,9 @@ const Dashboard: React.FC = () => {
   const setCancelField = (field: "invoice" | "pin" | "reason", value: string) => {
     const nextValue =
       field === "pin" ? normalizeIntegerInput(value).slice(0, 4) :
-      field === "invoice" ? validateFolioInput(value) :
-      field === "reason" ? validateReasonInput(value) :
-      value;
+        field === "invoice" ? validateFolioInput(value) :
+          field === "reason" ? validateReasonInput(value) :
+            value;
     if (field === "invoice") setCancelInvoice(nextValue);
     if (field === "pin") setCancelPin(nextValue);
     if (field === "reason") setCancelReason(nextValue);
@@ -2292,7 +2292,7 @@ const Dashboard: React.FC = () => {
         pinCode: depCancelPin,
         reason: depCancelReason.trim()
       });
-      alert(res.data.message || "Depósito cancelado exitosamente.");
+      showToast(res.data.message || "Depósito cancelado exitosamente.", "success");
       setCancellingDep(null);
       setDepCancelPin("");
       setDepCancelReason("");
@@ -2300,7 +2300,7 @@ const Dashboard: React.FC = () => {
       await handleSearchDeposits();
       await loadDashboardData();
     } catch (err: any) {
-      alert(err.response?.data?.message || "Error al cancelar el depósito.");
+      showToast(err.response?.data?.message || "Error al cancelar el depósito.", "error");
     } finally {
       setDepCancelLoading(false);
     }
@@ -3479,21 +3479,21 @@ const Dashboard: React.FC = () => {
                  <p style={{marginBottom: "10px", fontSize: "14px", color: "#475569"}}>Escanea el siguiente código para pagar <strong>${cartTotal.toFixed(2)}</strong></p>
                  {qrUrl ? (
                    <>
-                     <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" width="200" height="200" loading="lazy" />
+                     <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" width="200" height="200" />
                      <div style={{ marginTop: "12px" }}>
-                       <a
-                         href={qrUrl}
-                         target="_blank"
-                         rel="noopener noreferrer"
-                         style={{
-                           fontSize: "12px",
-                           color: "#2563eb",
-                           textDecoration: "underline",
-                           fontWeight: "600",
-                           display: "inline-block",
-                           padding: "6px 12px",
-                           backgroundColor: "#f1f5f9",
-                           borderRadius: "6px"
+                       <a 
+                         href={qrUrl} 
+                         target="_blank" 
+                         rel="noopener noreferrer" 
+                         style={{ 
+                           fontSize: "12px", 
+                           color: "#2563eb", 
+                           textDecoration: "underline", 
+                           fontWeight: "600", 
+                           display: "inline-block", 
+                           padding: "6px 12px", 
+                           backgroundColor: "#f1f5f9", 
+                           borderRadius: "6px" 
                          }}
                        >
                          🔗 Abrir enlace de pago / Sandbox
@@ -5056,7 +5056,7 @@ const Dashboard: React.FC = () => {
                 onClick={() => {
                   const printed = printTicketElementById(`Corte Parcial #${partialCutData.cutNumber}`, "partial-cut-thermal-receipt");
                   if (!printed) {
-                    alert("Habilite las ventanas emergentes para imprimir el comprobante.");
+                    showToast("Habilite las ventanas emergentes para imprimir el comprobante.", "info");
                   }
                 }}
                 style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
@@ -5483,11 +5483,11 @@ const Dashboard: React.FC = () => {
                       <div style={styles.inputGroup}>
                         <label style={styles.label}>Referencia:</label>
                         <input
-                           type="text"
-                           className="input-corporate"
-                           placeholder="DEP-..."
-                           value={searchDepRef}
-                           onChange={(e) => setSearchDepRef(normalizeIntegerInput(e.target.value))}
+                          type="text"
+                          className="input-corporate"
+                          placeholder="DEP-..."
+                          value={searchDepRef}
+                          onChange={(e) => setSearchDepRef(normalizeIntegerInput(e.target.value))}
                         />
                       </div>
                       <div style={styles.inputGroup}>
@@ -5842,7 +5842,7 @@ const Dashboard: React.FC = () => {
                   onClick={() => {
                     const printed = printTicketElementById(`Comprobante de Retiro #${lastDeposit.id}`, "deposit-thermal-receipt");
                     if (!printed) {
-                      alert("Habilite las ventanas emergentes para imprimir el comprobante.");
+                      showToast("Habilite las ventanas emergentes para imprimir el comprobante.", "info");
                     }
                   }}
                   style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
@@ -5890,27 +5890,26 @@ const Dashboard: React.FC = () => {
                </p>
                {viewingPendingQrSale.qrUrl ? (
                  <>
-                   <img
-                     src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(viewingPendingQrSale.qrUrl)}`}
-                     alt="QR Code"
-                     width="180"
-                     height="180"
-                     loading="lazy"
+                   <img 
+                     src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(viewingPendingQrSale.qrUrl)}`} 
+                     alt="QR Code" 
+                     width="180" 
+                     height="180" 
                    />
                    <div style={{ marginTop: "10px" }}>
-                     <a
-                       href={viewingPendingQrSale.qrUrl}
-                       target="_blank"
-                       rel="noopener noreferrer"
-                       style={{
-                         fontSize: "12px",
-                         color: "#2563eb",
-                         textDecoration: "underline",
-                         fontWeight: "600",
-                         display: "inline-block",
-                         padding: "6px 12px",
-                         backgroundColor: "#f1f5f9",
-                         borderRadius: "6px"
+                     <a 
+                       href={viewingPendingQrSale.qrUrl} 
+                       target="_blank" 
+                       rel="noopener noreferrer" 
+                       style={{ 
+                         fontSize: "12px", 
+                         color: "#2563eb", 
+                         textDecoration: "underline", 
+                         fontWeight: "600", 
+                         display: "inline-block", 
+                         padding: "6px 12px", 
+                         backgroundColor: "#f1f5f9", 
+                         borderRadius: "6px" 
                        }}
                      >
                        🔗 Abrir enlace de pago / Sandbox
@@ -5963,42 +5962,42 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
 
-                  <div style={{ display: "flex", gap: "10px" }}>
-                    <button
-                      onClick={() => handlePendingQrCancel("other_method")}
-                      disabled={pendingCancelLoading}
-                      style={{
-                        flex: 1,
-                        padding: "10px 8px",
-                        borderRadius: "6px",
-                        border: "none",
-                        backgroundColor: "#598ffbff",
-                        color: "white",
-                        fontWeight: "700",
-                        fontSize: "11px",
-                        cursor: pendingCancelLoading ? "default" : "pointer"
-                      }}
-                    >
-                      PAGAR CON OTRO MÉTODO
-                    </button>
-                    <button
-                      onClick={() => handlePendingQrCancel("cancel_def")}
-                      disabled={pendingCancelLoading}
-                      style={{
-                        flex: 1,
-                        padding: "10px 8px",
-                        borderRadius: "6px",
-                        border: "none",
-                        backgroundColor: "#dc2626",
-                        color: "white",
-                        fontWeight: "700",
-                        fontSize: "11px",
-                        cursor: pendingCancelLoading ? "default" : "pointer"
-                      }}
-                    >
-                      CANCELAR DEFINITIVAMENTE
-                    </button>
-                  </div>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button
+                    onClick={() => handlePendingQrCancel("other_method")}
+                    disabled={pendingCancelLoading}
+                    style={{
+                      flex: 1,
+                      padding: "10px 8px",
+                      borderRadius: "6px",
+                      border: "none",
+                      backgroundColor: "#598ffbff",
+                      color: "white",
+                      fontWeight: "700",
+                      fontSize: "11px",
+                      cursor: pendingCancelLoading ? "default" : "pointer"
+                    }}
+                  >
+                    PAGAR CON OTRO MÉTODO
+                  </button>
+                  <button
+                    onClick={() => handlePendingQrCancel("cancel_def")}
+                    disabled={pendingCancelLoading}
+                    style={{
+                      flex: 1,
+                      padding: "10px 8px",
+                      borderRadius: "6px",
+                      border: "none",
+                      backgroundColor: "#dc2626",
+                      color: "white",
+                      fontWeight: "700",
+                      fontSize: "11px",
+                      cursor: pendingCancelLoading ? "default" : "pointer"
+                    }}
+                  >
+                    CANCELAR DEFINITIVAMENTE
+                  </button>
+                </div>
               </div>
             )}
 
@@ -6139,7 +6138,7 @@ const Dashboard: React.FC = () => {
                 onClick={() => {
                   const printed = printTicketElementById(`Corte Z - Sesion #${lastClosedStats.session?.id}`, "close-thermal-receipt");
                   if (!printed) {
-                    alert("Habilite las ventanas emergentes para imprimir el comprobante.");
+                    showToast("Habilite las ventanas emergentes para imprimir el comprobante.", "info");
                   }
                 }}
                 style={{ ...styles.modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
