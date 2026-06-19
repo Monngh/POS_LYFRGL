@@ -192,14 +192,14 @@ export const reportProductsSold = async (req: Request, res: Response): Promise<v
 
     const details = await prisma.saleDetail.findMany({
       where: { saleId: { in: saleIds } },
-      select: { productId: true, quantity: true, unitPrice: true, costPrice: true },
+      select: { productId: true, quantity: true, unitPrice: true, costPrice: true, discountAmount: true },
     });
 
     const agg = new Map<number, { qty: number; importe: number; cost: number; tx: number }>();
     for (const d of details) {
       const e = agg.get(d.productId) ?? { qty: 0, importe: 0, cost: 0, tx: 0 };
       e.qty += d.quantity;
-      e.importe += Number(d.unitPrice) * d.quantity;
+      e.importe += (Number(d.unitPrice) * d.quantity) - Number(d.discountAmount);
       e.cost += Number(d.costPrice) * d.quantity;
       e.tx += 1;
       agg.set(d.productId, e);
