@@ -768,11 +768,13 @@ export default function BankDepositModal({
                             </td>
                             <td style={{ ...td, padding: "8px", fontSize: "12px" }}>
                               {dep.paymentType?.startsWith("MERCADOPAGO_") ? (
-                                <div>Ref: {dep.accountNumber}</div>
+                                <div>Ref: ****{dep.accountNumber.slice(-4)}</div>
                               ) : (
-                                <div>****{dep.accountNumber.slice(-4)}</div>
+                                <div>Cuenta: ****{dep.accountNumber.slice(-4)}</div>
                               )}
-                              <div style={{ fontSize: "10px", color: "#64748b" }}>{dep.targetName}</div>
+                              <div style={{ fontSize: "10px", color: "#64748b" }}>
+                                {dep.targetName ? "Destino registrado" : "Destino no registrado"}
+                              </div>
                             </td>
                             <td style={{ ...td, padding: "8px", fontSize: "12px", fontWeight: "700", color: dep.status === "CANCELLED" ? "#b91c1c" : "#0f172a" }}>
                               {dep.status === "CANCELLED" ? "" : "-"}${Number(dep.amount).toFixed(2)}
