@@ -188,14 +188,14 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
       <Toolbar>
         <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-          <label style={{ fontSize: "12px", fontWeight: "600", color: "#1e3a8a" }}>Desde:</label>
+          <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--accent-strong)" }}>Desde:</label>
           <input
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
             style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", flex: "1 1 120px", minWidth: 0, maxWidth: 180 }}
           />
-          <label style={{ fontSize: "12px", fontWeight: "600", color: "#1e3a8a" }}>Hasta:</label>
+          <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--accent-strong)" }}>Hasta:</label>
           <input
             type="date"
             value={to}
@@ -223,15 +223,15 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           ]}
         />
 
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "#334155", fontWeight: 700 }}>
-          Total depositado: <span style={{ color: "#1e3a8a", fontWeight: 800 }}>{money(total)}</span>
+        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-secondary)", fontWeight: 700 }}>
+          Total depositado: <span style={{ color: "var(--accent-strong)", fontWeight: 800 }}>{money(total)}</span>
         </span>
       </Toolbar>
 
       {isMobile ? (
         <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 4px" }}>
           {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
             </div>
           )}
@@ -241,7 +241,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </div>
           )}
           {!loading && !error && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               No hay depósitos bancarios registrados.
             </div>
           )}
@@ -254,8 +254,8 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <div
                   key={d.id}
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #f1f5f9",
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--surface-3)",
                     borderRadius: 16,
                     marginBottom: 12,
                     boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
@@ -269,9 +269,9 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     padding: "10px 16px",
                     fontSize: 11,
                     fontWeight: 700,
-                    color: "#64748b",
-                    borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "#f8fafc",
+                    color: "var(--text-muted)",
+                    borderBottom: "1px solid var(--surface-3)",
+                    backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px"
                   }}>
                     <span>{d.branch.toUpperCase()}</span>
@@ -306,18 +306,18 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         </div>
 
                         {/* Beneficiario */}
-                        <div style={{ fontSize: 14, color: "#64748b", marginBottom: 8, fontWeight: 600 }}>
+                        <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 8, fontWeight: 600 }}>
                           {d.targetName}
                         </div>
 
                         {/* Fecha */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569", marginBottom: 6 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", marginBottom: 6 }}>
                           <Calendar size={14} color="#2563eb" />
                           <span>{fmtDate(d.createdAt)} {fmtTime(d.createdAt)}</span>
                         </div>
 
                         {/* Cuenta Destino */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
                           <CreditCard size={14} color="#2563eb" />
                           <span>Cuenta: <span style={{ fontFamily: "monospace" }}>{d.accountMasked}</span></span>
                         </div>
@@ -331,8 +331,8 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             display: "inline-flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            backgroundColor: "#ffffff",
-                            border: "1px solid #cbd5e1",
+                            backgroundColor: "var(--surface)",
+                            border: "1px solid var(--border-strong)",
                             borderRadius: 8,
                             width: 38,
                             height: 38,
@@ -349,7 +349,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                     {/* Detalle expandible */}
                     {isExpanded && (
-                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--surface-3)" }}>
                         {/* Botón Ver Detalle */}
                         <div style={{ marginBottom: 12 }}>
                           <button
@@ -374,13 +374,13 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                         {/* Contenedor de datos faltantes */}
                         <div style={{
-                          backgroundColor: "#f8fafc",
+                          backgroundColor: "var(--surface-2)",
                           borderRadius: 12,
-                          border: "1px solid #e2e8f0",
+                          border: "1px solid var(--border)",
                           padding: 16,
                         }}>
                           {/* Datos del Depósito */}
-                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Datos del Depósito</h4>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Datos del Depósito</h4>
                           <div style={detailRowStyle}>
                             <span style={detailLabelStyle}>Folio Dep:</span>
                             <span style={detailValueStyle}>#{d.id}</span>
@@ -395,7 +395,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           </div>
 
                           {/* Estado y Confirmación */}
-                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginTop: 16, marginBottom: 10 }}>Estado y Confirmación</h4>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginTop: 16, marginBottom: 10 }}>Estado y Confirmación</h4>
                           <div style={detailRowStyle}>
                             <span style={detailLabelStyle}>Estado:</span>
                             <span style={detailValueStyle}>
@@ -430,7 +430,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                                   height: "18px",
                                 }}
                               />
-                              <span style={{ fontSize: 12, color: "#64748b" }}>
+                              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
                                 {d.status === "COMPLETED" || d.status === "CONFIRMADO" ? "Confirmado" : "Pendiente de confirmar"}
                               </span>
                             </span>
@@ -438,9 +438,9 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                           {/* Comentarios si existen */}
                           {d.comments && (
-                            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e2e8f0" }}>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 4 }}>Comentarios:</div>
-                              <div style={{ fontSize: 13, color: "#334155" }}>{renderComments(d.comments)}</div>
+                            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 4 }}>Comentarios:</div>
+                              <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{renderComments(d.comments)}</div>
                             </div>
                           )}
                         </div>
@@ -472,14 +472,14 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 !error &&
                 rows.map((d) => (
                   <tr key={d.id}>
-                    <td style={ui.td}>{fmtDate(d.createdAt)} <span style={{ color: "#94a3b8" }}>{fmtTime(d.createdAt)}</span></td>
-                    <td style={{ ...ui.td, fontFamily: "monospace", color: "#475569" }}>{d.accountMasked}</td>
-                    <td style={{ ...ui.td, fontWeight: 600, color: "#0f172a", whiteSpace: "normal" }}>{d.targetName}</td>
+                    <td style={ui.td}>{fmtDate(d.createdAt)} <span style={{ color: "var(--text-faint)" }}>{fmtTime(d.createdAt)}</span></td>
+                    <td style={{ ...ui.td, fontFamily: "monospace", color: "var(--text-secondary)" }}>{d.accountMasked}</td>
+                    <td style={{ ...ui.td, fontWeight: 600, color: "var(--text)", whiteSpace: "normal" }}>{d.targetName}</td>
                     <td style={ui.td}>{d.branch}</td>
                     <td style={{ ...ui.td, textAlign: "center" }}>
                       <Badge tone={payTone(d.paymentType)}>{d.paymentType}</Badge>
                     </td>
-                    <td style={{ ...ui.td, textAlign: "center", color: "#64748b" }}>#{d.sessionId}</td>
+                    <td style={{ ...ui.td, textAlign: "center", color: "var(--text-muted)" }}>#{d.sessionId}</td>
                     <td style={{ ...ui.td, textAlign: "center" }}>
                       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}>
                         <input
@@ -554,7 +554,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             boxShadow: "0 20px 25px rgba(0,0,0,0.15)"
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "16px" }}>
-              <h2 style={{ margin: 0, fontSize: "18px", color: "#1e3a8a" }}>
+              <h2 style={{ margin: 0, fontSize: "18px", color: "var(--accent-strong)" }}>
                 Depósito #{selectedDeposit.id}
               </h2>
               <button
@@ -662,14 +662,14 @@ const detailRowStyle: React.CSSProperties = {
 
 const detailLabelStyle: React.CSSProperties = {
   fontWeight: 700,
-  color: "#64748b",
+  color: "var(--text-muted)",
   minWidth: "85px",
   display: "inline-block",
 };
 
 const detailValueStyle: React.CSSProperties = {
   fontWeight: 600,
-  color: "#334155",
+  color: "var(--text-secondary)",
 };
 
 export default DepositosView;
