@@ -4,6 +4,12 @@ import {
   normalizeIntegerInput,
 } from "../../../utils/formValidation";
 
+const maskPhone = (value: string | null | undefined): string => {
+  const digits = (value || "").replace(/\D/g, "");
+  if (!digits) return "";
+  return `${"*".repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}`;
+};
+
 const validateFolioInput = (value: string): string =>
   value
     .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
@@ -257,8 +263,8 @@ export default function TicketHistoryModal({
                     <td style={{ ...td, fontSize: "11px" }}>
                       {sale.customerName ? (
                         <>
-                          <div style={{ fontWeight: "600", color: "#334155" }}>{sale.customerName}</div>
-                          {sale.customerPhone && <div style={{ fontSize: "10px", color: "#64748b" }}>{sale.customerPhone}</div>}
+                          <div style={{ fontWeight: "600", color: "#334155" }}>Cliente registrado</div>
+                          {sale.customerPhone && <div style={{ fontSize: "10px", color: "#64748b" }}>Tel: {maskPhone(sale.customerPhone)}</div>}
                         </>
                       ) : (
                         <span style={{ color: "#94a3b8", fontStyle: "italic" }}>General</span>

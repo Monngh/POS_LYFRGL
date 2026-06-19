@@ -142,8 +142,7 @@ export const getTicketDetails = async (req: Request, res: Response): Promise<voi
       res.status(400).json({
         success: false,
         message: INVOICE_ALREADY_MESSAGE,
-        cfdiUuid: satUuid,
-        cfdiEmail: sale.cfdiEmail
+        cfdiUuid: satUuid
       });
       return;
     }

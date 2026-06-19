@@ -1,17 +1,23 @@
 import { prisma } from "../app";
 import { AppError } from "../utils/AppError";
 
-export const searchCustomers = async (query: string) => {
-  if (!query) return [];
+const normalizePhoneDigits = (value: string | null | undefined): string =>
+  (value || "").replace(/\D/g, "");
 
-  return prisma.customer.findMany({
-    where: {
-      OR: [{ name: { contains: query } }, { phone: { contains: query } }],
-    },
+export const searchCustomers = async (query: string) => {
+  const phoneDigits = normalizePhoneDigits(query);
+  if (!phoneDigits || phoneDigits.length < 10 || phoneDigits.length > 15) return [];
+
+  const candidates = await prisma.customer.findMany({
+    where: { phone: { contains: phoneDigits.slice(-4) } },
     orderBy: { name: "asc" },
-    take: 10,
-    select: { id: true, name: true, phone: true, email: true, points: true },
+    take: 25,
+    select: { id: true, phone: true, points: true },
   });
+
+  return candidates
+    .filter((c) => normalizePhoneDigits(c.phone) === phoneDigits)
+    .slice(0, 1);
 };
 
 export const registerCustomerFromPos = async (

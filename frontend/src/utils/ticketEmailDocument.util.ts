@@ -131,6 +131,28 @@ export const TICKET_PRINT_STYLES = `
     font-weight: 800;
     text-transform: uppercase;
   }
+  .invoice-info {
+    width: 100%;
+    margin: 8px 0 0 0;
+    padding: 6px 4px;
+    border-top: 1px dashed #111111;
+    border-bottom: 1px dashed #111111;
+    text-align: center;
+    font-size: 9px;
+    line-height: 1.3;
+  }
+  .invoice-info-title {
+    margin-bottom: 3px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+  .invoice-info-text {
+    max-width: 62mm;
+    margin: 0 auto;
+    font-weight: 600;
+  }
   .no-print,
   [data-no-ticket-print="true"] {
     display: none !important;
@@ -186,6 +208,31 @@ export const TICKET_PRINT_MEDIA_STYLES = `
       color: #111111 !important;
       background: transparent !important;
       box-shadow: none !important;
+    }
+
+    .ticket-print .invoice-info {
+      width: 100% !important;
+      margin: 8px 0 0 0 !important;
+      padding: 6px 4px !important;
+      border-top: 1px dashed #111111 !important;
+      border-bottom: 1px dashed #111111 !important;
+      text-align: center !important;
+      font-size: 9px !important;
+      line-height: 1.3 !important;
+    }
+
+    .ticket-print .invoice-info-title {
+      margin-bottom: 3px !important;
+      font-size: 10px !important;
+      font-weight: 800 !important;
+      letter-spacing: 0.3px !important;
+      text-transform: uppercase !important;
+    }
+
+    .ticket-print .invoice-info-text {
+      max-width: 62mm !important;
+      margin: 0 auto !important;
+      font-weight: 600 !important;
     }
 
     .no-print,
