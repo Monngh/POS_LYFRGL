@@ -1576,7 +1576,7 @@ const Dashboard: React.FC = () => {
         innerHtml: ticketEmailHtml || undefined,
       });
 
-      const res = await api.post("/api/sales/send-ticket-email", {
+      await api.post("/api/sales/send-ticket-email", {
         email,
         subject: ticketEmailSubject,
         pdfBase64,

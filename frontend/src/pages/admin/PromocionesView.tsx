@@ -245,7 +245,6 @@ const ProductSelector: React.FC<{
                       userSelect: "none",
                       boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
                       transition: "border-color 0.2s ease",
-                      display: "flex",
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center" }}>
