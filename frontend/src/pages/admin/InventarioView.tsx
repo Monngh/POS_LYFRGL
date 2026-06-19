@@ -25,7 +25,6 @@ import {
   useMediaQuery,
 } from "./shared";
 
-
 interface ProductRow {
   id: number;
   sku: string;
@@ -388,14 +387,12 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
 
-  // Detail modal
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [statusSaving, setStatusSaving] = useState(false);
 
-  // Feature 1: edit prices
   const [editMode, setEditMode] = useState(false);
   const [editCost, setEditCost] = useState("");
   const [editPrice, setEditPrice] = useState("");
@@ -403,7 +400,6 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [priceSaving, setPriceSaving] = useState(false);
 
-  // Feature 2: adjust stock
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [adjustBranch, setAdjustBranch] = useState(0);
   const [adjustType, setAdjustType] = useState("");
@@ -414,7 +410,6 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [adjustFieldErrors, setAdjustFieldErrors] = useState<Partial<Record<"quantity", string>>>({});
   const [adjustSaving, setAdjustSaving] = useState(false);
 
-  // Feature 3: transfer
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferFrom, setTransferFrom] = useState(0);
   const [transferTo, setTransferTo] = useState(0);
@@ -424,10 +419,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [transferFieldErrors, setTransferFieldErrors] = useState<Partial<Record<"quantity", string>>>({});
   const [transferSaving, setTransferSaving] = useState(false);
 
-
-  // Suppliers catalog (shared between create + detail modals)
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
-
   const [productSuppliers, setProductSuppliers] = useState<number[]>([]);
   const [editingSuppliersMode, setEditingSuppliersMode] = useState(false);
   const [suppliersError, setSuppliersError] = useState<string | null>(null);
@@ -649,10 +641,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setStatusSaving(true);
     try {
       if (p.active) {
-        // Soft delete (desactivar)
         await api.delete(`/api/admin/products/${p.id}`);
       } else {
-        // Activar (usando PUT con active: true)
         await api.put(`/api/admin/products/${p.id}`, {
           active: true,
         });
@@ -705,7 +695,6 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       }
 
       if (editingId !== null) {
-        // Modo Edición
         await api.put(`/api/admin/products/${editingId}`, {
           name: validatedProduct.name,
           barcode: validatedProduct.barcode,
@@ -719,7 +708,6 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           taxIds: selectedTaxIds,
         });
       } else {
-        // Modo Creación
         const createRes = await api.post("/api/admin/products", {
           sku: validatedProduct.sku,
           barcode: validatedProduct.barcode,
@@ -878,7 +866,6 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     );
   }, [selectedProduct]);
 
-  // Feature 1: save price/cost edits
   const saveProductChanges = async () => {
     if (!selectedProduct || priceSaving) return;
     setSaveError(null);
@@ -923,7 +910,6 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     }
   };
 
-  // Feature 2: submit stock adjustment
   const submitAdjustment = async () => {
     if (!selectedProduct || adjustSaving) return;
     setAdjustError(null);
@@ -1005,7 +991,6 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     }
   };
 
-  // Feature 3: submit transfer
   const submitTransfer = async () => {
     if (!selectedProduct || transferSaving) return;
     setTransferError(null);
@@ -1110,7 +1095,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         subtitle={activeTab === "existencias" ? `Existencias ${scope}` : undefined}
       />
 
-      <div style={{ display: "flex", gap: 0, marginBottom: 18, borderBottom: "1px solid var(--border)" }}>
+      <div style={{ display: "flex", gap: 0, marginBottom: 18, borderBottom: "1px solid var(--border)", overflowX: "auto" }}>
         {(["existencias", "kardex"] as const).map((tab) => {
           const isActive = activeTab === tab;
           return (
@@ -1122,12 +1107,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 border: "none",
                 borderBottom: isActive ? "2px solid #3b82f6" : "2px solid transparent",
                 marginBottom: -1,
-                padding: "8px 20px",
-                fontSize: 14,
+                padding: isMobile ? "8px 16px" : "8px 20px",
+                fontSize: isMobile ? 13 : 14,
                 fontWeight: isActive ? 700 : 500,
                 color: isActive ? "var(--accent-strong)" : "var(--text-muted)",
                 cursor: "pointer",
                 fontFamily: "inherit",
+                whiteSpace: "nowrap",
               }}
             >
               {tab === "existencias" ? "Existencias" : "Kardex"}
@@ -1168,23 +1154,21 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           </Toolbar>
 
           {isMobile ? (
-            /* ── Mobile / Tablet: Card-based layout ── */
-            <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
-              {/* Header row mirroring the fields */}
+            <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 4px" }}>
               <div style={{
                 display: "grid",
-                gridTemplateColumns: "3fr 1.3fr 1fr 1.5fr",
-                padding: "12px 16px",
+                gridTemplateColumns: "2.5fr 1.2fr 1fr 1.2fr",
+                padding: "10px 12px",
                 fontWeight: 700,
-                fontSize: 11,
+                fontSize: 10,
                 color: "var(--text-muted)",
                 textTransform: "uppercase",
-                letterSpacing: "0.4px",
+                letterSpacing: "0.3px",
               }}>
                 <div>Producto</div>
                 <div>Precio</div>
                 <div style={{ textAlign: "center" }}>Stock</div>
-                <div style={{ textAlign: "right", paddingRight: 8 }}>Acción</div>
+                <div style={{ textAlign: "right" }}>Acción</div>
               </div>
 
               {loading && (
@@ -1213,47 +1197,55 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         overflow: "hidden",
                       }}
                     >
-                      {/* Header: SKU y Estado */}
                       <div style={{
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
-                        padding: "8px 16px 6px 16px",
-                        fontSize: 11,
+                        padding: "6px 12px 5px 12px",
+                        fontSize: 10,
                         fontWeight: 700,
                         color: "var(--text-muted)",
                         borderBottom: "1px solid var(--surface-3)",
                         backgroundColor: "var(--surface-2)",
                         letterSpacing: "0.2px",
+                        textTransform: "uppercase"
                       }}>
-                        <span>{p.sku}</span>
-                        {!p.active ? (
-                          <Badge tone="red">Inactivo</Badge>
-                        ) : p.low ? (
-                          <Badge tone="amber">Stock bajo</Badge>
-                        ) : (
-                          <Badge tone="green">Disponible</Badge>
-                        )}
+                        <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "45%" }}>
+                          {p.sku}
+                        </span>
+                        <span style={{ fontSize: 9 }}>
+                          {!p.active ? (
+                            <Badge tone="red">Inactivo</Badge>
+                          ) : p.low ? (
+                            <Badge tone="amber">Stock bajo</Badge>
+                          ) : (
+                            <Badge tone="green">Disponible</Badge>
+                          )}
+                        </span>
                       </div>
 
-                      {/* Fila principal */}
                       <div style={{
                         display: "grid",
-                        gridTemplateColumns: "3fr 1.3fr 1fr 1.5fr",
-                        padding: "12px 16px",
+                        gridTemplateColumns: "2.5fr 1.2fr 1fr 1.2fr",
+                        padding: "10px 12px",
                         alignItems: "center",
+                        gap: "4px"
                       }}>
-                        {/* Producto */}
-                        <div style={{ fontSize: 13, color: "var(--text)", fontWeight: 600, paddingRight: 8, whiteSpace: "normal" }}>
+                        <div style={{
+                          fontSize: 12,
+                          color: "var(--text)",
+                          fontWeight: 600,
+                          paddingRight: 4,
+                          whiteSpace: "normal",
+                          wordBreak: "break-word"
+                        }}>
                           {p.name}
                         </div>
 
-                        {/* Precio */}
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>
                           {money(p.sellPrice)}
                         </div>
 
-                        {/* Stock */}
                         <div style={{
                           fontSize: 13,
                           fontWeight: 800,
@@ -1263,9 +1255,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           {p.stock}
                         </div>
 
-                        {/* Botones de Acción */}
-                        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
-                          {/* Eye/Detalle */}
+                        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 4 }}>
                           <button
                             onClick={() => openProductDetail(p.id)}
                             style={{
@@ -1274,9 +1264,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               justifyContent: "center",
                               backgroundColor: "#eff6ff",
                               border: "1px solid #bfdbfe",
-                              borderRadius: 8,
-                              width: 34,
-                              height: 34,
+                              borderRadius: 6,
+                              width: 30,
+                              height: 30,
                               cursor: "pointer",
                               color: "#2563eb",
                               padding: 0,
@@ -1284,10 +1274,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             className="active-tap"
                             title="Ver detalle"
                           >
-                            <Eye size={16} />
+                            <Eye size={14} />
                           </button>
 
-                          {/* Chevron */}
                           <button
                             onClick={() => toggleExpandProduct(p.id)}
                             style={{
@@ -1296,48 +1285,49 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               justifyContent: "center",
                               backgroundColor: "var(--surface)",
                               border: "1px solid var(--border-strong)",
-                              borderRadius: 8,
-                              width: 34,
-                              height: 34,
+                              borderRadius: 6,
+                              width: 30,
+                              height: 30,
                               cursor: "pointer",
                               color: "var(--text-muted)",
                               padding: 0,
                             }}
                             className="active-tap"
                           >
-                            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                           </button>
                         </div>
                       </div>
 
-                      {/* Detalle expandido */}
                       {isExpanded && (
                         <div style={{
-                          padding: "16px",
-                          margin: "0 16px 16px 16px",
+                          padding: "12px",
+                          margin: "0 12px 12px 12px",
                           backgroundColor: "var(--surface-2)",
                           borderRadius: "8px",
                           border: "1px solid var(--border)",
                           display: "grid",
-                          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                          gap: "16px",
+                          gridTemplateColumns: "1fr",
+                          gap: "8px",
                         }}>
-                          {/* Información General */}
                           <div>
-                            <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Información General</h4>
+                            <h4 style={{ fontSize: 11, fontWeight: 800, color: "var(--text)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                              Información General
+                            </h4>
                             <div style={invDetailRow}>
                               <span style={invDetailLabel}>Código Barras:</span>
                               <span style={invDetailValue}>{p.barcode || "—"}</span>
                             </div>
                             <div style={invDetailRow}>
                               <span style={invDetailLabel}>Descripción:</span>
-                              <span style={invDetailValue}>{p.description || "—"}</span>
+                              <span style={{ ...invDetailValue, wordBreak: "break-word" }}>{p.description || "—"}</span>
                             </div>
                           </div>
 
-                          {/* Valores Económicos */}
                           <div>
-                            <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Valores Económicos</h4>
+                            <h4 style={{ fontSize: 11, fontWeight: 800, color: "var(--text)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                              Valores Económicos
+                            </h4>
                             <div style={invDetailRow}>
                               <span style={invDetailLabel}>Costo:</span>
                               <span style={invDetailValue}>{money(p.costPrice)}</span>
@@ -1356,9 +1346,10 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             </div>
                           </div>
 
-                          {/* Stock y Sucursales */}
                           <div>
-                            <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Stock y Sucursales</h4>
+                            <h4 style={{ fontSize: 11, fontWeight: 800, color: "var(--text)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                              Stock y Sucursales
+                            </h4>
                             <div style={invDetailRow}>
                               <span style={invDetailLabel}>Stock Actual:</span>
                               <span style={{ ...invDetailValue, color: p.low ? "#b45309" : "#15803d" }}>{p.stock}</span>
@@ -1379,7 +1370,6 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 })}
             </div>
           ) : (
-            /* ── Desktop: Standard table ── */
             <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
               <table style={ui.table}>
                 <thead>
@@ -1449,14 +1439,21 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       {/* =================== MODAL DETALLE =================== */}
       {detailOpen && (
         <div style={ui.overlay} onClick={closeDetail}>
-          <div style={{ ...ui.modal, maxWidth: isMobile ? "100%" : 680, ...(isMobile ? { width: "100%", height: "100%", borderRadius: 0, margin: 0 } : {}) }} onClick={(e) => e.stopPropagation()}>
+          <div
+            style={{
+              ...ui.modal,
+              maxWidth: isMobile ? "100%" : 680,
+              ...(isMobile ? { width: "100%", height: "100%", borderRadius: 0, margin: 0, maxHeight: "100%" } : {})
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div style={ui.modalHeader}>
               <div>
                 <div style={ui.modalTitle}>
                   {selectedProduct ? selectedProduct.name : "Cargando…"}
                 </div>
                 {selectedProduct && (
-                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>
+                  <div style={{ fontSize: isMobile ? 11 : 12, color: "var(--text-muted)", marginTop: 3 }}>
                     SKU: {selectedProduct.sku}
                     {selectedProduct.barcode ? ` · Barcode: ${selectedProduct.barcode}` : ""}
                   </div>
@@ -1476,11 +1473,10 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               )}
               {selectedProduct && !detailLoading && (
                 <>
-                  {/* ── Precios (con modo edición) ── */}
-                  <div style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 16, marginBottom: 20 }}>
+                  <div style={{ border: "1px solid var(--border)", borderRadius: 10, padding: isMobile ? 12 : 16, marginBottom: 20 }}>
                     {!editMode ? (
                       <>
-                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 12, marginBottom: 12 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: isMobile ? 8 : 12, marginBottom: 12 }}>
                           {[
                             { label: "Costo", value: money(selectedProduct.costPrice) },
                             { label: "Precio venta", value: money(selectedProduct.sellPrice) },
@@ -1493,9 +1489,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             },
                             { label: "Estado", value: selectedProduct.active ? "Activo" : "Inactivo" },
                           ].map((kpi) => (
-                            <div key={kpi.label} style={ui.kpiCard}>
-                              <div style={ui.kpiLabel}>{kpi.label}</div>
-                              <div style={{ ...ui.kpiValue, fontSize: 17 }}>{kpi.value}</div>
+                            <div key={kpi.label} style={{ ...ui.kpiCard, padding: isMobile ? "8px 10px" : undefined }}>
+                              <div style={{ ...ui.kpiLabel, fontSize: isMobile ? 9 : undefined }}>{kpi.label}</div>
+                              <div style={{ ...ui.kpiValue, fontSize: isMobile ? 15 : 17 }}>{kpi.value}</div>
                             </div>
                           ))}
                         </div>
@@ -1504,9 +1500,10 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             onClick={() => { setEditMode(true); setSaveError(null); setPriceFieldErrors({}); }}
                             style={{
                               ...ui.ghostBtn,
-                              fontSize: 12,
+                              fontSize: isMobile ? 11 : 12,
                               color: "#2563eb",
                               borderColor: "#93c5fd",
+                              padding: isMobile ? "4px 10px" : undefined,
                             }}
                           >
                             Editar precios
@@ -1515,48 +1512,54 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       </>
                     ) : (
                       <>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 12 }}>
                           <div>
-                            <label style={ui.fieldLabel}>Costo</label>
+                            <label style={{ ...ui.fieldLabel, fontSize: isMobile ? 11 : undefined }}>Costo</label>
                             <input
                               type="text"
                               inputMode="decimal"
                               value={editCost}
                               onChange={(e) => setEditMoney("cost")(e.target.value)}
                               placeholder="0.00"
-                              style={ui.input}
+                              style={{ ...ui.input, fontSize: isMobile ? 13 : undefined }}
                             />
                             {priceFieldErrors.cost && <p style={styles.fieldError}>{priceFieldErrors.cost}</p>}
                           </div>
                           <div>
-                            <label style={ui.fieldLabel}>Precio venta</label>
+                            <label style={{ ...ui.fieldLabel, fontSize: isMobile ? 11 : undefined }}>Precio venta</label>
                             <input
                               type="text"
                               inputMode="decimal"
                               value={editPrice}
                               onChange={(e) => setEditMoney("price")(e.target.value)}
                               placeholder="0.00"
-                              style={ui.input}
+                              style={{ ...ui.input, fontSize: isMobile ? 13 : undefined }}
                             />
                             {priceFieldErrors.price && <p style={styles.fieldError}>{priceFieldErrors.price}</p>}
                           </div>
                         </div>
-                        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>
+                        <div style={{ fontSize: isMobile ? 11 : 12, color: "var(--text-muted)", marginBottom: 12 }}>
                           Margen calculado: <strong style={{ color: "var(--text)" }}>{liveMargem}%</strong>
                         </div>
                         {saveError && (
-                          <p style={{ fontSize: 12, color: "#b91c1c", marginBottom: 10 }}>{saveError}</p>
+                          <p style={{ fontSize: isMobile ? 11 : 12, color: "#b91c1c", marginBottom: 10 }}>{saveError}</p>
                         )}
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={saveProductChanges} style={ui.primaryBtn}>✓ Guardar</button>
-                          <button onClick={() => { setEditMode(false); setSaveError(null); setPriceFieldErrors({}); }} style={ui.ghostBtn}>✕ Cancelar</button>
+                        <div style={{ display: "flex", gap: 8, flexWrap: isMobile ? "wrap" : undefined }}>
+                          <button onClick={saveProductChanges} style={{ ...ui.primaryBtn, fontSize: isMobile ? 12 : undefined, padding: isMobile ? "6px 12px" : undefined }}>
+                            ✓ Guardar
+                          </button>
+                          <button
+                            onClick={() => { setEditMode(false); setSaveError(null); setPriceFieldErrors({}); }}
+                            style={{ ...ui.ghostBtn, fontSize: isMobile ? 12 : undefined, padding: isMobile ? "6px 12px" : undefined }}
+                          >
+                            ✕ Cancelar
+                          </button>
                         </div>
                       </>
                     )}
                   </div>
 
-                  {/* ── Badges de atributos ── */}
-                  <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap", alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap", alignItems: "center" }}>
                     {!selectedProduct.active && <Badge tone="red">Inactivo</Badge>}
                     {selectedProduct.isReturnable && (
                       <Badge tone="green">Retornable ({selectedProduct.returnWindowDays}d)</Badge>
@@ -1566,18 +1569,16 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     )}
                     <Badge tone="slate">SAT: {selectedProduct.satProductKey || "01010101"} ({selectedProduct.satUnitKey || "H87"})</Badge>
                     {selectedProduct.description && (
-                      <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{selectedProduct.description}</span>
+                      <span style={{ fontSize: isMobile ? 11 : 12, color: "var(--text-muted)" }}>{selectedProduct.description}</span>
                     )}
                   </div>
 
-                  {/* ── Stock por sucursal ── */}
                   <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-strong)", marginBottom: 10 }}>
+                    <div style={{ fontSize: isMobile ? 12 : 13, fontWeight: 700, color: "var(--accent-strong)", marginBottom: 10 }}>
                       Stock por sucursal
                     </div>
 
                     {isMobile ? (
-                      /* ── Mobile: card-based branch stock ── */
                       <div style={{ maxHeight: 220, overflowY: "auto", paddingRight: 4 }}>
                         {selectedProduct.inventories.length === 0 && (
                           <div style={{ textAlign: "center", padding: "20px 16px", color: "var(--text-faint)", fontSize: 13 }}>
@@ -1590,35 +1591,36 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             border: "1px solid var(--border)",
                             borderRadius: 10,
                             marginBottom: 8,
-                            padding: "12px 14px",
+                            padding: "10px 12px",
                           }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{inv.branch}</span>
-                              {inv.quantity <= inv.minStock ? (
-                                <Badge tone="amber">Stock bajo</Badge>
-                              ) : (
-                                <Badge tone="green">OK</Badge>
-                              )}
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>{inv.branch}</span>
+                              <span style={{ fontSize: 9 }}>
+                                {inv.quantity <= inv.minStock ? (
+                                  <Badge tone="amber">Stock bajo</Badge>
+                                ) : (
+                                  <Badge tone="green">OK</Badge>
+                                )}
+                              </span>
                             </div>
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
                               <div style={{ textAlign: "center" }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Stock</div>
-                                <div style={{ fontSize: 15, fontWeight: 800, color: inv.quantity <= inv.minStock ? "#b45309" : "var(--text)" }}>{inv.quantity}</div>
+                                <div style={{ fontSize: 9, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Stock</div>
+                                <div style={{ fontSize: 14, fontWeight: 800, color: inv.quantity <= inv.minStock ? "#b45309" : "var(--text)" }}>{inv.quantity}</div>
                               </div>
                               <div style={{ textAlign: "center" }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Mín</div>
-                                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-muted)" }}>{inv.minStock}</div>
+                                <div style={{ fontSize: 9, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Mín</div>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-muted)" }}>{inv.minStock}</div>
                               </div>
                               <div style={{ textAlign: "center" }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Máx</div>
-                                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-muted)" }}>{inv.maxStock}</div>
+                                <div style={{ fontSize: 9, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Máx</div>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-muted)" }}>{inv.maxStock}</div>
                               </div>
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      /* ── Desktop: standard table ── */
                       <div style={{ ...ui.tableWrap, boxShadow: "none" }}>
                         <table style={ui.table}>
                           <thead>
@@ -1660,9 +1662,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       </div>
                     )}
 
-                    {/* Action buttons under stock table */}
                     {selectedProduct.inventories.length > 0 && (
-                      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: isMobile ? "wrap" : undefined }}>
+                      <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: isMobile ? "wrap" : undefined }}>
                         <button
                           onClick={() => {
                             setAdjustError(null);
@@ -1680,6 +1681,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             borderColor: "#fcd34d",
                             backgroundColor: "#fffbeb",
                             opacity: (user?.role === "GERENTE" && !selectedProduct.inventories.some((inv) => inv.branchId === user.branch?.id)) ? 0.5 : 1,
+                            fontSize: isMobile ? 11 : undefined,
+                            padding: isMobile ? "6px 10px" : undefined,
                             ...(isMobile ? { flex: 1, justifyContent: "center" } : {}),
                           }}
                         >
@@ -1695,6 +1698,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                                 color: "#7c3aed",
                                 borderColor: "#c4b5fd",
                                 backgroundColor: "#f5f3ff",
+                                fontSize: isMobile ? 11 : undefined,
+                                padding: isMobile ? "6px 10px" : undefined,
                                 ...(isMobile ? { flex: 1, justifyContent: "center" } : {}),
                               }}
                             >
@@ -1705,14 +1710,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     )}
                   </div>
 
-                  {/* ── Proveedores ── */}
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-strong)" }}>Proveedores</div>
+                      <div style={{ fontSize: isMobile ? 12 : 13, fontWeight: 700, color: "var(--accent-strong)" }}>Proveedores</div>
                       {!editingSuppliersMode && user?.role !== "GERENTE" && (
                         <button
                           onClick={() => { setEditingSuppliersMode(true); setSuppliersError(null); }}
-                          style={{ ...ui.ghostBtn, fontSize: 12, padding: "4px 10px", color: "#2563eb", borderColor: "#93c5fd" }}
+                          style={{ ...ui.ghostBtn, fontSize: isMobile ? 11 : 12, padding: isMobile ? "2px 8px" : "4px 10px", color: "#2563eb", borderColor: "#93c5fd" }}
                         >
                           Editar
                         </button>
@@ -1720,16 +1724,18 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     </div>
 
                     {!editingSuppliersMode ? (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                         {productSuppliers.length === 0 ? (
-                          <span style={{ fontSize: 12, color: "var(--text-faint)" }}>Sin proveedores asignados</span>
+                          <span style={{ fontSize: isMobile ? 11 : 12, color: "var(--text-faint)" }}>Sin proveedores asignados</span>
                         ) : (
                           productSuppliers.map((sid) => {
                             const s = suppliers.find((x) => x.id === sid);
                             return (
-                              <Badge key={sid} tone="blue">
-                                {s?.name ?? `Proveedor ${sid}`}
-                              </Badge>
+                              <span key={sid} style={{ fontSize: isMobile ? 10 : undefined }}>
+                                <Badge tone="blue">
+                                  {s?.name ?? `Proveedor ${sid}`}
+                                </Badge>
+                              </span>
                             );
                           })
                         )}
@@ -1738,10 +1744,10 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       <div>
                         <div style={{ maxHeight: 140, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>
                           {suppliers.length === 0 && (
-                            <p style={{ fontSize: 12, color: "var(--text-faint)", margin: 0 }}>No hay proveedores disponibles</p>
+                            <p style={{ fontSize: isMobile ? 11 : 12, color: "var(--text-faint)", margin: 0 }}>No hay proveedores disponibles</p>
                           )}
                           {suppliers.map((s) => (
-                            <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "4px 0", fontSize: 13, color: "var(--text-secondary)" }}>
+                            <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "4px 0", fontSize: isMobile ? 12 : 13, color: "var(--text-secondary)" }}>
                               <input
                                 type="checkbox"
                                 checked={productSuppliers.includes(s.id)}
@@ -1759,24 +1765,26 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           ))}
                         </div>
                         {suppliersError && (
-                          <p style={{ fontSize: 12, color: "#b91c1c", marginBottom: 10 }}>{suppliersError}</p>
+                          <p style={{ fontSize: isMobile ? 11 : 12, color: "#b91c1c", marginBottom: 10 }}>{suppliersError}</p>
                         )}
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={saveSuppliersChanges} style={ui.primaryBtn}>✓ Guardar</button>
-                          <button onClick={() => { setEditingSuppliersMode(false); setSuppliersError(null); }} style={ui.ghostBtn}>✕ Cancelar</button>
+                        <div style={{ display: "flex", gap: 8, flexWrap: isMobile ? "wrap" : undefined }}>
+                          <button onClick={saveSuppliersChanges} style={{ ...ui.primaryBtn, fontSize: isMobile ? 12 : undefined, padding: isMobile ? "6px 12px" : undefined }}>
+                            ✓ Guardar
+                          </button>
+                          <button onClick={() => { setEditingSuppliersMode(false); setSuppliersError(null); }} style={{ ...ui.ghostBtn, fontSize: isMobile ? 12 : undefined, padding: isMobile ? "6px 12px" : undefined }}>
+                            ✕ Cancelar
+                          </button>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  {/* ── Últimos movimientos kardex ── */}
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-strong)", marginBottom: 10 }}>
+                    <div style={{ fontSize: isMobile ? 12 : 13, fontWeight: 700, color: "var(--accent-strong)", marginBottom: 10 }}>
                       Últimos 20 movimientos Kardex
                     </div>
 
                     {isMobile ? (
-                      /* ── Mobile: card-based kardex ── */
                       <div style={{ maxHeight: 320, overflowY: "auto", paddingRight: 4 }}>
                         {selectedProduct.recentKardex.length === 0 && (
                           <div style={{ textAlign: "center", padding: "20px 16px", color: "var(--text-faint)", fontSize: 13 }}>
@@ -1791,42 +1799,41 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             marginBottom: 8,
                             overflow: "hidden",
                           }}>
-                            {/* Header: Fecha y Badge tipo */}
                             <div style={{
                               display: "flex",
                               justifyContent: "space-between",
                               alignItems: "center",
-                              padding: "8px 14px 6px 14px",
+                              padding: "6px 12px 5px 12px",
                               borderBottom: "1px solid var(--surface-3)",
                               backgroundColor: "var(--surface-2)",
                             }}>
-                              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)" }}>
                                 {fmtDate(k.date)} <span style={{ color: "var(--text-faint)" }}>{fmtTime(k.date)}</span>
                               </span>
-                              <Badge tone={k.quantityChange >= 0 ? "green" : "red"}>
-                                {k.movementType.replace(/_/g, " ")}
-                              </Badge>
+                              <span style={{ fontSize: 9 }}>
+                                <Badge tone={k.quantityChange >= 0 ? "green" : "red"}>
+                                  {k.movementType.replace(/_/g, " ")}
+                                </Badge>
+                              </span>
                             </div>
-                            {/* Body: Sucursal, Cambio, Saldo */}
-                            <div style={{ padding: "10px 14px", display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 8, alignItems: "center" }}>
+                            <div style={{ padding: "8px 12px", display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 6, alignItems: "center" }}>
                               <div>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Sucursal</div>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{k.branch}</div>
+                                <div style={{ fontSize: 9, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Sucursal</div>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{k.branch}</div>
                               </div>
                               <div style={{ textAlign: "center" }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Cambio</div>
-                                <div style={{ fontSize: 15, fontWeight: 800, color: k.quantityChange >= 0 ? "#15803d" : "#b91c1c" }}>
+                                <div style={{ fontSize: 9, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Cambio</div>
+                                <div style={{ fontSize: 14, fontWeight: 800, color: k.quantityChange >= 0 ? "#15803d" : "#b91c1c" }}>
                                   {k.quantityChange >= 0 ? "+" : ""}{k.quantityChange}
                                 </div>
                               </div>
                               <div style={{ textAlign: "center" }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Saldo</div>
-                                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>{k.balanceAfter}</div>
+                                <div style={{ fontSize: 9, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Saldo</div>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{k.balanceAfter}</div>
                               </div>
                             </div>
-                            {/* Reason if present */}
                             {k.reason && (
-                              <div style={{ padding: "0 14px 10px 14px", fontSize: 12, color: "var(--text-muted)" }}>
+                              <div style={{ padding: "0 12px 8px 12px", fontSize: 11, color: "var(--text-muted)" }}>
                                 <span style={{ fontWeight: 700, color: "var(--text-faint)" }}>Motivo:</span> {k.reason}
                               </div>
                             )}
@@ -1834,7 +1841,6 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         ))}
                       </div>
                     ) : (
-                      /* ── Desktop: standard table ── */
                       <div style={{ ...ui.tableWrap, boxShadow: "none" }}>
                         <table style={ui.table}>
                           <thead>
@@ -1884,23 +1890,22 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               )}
             </div>
 
-            {/* Footer */}
             <div style={{ borderTop: "1px solid var(--border)", backgroundColor: "var(--surface-2)" }}>
               <div
                 style={
                   isMobile
                     ? {
-                        display: "grid",
-                        gridTemplateColumns: selectedProduct ? "1fr 1fr" : "1fr",
-                        gap: 8,
-                        padding: "12px 16px",
-                      }
+                      display: "grid",
+                      gridTemplateColumns: selectedProduct ? "1fr 1fr" : "1fr",
+                      gap: 6,
+                      padding: "10px 12px",
+                    }
                     : {
-                        display: "flex",
-                        gap: 10,
-                        padding: "14px 22px",
-                        alignItems: "center",
-                      }
+                      display: "flex",
+                      gap: 10,
+                      padding: "14px 22px",
+                      alignItems: "center",
+                    }
                 }
               >
                 {selectedProduct && (
@@ -1914,14 +1919,14 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           color: selectedProduct.active ? "#b91c1c" : "#15803d",
                           borderColor: selectedProduct.active ? "#fca5a5" : "#86efac",
                           whiteSpace: "nowrap",
+                          fontSize: isMobile ? 11 : undefined,
+                          padding: isMobile ? "6px 8px" : undefined,
                           ...(isMobile
                             ? {
-                                width: "100%",
-                                justifyContent: "center",
-                                fontSize: 12,
-                                padding: "8px 10px",
-                                order: 3,
-                              }
+                              width: "100%",
+                              justifyContent: "center",
+                              order: 3,
+                            }
                             : { marginRight: "auto" }),
                         }}
                       >
@@ -1937,14 +1942,14 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           color: "#2563eb",
                           borderColor: "#93c5fd",
                           whiteSpace: "nowrap",
+                          fontSize: isMobile ? 11 : undefined,
+                          padding: isMobile ? "6px 8px" : undefined,
                           ...(isMobile
                             ? {
-                                width: "100%",
-                                justifyContent: "center",
-                                fontSize: 12,
-                                padding: "8px 10px",
-                                order: 1,
-                              }
+                              width: "100%",
+                              justifyContent: "center",
+                              order: 1,
+                            }
                             : {}),
                         }}
                       >
@@ -1956,18 +1961,18 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       style={{
                         ...ui.primaryBtn,
                         whiteSpace: "nowrap",
+                        fontSize: isMobile ? 11 : undefined,
+                        padding: isMobile ? "6px 8px" : undefined,
                         ...(isMobile
                           ? {
-                              width: "100%",
-                              justifyContent: "center",
-                              fontSize: 12,
-                              padding: "8px 10px",
-                              order: 2,
-                            }
+                            width: "100%",
+                            justifyContent: "center",
+                            order: 2,
+                          }
                           : (user?.role === "GERENTE" ? { marginLeft: "auto" } : {})),
                       }}
                     >
-                      <Printer size={15} /> Imprimir ficha
+                      <Printer size={isMobile ? 13 : 15} /> Imprimir ficha
                     </button>
                   </>
                 )}
@@ -1976,14 +1981,14 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   style={{
                     ...ui.ghostBtn,
                     whiteSpace: "nowrap",
+                    fontSize: isMobile ? 11 : undefined,
+                    padding: isMobile ? "6px 8px" : undefined,
                     ...(isMobile
                       ? {
-                          width: "100%",
-                          justifyContent: "center",
-                          fontSize: 12,
-                          padding: "8px 10px",
-                          order: 4,
-                        }
+                        width: "100%",
+                        justifyContent: "center",
+                        order: 4,
+                      }
                       : {}),
                   }}
                 >
@@ -2007,22 +2012,21 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
         return (
           <div style={subModalStyle} onClick={() => { if (!adjustSaving) setAdjustOpen(false); }}>
-            <div style={{ ...ui.modal, maxWidth: 500 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ ...ui.modal, maxWidth: 500, maxHeight: isMobile ? "100%" : undefined, ...(isMobile ? { width: "100%", height: "100%", borderRadius: 0, margin: 0 } : {}) }} onClick={(e) => e.stopPropagation()}>
               <div style={ui.modalHeader}>
-                <div style={ui.modalTitle}>⚙️ Ajustar stock — {selectedProduct.name}</div>
+                <div style={{ ...ui.modalTitle, fontSize: isMobile ? 15 : undefined }}>⚙️ Ajustar stock — {selectedProduct.name}</div>
                 <button onClick={() => setAdjustOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }} disabled={adjustSaving}>
                   <X size={16} />
                 </button>
               </div>
-              <div style={ui.modalBody}>
-                {/* Sucursal */}
-                <div style={{ marginBottom: 16 }}>
-                  <label style={ui.fieldLabel}>Sucursal *</label>
+              <div style={{ ...ui.modalBody, padding: isMobile ? "12px 16px" : undefined }}>
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ ...ui.fieldLabel, fontSize: isMobile ? 12 : undefined }}>Sucursal *</label>
                   <select
                     value={adjustBranch || ""}
                     onChange={(e) => { setAdjustBranch(Number(e.target.value)); setAdjustType(""); setAdjustQuantity(0); setAdjustReason(""); }}
                     disabled={user?.role === "GERENTE"}
-                    style={{ ...ui.input, cursor: user?.role === "GERENTE" ? "default" : "pointer" }}
+                    style={{ ...ui.input, cursor: user?.role === "GERENTE" ? "default" : "pointer", fontSize: isMobile ? 13 : undefined }}
                   >
                     <option value="">Selecciona sucursal</option>
                     {selectedProduct.inventories
@@ -2037,18 +2041,16 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                 {adjustBranch > 0 && (
                   <>
-                    {/* Stock actual destacado */}
-                    <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#0369a1" }}>
+                    <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 8, padding: "8px 12px", marginBottom: 14, fontSize: isMobile ? 12 : 13, color: "#0369a1" }}>
                       Stock actual: <strong>{currentStock} unidades</strong>
                     </div>
 
-                    {/* Tipo de movimiento */}
-                    <div style={{ marginBottom: 16 }}>
-                      <label style={ui.fieldLabel}>Tipo de movimiento *</label>
+                    <div style={{ marginBottom: 14 }}>
+                      <label style={{ ...ui.fieldLabel, fontSize: isMobile ? 12 : undefined }}>Tipo de movimiento *</label>
                       <select
                         value={adjustType}
                         onChange={(e) => { setAdjustType(e.target.value); setAdjustQuantity(0); setAdjustReason(""); }}
-                        style={{ ...ui.input, cursor: "pointer" }}
+                        style={{ ...ui.input, cursor: "pointer", fontSize: isMobile ? 13 : undefined }}
                       >
                         <option value="">Selecciona tipo...</option>
                         <option value="RECOUNT">RECONTEO — Declarar stock final real</option>
@@ -2058,10 +2060,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       </select>
                     </div>
 
-                    {/* Cantidad con preview */}
                     {adjustType && (
-                      <div style={{ marginBottom: 16 }}>
-                        <label style={ui.fieldLabel}>
+                      <div style={{ marginBottom: 14 }}>
+                        <label style={{ ...ui.fieldLabel, fontSize: isMobile ? 12 : undefined }}>
                           {adjustType === "RECOUNT" ? "Stock final declarado (reconteo) *" : `Cantidad a ${adjustType === "ENTRADA" ? "agregar" : "retirar"} *`}
                         </label>
                         <input
@@ -2069,18 +2070,18 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           inputMode="numeric"
                           value={adjustQuantity || ""}
                           onChange={(e) => handleAdjustQuantityChange(e.target.value)}
-                          style={ui.input}
+                          style={{ ...ui.input, fontSize: isMobile ? 13 : undefined }}
                           placeholder="0"
                           autoFocus
                         />
                         {adjustFieldErrors.quantity && <p style={styles.fieldError}>{adjustFieldErrors.quantity}</p>}
                         {adjustQuantity > 0 && (
                           adjustType === "RECOUNT" ? (
-                            <p style={{ fontSize: 12, color: diff === 0 ? "#6b7280" : diff! > 0 ? "#059669" : "#b91c1c", marginTop: 4 }}>
+                            <p style={{ fontSize: isMobile ? 11 : 12, color: diff === 0 ? "#6b7280" : diff! > 0 ? "#059669" : "#b91c1c", marginTop: 4 }}>
                               Diferencia: {diff! > 0 ? "+" : ""}{diff} uds. → Stock quedará en <strong>{expectedStock}</strong>
                             </p>
                           ) : (
-                            <p style={{ fontSize: 12, color: "var(--accent-strong)", marginTop: 4 }}>
+                            <p style={{ fontSize: isMobile ? 11 : 12, color: "var(--accent-strong)", marginTop: 4 }}>
                               Stock esperado: <strong>{expectedStock}</strong> uds.
                               {expectedStock < 0 && <span style={{ color: "#b91c1c" }}> (stock negativo — no permitido)</span>}
                             </p>
@@ -2089,14 +2090,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       </div>
                     )}
 
-                    {/* Motivo como SELECT contextual */}
                     {adjustType && (
-                      <div style={{ marginBottom: 16 }}>
-                        <label style={ui.fieldLabel}>Motivo *</label>
+                      <div style={{ marginBottom: 14 }}>
+                        <label style={{ ...ui.fieldLabel, fontSize: isMobile ? 12 : undefined }}>Motivo *</label>
                         <select
                           value={adjustReason}
                           onChange={(e) => setAdjustReason(e.target.value)}
-                          style={{ ...ui.input, cursor: "pointer" }}
+                          style={{ ...ui.input, cursor: "pointer", fontSize: isMobile ? 13 : undefined }}
                         >
                           <option value="">Selecciona motivo...</option>
                           {adjustType === "RECOUNT" && (
@@ -2134,15 +2134,14 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       </div>
                     )}
 
-                    {/* Observaciones libres */}
                     {adjustType && (
-                      <div style={{ marginBottom: 16 }}>
-                        <label style={ui.fieldLabel}>Observaciones adicionales</label>
+                      <div style={{ marginBottom: 14 }}>
+                        <label style={{ ...ui.fieldLabel, fontSize: isMobile ? 12 : undefined }}>Observaciones adicionales</label>
                         <textarea
                           value={adjustObservations}
                           onChange={(e) => setAdjustObservations(e.target.value)}
                           placeholder="Detalles adicionales (opcional)"
-                          style={{ ...ui.input, minHeight: 60, resize: "vertical", fontFamily: "inherit" }}
+                          style={{ ...ui.input, minHeight: isMobile ? 50 : 60, resize: "vertical", fontFamily: "inherit", fontSize: isMobile ? 13 : undefined }}
                         />
                       </div>
                     )}
@@ -2150,12 +2149,12 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 )}
 
                 {adjustError && (
-                  <p style={{ fontSize: 13, color: "#b91c1c", marginBottom: 12 }}>{adjustError}</p>
+                  <p style={{ fontSize: isMobile ? 12 : 13, color: "#b91c1c", marginBottom: 12 }}>{adjustError}</p>
                 )}
               </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid var(--border)" }}>
-                <button onClick={() => setAdjustOpen(false)} style={ui.ghostBtn}>Cancelar</button>
-                <button onClick={submitAdjustment} style={ui.primaryBtn} disabled={!adjustBranch || !adjustType || !adjustReason}>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: isMobile ? "10px 16px" : "14px 22px", borderTop: "1px solid var(--border)" }}>
+                <button onClick={() => setAdjustOpen(false)} style={{ ...ui.ghostBtn, fontSize: isMobile ? 12 : undefined, padding: isMobile ? "6px 12px" : undefined }}>Cancelar</button>
+                <button onClick={submitAdjustment} style={{ ...ui.primaryBtn, fontSize: isMobile ? 12 : undefined, padding: isMobile ? "6px 12px" : undefined }} disabled={!adjustBranch || !adjustType || !adjustReason}>
                   ✓ Aplicar ajuste
                 </button>
               </div>
@@ -2171,46 +2170,45 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
         return (
           <div style={subModalStyle} onClick={() => { if (!transferConfirm && !transferSaving) setTransferOpen(false); }}>
-            <div style={{ ...ui.modal, maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ ...ui.modal, maxWidth: 480, maxHeight: isMobile ? "100%" : undefined, ...(isMobile ? { width: "100%", height: "100%", borderRadius: 0, margin: 0 } : {}) }} onClick={(e) => e.stopPropagation()}>
               <div style={ui.modalHeader}>
-                <div style={ui.modalTitle}>🔄 Trasladar stock — {selectedProduct.name}</div>
+                <div style={{ ...ui.modalTitle, fontSize: isMobile ? 15 : undefined }}>🔄 Trasladar stock — {selectedProduct.name}</div>
                 <button onClick={() => setTransferOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }} disabled={transferSaving}>
                   <X size={16} />
                 </button>
               </div>
 
-              {/* Overlay de confirmación dentro del modal */}
               {transferConfirm && fromInv && toInv ? (
-                <div style={{ padding: "24px 22px" }}>
-                  <p style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: "var(--accent-strong)" }}>⚠️ Confirmar traslado</p>
-                  <p style={{ fontSize: 14, marginBottom: 16 }}>
+                <div style={{ padding: isMobile ? "16px" : "24px 22px" }}>
+                  <p style={{ fontWeight: 700, fontSize: isMobile ? 14 : 15, marginBottom: 14, color: "var(--accent-strong)" }}>⚠️ Confirmar traslado</p>
+                  <p style={{ fontSize: isMobile ? 13 : 14, marginBottom: 14 }}>
                     Trasladar <strong>{transferQty} uds.</strong> de <strong>{fromInv.branch}</strong> a <strong>{toInv.branch}</strong>
                   </p>
-                  <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 8, padding: "12px 16px", marginBottom: 20, fontSize: 13, lineHeight: 1.8 }}>
+                  <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: isMobile ? 12 : 13, lineHeight: 1.8 }}>
                     <div><strong>{fromInv.branch}:</strong> {fromInv.quantity} → {fromInv.quantity - transferQty} uds.</div>
                     <div><strong>{toInv.branch}:</strong> {toInv.quantity} → {toInv.quantity + transferQty} uds.</div>
                   </div>
                   {transferError && (
-                    <p style={{ fontSize: 13, color: "#b91c1c", marginBottom: 12 }}>{transferError}</p>
+                    <p style={{ fontSize: isMobile ? 12 : 13, color: "#b91c1c", marginBottom: 12 }}>{transferError}</p>
                   )}
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <button onClick={() => setTransferConfirm(false)} style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} disabled={transferSaving}>
+                  <div style={{ display: "flex", gap: 10, flexDirection: isMobile ? "column" : "row" }}>
+                    <button onClick={() => setTransferConfirm(false)} style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center", fontSize: isMobile ? 12 : undefined, padding: isMobile ? "8px" : undefined }} disabled={transferSaving}>
                       Volver
                     </button>
-                    <button onClick={submitTransfer} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }} disabled={transferSaving}>
+                    <button onClick={submitTransfer} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center", fontSize: isMobile ? 12 : undefined, padding: isMobile ? "8px" : undefined }} disabled={transferSaving}>
                       {transferSaving ? "Procesando..." : "✓ Confirmar traslado"}
                     </button>
                   </div>
                 </div>
               ) : (
                 <>
-                  <div style={ui.modalBody}>
-                    <div style={{ marginBottom: 16 }}>
-                      <label style={ui.fieldLabel}>Desde (sucursal origen)</label>
+                  <div style={{ ...ui.modalBody, padding: isMobile ? "12px 16px" : undefined }}>
+                    <div style={{ marginBottom: 14 }}>
+                      <label style={{ ...ui.fieldLabel, fontSize: isMobile ? 12 : undefined }}>Desde (sucursal origen)</label>
                       <select
                         value={transferFrom || ""}
                         onChange={(e) => { setTransferFrom(Number(e.target.value)); setTransferQty(0); }}
-                        style={{ ...ui.input, cursor: "pointer" }}
+                        style={{ ...ui.input, cursor: "pointer", fontSize: isMobile ? 13 : undefined }}
                       >
                         <option value="">Selecciona origen</option>
                         {selectedProduct.inventories.map((inv) => (
@@ -2220,12 +2218,12 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         ))}
                       </select>
                     </div>
-                    <div style={{ marginBottom: 16 }}>
-                      <label style={ui.fieldLabel}>Hacia (sucursal destino)</label>
+                    <div style={{ marginBottom: 14 }}>
+                      <label style={{ ...ui.fieldLabel, fontSize: isMobile ? 12 : undefined }}>Hacia (sucursal destino)</label>
                       <select
                         value={transferTo || ""}
                         onChange={(e) => setTransferTo(Number(e.target.value))}
-                        style={{ ...ui.input, cursor: "pointer" }}
+                        style={{ ...ui.input, cursor: "pointer", fontSize: isMobile ? 13 : undefined }}
                       >
                         <option value="">Selecciona destino</option>
                         {selectedProduct.inventories
@@ -2245,18 +2243,18 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           ))}
                       </select>
                     </div>
-                    <div style={{ marginBottom: 16 }}>
-                      <label style={ui.fieldLabel}>Cantidad a trasladar</label>
+                    <div style={{ marginBottom: 14 }}>
+                      <label style={{ ...ui.fieldLabel, fontSize: isMobile ? 12 : undefined }}>Cantidad a trasladar</label>
                       <input
                         type="text"
                         inputMode="numeric"
                         value={transferQty || ""}
                         onChange={(e) => handleTransferQuantityChange(e.target.value)}
-                        style={ui.input}
+                        style={{ ...ui.input, fontSize: isMobile ? 13 : undefined }}
                       />
                       {transferFieldErrors.quantity && <p style={styles.fieldError}>{transferFieldErrors.quantity}</p>}
                       {fromInv && transferQty > 0 && (
-                        <p style={{ fontSize: 12, color: transferQty > fromInv.quantity ? "#b91c1c" : "var(--accent-strong)", marginTop: 4 }}>
+                        <p style={{ fontSize: isMobile ? 11 : 12, color: transferQty > fromInv.quantity ? "#b91c1c" : "var(--accent-strong)", marginTop: 4 }}>
                           {transferQty > fromInv.quantity
                             ? `⚠️ Stock insuficiente — hay ${fromInv.quantity} uds. disponibles`
                             : `Quedarán ${fromInv.quantity - transferQty} uds. en ${fromInv.branch}`}
@@ -2264,14 +2262,14 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       )}
                     </div>
                     {transferError && (
-                      <p style={{ fontSize: 13, color: "#b91c1c", marginBottom: 12 }}>{transferError}</p>
+                      <p style={{ fontSize: isMobile ? 12 : 13, color: "#b91c1c", marginBottom: 12 }}>{transferError}</p>
                     )}
                   </div>
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid var(--border)" }}>
-                    <button onClick={() => setTransferOpen(false)} style={ui.ghostBtn} disabled={transferSaving}>Cancelar</button>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: isMobile ? "10px 16px" : "14px 22px", borderTop: "1px solid var(--border)" }}>
+                    <button onClick={() => setTransferOpen(false)} style={{ ...ui.ghostBtn, fontSize: isMobile ? 12 : undefined, padding: isMobile ? "6px 12px" : undefined }} disabled={transferSaving}>Cancelar</button>
                     <button
                       onClick={() => { setTransferError(null); setTransferConfirm(true); }}
-                      style={ui.primaryBtn}
+                      style={{ ...ui.primaryBtn, fontSize: isMobile ? 12 : undefined, padding: isMobile ? "6px 12px" : undefined }}
                       disabled={transferSaving || !transferFrom || !transferTo || !transferQty || (fromInv ? transferQty > fromInv.quantity : false)}
                     >
                       🔄 Trasladar
@@ -2283,23 +2281,24 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           </div>
         );
       })()}
+
       {showForm && (
         <div style={ui.overlay} onClick={closeForm}>
-          <form style={{ ...ui.modal, maxWidth: 600 }} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+          <form style={{ ...ui.modal, maxWidth: 600, maxHeight: isMobile ? "100%" : undefined, ...(isMobile ? { width: "100%", height: "100%", borderRadius: 0, margin: 0 } : {}) }} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
             <div style={ui.modalHeader}>
-              <span style={ui.modalTitle}>
+              <span style={{ ...ui.modalTitle, fontSize: isMobile ? 15 : undefined }}>
                 {editingId !== null ? "Editar producto" : "Registrar nuevo producto"}
               </span>
               <button type="button" style={ui.linkBtn} onClick={closeForm}>
                 <X size={18} color="#64748b" />
               </button>
             </div>
-            <div style={ui.modalBody}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+            <div style={{ ...ui.modalBody, padding: isMobile ? "12px 16px" : undefined }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 14 }}>
                 <div>
-                  <label style={ui.fieldLabel}>SKU *</label>
+                  <label style={{ ...ui.fieldLabel, fontSize: isMobile ? 12 : undefined }}>SKU *</label>
                   <input
-                    style={{ ...ui.input, backgroundColor: editingId !== null ? "var(--surface-3)" : "#ffffff" }}
+                    style={{ ...ui.input, backgroundColor: editingId !== null ? "var(--surface-3)" : "#ffffff", fontSize: isMobile ? 13 : undefined }}
                     value={form.sku}
                     onChange={set("sku")}
                     placeholder="SKU-XXX"
@@ -2309,22 +2308,22 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   {fieldErrors.sku && <p style={styles.fieldError}>{fieldErrors.sku}</p>}
                 </div>
                 <div>
-                  <label style={ui.fieldLabel}>Código de barras</label>
-                  <input style={ui.input} value={form.barcode} onChange={set("barcode")} placeholder="7501000000000" />
+                  <label style={{ ...ui.fieldLabel, fontSize: isMobile ? 12 : undefined }}>Código de barras</label>
+                  <input style={{ ...ui.input, fontSize: isMobile ? 13 : undefined }} value={form.barcode} onChange={set("barcode")} placeholder="7501000000000" />
                   {fieldErrors.barcode && <p style={styles.fieldError}>{fieldErrors.barcode}</p>}
                 </div>
               </div>
 
               <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Nombre *</label>
-                <input style={ui.input} value={form.name} onChange={set("name")} placeholder="Nombre del producto" />
+                <label style={{ ...ui.fieldLabel, fontSize: isMobile ? 12 : undefined }}>Nombre *</label>
+                <input style={{ ...ui.input, fontSize: isMobile ? 13 : undefined }} value={form.name} onChange={set("name")} placeholder="Nombre del producto" />
                 {fieldErrors.name && <p style={styles.fieldError}>{fieldErrors.name}</p>}
               </div>
 
               <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Descripción</label>
+                <label style={{ ...ui.fieldLabel, fontSize: isMobile ? 12 : undefined }}>Descripción</label>
                 <textarea
-                  style={{ ...ui.input, resize: "vertical", minHeight: 60 }}
+                  style={{ ...ui.input, resize: "vertical", minHeight: isMobile ? 50 : 60, fontSize: isMobile ? 13 : undefined }}
                   value={form.description}
                   onChange={set("description")}
                   placeholder="Detalle o descripción opcional"
@@ -2332,13 +2331,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 {fieldErrors.description && <p style={styles.fieldError}>{fieldErrors.description}</p>}
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 14 }}>
                 <div>
-                  <label style={ui.fieldLabel}>Precio Costo ($) *</label>
+                  <label style={{ ...ui.fieldLabel, fontSize: isMobile ? 12 : undefined }}>Precio Costo ($) *</label>
                   <input
                     type="text"
                     inputMode="decimal"
-                    style={ui.input}
+                    style={{ ...ui.input, fontSize: isMobile ? 13 : undefined }}
                     value={form.costPrice}
                     onChange={setMoney("costPrice")}
                     placeholder="0.00"
@@ -2346,11 +2345,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   {fieldErrors.costPrice && <p style={styles.fieldError}>{fieldErrors.costPrice}</p>}
                 </div>
                 <div>
-                  <label style={ui.fieldLabel}>Precio Venta ($) *</label>
+                  <label style={{ ...ui.fieldLabel, fontSize: isMobile ? 12 : undefined }}>Precio Venta ($) *</label>
                   <input
                     type="text"
                     inputMode="decimal"
-                    style={ui.input}
+                    style={{ ...ui.input, fontSize: isMobile ? 13 : undefined }}
                     value={form.sellPrice}
                     onChange={setMoney("sellPrice")}
                     placeholder="0.00"
@@ -2359,15 +2358,15 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 14 }}>
                 <div>
-                  <label style={ui.fieldLabel}>Clave SAT (ClaveProdServ) *</label>
-                  <input style={ui.input} value={form.satProductKey} onChange={set("satProductKey")} placeholder="01010101" />
+                  <label style={{ ...ui.fieldLabel, fontSize: isMobile ? 12 : undefined }}>Clave SAT (ClaveProdServ) *</label>
+                  <input style={{ ...ui.input, fontSize: isMobile ? 13 : undefined }} value={form.satProductKey} onChange={set("satProductKey")} placeholder="01010101" />
                   {fieldErrors.satProductKey && <p style={styles.fieldError}>{fieldErrors.satProductKey}</p>}
                 </div>
                 <div>
-                  <label style={ui.fieldLabel}>Clave Unidad SAT (ClaveUnidad) *</label>
-                  <input style={ui.input} value={form.satUnitKey} onChange={set("satUnitKey")} placeholder="H87" />
+                  <label style={{ ...ui.fieldLabel, fontSize: isMobile ? 12 : undefined }}>Clave Unidad SAT (ClaveUnidad) *</label>
+                  <input style={{ ...ui.input, fontSize: isMobile ? 13 : undefined }} value={form.satUnitKey} onChange={set("satUnitKey")} placeholder="H87" />
                   {fieldErrors.satUnitKey && <p style={styles.fieldError}>{fieldErrors.satUnitKey}</p>}
                 </div>
               </div>
@@ -2375,11 +2374,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               <div style={styles.taxSection}>
                 <div style={styles.taxHeader}>
                   <div style={styles.taxTitleWrap}>
-                    <BadgePercent size={16} style={{ color: "var(--accent-strong)" }} />
-                    <span style={styles.taxTitle}>Impuestos aplicables</span>
+                    <BadgePercent size={isMobile ? 14 : 16} style={{ color: "var(--accent-strong)" }} />
+                    <span style={{ ...styles.taxTitle, fontSize: isMobile ? 12 : 13 }}>Impuestos aplicables</span>
                   </div>
                   {!taxLoading && !taxError && (
-                    <span style={styles.taxCounter}>
+                    <span style={{ ...styles.taxCounter, fontSize: isMobile ? 11 : 12 }}>
                       {taxOptions.filter((tax) => selectedTaxIds.includes(tax.id)).length} seleccionado(s)
                     </span>
                   )}
@@ -2405,7 +2404,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 )}
 
                 {!taxLoading && !taxError && taxOptions.length > 0 && (
-                  <div style={styles.taxGrid}>
+                  <div style={{ ...styles.taxGrid, gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(180px, 1fr))" }}>
                     {taxOptions.map((tax) => {
                       const checked = selectedTaxIds.includes(tax.id);
                       return (
@@ -2415,6 +2414,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             ...styles.taxOption,
                             borderColor: checked ? "#93c5fd" : "var(--border)",
                             backgroundColor: checked ? "#eff6ff" : "#ffffff",
+                            padding: isMobile ? "6px 10px" : "10px 12px",
+                            minHeight: isMobile ? 38 : 46,
                           }}
                         >
                           <input
@@ -2425,8 +2426,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             style={styles.taxCheckbox}
                           />
                           <span style={styles.taxOptionText}>
-                            <span style={styles.taxOptionName}>{tax.name}</span>
-                            <span style={styles.taxOptionMeta}>{formatTaxRate(tax.rate)}</span>
+                            <span style={{ ...styles.taxOptionName, fontSize: isMobile ? 12 : 13 }}>{tax.name}</span>
+                            <span style={{ ...styles.taxOptionMeta, fontSize: isMobile ? 10 : 12 }}>{formatTaxRate(tax.rate)}</span>
                           </span>
                         </label>
                       );
@@ -2436,14 +2437,14 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               </div>
 
               {formError && (
-                <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 4, marginBottom: 14 }}>{formError}</p>
+                <p style={{ color: "#b91c1c", fontSize: isMobile ? 12 : 13, fontWeight: 600, marginTop: 4, marginBottom: 14 }}>{formError}</p>
               )}
 
-              <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-                <button type="button" style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={closeForm}>
+              <div style={{ display: "flex", gap: 10, marginTop: 20, flexDirection: isMobile ? "column" : "row" }}>
+                <button type="button" style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center", fontSize: isMobile ? 13 : undefined, padding: isMobile ? "8px" : undefined }} onClick={closeForm}>
                   Cancelar
                 </button>
-                <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
+                <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center", fontSize: isMobile ? 13 : undefined, padding: isMobile ? "8px" : undefined }}>
                   {saving ? (editingId !== null ? "Actualizando..." : "Guardando...") : editingId !== null ? "Actualizar producto" : "Guardar producto"}
                 </button>
               </div>
@@ -2557,22 +2558,24 @@ const invDetailRow: React.CSSProperties = {
   display: "flex",
   justifyContent: "flex-start",
   alignItems: "center",
-  gap: "8px",
-  fontSize: 13,
-  marginBottom: 6,
+  gap: "6px",
+  fontSize: 12,
+  marginBottom: 4,
 };
 
 const invDetailLabel: React.CSSProperties = {
   fontWeight: 700,
   color: "var(--text-muted)",
-  minWidth: "105px",
+  minWidth: "70px",
   display: "inline-block",
+  fontSize: "inherit",
 };
 
 const invDetailValue: React.CSSProperties = {
   fontWeight: 600,
   color: "var(--text-secondary)",
+  fontSize: "inherit",
+  wordBreak: "break-word",
 };
 
 export default InventarioView;
-

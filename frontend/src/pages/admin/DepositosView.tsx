@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { ChevronDown, ChevronUp, Calendar, CreditCard, Eye } from "lucide-react";
+import { ChevronDown, ChevronUp, Calendar, CreditCard, Eye, X } from "lucide-react";
 import api from "../../services/api";
 import { validateDateRange } from "../../utils/formValidation";
 import {
@@ -164,20 +164,20 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           <div class="ticket-row"><span>Referencia:</span><span class="ticket-value">${safe(deposit.reference || "N/A")}</span></div>
           <div class="ticket-row"><span>Estado:</span><span class="ticket-value">${safe(deposit.status)}</span></div>
           <div class="ticket-row"><span>Comentarios:</span><span class="ticket-value">${(() => {
-            if (!deposit.comments) return "Sin comentarios";
-            try {
-              const p = JSON.parse(deposit.comments);
-              const parts: string[] = [];
-              if (p.convenio) parts.push(`Convenio: ${safe(p.convenio)}`);
-              if (p.barcode) parts.push(`Código: ${safe(p.barcode)}`);
-              if (p.expirationDate) parts.push(`Vence: ${new Date(p.expirationDate).toLocaleString('es-MX')}`);
-              if (p.ticketUrl) parts.push(`Ticket: ${safe(p.ticketUrl)}`);
-              if (p.userComments) parts.push(`Comentario: ${safe(p.userComments)}`);
-              return parts.length ? parts.join(' | ') : "Sin comentarios";
-            } catch {
-              return safe(deposit.comments);
-            }
-          })()}</span></div>
+        if (!deposit.comments) return "Sin comentarios";
+        try {
+          const p = JSON.parse(deposit.comments);
+          const parts: string[] = [];
+          if (p.convenio) parts.push(`Convenio: ${safe(p.convenio)}`);
+          if (p.barcode) parts.push(`Código: ${safe(p.barcode)}`);
+          if (p.expirationDate) parts.push(`Vence: ${new Date(p.expirationDate).toLocaleString('es-MX')}`);
+          if (p.ticketUrl) parts.push(`Ticket: ${safe(p.ticketUrl)}`);
+          if (p.userComments) parts.push(`Comentario: ${safe(p.userComments)}`);
+          return parts.length ? parts.join(' | ') : "Sin comentarios";
+        } catch {
+          return safe(deposit.comments);
+        }
+      })()}</span></div>
           <div class="ticket-row ticket-total"><span>Monto:</span><span>-$${Number(deposit.amount).toFixed(2)}</span></div>
         </div>
         <div class="ticket-footer">
@@ -196,50 +196,189 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     <div>
       <SectionHeader title="Depósitos bancarios" subtitle="Retiros de efectivo de caja depositados a cuentas bancarias" />
 
-      <Toolbar>
-        <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-          <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--accent-strong)" }}>Desde:</label>
-          <input
-            type="date"
-            value={from}
-            max={to || undefined}
-            onChange={(e) => setFrom(e.target.value)}
-            style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", flex: "1 1 120px", minWidth: 0, maxWidth: 180 }}
-          />
-          <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--accent-strong)" }}>Hasta:</label>
-          <input
-            type="date"
-            value={to}
-            min={from || undefined}
-            onChange={(e) => setTo(e.target.value)}
-            style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", flex: "1 1 120px", minWidth: 0, maxWidth: 180 }}
-          />
+      {isMobile ? (
+        /* Filtros móvil */
+        <div style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          marginBottom: 16,
+          padding: "12px",
+          backgroundColor: "var(--surface-2)",
+          borderRadius: 12,
+          border: "1px solid var(--border)"
+        }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Desde:</label>
+            <input
+              type="date"
+              value={from}
+              max={to || undefined}
+              onChange={(e) => setFrom(e.target.value)}
+              style={{
+                ...ui.input,
+                padding: "6px 10px",
+                fontSize: 13,
+                flex: 1,
+                minWidth: 0
+              }}
+            />
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Hasta:</label>
+            <input
+              type="date"
+              value={to}
+              min={from || undefined}
+              onChange={(e) => setTo(e.target.value)}
+              style={{
+                ...ui.input,
+                padding: "6px 10px",
+                fontSize: 13,
+                flex: 1,
+                minWidth: 0
+              }}
+            />
+          </div>
+
+          {/* Filtro de cuenta con botón limpiar integrado */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            backgroundColor: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            borderRadius: "8px",
+            padding: "4px 8px",
+            minHeight: "42px"
+          }}>
+            <select
+              style={{
+                flex: 1,
+                border: "none",
+                background: "transparent",
+                padding: "8px 4px",
+                fontSize: 13,
+                fontWeight: 500,
+                color: "#0f172a",
+                outline: "none",
+                fontFamily: "inherit",
+                minWidth: 0,
+                appearance: "auto"
+              }}
+              value={account}
+              onChange={(e) => setAccount(e.target.value)}
+            >
+              <option value="">Todas las cuentas</option>
+              {accounts.map(acc => (
+                <option key={acc} value={acc}>{acc}</option>
+              ))}
+            </select>
+            {account && (
+              <button
+                onClick={() => setAccount("")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "#e2e8f0",
+                  border: "none",
+                  borderRadius: "50%",
+                  width: 24,
+                  height: 24,
+                  cursor: "pointer",
+                  color: "#64748b",
+                  padding: 0,
+                  flexShrink: 0
+                }}
+                className="active-tap"
+                title="Limpiar filtro de cuenta"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Botón Limpiar todo */}
           <button
             onClick={() => {
               setFrom("");
               setTo("");
               setAccount("");
             }}
-            style={{ padding: "8px 12px", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer" }}
+            style={{
+              ...ui.ghostBtn,
+              padding: "8px 14px",
+              fontSize: 13,
+              backgroundColor: "#f1f5f9",
+              border: "1px solid #e2e8f0",
+              borderRadius: "8px",
+              color: "#64748b",
+              fontWeight: 600,
+              width: "100%"
+            }}
+            className="active-tap"
           >
-            Limpiar
+            Limpiar todos los filtros
           </button>
           {dateError && <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 600 }}>{dateError}</span>}
+          <div style={{
+            fontSize: 13,
+            color: "var(--text-secondary)",
+            fontWeight: 700,
+            textAlign: "center",
+            paddingTop: 4,
+            borderTop: "1px solid var(--border)"
+          }}>
+            Total depositado: <span style={{ color: "var(--accent-strong)", fontWeight: 800 }}>{money(total)}</span>
+          </div>
         </div>
+      ) : (
+        <Toolbar>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--accent-strong)" }}>Desde:</label>
+            <input
+              type="date"
+              value={from}
+              max={to || undefined}
+              onChange={(e) => setFrom(e.target.value)}
+              style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", flex: "1 1 120px", minWidth: 0, maxWidth: 180 }}
+            />
+            <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--accent-strong)" }}>Hasta:</label>
+            <input
+              type="date"
+              value={to}
+              min={from || undefined}
+              onChange={(e) => setTo(e.target.value)}
+              style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", flex: "1 1 120px", minWidth: 0, maxWidth: 180 }}
+            />
+            <button
+              onClick={() => {
+                setFrom("");
+                setTo("");
+                setAccount("");
+              }}
+              style={{ padding: "8px 12px", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer" }}
+              className="active-tap"
+            >
+              Limpiar
+            </button>
+          </div>
 
-        <FilterSelect
-          value={account}
-          onChange={(val) => setAccount(val)}
-          options={[
-            { value: "", label: "Todas las cuentas" },
-            ...accounts.map(acc => ({ value: acc, label: acc }))
-          ]}
-        />
+          <FilterSelect
+            value={account}
+            onChange={(val) => setAccount(val)}
+            options={[
+              { value: "", label: "Todas las cuentas" },
+              ...accounts.map(acc => ({ value: acc, label: acc }))
+            ]}
+          />
 
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-secondary)", fontWeight: 700 }}>
-          Total depositado: <span style={{ color: "var(--accent-strong)", fontWeight: 800 }}>{money(total)}</span>
-        </span>
-      </Toolbar>
+          <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-secondary)", fontWeight: 700 }}>
+            Total depositado: <span style={{ color: "var(--accent-strong)", fontWeight: 800 }}>{money(total)}</span>
+          </span>
+        </Toolbar>
+      )}
 
       {isMobile ? (
         <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 4px" }}>
@@ -275,27 +414,25 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     overflow: "hidden",
                   }}
                 >
-                  {/* Encabezado: Sucursal y Tipo */}
                   <div style={{
                     display: "flex",
                     justifyContent: "space-between",
-                    padding: "10px 16px",
-                    fontSize: 11,
+                    padding: "8px 14px",
+                    fontSize: 10,
                     fontWeight: 700,
                     color: "var(--text-muted)",
                     borderBottom: "1px solid var(--surface-3)",
                     backgroundColor: "var(--surface-2)",
-                    letterSpacing: "0.2px"
+                    letterSpacing: "0.2px",
+                    textTransform: "uppercase"
                   }}>
-                    <span>{d.branch.toUpperCase()}</span>
-                    <span>TIPO: {d.paymentType.toUpperCase()}</span>
+                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "45%" }}>{d.branch}</span>
+                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "45%" }}>{d.paymentType}</span>
                   </div>
 
-                  {/* Cuerpo principal */}
-                  <div style={{ padding: 16 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-                      <div style={{ flex: 1 }}>
-                        {/* ID de Depósito y Monto */}
+                  <div style={{ padding: 14 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                           <button
                             onClick={() => openDetail(d)}
@@ -306,38 +443,44 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               fontWeight: 700,
                               cursor: "pointer",
                               padding: 0,
-                              fontSize: 16,
+                              fontSize: 14,
                               textAlign: "left",
+                              wordBreak: "break-word"
                             }}
                             className="active-tap"
                           >
                             Depósito #{d.id}
                           </button>
-                          <span style={{ fontSize: 16, fontWeight: 800, color: "#b91c1c" }}>
+                          <span style={{ fontSize: 15, fontWeight: 800, color: "#b91c1c", whiteSpace: "nowrap" }}>
                             -{money(d.amount)}
                           </span>
                         </div>
 
-                        {/* Beneficiario */}
-                        <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 8, fontWeight: 600 }}>
+                        <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 6, fontWeight: 600, wordBreak: "break-word" }}>
                           {d.targetName}
                         </div>
 
-                        {/* Fecha */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", marginBottom: 6 }}>
-                          <Calendar size={14} color="#2563eb" />
+                        {/* Fecha - MEJORADA como en Compras */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>
+                          <Calendar size={13} color="#2563eb" />
                           <span>{fmtDate(d.createdAt)} {fmtTime(d.createdAt)}</span>
                         </div>
 
-                        {/* Cuenta Destino */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
-                          <CreditCard size={14} color="#2563eb" />
+                        {/* Cuenta - CON wordBreak */}
+                        <div style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          fontSize: 12,
+                          color: "var(--text-secondary)",
+                          wordBreak: "break-all"
+                        }}>
+                          <CreditCard size={13} color="#2563eb" style={{ flexShrink: 0 }} />
                           <span>Cuenta: <span style={{ fontFamily: "monospace" }}>{d.accountMasked}</span></span>
                         </div>
                       </div>
 
-                      {/* Chevron Button */}
-                      <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
+                      <div style={{ display: "flex", alignItems: "center", alignSelf: "center", flexShrink: 0 }}>
                         <button
                           onClick={() => toggleExpand(d.id)}
                           style={{
@@ -347,24 +490,22 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             backgroundColor: "var(--surface)",
                             border: "1px solid var(--border-strong)",
                             borderRadius: 8,
-                            width: 38,
-                            height: 38,
+                            width: 34,
+                            height: 34,
                             cursor: "pointer",
                             color: "#2563eb",
                             padding: 0,
                           }}
                           className="active-tap"
                         >
-                          {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                          {isExpanded ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
                         </button>
                       </div>
                     </div>
 
-                    {/* Detalle expandible */}
                     {isExpanded && (
-                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--surface-3)" }}>
-                        {/* Botón Ver Detalle */}
-                        <div style={{ marginBottom: 12 }}>
+                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--surface-3)" }}>
+                        <div style={{ marginBottom: 10 }}>
                           <button
                             onClick={() => openDetail(d)}
                             style={{
@@ -374,51 +515,48 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               fontWeight: 700,
                               cursor: "pointer",
                               padding: 0,
-                              fontSize: 13,
+                              fontSize: 12,
                               display: "inline-flex",
                               alignItems: "center",
                               gap: 6,
                             }}
                             className="active-tap"
                           >
-                            <Eye size={15} /> Ver detalle completo
+                            <Eye size={14} /> Ver detalle completo
                           </button>
                         </div>
 
-                        {/* Contenedor de datos faltantes */}
                         <div style={{
                           backgroundColor: "var(--surface-2)",
-                          borderRadius: 12,
+                          borderRadius: 10,
                           border: "1px solid var(--border)",
-                          padding: 16,
+                          padding: 12,
                         }}>
-                          {/* Datos del Depósito */}
-                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Datos del Depósito</h4>
-                          <div style={detailRowStyle}>
+                          <h4 style={{ fontSize: 12, fontWeight: 800, color: "var(--text)", marginBottom: 8 }}>Datos del Depósito</h4>
+                          <div style={{ ...detailRowStyle, fontSize: 12 }}>
                             <span style={detailLabelStyle}>Folio Dep:</span>
                             <span style={detailValueStyle}>#{d.id}</span>
                           </div>
-                          <div style={detailRowStyle}>
+                          <div style={{ ...detailRowStyle, fontSize: 12 }}>
                             <span style={detailLabelStyle}>Sesión:</span>
                             <span style={detailValueStyle}>#{d.sessionId}</span>
                           </div>
-                          <div style={detailRowStyle}>
+                          <div style={{ ...detailRowStyle, fontSize: 12 }}>
                             <span style={detailLabelStyle}>Cuenta Nro:</span>
-                            <span style={{ ...detailValueStyle, fontFamily: "monospace" }}>{d.accountNumber}</span>
+                            <span style={{ ...detailValueStyle, fontFamily: "monospace", wordBreak: "break-all", fontSize: 11 }}>{d.accountNumber}</span>
                           </div>
 
-                          {/* Estado y Confirmación */}
-                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginTop: 16, marginBottom: 10 }}>Estado y Confirmación</h4>
-                          <div style={detailRowStyle}>
+                          <h4 style={{ fontSize: 12, fontWeight: 800, color: "var(--text)", marginTop: 12, marginBottom: 8 }}>Estado y Confirmación</h4>
+                          <div style={{ ...detailRowStyle, fontSize: 12 }}>
                             <span style={detailLabelStyle}>Estado:</span>
                             <span style={detailValueStyle}>
                               <Badge tone={d.status === "CONFIRMADO" || d.status === "COMPLETED" ? "green" : "red"}>{d.status}</Badge>
                             </span>
                           </div>
-                          
-                          <div style={{ ...detailRowStyle, marginTop: 8 }}>
+
+                          <div style={{ ...detailRowStyle, fontSize: 12, marginTop: 6 }}>
                             <span style={detailLabelStyle}>Confirmado:</span>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                               <input
                                 type="checkbox"
                                 checked={d.status === "COMPLETED" || d.status === "CONFIRMADO"}
@@ -433,27 +571,28 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                                 style={{
                                   cursor:
                                     confirmingDepositId === d.id ||
-                                    d.status === "CANCELLED" ||
-                                    d.status === "CANCELADO" ||
-                                    d.status === "COMPLETED" ||
-                                    d.status === "CONFIRMADO"
+                                      d.status === "CANCELLED" ||
+                                      d.status === "CANCELADO" ||
+                                      d.status === "COMPLETED" ||
+                                      d.status === "CONFIRMADO"
                                       ? "not-allowed"
                                       : "pointer",
-                                  width: "18px",
-                                  height: "18px",
+                                  width: "16px",
+                                  height: "16px",
                                 }}
                               />
-                              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
                                 {d.status === "COMPLETED" || d.status === "CONFIRMADO" ? "Confirmado" : "Pendiente de confirmar"}
                               </span>
                             </span>
                           </div>
 
-                          {/* Comentarios si existen */}
                           {d.comments && (
-                            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 4 }}>Comentarios:</div>
-                              <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{renderComments(d.comments)}</div>
+                            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 4 }}>
+                                Comentarios:
+                              </div>
+                              <div style={{ fontSize: 12, color: "var(--text-secondary)", wordBreak: "break-word" }}>{renderComments(d.comments)}</div>
                             </div>
                           )}
                         </div>
@@ -509,10 +648,10 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           style={{
                             cursor:
                               confirmingDepositId === d.id ||
-                              d.status === "CANCELLED" ||
-                              d.status === "CANCELADO" ||
-                              d.status === "COMPLETED" ||
-                              d.status === "CONFIRMADO"
+                                d.status === "CANCELLED" ||
+                                d.status === "CANCELADO" ||
+                                d.status === "COMPLETED" ||
+                                d.status === "CONFIRMADO"
                                 ? "not-allowed"
                                 : "pointer",
                             width: "18px",
@@ -525,12 +664,15 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             background: "none",
                             border: "none",
                             cursor: "pointer",
-                            fontSize: "16px",
+                            fontSize: "14px",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            padding: 0
+                            padding: 0,
+                            color: "#2563eb",
+                            fontWeight: 600
                           }}
+                          className="active-tap"
                           title="Ver detalles"
                         >
                           Ver
@@ -545,6 +687,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         </div>
       )}
 
+      {/* Modal de detalle - MEJORADO con mejor diseño */}
       {detailOpen && selectedDeposit && (
         <div style={{
           position: "fixed",
@@ -556,18 +699,21 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          zIndex: 1000
+          zIndex: 1000,
+          padding: "16px"
         }}>
           <div style={{
             background: "white",
-            borderRadius: "8px",
-            padding: "24px",
+            borderRadius: "12px",
+            padding: isMobile ? "20px" : "24px",
             maxWidth: "600px",
-            width: "90%",
+            width: "100%",
+            maxHeight: "90vh",
+            overflowY: "auto",
             boxShadow: "0 20px 25px rgba(0,0,0,0.15)"
           }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "16px" }}>
-              <h2 style={{ margin: 0, fontSize: "18px", color: "var(--accent-strong)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "16px", alignItems: "center" }}>
+              <h2 style={{ margin: 0, fontSize: isMobile ? "16px" : "18px", color: "var(--accent-strong)" }}>
                 Depósito #{selectedDeposit.id}
               </h2>
               <button
@@ -575,58 +721,113 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 style={{
                   background: "none",
                   border: "none",
-                  fontSize: "24px",
-                  cursor: "pointer"
+                  cursor: "pointer",
+                  color: "#64748b",
+                  padding: "4px"
                 }}
+                className="active-tap"
               >
-                ✕
+                <X size={isMobile ? 20 : 24} />
               </button>
             </div>
 
-            <div style={{ marginBottom: "16px", borderBottom: "1px solid #e5e7eb", paddingBottom: "16px" }}>
-              <p style={{ margin: "8px 0" }}>
-                <strong>Cuenta Destino:</strong> {selectedDeposit.accountNumber}
-              </p>
-              <p style={{ margin: "8px 0" }}>
-                <strong>Beneficiario:</strong> {selectedDeposit.targetName}
-              </p>
-              <p style={{ margin: "8px 0" }}>
-                <strong>Sucursal:</strong> {selectedDeposit.branch?.name || selectedDeposit.branch || "—"}
-              </p>
-              <p style={{ margin: "8px 0" }}>
-                <strong>Tipo:</strong> {selectedDeposit.paymentType}
-              </p>
-              <p style={{ margin: "8px 0" }}>
-                <strong>Referencia:</strong> {selectedDeposit.reference || "—"}
-              </p>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+              gap: "12px",
+              marginBottom: "16px",
+              paddingBottom: "16px",
+              borderBottom: "1px solid #e5e7eb"
+            }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
+                  Cuenta Destino
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", marginTop: 3, wordBreak: "break-all" }}>
+                  {selectedDeposit.accountNumber}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
+                  Beneficiario
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", marginTop: 3, wordBreak: "break-word" }}>
+                  {selectedDeposit.targetName}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
+                  Sucursal
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", marginTop: 3 }}>
+                  {selectedDeposit.branch?.name || selectedDeposit.branch || "—"}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
+                  Tipo
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", marginTop: 3 }}>
+                  {selectedDeposit.paymentType}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
+                  Referencia
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", marginTop: 3 }}>
+                  {selectedDeposit.reference || "—"}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
+                  Fecha
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", marginTop: 3 }}>
+                  {new Date(selectedDeposit.createdAt).toLocaleString()}
+                </div>
+              </div>
             </div>
 
-            <div style={{ marginBottom: "16px", borderBottom: "1px solid #e5e7eb", paddingBottom: "16px" }}>
-              <p style={{ margin: "8px 0" }}>
-                <strong>Monto:</strong> <span style={{ color: "#dc2626", fontSize: "16px", fontWeight: "bold" }}>
-                  -${selectedDeposit.amount.toFixed(2)}
+            <div style={{
+              marginBottom: "16px",
+              paddingBottom: "16px",
+              borderBottom: "1px solid #e5e7eb"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>Monto</span>
+                <span style={{ fontSize: isMobile ? "20px" : "24px", fontWeight: 800, color: "#dc2626" }}>
+                  -{money(selectedDeposit.amount)}
                 </span>
-              </p>
-              <p style={{ margin: "8px 0" }}>
-                <strong>Fecha:</strong> {new Date(selectedDeposit.createdAt).toLocaleString()}
-              </p>
-              <p style={{ margin: "8px 0" }}>
-                <strong>Estado:</strong> <span style={{
-                  background: selectedDeposit.status === "CONFIRMADO" || selectedDeposit.status === "COMPLETED" ? "#d1fae5" : "#fee2e2",
-                  color: selectedDeposit.status === "CONFIRMADO" || selectedDeposit.status === "COMPLETED" ? "#065f46" : "#991b1b",
-                  padding: "4px 8px",
-                  borderRadius: "4px",
-                  fontSize: "12px"
-                }}>
-                  {selectedDeposit.status}
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
+                  Estado
                 </span>
-              </p>
-              <p style={{ margin: "8px 0" }}>
-                <strong>Comentarios:</strong> {renderComments(selectedDeposit.comments)}
-              </p>
+                <div style={{ marginTop: 3 }}>
+                  <Badge tone={selectedDeposit.status === "CONFIRMADO" || selectedDeposit.status === "COMPLETED" ? "green" : "red"}>
+                    {selectedDeposit.status}
+                  </Badge>
+                </div>
+              </div>
             </div>
 
-            <div style={{ display: "flex", gap: "12px" }}>
+            {selectedDeposit.comments && (
+              <div style={{ marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #e5e7eb" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
+                  Comentarios
+                </div>
+                <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4, wordBreak: "break-word" }}>
+                  {renderComments(selectedDeposit.comments)}
+                </div>
+              </div>
+            )}
+
+            <div style={{
+              display: "flex",
+              gap: "12px",
+              flexDirection: isMobile ? "column" : "row"
+            }}>
               <button
                 onClick={closeDetail}
                 style={{
@@ -636,8 +837,10 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   borderRadius: "6px",
                   cursor: "pointer",
                   fontSize: "14px",
-                  fontWeight: "600"
+                  fontWeight: "600",
+                  flex: isMobile ? 1 : "auto"
                 }}
+                className="active-tap"
               >
                 Cerrar
               </button>
@@ -651,8 +854,10 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   borderRadius: "6px",
                   cursor: "pointer",
                   fontSize: "14px",
-                  fontWeight: "600"
+                  fontWeight: "600",
+                  flex: isMobile ? 1 : "auto"
                 }}
+                className="active-tap"
               >
                 Imprimir
               </button>
@@ -668,21 +873,23 @@ const detailRowStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "flex-start",
   alignItems: "center",
-  gap: "8px",
-  fontSize: 13,
-  marginBottom: 6,
+  gap: "6px",
+  marginBottom: 4,
 };
 
 const detailLabelStyle: React.CSSProperties = {
   fontWeight: 700,
   color: "var(--text-muted)",
-  minWidth: "85px",
+  minWidth: "70px",
   display: "inline-block",
+  fontSize: "inherit",
 };
 
 const detailValueStyle: React.CSSProperties = {
   fontWeight: 600,
   color: "var(--text-secondary)",
+  fontSize: "inherit",
+  wordBreak: "break-word",
 };
 
 export default DepositosView;
