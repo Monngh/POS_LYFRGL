@@ -312,7 +312,7 @@ export default function ReturnsModal({
       `<div class="ticket-row"><span>Fecha:</span><span class="ticket-value">${safe(new Date().toLocaleString())}</span></div>`,
       `<div class="ticket-row"><span>Sucursal:</span><span class="ticket-value">${safe(user?.branch?.name || "N/A")}</span></div>`,
       `<div class="ticket-row"><span>Cajero:</span><span class="ticket-value">${safe(user?.name || "N/A")}</span></div>`,
-      `<div class="ticket-row"><span>Cliente:</span><span class="ticket-value">${safe(returnSaleData?.customerName || "Publico general")}</span></div>`,
+      `<div class="ticket-row"><span>Cliente:</span><span class="ticket-value">${safe(returnSaleData?.customerName ? "Cliente registrado" : "Publico general")}</span></div>`,
       `<div class="ticket-row"><span>Metodo reembolso:</span><span class="ticket-value">${safe(returnPaymentMethod)}</span></div>`,
       `<div class="ticket-row"><span>Motivo:</span><span class="ticket-value">${safe(returnReason || "N/A")}</span></div>`,
     ];
@@ -482,7 +482,7 @@ export default function ReturnsModal({
             }} className="pos-cashier-grid-2">
               <div><strong>Folio:</strong> {returnSaleData.invoiceNumber}</div>
               <div><strong>Fecha:</strong> {new Date(returnSaleData.createdAt).toLocaleDateString()}</div>
-              <div><strong>Cliente:</strong> {returnSaleData.customerName}</div>
+              <div><strong>Cliente:</strong> {returnSaleData.customerName ? "Cliente registrado" : "Público general"}</div>
               <div><strong>Total:</strong> ${Number(returnSaleData.totalAmount).toFixed(2)}</div>
             </div>
 
