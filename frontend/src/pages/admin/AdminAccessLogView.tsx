@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import { ShieldAlert, Lock, ChevronDown, ChevronUp } from "lucide-react";
 import api from "../../services/api";
 import {
