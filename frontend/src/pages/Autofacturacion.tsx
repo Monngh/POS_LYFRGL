@@ -237,12 +237,12 @@ const Autofacturacion: React.FC = () => {
   });
 
   const validateLoginForm = () => ({
-    loginPhone: validatePhone(loginPhone, { required: true, minDigits: 10, maxDigits: 15 }),
+    loginPhone: validatePhone(loginPhone, { required: true }),
     loginPassword: normalizeSpaces(loginPassword) ? undefined : "La contrasena es obligatoria.",
   });
 
   const validateRegisterForm = () => ({
-    registerPhone: validatePhone(registerPhone, { required: true, minDigits: 10, maxDigits: 15 }),
+    registerPhone: validatePhone(registerPhone, { required: true }),
     registerEmail: validateAutofactEmail(registerEmail, { required: true }),
     registerInvoiceNumber: validateReference(registerInvoiceNumber, "El folio", { required: true, max: 40 }),
     registerPassword:
@@ -600,7 +600,7 @@ const Autofacturacion: React.FC = () => {
       next = normalizePhoneInput(rawValue);
       if (rawValue !== next) error = "El telefono solo puede contener numeros, espacios, +, - y parentesis.";
       setLoginPhone(next);
-      error ||= validatePhone(next, { required: true, minDigits: 10, maxDigits: 15 });
+      error ||= validatePhone(next, { required: true });
     } else {
       setLoginPassword(next);
       error = normalizeSpaces(next) ? undefined : "La contrasena es obligatoria.";
@@ -615,7 +615,7 @@ const Autofacturacion: React.FC = () => {
       next = normalizePhoneInput(rawValue);
       if (rawValue !== next) error = "El telefono solo puede contener numeros, espacios, +, - y parentesis.";
       setRegisterPhone(next);
-      error ||= validatePhone(next, { required: true, minDigits: 10, maxDigits: 15 });
+      error ||= validatePhone(next, { required: true });
     }
     if (field === "registerEmail") {
       setRegisterEmail(next);
@@ -1315,7 +1315,7 @@ const Autofacturacion: React.FC = () => {
                     placeholder="Ej: 5551234567"
                     value={loginPhone}
                     onChange={(e) => setLoginField("loginPhone", e.target.value)}
-                    onBlur={() => setLoginFieldErrors((prev) => ({ ...prev, loginPhone: validatePhone(loginPhone, { required: true, minDigits: 10, maxDigits: 15 }) }))}
+                    onBlur={() => setLoginFieldErrors((prev) => ({ ...prev, loginPhone: validatePhone(loginPhone, { required: true }) }))}
                     style={{ ...styles.modalInput, ...(loginFieldErrors.loginPhone ? styles.inputError : {}) }}
                   />
                 </div>
@@ -1383,7 +1383,7 @@ const Autofacturacion: React.FC = () => {
                   placeholder="Ej: 5551234567"
                   value={registerPhone}
                   onChange={(e) => setRegisterField("registerPhone", e.target.value)}
-                  onBlur={() => setRegisterFieldErrors((prev) => ({ ...prev, registerPhone: validatePhone(registerPhone, { required: true, minDigits: 10, maxDigits: 15 }) }))}
+                  onBlur={() => setRegisterFieldErrors((prev) => ({ ...prev, registerPhone: validatePhone(registerPhone, { required: true }) }))}
                   style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerPhone ? styles.inputError : {}) }}
                 />
                 {registerFieldErrors.registerPhone && <p style={styles.fieldError}>{registerFieldErrors.registerPhone}</p>}

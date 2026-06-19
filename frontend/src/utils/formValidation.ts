@@ -101,22 +101,29 @@ export const validateRfc = (value: string, options: { required?: boolean } = {})
   return undefined;
 };
 
-export const validatePhone = (value: string, options: { required?: boolean; minDigits?: number; maxDigits?: number } = {}) => {
+export const validatePhone = (value: string, options: { required?: boolean } = {}) => {
   const v = normalizeSpaces(value);
   if (!v) return options.required ? "El telefono es obligatorio." : undefined;
   if (hasEmoji(v) || !PHONE_PATTERN.test(v)) {
     return "El telefono solo puede contener numeros, espacios, +, - y parentesis.";
   }
   const digits = v.replace(/\D/g, "");
-  const min = options.minDigits ?? 10;
-  const max = options.maxDigits ?? 15;
-  if (digits.length < min || digits.length > max) return `El telefono debe tener entre ${min} y ${max} digitos.`;
-  return undefined;
+  if (digits.length === 10) {
+    return undefined;
+  }
+  if (digits.length === 12) {
+    const lada = digits.substring(0, 2);
+    if (["52", "55", "33", "81"].includes(lada)) {
+      return undefined;
+    }
+  }
+  return "El telefono debe tener exactamente 10 digitos (o 12 digitos iniciando con lada autorizada 52, 55, 33, 81).";
 };
 
 export const validateEmail = (value: string, options: { required?: boolean } = {}) => {
   const v = normalizeEmailInput(value);
   if (!v) return options.required ? "El correo es obligatorio." : undefined;
+  if (v.length > 254) return "El correo no puede exceder 254 caracteres.";
   if (/\s/.test(v) || hasEmoji(v) || !EMAIL_PATTERN.test(v)) {
     return "El correo no tiene un formato valido.";
   }
@@ -161,6 +168,7 @@ export const validateDecimalMoney = (
 export const validateSku = (value: string, options: { required?: boolean } = {}) => {
   const raw = value.trim();
   if (!raw) return options.required === false ? undefined : "El SKU es obligatorio.";
+  if (raw.length > 50) return "El SKU no puede exceder 50 caracteres.";
   if (hasEmoji(raw) || !SKU_PATTERN.test(raw)) return "El SKU solo permite letras, numeros, guion medio y guion bajo.";
   return undefined;
 };
@@ -168,7 +176,18 @@ export const validateSku = (value: string, options: { required?: boolean } = {})
 export const validateBarcode = (value: string, options: { required?: boolean } = {}) => {
   const raw = value.trim();
   if (!raw) return options.required ? "El codigo de barras es obligatorio." : undefined;
+  if (raw.length < 8 || raw.length > 14) return "El codigo de barras debe tener entre 8 y 14 caracteres.";
   if (hasEmoji(raw) || !BARCODE_PATTERN.test(raw)) return "El codigo de barras solo puede contener numeros.";
+  return undefined;
+};
+
+export const validateDateRange = (from: string, to: string) => {
+  if (!from || !to) return undefined;
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+  if (fromDate > toDate) {
+    return "La fecha de inicio no puede ser posterior a la fecha de fin.";
+  }
   return undefined;
 };
 
