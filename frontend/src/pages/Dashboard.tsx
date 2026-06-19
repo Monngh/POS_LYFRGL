@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import {
   AperturaView,
   DashboardHomeView,
+  SalesTerminalView,
   PriceLookupModal,
   CancelSaleModal,
   CloseOptionsModal,
@@ -22,33 +23,15 @@ import { useCashSession } from "../hooks/pos/useCashSession";
 import { usePosCustomer } from "../hooks/pos/usePosCustomer";
 import { usePosCart } from "../hooks/pos/usePosCart";
 import { usePosSearch } from "../hooks/pos/usePosSearch";
-import {
-  printTicketElementById,
-  TICKET_PRINT_MEDIA_STYLES,
-  ticketPdfFilename,
-} from "../utils/ticketEmailDocument.util";
+import { printTicketElementById, ticketPdfFilename } from "../utils/ticketEmailDocument.util";
 import { generateTicketPdfBase64 } from "../utils/ticketPdf.util";
 import AdminDashboard from "./AdminDashboard";
-import {
-  DECIMAL_INPUT_REGEX,
-  handleDecimalInputChange,
-} from "../utils/decimalInput";
 import {
   normalizeIntegerInput,
   validateInteger,
   validateReference,
 } from "../utils/formValidation";
-import {
-  Store,
-  Plus,
-  Minus,
-  Search,
-  Printer,
-  XCircle,
-  AlertTriangle,
-  Mail,
-  ArrowLeft,
-} from "lucide-react";
+import { Printer, AlertTriangle, Mail } from "lucide-react";
 
 interface Product {
   id: number;
@@ -160,96 +143,20 @@ const Dashboard: React.FC = () => {
     handleSavePartialCut,
   } = sessionData;
 
+  const customerData = usePosCustomer({ onToast: showToast, view });
   const {
     selectedCustomer,
     setSelectedCustomer,
-    customerSearch,
     setCustomerSearch,
-    customerSearchError,
-    customerSearchResults,
     setCustomerSearchResults,
-    isCustomerDropdownOpen,
     setIsCustomerDropdownOpen,
-    isNewCustomerModalOpen,
     setIsNewCustomerModalOpen,
-    newCustomerForm,
-    setNewCustomerForm,
-    setNewCustomerField,
-    newCustomerFieldErrors,
-    setNewCustomerFieldErrors,
-    newCustomerLoading,
-    newCustomerError,
     setNewCustomerError,
-    handleRegisterCustomerSubmit,
-  } = usePosCustomer({ onToast: showToast, view });
+  } = customerData;
 
   const [selectedSale, setSelectedSale] = useState<any>(null);
 
-  const {
-    cart,
-    setCart,
-    showDraftConfirm,
-    setShowDraftConfirm,
-    cartQtyDraft,
-    setCartQtyDraft,
-    DRAFT_KEY,
-    setPendingCartAction,
-    cartPin,
-    setCartPin,
-    cartPinError,
-    setCartPinError,
-    cartPinLoading,
-    setSimulationData,
-    checkoutModalOpen,
-    setCheckoutModalOpen,
-    checkoutLoading,
-    checkoutError,
-    setCheckoutError,
-    checkoutFieldErrors,
-    setCheckoutFieldErrors,
-    paymentMethod,
-    setPaymentMethod,
-    cashReceived,
-    setCashReceived,
-    mixtoCash,
-    setMixtoCash,
-    mixtoCard,
-    setMixtoCard,
-    cardType,
-    setCardType,
-    pointsToRedeem,
-    setPointsToRedeem,
-    usePoints,
-    setUsePoints,
-    invoiceRequested,
-    setInvoiceRequested,
-    qrModalOpen,
-    setQrModalOpen,
-    qrUrl,
-    setQrUrl,
-    qrReference,
-    setQrReference,
-    qrChecking,
-    cartSubtotalOriginal,
-    cartDiscount,
-    cartSubtotal,
-    cartTax,
-    cartTotal,
-    taxBreakdown,
-    pointsDiscount,
-    calculatedChange,
-    loadDraft,
-    clearCartAndDraft,
-    addProductToCart,
-    updateCartQty,
-    applyCartQty,
-    removeCartItem,
-    handleCancelCurrentPurchase,
-    handleCartPinSubmit,
-    handleCheckoutSubmit,
-    checkQrStatus,
-    isQrExpired,
-  } = usePosCart({
+  const cartData = usePosCart({
     user,
     selectedCustomer,
     onToast: showToast,
@@ -258,25 +165,55 @@ const Dashboard: React.FC = () => {
     onSetActiveModal: setActiveModal,
     onCancelSale: resetCurrentSaleAndReturnToDashboard,
   });
-
   const {
-    lookupQuery,
-    setLookupQuery,
-    lookupResults,
-    barcodeSearch,
-    setBarcodeSearch,
-    barcodeSearchError,
-    searchResults,
-    setSearchResults,
-    handleLookupKeyDown,
-    handleProductBarcodeSearch,
-    resetLookup,
-    resetSearch,
-  } = usePosSearch({
+    cart,
+    setCart,
+    showDraftConfirm,
+    setShowDraftConfirm,
+    DRAFT_KEY,
+    loadDraft,
+    setPendingCartAction,
+    cartPin,
+    setCartPin,
+    cartPinError,
+    setCartPinError,
+    cartPinLoading,
+    setSimulationData,
+    setCheckoutModalOpen,
+    setCheckoutError,
+    setPaymentMethod,
+    setCashReceived,
+    setMixtoCash,
+    setMixtoCard,
+    setCardType,
+    clearCartAndDraft,
+    setQrModalOpen,
+    setQrUrl,
+    setQrReference,
+    cartTotal,
+    qrUrl,
+    qrReference,
+    isQrExpired,
+    setUsePoints,
+    setPointsToRedeem,
+    setInvoiceRequested,
+    handleCartPinSubmit,
+    addProductToCart,
+  } = cartData;
+
+  const searchData = usePosSearch({
     view,
     activeModal,
     onProductFound: addProductToCart,
   });
+  const {
+    lookupQuery,
+    setLookupQuery,
+    lookupResults,
+    handleLookupKeyDown,
+    resetLookup,
+    resetSearch,
+  } = searchData;
 
   function resetCurrentSaleAndReturnToDashboard() {
     clearCartAndDraft();
@@ -1222,1010 +1159,22 @@ const Dashboard: React.FC = () => {
   // ===========================================================================
   if (view === "sales-terminal") {
     return (
-      <div style={styles.appContainer} className="pos-cashier-app">
-        <style>{TICKET_PRINT_MEDIA_STYLES}</style>
-        {/* Header Venta */}
-        <header style={styles.terminalHeader} className="pos-cashier-terminal-header">
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <button
-              type="button"
-              onClick={handleCancelCurrentPurchase}
-              className="active-tap"
-              style={styles.terminalBackBtn}
-              title="Regresar al menu principal"
-              aria-label="Regresar al menu principal del cajero"
-            >
-              <ArrowLeft size={20} />
-            </button>
-            <Store size={22} color="#1e3a8a" />
-            <h2 style={{ fontSize: "18px", fontWeight: "800", color: "#0f172a" }}>
-              Venta - Ticket #{(sessionStats?.salesCount !== undefined) ? sessionStats.salesCount + 1 : 1}
-            </h2>
-          </div>
-          <div style={{ fontSize: "14px", fontWeight: "600", color: "#475569" }}>
-            Cajero: <span style={{ color: "#1e3a8a" }}>{user?.name.split(" ")[0]}</span>
-          </div>
-        </header>
-
-        {/* Cuerpo Venta */}
-        <div style={styles.terminalBody} className="pos-cashier-terminal-body">
-          {/* Búsqueda de Productos */}
-          {/* Búsqueda de Productos y Clientes */}
-          <div className="card-premium" style={styles.terminalSearchArea}>
-            <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }} className="pos-cashier-search-row">
-              {/* Buscador de Productos */}
-              <form onSubmit={handleProductBarcodeSearch} style={{ flex: "1 1 50%", display: "flex", gap: "10px", margin: 0 }} className="pos-cashier-search-form">
-                <div style={{ flex: 1, position: "relative" }}>
-                  <Search size={18} color="#94a3b8" style={{ position: "absolute", left: "12px", top: "12px" }} />
-                  <input
-                    type="text"
-                    className="input-corporate"
-                    style={{ paddingLeft: "38px" }}
-                    placeholder="Ingrese código o nombre del producto..."
-                    value={barcodeSearch}
-                    onChange={(e) => setBarcodeSearch(validateTextInput(e.target.value))}
-                  />
-                  {barcodeSearchError && <p style={styles.fieldError}>{barcodeSearchError}</p>}
-                </div>
-                <button type="submit" className="btn-primary">
-                  Buscar
-                </button>
-              </form>
-
-              {/* Buscador y Lealtad de Clientes */}
-              <div style={{ flex: "1 1 40%", display: "flex", gap: "10px", position: "relative" }} className="pos-cashier-customer-search">
-                {selectedCustomer ? (
-                  <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    backgroundColor: "#f0fdf4",
-                    border: "1px solid #bbf7d0",
-                    borderRadius: "6px",
-                    padding: "8px 12px",
-                    width: "100%",
-                    fontSize: "13px"
-                  }} className="pos-cashier-customer-selected">
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <span style={{ fontWeight: "700", color: "#166534" }}>👤 {selectedCustomer.name}</span>
-                      <span style={{ color: "#475569" }}>({selectedCustomer.phone})</span>
-                      <span style={{
-                        backgroundColor: "#dcfce7",
-                        color: "#15803d",
-                        padding: "2px 6px",
-                        borderRadius: "4px",
-                        fontWeight: "700"
-                      }}>
-                        ⭐ {selectedCustomer.points} pts
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedCustomer(null);
-                        setUsePoints(false);
-                        setPointsToRedeem(0);
-                        setInvoiceRequested(false);
-                        showToast("Cliente removido del carrito.", "info");
-                      }}
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        color: "#991b1b",
-                        cursor: "pointer",
-                        fontWeight: "700"
-                      }}
-                    >
-                      Quitar
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div style={{ flex: 1, position: "relative" }}>
-                      <span style={{ position: "absolute", left: "12px", top: "12px", fontSize: "14px" }}>👤</span>
-                      <input
-                        type="text"
-                        className="input-corporate"
-                        style={{ paddingLeft: "38px" }}
-                        placeholder="Buscar cliente por teléfono o nombre..."
-                        value={customerSearch}
-                        onChange={(e) => setCustomerSearch(validateTextInput(e.target.value))}
-                        onFocus={() => {
-                          if (customerSearch.trim().length > 0) {
-                            setIsCustomerDropdownOpen(true);
-                          }
-                        }}
-                      />
-                      {customerSearchError && <p style={styles.fieldError}>{customerSearchError}</p>}
-                    </div>
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      style={{ backgroundColor: "#0f172a" }}
-                      onClick={() => {
-                        setNewCustomerError(null);
-                        setNewCustomerFieldErrors({});
-                        setNewCustomerForm({ name: "", phone: "", email: "" });
-                        setIsNewCustomerModalOpen(true);
-                      }}
-                    >
-                      + Nuevo
-                    </button>
-                  </>
-                )}
-
-                {/* Dropdown de búsqueda de clientes */}
-                {isCustomerDropdownOpen && customerSearchResults.length > 0 && (
-                  <div style={{
-                    ...styles.searchResultsDropdown,
-                    left: 0,
-                    right: 0,
-                    top: "100%",
-                    marginTop: "4px",
-                    zIndex: 110
-                  }}>
-                    {customerSearchResults.map((c) => (
-                      <div
-                        key={c.id}
-                        onClick={() => {
-                          setSelectedCustomer(c);
-                          setCustomerSearch("");
-                          setCustomerSearchResults([]);
-                          setIsCustomerDropdownOpen(false);
-                        }}
-                        style={{
-                          ...styles.dropdownItem,
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center"
-                        }}
-                      >
-                        <div style={{ display: "flex", flexDirection: "column" }}>
-                          <span style={{ fontWeight: "700", color: "#1e293b" }}>{c.name}</span>
-                          <span style={{ fontSize: "12px", color: "#64748b" }}>📞 {c.phone}</span>
-                        </div>
-                        <span style={{
-                          backgroundColor: "#f1f5f9",
-                          color: "#334155",
-                          padding: "2px 6px",
-                          borderRadius: "4px",
-                          fontWeight: "700",
-                          fontSize: "12px"
-                        }}>
-                          ⭐ {c.points} pts
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Dropdown vacío (No coincidencia => Sugerir registro) */}
-                {isCustomerDropdownOpen && customerSearch.trim().length > 0 && customerSearchResults.length === 0 && (
-                  <div style={{
-                    ...styles.searchResultsDropdown,
-                    left: 0,
-                    right: 0,
-                    top: "100%",
-                    marginTop: "4px",
-                    padding: "12px",
-                    textAlign: "center" as const,
-                    zIndex: 110
-                  }}>
-                    <span style={{ fontSize: "13px", color: "#64748b", display: "block", marginBottom: "8px" }}>
-                      No se encontró ningún cliente
-                    </span>
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      style={{ fontSize: "12px", padding: "6px 12px", width: "100%", backgroundColor: "#0f172a" }}
-                      onClick={() => {
-                        setNewCustomerError(null);
-                        setNewCustomerFieldErrors({});
-                        setNewCustomerForm({ name: "", phone: customerSearch.replace(/\D/g, ""), email: "" });
-                        setIsNewCustomerModalOpen(true);
-                        setIsCustomerDropdownOpen(false);
-                      }}
-                    >
-                      + Registrar "{customerSearch}" como Nuevo Cliente
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Dropdown de búsqueda multi-producto */}
-            {searchResults.length > 0 && (
-              <div style={styles.searchResultsDropdown}>
-                {searchResults.map((p) => (
-                  <div
-                    key={p.id}
-                    onClick={() => {
-                      addProductToCart(p);
-                      setSearchResults([]);
-                      setBarcodeSearch("");
-                    }}
-                    style={styles.dropdownItem}
-                  >
-                    <span>{p.name}</span>
-                    <span style={{ fontWeight: "700", color: "#0d9488" }}>${p.sellPrice.toFixed(2)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Carrito de Productos */}
-          <div className="card-premium pos-cashier-cart-card" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "20px" }}>
-            <h3 className="pos-cashier-cart-mobile-title">Detalle de Productos</h3>
-            <div style={{ flex: 1, overflowY: "auto", maxHeight: "40vh" }} className="pos-cashier-cart-scroll">
-              <table style={styles.table} className="pos-cashier-cart-table">
-                <thead>
-                  <tr style={styles.tableHeaderRow}>
-                    <th style={styles.th}>Código</th>
-                    <th style={styles.th}>Producto</th>
-                    <th style={styles.th}>Cantidad</th>
-                    <th style={styles.th}>Precio</th>
-                    <th style={styles.th}>Importe</th>
-                    <th style={styles.th}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cart.map((item) => {
-                    const promoDetails = calculateItemPromotion(item);
-                    const hasDiscount = promoDetails.discountAmount > 0;
-                    const promoApplied = promoDetails.promoApplied ?? hasDiscount;
-                    return (
-                      <tr key={item.product.id} style={styles.tableRow}>
-                        <td style={styles.td}>{item.product.sku}</td>
-                        <td style={{ ...styles.td, fontWeight: "600" }}>
-                          <div>{item.product.name}</div>
-                          {item.product.activePromotion && promoApplied && (
-                            <span style={{
-                              fontSize: "10px",
-                              backgroundColor: "#dbeafe",
-                              color: "#1e40af",
-                              padding: "2px 6px",
-                              borderRadius: "4px",
-                              fontWeight: "700",
-                              marginTop: "4px",
-                              display: "inline-block"
-                            }}>
-                              🏷️ {item.product.activePromotion.name}
-                            </span>
-                          )}
-                          {item.product.activePromotion && !promoApplied && (
-                            <span style={{
-                              fontSize: "9px",
-                              backgroundColor: "#f1f5f9",
-                              color: "#94a3b8",
-                              padding: "2px 6px",
-                              borderRadius: "4px",
-                              fontWeight: "600",
-                              marginTop: "4px",
-                              display: "inline-block"
-                            }}>
-                              🏷️ {item.product.activePromotion.name} (mín. {item.product.activePromotion.minQuantity || 1})
-                            </span>
-                          )}
-                        </td>
-                        <td style={styles.td}>
-                          <div style={styles.qtyContainer}>
-                            <button onClick={() => updateCartQty(item.product.id, -1)} style={styles.qtyBtn}>
-                              <Minus size={12} />
-                            </button>
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              style={styles.qtyInput}
-                              value={cartQtyDraft[item.product.id] ?? String(item.quantity)}
-                              onFocus={() =>
-                                setCartQtyDraft((prev) => ({
-                                  ...prev,
-                                  [item.product.id]: String(item.quantity),
-                                }))
-                              }
-                              onChange={(e) => {
-                                const digits = e.target.value.replace(/\D/g, "");
-                                if (digits === "") {
-                                  setCartQtyDraft((prev) => ({
-                                    ...prev,
-                                    [item.product.id]: digits,
-                                  }));
-                                  return;
-                                }
-                                const parsed = parseInt(digits, 10);
-                                const maxStock = item.product.stock;
-                                if (parsed > maxStock) {
-                                  showToast(`Solo hay ${maxStock} piezas en stock.`);
-                                  setCartQtyDraft((prev) => ({
-                                    ...prev,
-                                    [item.product.id]: String(maxStock),
-                                  }));
-                                  return;
-                                }
-                                setCartQtyDraft((prev) => ({
-                                  ...prev,
-                                  [item.product.id]: digits,
-                                }));
-                              }}
-                              onBlur={() => {
-                                const raw = cartQtyDraft[item.product.id] ?? String(item.quantity);
-                                const parsed = parseInt(raw, 10);
-                                const minQty = Number.isFinite(parsed) && parsed >= 1 ? parsed : 1;
-                                const finalQty = Math.min(minQty, item.product.stock);
-                                setCartQtyDraft((prev) => {
-                                  const next = { ...prev };
-                                  delete next[item.product.id];
-                                  return next;
-                                });
-                                applyCartQty(item.product.id, finalQty);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "ArrowUp") {
-                                  e.preventDefault();
-                                  setCartQtyDraft((prev) => {
-                                    const next = { ...prev };
-                                    delete next[item.product.id];
-                                    return next;
-                                  });
-                                  updateCartQty(item.product.id, 1);
-                                } else if (e.key === "ArrowDown") {
-                                  e.preventDefault();
-                                  setCartQtyDraft((prev) => {
-                                    const next = { ...prev };
-                                    delete next[item.product.id];
-                                    return next;
-                                  });
-                                  updateCartQty(item.product.id, -1);
-                                } else if (e.key === "Enter") {
-                                  e.currentTarget.blur();
-                                }
-                              }}
-                            />
-                            <button onClick={() => updateCartQty(item.product.id, 1)} style={styles.qtyBtn}>
-                              <Plus size={12} />
-                            </button>
-                          </div>
-                        </td>
-                        <td style={styles.td}>
-                          {hasDiscount ? (
-                            <>
-                              <span style={{ textDecoration: "line-through", color: "#94a3b8", marginRight: "6px", fontSize: "12px" }}>
-                                ${item.product.sellPrice.toFixed(2)}
-                              </span>
-                              <span style={{ color: "#059669", fontWeight: "700" }}>
-                                ${(promoDetails.finalPrice).toFixed(2)}
-                              </span>
-                            </>
-                          ) : (
-                            `$${item.product.sellPrice.toFixed(2)}`
-                          )}
-                        </td>
-                        <td style={{ ...styles.td, fontWeight: "700" }}>
-                          {hasDiscount ? (
-                            <>
-                              <div style={{ textDecoration: "line-through", color: "#94a3b8", fontSize: "11px", fontWeight: "400" }}>
-                                ${(item.product.sellPrice * item.quantity).toFixed(2)}
-                              </div>
-                              <div style={{ color: "#059669" }}>
-                                ${(promoDetails.finalPrice * item.quantity).toFixed(2)}
-                              </div>
-                              <div style={{ fontSize: "10px", color: "#059669", fontWeight: "600" }}>
-                                Ahorro: -${promoDetails.discountAmount.toFixed(2)}
-                              </div>
-                            </>
-                          ) : (
-                            `$${(item.product.sellPrice * item.quantity).toFixed(2)}`
-                          )}
-                        </td>
-                        <td style={styles.td}>
-                          <button onClick={() => removeCartItem(item.product.id)} style={{ border: "none", background: "none", cursor: "pointer" }}>
-                            <XCircle size={18} color="#dc2626" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
- 
-            {/* Totales y Controles Cobro — layout 2 columnas */}
-            <div style={{ ...styles.terminalSummary, display: "flex", gap: "24px", alignItems: "flex-start" }} className="pos-cashier-terminal-summary">
-
-              {/* COLUMNA IZQUIERDA: Pagos QR Pendientes (máx 3, sin scroll) */}
-              <div style={{ flex: 1 }} className="pos-cashier-terminal-summary-col">
-                {pendingQrSales.length > 0 && (
-                  <>
-                    <div style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
-                      📱 Pagos QR Pendientes
-                    </div>
-                    <div className="pos-cashier-inline-table-scroll">
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                      <tbody>
-                        {pendingQrSales.slice(-3).reverse().map((sale) => {
-                          const isChecking = pendingQrChecking === sale.invoiceNumber;
-                          const isApproved = sale.status === "approved";
-                          const isRejected = sale.status === "rejected";
-                          return (
-                            <tr key={sale.id} style={{ borderBottom: "1px solid #f1f5f9", backgroundColor: isApproved ? "#f0fdf4" : isRejected ? "#fef2f2" : "transparent" }}>
-                              <td style={{ padding: "5px 6px", fontWeight: "600", color: "#334155", whiteSpace: "nowrap" }} title={sale.invoiceNumber}>
-                                ...{sale.invoiceNumber.slice(-6)}
-                              </td>
-                              <td style={{ padding: "5px 6px", fontWeight: "700", color: "#0f172a", whiteSpace: "nowrap" }}>
-                                ${Number(sale.amount).toFixed(2)}
-                              </td>
-                              <td style={{ padding: "5px 6px" }}>
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "700", backgroundColor: isApproved ? "#dcfce7" : isRejected ? "#fee2e2" : "#ffedd5", color: isApproved ? "#15803d" : isRejected ? "#b91c1c" : "#c2410c" }}>
-                                  <span style={{ width: "5px", height: "5px", borderRadius: "50%", backgroundColor: isApproved ? "#22c55e" : isRejected ? "#ef4444" : "#f97316" }} />
-                                  {isApproved ? "Aprobado" : isRejected ? "Rechazado" : "Pendiente"}
-                                </span>
-                              </td>
-                              <td style={{ padding: "5px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
-                                <div style={{ display: "inline-flex", gap: "4px" }}>
-                                  <button onClick={(e) => { e.stopPropagation(); setPendingCancelFieldErrors({}); setViewingPendingQrSale(sale); }} title="Ver QR"
-                                    style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: "#dbeafe", color: "#1e40af", border: "1px solid #93c5fd", cursor: "pointer" }}>
-                                    QR
-                                  </button>
-                                  <button onClick={(e) => { e.stopPropagation(); checkPendingQrStatus(sale.invoiceNumber); }} disabled={isChecking} title="Verificar pago — si está aprobado muestra el ticket"
-                                    style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: isChecking ? "#6b7280" : "#1e3a8a", color: "white", border: "none", cursor: isChecking ? "default" : "pointer" }}>
-                                    {isChecking ? "..." : "Verificar"}
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* COLUMNA DERECHA: Resumen de totales + botones debajo */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", minWidth: "260px", flexShrink: 0 }} className="pos-cashier-terminal-summary-col">
-                <div style={styles.summaryRow}>
-                  <span>Subtotal Original:</span>
-                  <span style={{ fontWeight: "600" }}>${cartSubtotalOriginal.toFixed(2)}</span>
-                </div>
-                {cartDiscount > 0 && (
-                  <div style={{ ...styles.summaryRow, color: "#059669", fontWeight: "700" }}>
-                    <span>Ahorro Promociones:</span>
-                    <span>-${cartDiscount.toFixed(2)}</span>
-                  </div>
-                )}
-                <div style={styles.summaryRow}>
-                  <span>Subtotal Neto:</span>
-                  <span style={{ fontWeight: "600" }}>${cartSubtotal.toFixed(2)}</span>
-                </div>
-                {Object.keys(taxBreakdown).length > 0 ? (
-                  Object.entries(taxBreakdown).map(([taxName, taxAmount]) => (
-                    <div key={taxName} style={styles.summaryRow}>
-                      <span>{taxName}:</span>
-                      <span style={{ fontWeight: "600" }}>${(taxAmount as number).toFixed(2)}</span>
-                    </div>
-                  ))
-                ) : (
-                  <div style={styles.summaryRow}>
-                    <span>Impuestos:</span>
-                    <span style={{ fontWeight: "600" }}>${cartTax.toFixed(2)}</span>
-                  </div>
-                )}
-                {Math.abs(cartTotal - (cartSubtotal + cartTax)) > 0.01 && (
-                  <div style={styles.summaryRow}>
-                    <span>Ajuste por Redondeo:</span>
-                    <span style={{ fontWeight: "600", color: (cartTotal - (cartSubtotal + cartTax)) < 0 ? "#059669" : "#dc2626" }}>
-                      {cartTotal - (cartSubtotal + cartTax) > 0 ? "+" : ""}{(cartTotal - (cartSubtotal + cartTax)).toFixed(2)}
-                    </span>
-                  </div>
-                )}
-                <div style={{ ...styles.summaryRow, ...styles.summaryTotal }}>
-                  <span>Total:</span>
-                  <span style={{ color: "#dc2626", fontWeight: "800" }}>${cartTotal.toFixed(2)}</span>
-                </div>
-                <div style={{ display: "flex", gap: "10px", marginTop: "10px" }} className="pos-cashier-modal-actions">
-                  <button
-                    onClick={handleCancelCurrentPurchase}
-                    className="active-tap"
-                    style={{ ...styles.terminalBtn, flex: 1, backgroundColor: "#dc2626", color: "white" }}
-                  >
-                    CANCELAR COMPRA
-                  </button>
-                  <button
-                    disabled={cart.length === 0}
-                    onClick={() => setCheckoutModalOpen(true)}
-                    className="active-tap"
-                    style={{ ...styles.terminalBtn, flex: 1, backgroundColor: "#059669", color: "white" }}
-                  >
-                    COBRAR
-                  </button>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        </div>
-
-
-        {/* COBRO MODAL (Mockup 4) */}
-        {checkoutModalOpen && (
-          <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-            <div style={styles.checkoutModal} className="pos-cashier-modal">
-              <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>COBRO</h3>
-              <div style={styles.checkoutTotalBox} className="pos-cashier-checkout-total">
-                $ {(cartTotal - pointsDiscount).toFixed(2)}
-              </div>
-
-              {pointsDiscount > 0 && (
-                <div style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: "13px",
-                  color: "#059669",
-                  fontWeight: "700",
-                  padding: "0 4px",
-                  marginTop: "-8px"
-                }}>
-                  <span>Descuento de Puntos:</span>
-                  <span>-${pointsDiscount.toFixed(2)} MXN</span>
-                </div>
-              )}
-
-              {/* Selector Métodos Pago */}
-              <div style={styles.payMethodsRow} className="pos-cashier-pay-methods">
-                <button
-                  onClick={() => {
-                    setPaymentMethod("EFECTIVO");
-                    setCheckoutError(null);
-                    setCheckoutFieldErrors({});
-                  }}
-                  style={{ ...styles.payMethodBtn, ...(paymentMethod === "EFECTIVO" ? styles.payMethodActive : {}) }}
-                >
-                  💵 EFECTIVO
-                </button>
-                <button
-                  onClick={() => {
-                    setPaymentMethod("TARJETA");
-                    setCheckoutError(null);
-                    setCheckoutFieldErrors({});
-                  }}
-                  style={{ ...styles.payMethodBtn, ...(paymentMethod === "TARJETA" ? styles.payMethodActive : {}) }}
-                >
-                  💳 TARJETA
-                </button>
-                <button
-                  onClick={() => {
-                    setPaymentMethod("MIXTO");
-                    setCheckoutError(null);
-                    setCheckoutFieldErrors({});
-                  }}
-                  style={{ ...styles.payMethodBtn, ...(paymentMethod === "MIXTO" ? styles.payMethodActive : {}) }}
-                >
-                  ⚖️ MIXTO
-                </button>
-                <button
-                  onClick={() => { setPaymentMethod("QR_MERCADOPAGO"); setCheckoutError(null); setCheckoutFieldErrors({}); }}
-                  style={{ ...styles.payMethodBtn, ...(paymentMethod === "QR_MERCADOPAGO" ? styles.payMethodActive : {}) }}
-                >
-                  📱 QR MP
-                </button>
-              </div>
-
-              {/* Inputs de Cobro según método */}
-              {paymentMethod === "EFECTIVO" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "14px" }}>
-                  <div style={styles.inputGroup}>
-                    <label style={styles.label}>Pagó Con:</label>
-                    <input
-                      type="text"
-                      className="input-corporate"
-                      placeholder="Ingrese cantidad recibida"
-                      value={cashReceived}
-                      inputMode="decimal"
-                      onChange={(e) => {
-                        const rawValue = e.target.value.trim();
-                        if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
-                          setCheckoutFieldErrors((prev) => ({ ...prev, cashReceived: "El monto recibido debe ser un numero valido con maximo 3 decimales." }));
-                          return;
-                        }
-                        handleDecimalInputChange(rawValue, setCashReceived);
-                        setCheckoutFieldErrors((prev) => ({ ...prev, cashReceived: "" }));
-                        setCheckoutError(null);
-                      }}
-                    />
-                    {checkoutFieldErrors.cashReceived && <p style={styles.fieldError}>{checkoutFieldErrors.cashReceived}</p>}
-                  </div>
-                  <div style={styles.inputGroup}>
-                    <label style={styles.label}>Su Cambio:</label>
-                    <input
-                      type="text"
-                      readOnly
-                      className="input-corporate"
-                      style={{ backgroundColor: "#f1f5f9", fontWeight: "700", color: "#0f172a" }}
-                      value={`$ ${calculatedChange.toFixed(2)}`}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {paymentMethod === "TARJETA" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "14px" }}>
-                  <div style={styles.inputGroup}>
-                    <label style={styles.label}>Tipo de Tarjeta:</label>
-                    <select
-                      value={cardType}
-                      onChange={(e) => setCardType(e.target.value as "CREDITO" | "DEBITO")}
-                      style={styles.select}
-                    >
-                      <option value="DEBITO">Débito</option>
-                      <option value="CREDITO">Crédito</option>
-                    </select>
-                  </div>
-                  <div style={{ padding: "10px 0", textAlign: "center", color: "#64748b" }}>
-                    <p>Solicite que inserte la tarjeta en la terminal bancaria.</p>
-                    <p style={{ fontWeight: "600", color: "#1e3a8a", marginTop: "8px" }}>NIP requerido en terminal física.</p>
-                  </div>
-                </div>
-              )}
-
-              {paymentMethod === "MIXTO" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "14px" }}>
-                  <div style={styles.inputGroup}>
-                    <label style={styles.label}>Tipo de Tarjeta:</label>
-                    <select
-                      value={cardType}
-                      onChange={(e) => setCardType(e.target.value as "CREDITO" | "DEBITO")}
-                      style={styles.select}
-                    >
-                      <option value="DEBITO">Débito</option>
-                      <option value="CREDITO">Crédito</option>
-                    </select>
-                  </div>
-                  <div style={styles.inputGroup}>
-                    <label style={styles.label}>Monto con Tarjeta ($):</label>
-                    <input
-                      type="text"
-                      className="input-corporate"
-                      value={mixtoCard}
-                      inputMode="decimal"
-                      onChange={(e) => {
-                        const rawValue = e.target.value.trim();
-                        if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
-                          setCheckoutFieldErrors((prev) => ({ ...prev, mixtoCard: "El monto con tarjeta debe ser un numero valido con maximo 3 decimales." }));
-                          return;
-                        }
-                        handleDecimalInputChange(rawValue, setMixtoCard);
-                        setCheckoutFieldErrors((prev) => ({ ...prev, mixtoCard: "" }));
-                        setCheckoutError(null);
-                      }}
-                    />
-                    {checkoutFieldErrors.mixtoCard && <p style={styles.fieldError}>{checkoutFieldErrors.mixtoCard}</p>}
-                  </div>
-                  <div style={styles.inputGroup}>
-                    <label style={styles.label}>Monto con Efectivo ($):</label>
-                    <input
-                      type="text"
-                      className="input-corporate"
-                      value={mixtoCash}
-                      inputMode="decimal"
-                      onChange={(e) => {
-                        const rawValue = e.target.value.trim();
-                        if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
-                          setCheckoutFieldErrors((prev) => ({ ...prev, mixtoCash: "El monto con efectivo debe ser un numero valido con maximo 3 decimales." }));
-                          return;
-                        }
-                        handleDecimalInputChange(rawValue, setMixtoCash);
-                        setCheckoutFieldErrors((prev) => ({ ...prev, mixtoCash: "" }));
-                        setCheckoutError(null);
-                      }}
-                    />
-                    {checkoutFieldErrors.mixtoCash && <p style={styles.fieldError}>{checkoutFieldErrors.mixtoCash}</p>}
-                  </div>
-                  <div style={styles.inputGroup}>
-                    <label style={styles.label}>Cambio en Efectivo ($):</label>
-                    <input
-                      type="text"
-                      readOnly
-                      className="input-corporate"
-                      style={{ backgroundColor: "#f1f5f9", fontWeight: "700" }}
-                      value={`$ ${calculatedChange.toFixed(2)}`}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Sección de Puntos de Lealtad (Fase 3.7) */}
-              {selectedCustomer && (
-                <div style={{
-                  borderTop: "1px solid #e2e8f0",
-                  paddingTop: "14px",
-                  marginTop: "10px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "8px"
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", margin: 0 }}>
-                      <input
-                        type="checkbox"
-                        checked={usePoints}
-                        onChange={(e) => {
-                          setUsePoints(e.target.checked);
-                          if (!e.target.checked) setPointsToRedeem(0);
-                        }}
-                      />
-                      <span>¿Usar Puntos?</span>
-                    </label>
-                    <span style={{ fontSize: "12px", color: "#64748b", fontWeight: "600" }}>
-                      Disponibles: <strong style={{ color: "#166534" }}>{selectedCustomer.points}</strong> pts
-                    </span>
-                  </div>
-
-                  {usePoints && (
-                    <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "4px" }}>
-                      <div style={{ flex: 1 }}>
-                        <input
-                          type="number"
-                          min={0}
-                          max={Math.min(selectedCustomer.points, Math.floor(cartTotal))}
-                          className="input-corporate"
-                          placeholder="Puntos a canjear"
-                          value={pointsToRedeem || ""}
-                          onChange={(e) => {
-                            const val = Math.max(0, parseInt(e.target.value) || 0);
-                            const maxVal = Math.min(selectedCustomer.points, Math.floor(cartTotal));
-                            if (val > maxVal) {
-                              setPointsToRedeem(maxVal);
-                              showToast(`El canje máximo es de ${maxVal} puntos.`, "info");
-                            } else {
-                              setPointsToRedeem(val);
-                            }
-                            setCheckoutError(null);
-                          }}
-                        />
-                      </div>
-                      <span style={{ fontSize: "13px", color: "#059669", fontWeight: "700" }}>
-                        Descuento: -${(Math.min(selectedCustomer.points, pointsToRedeem) * 1.0).toFixed(2)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Sección de Facturación CFDI */}
-              {selectedCustomer && (
-                <div style={{
-                  borderTop: "1px solid #e2e8f0",
-                  paddingTop: "14px",
-                  marginTop: "10px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "8px"
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", margin: 0 }}>
-                      <input
-                        type="checkbox"
-                        checked={invoiceRequested}
-                        onChange={(e) => {
-                          setInvoiceRequested(e.target.checked);
-                        }}
-                      />
-                      <span>¿Solicitar Factura CFDI?</span>
-                    </label>
-                    <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "600" }}>
-                      Se enviará al correo registrado
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {checkoutError && (
-                <div style={{
-                  backgroundColor: "#fef2f2",
-                  border: "1px solid #fca5a5",
-                  color: "#b91c1c",
-                  padding: "10px 12px",
-                  borderRadius: "6px",
-                  fontSize: "13px",
-                  fontWeight: "600",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  marginTop: "16px"
-                }}>
-                  <AlertTriangle size={16} color="#b91c1c" />
-                  <span>{checkoutError}</span>
-                </div>
-              )}
-
-              {checkoutLoading && (
-                <div style={{
-                  backgroundColor: "#eff6ff",
-                  border: "1px solid #93c5fd",
-                  color: "#1d4ed8",
-                  padding: "10px 12px",
-                  borderRadius: "6px",
-                  fontSize: "13px",
-                  fontWeight: "600",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  marginTop: "16px"
-                }}>
-                  <div className="pos-cashier-loading-spinner" style={{ width: "16px", height: "16px", borderWidth: "2px", flexShrink: 0 }} />
-                  <span>Procesando el cobro... Si la venta incluye facturación o puntos puede tardar un poco más. No cierre esta ventana.</span>
-                </div>
-              )}
-
-              {/* Botones de Cobro */}
-              <div style={{ display: "flex", gap: "10px", marginTop: "24px" }} className="pos-cashier-modal-actions">
-                <button
-                  disabled={checkoutLoading}
-                  onClick={() => setCheckoutModalOpen(false)}
-                  style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
-                >
-                  CANCELAR
-                </button>
-                <button
-                  disabled={checkoutLoading}
-                  onClick={handleCheckoutSubmit}
-                  style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
-                >
-                  {checkoutLoading && (
-                    <div className="pos-cashier-loading-spinner" style={{ width: "14px", height: "14px", borderWidth: "2px", borderColor: "rgba(255,255,255,0.4)", borderTopColor: "#ffffff", flexShrink: 0 }} />
-                  )}
-                  {checkoutLoading ? "PROCESANDO..." : "COBRAR"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* MODAL QR MERCADO PAGO */}
-        {qrModalOpen && (
-          <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-            <div style={styles.checkoutModal} className="pos-cashier-modal">
-              <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
-              <div style={{ textAlign: "center", padding: "20px 0" }}>
-                 <p style={{marginBottom: "10px", fontSize: "14px", color: "#475569"}}>Escanea el siguiente código para pagar <strong>${cartTotal.toFixed(2)}</strong></p>
-                 {qrUrl ? (
-                   <>
-                     <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" width="200" height="200" loading="lazy" />
-                     <div style={{ marginTop: "12px" }}>
-                       <a 
-                         href={qrUrl} 
-                         target="_blank" 
-                         rel="noopener noreferrer" 
-                         style={{ 
-                           fontSize: "12px", 
-                           color: "#2563eb", 
-                           textDecoration: "underline", 
-                           fontWeight: "600", 
-                           display: "inline-block", 
-                           padding: "6px 12px", 
-                           backgroundColor: "#f1f5f9", 
-                           borderRadius: "6px" 
-                         }}
-                       >
-                         🔗 Abrir enlace de pago / Sandbox
-                       </a>
-                     </div>
-                   </>
-                 ) : (
-                   <p>Generando QR...</p>
-                 )}
-                 <p style={{ marginTop: "12px", fontSize: "12px", color: "#64748b" }}>Ref: {qrReference}</p>
-              </div>
-              <div style={{ display: "flex", gap: "10px", marginTop: "24px" }} className="pos-cashier-modal-actions">
-                <button
-                  disabled={qrChecking}
-                  onClick={addPendingQrSale}
-                  style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
-                >
-                  CERRAR (PAGO PENDIENTE)
-                </button>
-                <button
-                  disabled={qrChecking}
-                  onClick={checkQrStatus}
-                  style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
-                >
-                  {qrChecking && (
-                    <div className="pos-cashier-loading-spinner" style={{ width: "14px", height: "14px", borderWidth: "2px", borderColor: "rgba(255,255,255,0.4)", borderTopColor: "#ffffff", flexShrink: 0 }} />
-                  )}
-                  {qrChecking ? "VERIFICANDO..." : "VERIFICAR ESTADO"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* MODAL: REGISTRO RÁPIDO DE CLIENTE (Fase 3.6) */}
-        {isNewCustomerModalOpen && (
-          <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-            <div style={styles.checkoutModal} className="pos-cashier-modal">
-              <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>
-                REGISTRO RÁPIDO DE CLIENTE
-              </h3>
-              <form onSubmit={handleRegisterCustomerSubmit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>Nombre Completo *</label>
-                  <input
-                    type="text"
-                    required
-                    className="input-corporate"
-                    placeholder="Ej. Juan Pérez"
-                    value={newCustomerForm.name}
-                    onChange={(e) => setNewCustomerField("name")(e.target.value)}
-                  />
-                  {newCustomerFieldErrors.name && <p style={styles.fieldError}>{newCustomerFieldErrors.name}</p>}
-                </div>
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>Teléfono (10 dígitos) *</label>
-                  <input
-                    type="text"
-                    required
-                    className="input-corporate"
-                    placeholder="Ej. 5551234567"
-                    value={newCustomerForm.phone}
-                    onChange={(e) => setNewCustomerField("phone")(e.target.value)}
-                  />
-                  {newCustomerFieldErrors.phone && <p style={styles.fieldError}>{newCustomerFieldErrors.phone}</p>}
-                </div>
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>Correo Electrónico (Opcional)</label>
-                  <input
-                    type="email"
-                    className="input-corporate"
-                    placeholder="Ej. cliente@correo.com"
-                    value={newCustomerForm.email}
-                    onChange={(e) => setNewCustomerField("email")(e.target.value)}
-                  />
-                  {newCustomerFieldErrors.email && <p style={styles.fieldError}>{newCustomerFieldErrors.email}</p>}
-                </div>
-
-                {newCustomerError && (
-                  <div style={{
-                    backgroundColor: "#fef2f2",
-                    border: "1px solid #fca5a5",
-                    color: "#b91c1c",
-                    padding: "10px 12px",
-                    borderRadius: "6px",
-                    fontSize: "13px",
-                    fontWeight: "600",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px"
-                  }}>
-                    <AlertTriangle size={16} color="#b91c1c" />
-                    <span>{newCustomerError}</span>
-                  </div>
-                )}
-
-                <div style={{ display: "flex", gap: "10px", marginTop: "16px" }} className="pos-cashier-modal-actions">
-                  <button
-                    type="button"
-                    onClick={() => { setIsNewCustomerModalOpen(false); setNewCustomerFieldErrors({}); }}
-                    style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
-                  >
-                    CANCELAR
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={newCustomerLoading}
-                    style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
-                  >
-                    {newCustomerLoading ? "Registrando..." : "REGISTRAR Y SELECCIONAR"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* MODAL: AUTORIZACIÓN PIN GERENTE/ADMIN PARA CARRITO (Fase 3.0) */}
-        {renderCartAuthorizationModal()}
+      <>
+        <SalesTerminalView
+          sessionData={sessionData}
+          cartData={cartData}
+          searchData={searchData}
+          customerData={customerData}
+          user={user}
+          onOpenModal={setActiveModal}
+          onToast={showToast}
+          pendingQrSales={pendingQrSales}
+          pendingQrChecking={pendingQrChecking}
+          checkPendingQrStatus={checkPendingQrStatus}
+          setPendingCancelFieldErrors={setPendingCancelFieldErrors}
+          setViewingPendingQrSale={setViewingPendingQrSale}
+          addPendingQrSale={addPendingQrSale}
+        />
 
         {/* MODAL 3: TICKET IMPRESO/PDF (Mockup 3) */}
         {activeModal === "ticket-view" && selectedSale && (
@@ -2642,8 +1591,11 @@ const Dashboard: React.FC = () => {
           </div>
         )}
 
+        {renderCartAuthorizationModal()}
         {renderTicketEmailModal()}
-      </div>
+        {renderDashboardTicketLoading()}
+        {renderToast()}
+      </>
     );
   }
 
