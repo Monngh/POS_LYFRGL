@@ -423,6 +423,9 @@ const Dashboard: React.FC = () => {
   const [initialFund, setInitialFund] = useState("500.00");
   const [initialFundError, setInitialFundError] = useState("");
   const [openingLoading, setOpeningLoading] = useState(false);
+  // Filtro de seguridad: PIN de autorización para confirmar la apertura
+  const [openPin, setOpenPin] = useState("");
+  const [openPinError, setOpenPinError] = useState("");
 
   const handleOpenCash = async () => {
     const initialFundValidation = validateDecimalField(initialFund, "El fondo inicial", {
@@ -434,6 +437,12 @@ const Dashboard: React.FC = () => {
       return;
     }
     setInitialFundError("");
+    if (!openPin.trim()) {
+      setOpenPinError("Ingrese el PIN de autorización para abrir la caja.");
+      showToast("Ingrese el PIN de autorización para abrir la caja.");
+      return;
+    }
+    setOpenPinError("");
     const initialFundValue = initialFundValidation.value;
     setOpeningLoading(true);
     try {
@@ -441,13 +450,25 @@ const Dashboard: React.FC = () => {
         showToast(initialFundValue.roundedMessage, "info");
       }
       const res = await api.post("/api/cash-session/open", {
-        initialAmount: initialFundValue.value
+        initialAmount: initialFundValue.value,
+        pinCode: openPin.trim(),
       });
+      setOpenPin("");
+      setOpenPinError("");
       setSession(res.data.session);
+      if (res.data.authorizedBy) {
+        showToast(`Caja abierta. Autorizó: ${res.data.authorizedBy}.`, "success");
+      }
       setView("dashboard");
       await loadDashboardData();
     } catch (err: any) {
-      showToast(err.response?.data?.message || "Error al abrir la caja registradora.");
+      const code = err.response?.data?.code;
+      const msg = err.response?.data?.message || "Error al abrir la caja registradora.";
+      if (code === "PIN_INVALIDO" || code === "PIN_REQUERIDO") {
+        setOpenPinError(msg);
+        setOpenPin("");
+      }
+      showToast(msg);
     } finally {
       setOpeningLoading(false);
     }
@@ -2667,11 +2688,43 @@ const Dashboard: React.FC = () => {
                 {initialFundError && <p style={styles.fieldError}>{initialFundError}</p>}
               </div>
 
+              {/* Filtro de seguridad: PIN de autorización para confirmar la apertura */}
+              <div style={{ ...styles.inputGroup, marginTop: "18px" }}>
+                <label style={styles.label}>PIN DE AUTORIZACIÓN</label>
+                <input
+                  type="password"
+                  className="input-corporate"
+                  style={{ fontSize: "20px", fontWeight: "700", textAlign: "center", letterSpacing: "6px", padding: "12px" }}
+                  value={openPin}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  maxLength={8}
+                  placeholder="••••"
+                  onChange={(e) => {
+                    setOpenPin(e.target.value.replace(/\D/g, ""));
+                    if (openPinError) setOpenPinError("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && openPin.trim() && !openingLoading) handleOpenCash();
+                  }}
+                />
+                <p style={{ fontSize: "12px", color: "#64748b", marginTop: "6px" }}>
+                  Un admin, gerente o cajero debe confirmar la apertura con su PIN.
+                </p>
+                {openPinError && <p style={styles.fieldError}>{openPinError}</p>}
+              </div>
+
               <button
                 onClick={handleOpenCash}
-                disabled={openingLoading}
+                disabled={openingLoading || !openPin.trim()}
                 className="btn-primary active-tap"
-                style={{ ...styles.submitBtn, width: "100%", marginTop: "24px" }}
+                style={{
+                  ...styles.submitBtn,
+                  width: "100%",
+                  marginTop: "24px",
+                  opacity: openingLoading || !openPin.trim() ? 0.55 : 1,
+                  cursor: openingLoading || !openPin.trim() ? "not-allowed" : "pointer",
+                }}
               >
                 {openingLoading ? "Abriendo Caja..." : "ABRIR TURNO ➜"}
               </button>
