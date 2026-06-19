@@ -185,18 +185,24 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       <SectionHeader title="Dashboard" subtitle="Métricas en tiempo real desde SQL Server" />
 
       {/* Tarjetas de métricas */}
-      <div className="grid grid-mets-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((card) => {
           const Icon = card.icon;
           return (
             <div key={card.label} style={s.metricCard}>
               <div style={s.metricHead}>
                 <span style={s.metricLabel}>{card.label}</span>
-                <div style={{ ...s.metricIcon, backgroundColor: card.warning ? "#fef3c7" : "#eff6ff" }}>
-                  <Icon size={16} color={card.warning ? "#d97706" : "#2563eb"} />
+                <div
+                  style={{
+                    ...s.metricIcon,
+                    backgroundColor: card.warning ? "#fef3c7" : "var(--accent-soft)",
+                    color: card.warning ? "#d97706" : "var(--accent)",
+                  }}
+                >
+                  <Icon size={16} />
                 </div>
               </div>
-              <h2 style={{ ...s.metricValue, color: card.warning ? "#b45309" : "#0f172a" }}>
+              <h2 style={{ ...s.metricValue, color: card.warning ? "#b45309" : "var(--text)" }}>
                 {loading && !data ? "…" : card.value}
               </h2>
             </div>
@@ -205,13 +211,13 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       </div>
 
       {/* ── Fila 3: Operaciones del día ── */}
-      <div className="grid grid-mets-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4" style={{ marginTop: 16 }}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" style={{ marginTop: 16 }}>
         {/* Widget: Estado de cajas */}
         <div style={s.metricCard}>
           <div style={s.metricHead}>
             <span style={s.metricLabel}>Estado de cajas</span>
-            <div style={{ ...s.metricIcon, backgroundColor: "#eff6ff" }}>
-              <Wallet size={16} color="#2563eb" />
+            <div style={{ ...s.metricIcon, backgroundColor: "var(--accent-soft)", color: "var(--accent)" }}>
+              <Wallet size={16} />
             </div>
           </div>
           <h2 style={s.metricValue}>
@@ -230,11 +236,17 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         <div style={s.metricCard}>
           <div style={s.metricHead}>
             <span style={s.metricLabel}>Cobranza pendiente</span>
-            <div style={{ ...s.metricIcon, backgroundColor: creditosConSaldo > 0 ? "#fef3c7" : "#eff6ff" }}>
-              <CreditCard size={16} color={creditosConSaldo > 0 ? "#d97706" : "#2563eb"} />
+            <div
+              style={{
+                ...s.metricIcon,
+                backgroundColor: creditosConSaldo > 0 ? "#fef3c7" : "var(--accent-soft)",
+                color: creditosConSaldo > 0 ? "#d97706" : "var(--accent)",
+              }}
+            >
+              <CreditCard size={16} />
             </div>
           </div>
-          <h2 style={{ ...s.metricValue, color: creditosConSaldo > 0 ? "#b45309" : "#0f172a" }}>
+          <h2 style={{ ...s.metricValue, color: creditosConSaldo > 0 ? "#b45309" : "var(--text)" }}>
             {loadingCash ? "…" : money(cobranzaTotal)}
           </h2>
           <p style={s.metricSecondary}>
@@ -246,8 +258,8 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         <div style={s.metricCard}>
           <div style={s.metricHead}>
             <span style={s.metricLabel}>Depósitos hoy</span>
-            <div style={{ ...s.metricIcon, backgroundColor: "#dcfce7" }}>
-              <Landmark size={16} color="#16a34a" />
+            <div style={{ ...s.metricIcon, backgroundColor: "#dcfce7", color: "#16a34a" }}>
+              <Landmark size={16} />
             </div>
           </div>
           <h2 style={{ ...s.metricValue, color: "#15803d" }}>
@@ -262,8 +274,14 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         <div style={s.metricCard}>
           <div style={s.metricHead}>
             <span style={s.metricLabel}>Diferencia de caja</span>
-            <div style={{ ...s.metricIcon, backgroundColor: hasDiferencias ? "#fee2e2" : "#dcfce7" }}>
-              <Scale size={16} color={hasDiferencias ? "#dc2626" : "#16a34a"} />
+            <div
+              style={{
+                ...s.metricIcon,
+                backgroundColor: hasDiferencias ? "#fee2e2" : "#dcfce7",
+                color: hasDiferencias ? "#dc2626" : "#16a34a",
+              }}
+            >
+              <Scale size={16} />
             </div>
           </div>
           <h2 style={{ ...s.metricValue, color: hasDiferencias ? "#b91c1c" : "#15803d" }}>
@@ -316,7 +334,7 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   style={{
                     ...s.bar,
                     height: `${Math.max(h, d.total > 0 ? 6 : 2)}px`,
-                    backgroundColor: d.total > 0 ? "#3b82f6" : "#e2e8f0",
+                    backgroundColor: d.total > 0 ? "var(--accent)" : "var(--border)",
                   }}
                 />
                 <span style={s.chartLabel}>{d.label}</span>
@@ -334,8 +352,8 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             {(data?.ventasPorSucursal ?? []).map((b) => (
               <div key={b.id}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{b.name}</span>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a" }}>{money(b.total)}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>{b.name}</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)" }}>{money(b.total)}</span>
                 </div>
                 <div style={s.track}>
                   <div style={{ ...s.trackFill, width: `${(b.total / maxBranch) * 100}%` }} />
@@ -353,9 +371,9 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               <div key={p.id} style={s.productRow}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={s.rankBadge}>{i + 1}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{p.name}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>{p.name}</span>
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#0f172a" }}>{p.unidades} u</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text)" }}>{p.unidades} u</span>
               </div>
             ))}
             {!loading && (data?.productosMasVendidos ?? []).length === 0 && <EmptyState />}
@@ -367,21 +385,21 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 };
 
 const EmptyState: React.FC = () => (
-  <p style={{ fontSize: 13, color: "#94a3b8", padding: "24px 4px", textAlign: "center" }}>
+  <p style={{ fontSize: 13, color: "var(--text-faint)", padding: "24px 4px", textAlign: "center" }}>
     Aún no hay datos registrados para este periodo.
   </p>
 );
 
 const s: { [k: string]: React.CSSProperties } = {
   metricCard: {
-    backgroundColor: "#ffffff",
-    border: "1px solid #e2e8f0",
+    backgroundColor: "var(--surface)",
+    border: "1px solid var(--border)",
     borderRadius: 12,
     padding: "18px 20px",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+    boxShadow: "var(--shadow-card)",
   },
   metricHead: { display: "flex", alignItems: "center", justifyContent: "space-between" },
-  metricLabel: { fontSize: 13, fontWeight: 600, color: "#64748b" },
+  metricLabel: { fontSize: 13, fontWeight: 600, color: "var(--text-muted)" },
   metricIcon: {
     width: 30,
     height: 30,
@@ -390,9 +408,9 @@ const s: { [k: string]: React.CSSProperties } = {
     alignItems: "center",
     justifyContent: "center",
   },
-  metricValue: { fontSize: 26, fontWeight: 800, marginTop: 12, letterSpacing: "-0.5px" },
-  metricSecondary: { fontSize: 12, color: "#94a3b8", marginTop: 4, fontWeight: 500 },
-  panelTitle: { fontSize: 15, fontWeight: 800, color: "#0f172a" },
+  metricValue: { fontSize: 26, fontWeight: 800, marginTop: 12, letterSpacing: "-0.5px", color: "var(--text)" },
+  metricSecondary: { fontSize: 12, color: "var(--text-faint)", marginTop: 4, fontWeight: 500 },
+  panelTitle: { fontSize: 15, fontWeight: 800, color: "var(--text)" },
   chart: {
     display: "flex",
     alignItems: "flex-end",
@@ -401,7 +419,7 @@ const s: { [k: string]: React.CSSProperties } = {
     height: 200,
     marginTop: 18,
     paddingTop: 10,
-    borderBottom: "1px solid #f1f5f9",
+    borderBottom: "1px solid var(--border-soft)",
   },
   chartCol: {
     flex: 1,
@@ -412,24 +430,24 @@ const s: { [k: string]: React.CSSProperties } = {
     gap: 8,
     height: "100%",
   },
-  chartValue: { fontSize: 11, fontWeight: 700, color: "#64748b", height: 13 },
+  chartValue: { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", height: 13 },
   bar: { width: "60%", maxWidth: 46, borderRadius: "6px 6px 0 0", transition: "height 0.3s ease" },
-  chartLabel: { fontSize: 12, fontWeight: 600, color: "#94a3b8" },
-  track: { height: 9, backgroundColor: "#eef2f7", borderRadius: 999, overflow: "hidden" },
-  trackFill: { height: "100%", backgroundColor: "#3b82f6", borderRadius: 999, transition: "width 0.3s ease" },
+  chartLabel: { fontSize: 12, fontWeight: 600, color: "var(--text-faint)" },
+  track: { height: 9, backgroundColor: "var(--surface-3)", borderRadius: 999, overflow: "hidden" },
+  trackFill: { height: "100%", backgroundColor: "var(--accent)", borderRadius: 999, transition: "width 0.3s ease" },
   productRow: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     padding: "11px 0",
-    borderBottom: "1px solid #f1f5f9",
+    borderBottom: "1px solid var(--border-soft)",
   },
   rankBadge: {
     width: 22,
     height: 22,
     borderRadius: 6,
-    backgroundColor: "#eff6ff",
-    color: "#2563eb",
+    backgroundColor: "var(--accent-soft)",
+    color: "var(--accent)",
     fontSize: 11,
     fontWeight: 800,
     display: "flex",

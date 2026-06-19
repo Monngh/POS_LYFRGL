@@ -148,7 +148,7 @@ export const SearchInput: React.FC<{
   const error = validateSearchText(value, "La busqueda", { max: 120 });
   return (
     <div style={ui.searchField}>
-      <div style={{ ...ui.searchBox, borderColor: error ? "#dc2626" : "#e2e8f0" }}>
+      <div style={{ ...ui.searchBox, borderColor: error ? "#dc2626" : "var(--border)" }}>
         <Search size={16} color="#94a3b8" />
         <input
           style={ui.searchInput}
@@ -203,7 +203,7 @@ export const TableState: React.FC<{
         style={{
           textAlign: "center",
           padding: "32px 16px",
-          color: error ? "#b91c1c" : "#94a3b8",
+          color: error ? "#b91c1c" : "var(--text-faint)",
           fontSize: 13,
           fontWeight: 500,
         }}
@@ -251,11 +251,11 @@ export const ui: { [k: string]: React.CSSProperties } = {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    border: "1px solid #e2e8f0",
+    border: "1px solid var(--border)",
     borderRadius: 8,
     padding: "0 12px",
     height: 38,
-    backgroundColor: "#ffffff",
+    backgroundColor: "var(--surface)",
     width: "100%",
   },
   searchInput: {
@@ -263,29 +263,29 @@ export const ui: { [k: string]: React.CSSProperties } = {
     outline: "none",
     fontSize: 13,
     fontWeight: 500,
-    color: "#0f172a",
+    color: "var(--text)",
     width: "100%",
     backgroundColor: "transparent",
     fontFamily: "inherit",
   },
   filterSelect: {
-    border: "1px solid #e2e8f0",
+    border: "1px solid var(--border)",
     borderRadius: 8,
     height: 38,
     padding: "0 12px",
     fontSize: 13,
     fontWeight: 600,
-    color: "#334155",
-    backgroundColor: "#ffffff",
+    color: "var(--text-secondary)",
+    backgroundColor: "var(--surface)",
     cursor: "pointer",
     fontFamily: "inherit",
     outline: "none",
   },
   panel: {
-    backgroundColor: "#ffffff",
-    border: "1px solid #e2e8f0",
+    backgroundColor: "var(--surface)",
+    border: "1px solid var(--border)",
     borderRadius: 12,
-    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+    boxShadow: "var(--shadow-card)",
   },
   sectionHeader: {
     display: "flex",
@@ -298,25 +298,25 @@ export const ui: { [k: string]: React.CSSProperties } = {
   sectionTitle: {
     fontSize: 20,
     fontWeight: 800,
-    color: "#0f172a",
+    color: "var(--text)",
     letterSpacing: "-0.4px",
   },
   sectionSubtitle: {
     fontSize: 13,
-    color: "#64748b",
+    color: "var(--text-muted)",
     marginTop: 3,
   },
 
   // Tablas
   tableWrap: {
-    backgroundColor: "#ffffff",
-    border: "1px solid #e2e8f0",
+    backgroundColor: "var(--surface)",
+    border: "1px solid var(--border)",
     borderRadius: 12,
     overflowX: "auto",
     overflowY: "hidden",
     width: "100%",
     maxWidth: "100%",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+    boxShadow: "var(--shadow-card)",
   },
   table: {
     width: "100%",
@@ -325,14 +325,14 @@ export const ui: { [k: string]: React.CSSProperties } = {
     textAlign: "left",
   },
   theadRow: {
-    backgroundColor: "#f8fafc",
-    borderBottom: "1px solid #e2e8f0",
+    backgroundColor: "var(--surface-2)",
+    borderBottom: "1px solid var(--border)",
   },
   th: {
     padding: "12px 16px",
     fontSize: 11,
     fontWeight: 700,
-    color: "#64748b",
+    color: "var(--text-muted)",
     textTransform: "uppercase",
     letterSpacing: "0.4px",
     whiteSpace: "nowrap",
@@ -340,8 +340,8 @@ export const ui: { [k: string]: React.CSSProperties } = {
   td: {
     padding: "13px 16px",
     fontSize: 13,
-    color: "#334155",
-    borderBottom: "1px solid #f1f5f9",
+    color: "var(--text-secondary)",
+    borderBottom: "1px solid var(--border-soft)",
     whiteSpace: "nowrap",
   },
 
@@ -350,7 +350,7 @@ export const ui: { [k: string]: React.CSSProperties } = {
     display: "inline-flex",
     alignItems: "center",
     gap: 7,
-    backgroundColor: "#1e3a8a",
+    backgroundColor: "var(--accent-strong)",
     color: "#ffffff",
     border: "none",
     borderRadius: 8,
@@ -364,9 +364,9 @@ export const ui: { [k: string]: React.CSSProperties } = {
     display: "inline-flex",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#ffffff",
-    color: "#1e3a8a",
-    border: "1px solid #cbd5e1",
+    backgroundColor: "var(--surface)",
+    color: "var(--accent-strong)",
+    border: "1px solid var(--border-strong)",
     borderRadius: 8,
     padding: "8px 14px",
     fontSize: 13,
@@ -376,7 +376,7 @@ export const ui: { [k: string]: React.CSSProperties } = {
   linkBtn: {
     background: "none",
     border: "none",
-    color: "#2563eb",
+    color: "var(--accent)",
     fontWeight: 700,
     fontSize: 13,
     cursor: "pointer",
@@ -390,20 +390,21 @@ export const ui: { [k: string]: React.CSSProperties } = {
     gap: 16,
   },
   kpiCard: {
-    backgroundColor: "#ffffff",
-    border: "1px solid #e2e8f0",
+    backgroundColor: "var(--surface)",
+    border: "1px solid var(--border)",
     borderRadius: 12,
     padding: "16px 18px",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+    boxShadow: "var(--shadow-card)",
   },
-  kpiLabel: { fontSize: 12, fontWeight: 600, color: "#64748b" },
-  kpiValue: { fontSize: 23, fontWeight: 800, color: "#0f172a", marginTop: 8, letterSpacing: "-0.4px" },
+  kpiLabel: { fontSize: 12, fontWeight: 600, color: "var(--text-muted)" },
+  kpiValue: { fontSize: 23, fontWeight: 800, color: "var(--text)", marginTop: 8, letterSpacing: "-0.4px" },
 
   // Modal
   overlay: {
     position: "fixed",
     inset: 0,
-    backgroundColor: "rgba(15,23,42,0.45)",
+    backgroundColor: "rgba(8,15,34,0.55)",
+    backdropFilter: "blur(2px)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -411,9 +412,10 @@ export const ui: { [k: string]: React.CSSProperties } = {
     padding: 20,
   },
   modal: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "var(--surface)",
+    border: "1px solid var(--border)",
     borderRadius: 14,
-    boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)",
+    boxShadow: "var(--shadow-pop)",
     width: "100%",
     maxWidth: 460,
     maxHeight: "88vh",
@@ -424,14 +426,14 @@ export const ui: { [k: string]: React.CSSProperties } = {
     alignItems: "center",
     justifyContent: "space-between",
     padding: "18px 22px",
-    borderBottom: "1px solid #e2e8f0",
+    borderBottom: "1px solid var(--border)",
   },
-  modalTitle: { fontSize: 16, fontWeight: 800, color: "#0f172a" },
+  modalTitle: { fontSize: 16, fontWeight: 800, color: "var(--text)" },
   modalBody: { padding: 22 },
   fieldLabel: {
     fontSize: 11,
     fontWeight: 700,
-    color: "#475569",
+    color: "var(--text-secondary)",
     textTransform: "uppercase",
     letterSpacing: "0.4px",
     marginBottom: 6,
@@ -440,13 +442,13 @@ export const ui: { [k: string]: React.CSSProperties } = {
   input: {
     width: "100%",
     padding: "10px 12px",
-    border: "1px solid #e2e8f0",
+    border: "1px solid var(--border)",
     borderRadius: 8,
     fontSize: 14,
-    color: "#0f172a",
+    color: "var(--text)",
     outline: "none",
     fontFamily: "inherit",
-    backgroundColor: "#ffffff",
+    backgroundColor: "var(--surface)",
   },
   fieldError: {
     color: "#b91c1c",
