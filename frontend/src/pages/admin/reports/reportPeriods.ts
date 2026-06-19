@@ -19,6 +19,9 @@ export const REPORT_PERIOD_OPTIONS: { value: ReportPeriod; label: string }[] = [
   { value: "custom", label: "Personalizado" },
 ];
 
+export const isReportPeriod = (value: string): value is ReportPeriod =>
+  REPORT_PERIOD_OPTIONS.some((option) => option.value === value);
+
 export const CUSTOM_REPORT_PERIOD = "custom" as const;
 
 const pad = (value: number): string => String(value).padStart(2, "0");

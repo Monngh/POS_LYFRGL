@@ -2,8 +2,8 @@ import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { X, Plus, Pencil, ChevronDown, ChevronUp } from "lucide-react";
 import api from "../../services/api";
 import {
-  normalizePhoneInput,
-  validatePhone as validatePhoneFormat,
+  normalizeIntegerInput,
+  validateMexicanPhone,
   validateReference,
   validateSafeText,
 } from "../../utils/formValidation";
@@ -64,7 +64,7 @@ const validateAddress = (value: string): string | undefined => {
 };
 
 const validatePhone = (value: string): string | undefined => {
-  return validatePhoneFormat(value, { required: true, minDigits: 10, maxDigits: 15 });
+  return validateMexicanPhone(value, { required: true });
 };
 
 // ---------------------------------------------------------------------------
@@ -101,6 +101,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [allEmployees, setAllEmployees] = useState<any[]>([]);
   const [reassignId, setReassignId] = useState<number | null>(null);
   const [reassignTarget, setReassignTarget] = useState<string>("");
+  const [reassignError, setReassignError] = useState<string | null>(null);
   const [reassigningEmployeeId, setReassigningEmployeeId] = useState<number | null>(null);
 
   // ---------------------------------------------------------------------------
@@ -155,19 +156,29 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
     setSelectedBranch(b);
     setReassignId(null);
     setReassignTarget("");
+    setReassignError(null);
     setShowEmployeesModal(true);
   };
 
   const handleReassign = async () => {
-    if (!reassignId || !reassignTarget) {
-      alert("Selecciona un empleado y una sucursal destino.");
+    if (!reassignId) {
+      setReassignError("Selecciona un empleado para reasignar.");
+      return;
+    }
+    const targetId = Number(reassignTarget);
+    const validTarget = Number.isInteger(targetId) && rows.some(
+      (branch) => branch.id === targetId && branch.id !== selectedBranch?.id,
+    );
+    if (!validTarget) {
+      setReassignError("Selecciona una sucursal destino valida.");
       return;
     }
     if (reassigningEmployeeId === reassignId) return;
     const employeeId = reassignId;
     setReassigningEmployeeId(employeeId);
+    setReassignError(null);
     try {
-      await api.put(`/api/admin/employees/${employeeId}`, { branchId: parseInt(reassignTarget) });
+      await api.put(`/api/admin/employees/${employeeId}`, { branchId: targetId });
       await Promise.all([load(), loadEmployees()]);
       setReassignId(null);
       setReassignTarget("");
@@ -175,7 +186,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
         prev ? { ...prev, employees: prev.employees - 1 } : prev
       );
     } catch (err: any) {
-      alert(err.response?.data?.message || "Error al reasignar empleado.");
+      setReassignError(err.response?.data?.message || "Error al reasignar empleado.");
     } finally {
       setReassigningEmployeeId(null);
     }
@@ -230,7 +241,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = normalizePhoneInput(e.target.value).slice(0, 20);
+    const val = normalizeIntegerInput(e.target.value).slice(0, 10);
     setForm((f) => ({ ...f, phone: val }));
     setFieldErrors((fe) => ({ ...fe, phone: validatePhone(val) }));
   };
@@ -638,6 +649,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                   onChange={handlePhoneChange}
                   placeholder="7710000000"
                   inputMode="numeric"
+                  maxLength={10}
                 />
                 {fieldErrors.phone && (
                   <span style={fieldErrStyle}>{fieldErrors.phone}</span>
@@ -790,6 +802,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                                 onClick={() => {
                                   setReassignId(emp.id);
                                   setReassignTarget("");
+                                  setReassignError(null);
                                 }}
                               >
                                 Reasignar
@@ -838,6 +851,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                                     onClick={() => {
                                       setReassignId(emp.id);
                                       setReassignTarget("");
+                                      setReassignError(null);
                                     }}
                                   >
                                     Reasignar
@@ -868,8 +882,15 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                         <label style={ui.fieldLabel}>Sucursal destino</label>
                         <select
                           value={reassignTarget}
-                          onChange={(e) => setReassignTarget(e.target.value)}
-                          style={{ ...ui.input, marginBottom: 12 }}
+                          onChange={(e) => {
+                            setReassignTarget(e.target.value);
+                            setReassignError(null);
+                          }}
+                          style={{
+                            ...ui.input,
+                            marginBottom: reassignError ? 4 : 12,
+                            borderColor: reassignError ? "#ef4444" : undefined,
+                          }}
                         >
                           <option value="">-- Seleccionar --</option>
                           {rows
@@ -880,10 +901,15 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                               </option>
                             ))}
                         </select>
+                        {reassignError && <p style={{ ...ui.fieldError, marginBottom: 12 }}>{reassignError}</p>}
                         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                           <button
                             style={ui.ghostBtn}
-                            onClick={() => { setReassignId(null); setReassignTarget(""); }}
+                            onClick={() => {
+                              setReassignId(null);
+                              setReassignTarget("");
+                              setReassignError(null);
+                            }}
                           >
                             Cancelar
                           </button>

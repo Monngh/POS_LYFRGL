@@ -1,12 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { BadgePercent, ChevronDown, ChevronUp, Pencil, Plus, Power, X } from "lucide-react";
 import api from "../../services/api";
-import {
-  DECIMAL_INPUT_REGEX,
-  getDecimalValidationValue,
-  handleDecimalInputChange,
-  validateDecimalField,
-} from "../../utils/decimalInput";
 import { validateSafeText } from "../../utils/formValidation";
 import {
   ui,
@@ -58,6 +52,21 @@ const emptyForm: FormState = {
 };
 
 const TAX_ENDPOINT = "/api/admin-tax/taxes";
+const TAX_RATE_INPUT_PATTERN = /^\d*(?:\.\d{0,4})?$/;
+const TAX_RATE_SAVE_PATTERN = /^\d+(?:\.\d{1,4})?$/;
+
+const validateTaxRate = (value: string) => {
+  const raw = value.trim();
+  if (!raw) return "La tasa del impuesto es obligatoria.";
+  if (!TAX_RATE_SAVE_PATTERN.test(raw)) {
+    return "La tasa fiscal debe ser un numero valido con maximo 4 decimales.";
+  }
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+    return "La tasa debe estar entre 0 y 1. Ejemplo: 0.16 para IVA 16%.";
+  }
+  return undefined;
+};
 
 const normalizeRate = (rate: number | string) => {
   const value = Number(rate);
@@ -178,13 +187,8 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
     const descriptionError = validateSafeText(form.description, "La descripcion", { required: false, max: 180 });
     if (descriptionError) errors.description = descriptionError;
 
-    const rate = validateDecimalField(form.rate, "La tasa del impuesto", {
-      invalidMessage: "La tasa debe ser un numero valido con maximo 3 decimales.",
-      minMessage: "La tasa no puede ser negativa.",
-    });
-    if (!rate.ok) {
-      errors.rate = rate.error;
-    }
+    const rateError = validateTaxRate(form.rate);
+    if (rateError) errors.rate = rateError;
 
     return errors;
   };
@@ -195,6 +199,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
 
     const validation = validateForm();
     if (Object.keys(validation).length > 0) {
@@ -202,18 +207,12 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
       setFormError("Revisa los campos marcados antes de guardar.");
       return;
     }
-    const rate = validateDecimalField(form.rate, "La tasa del impuesto", {
-      invalidMessage: "La tasa debe ser un numero valido con maximo 3 decimales.",
-      minMessage: "La tasa no puede ser negativa.",
-    });
-    const rateValue = getDecimalValidationValue(rate);
-    if (!rateValue) return;
 
     const desiredActive = form.active;
     const payload = {
       name: form.name.trim(),
       description: form.description.trim(),
-      rate: rateValue.value,
+      rate: Number(form.rate.trim()),
       active: true,
     };
 
@@ -221,10 +220,6 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
     setFormError(null);
     setFieldErrors({});
     try {
-      if (rateValue.roundedMessage) {
-        alert(rateValue.roundedMessage);
-      }
-
       if (editing === "create") {
         const res = await api.post<TaxResponse>(TAX_ENDPOINT, payload);
         const created = Array.isArray(res.data.data) ? null : res.data.data;
@@ -296,23 +291,21 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const setRate = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.trim();
-    if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
-      setFieldErrors((prev) => ({ ...prev, rate: "La tasa debe ser un numero valido con maximo 3 decimales." }));
+    if (rawValue && !TAX_RATE_INPUT_PATTERN.test(rawValue)) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        rate: "La tasa fiscal debe ser un numero valido con maximo 4 decimales.",
+      }));
       return;
     }
-    handleDecimalInputChange(rawValue, (nextValue) => {
-      setForm((f) => ({ ...f, rate: nextValue }));
-      setFormError(null);
-      const rate = validateDecimalField(nextValue, "La tasa del impuesto", {
-        invalidMessage: "La tasa debe ser un numero valido con maximo 3 decimales.",
-        minMessage: "La tasa no puede ser negativa.",
-      });
-      setFieldErrors((prev) => {
-        const next = { ...prev };
-        if (!rate.ok) next.rate = rate.error;
-        else delete next.rate;
-        return next;
-      });
+    setForm((f) => ({ ...f, rate: rawValue }));
+    setFormError(null);
+    const rateError = validateTaxRate(rawValue);
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      if (rateError) next.rate = rateError;
+      else delete next.rate;
+      return next;
     });
   };
 
@@ -611,7 +604,14 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
             <div style={ui.modalBody}>
               <div style={{ marginBottom: 14 }}>
                 <label style={ui.fieldLabel}>Nombre *</label>
-                <input style={ui.input} value={form.name} onChange={set("name")} placeholder="IVA" autoFocus />
+                <input
+                  style={ui.input}
+                  value={form.name}
+                  onChange={set("name")}
+                  placeholder="IVA"
+                  autoFocus
+                  maxLength={80}
+                />
                 {fieldErrors.name && <p style={styles.fieldError}>{fieldErrors.name}</p>}
               </div>
 
@@ -622,13 +622,22 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                   value={form.description}
                   onChange={set("description")}
                   placeholder="Impuesto al valor agregado"
+                  maxLength={180}
                 />
                 {fieldErrors.description && <p style={styles.fieldError}>{fieldErrors.description}</p>}
               </div>
 
               <div style={{ marginBottom: 14 }}>
                 <label style={ui.fieldLabel}>Tasa decimal *</label>
-                <input type="text" style={ui.input} value={form.rate} onChange={setRate} placeholder="0.16" inputMode="decimal" />
+                <input
+                  type="text"
+                  style={ui.input}
+                  value={form.rate}
+                  onChange={setRate}
+                  placeholder="0.16"
+                  inputMode="decimal"
+                  maxLength={6}
+                />
                 <p style={styles.helpText}>Use formato decimal: IVA 16% = 0.16, IEPS 8% = 0.08.</p>
                 {fieldErrors.rate && <p style={styles.fieldError}>{fieldErrors.rate}</p>}
               </div>

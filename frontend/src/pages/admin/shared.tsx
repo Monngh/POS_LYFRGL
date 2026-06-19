@@ -144,8 +144,9 @@ export const SearchInput: React.FC<{
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
-}> = ({ value, onChange, placeholder }) => {
-  const error = validateSearchText(value, "La busqueda", { max: 120 });
+  maxLength?: number;
+}> = ({ value, onChange, placeholder, maxLength }) => {
+  const error = validateSearchText(value, "La busqueda", { max: maxLength ?? 120 });
   return (
     <div style={ui.searchField}>
       <div style={{ ...ui.searchBox, borderColor: error ? "#dc2626" : "#e2e8f0" }}>
@@ -155,6 +156,7 @@ export const SearchInput: React.FC<{
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder || "Buscar..."}
+          maxLength={maxLength}
           aria-invalid={Boolean(error)}
         />
       </div>

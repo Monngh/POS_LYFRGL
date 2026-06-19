@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Printer, RefreshCw, CalendarClock, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
 import api from "../../../services/api";
+import { validateSearchText } from "../../../utils/formValidation";
 import {
   ui,
   Badge,
@@ -22,6 +23,7 @@ import {
   daysAgoInputValue,
   formatReportRangeLabel,
   getReportDateRange,
+  isReportPeriod,
   validateReportDateRange,
   type ReportPeriod,
 } from "./reportPeriods";
@@ -58,6 +60,23 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
       setLoading(false);
       return;
     }
+    if (!isReportPeriod(period)) {
+      setRes(null);
+      setRows([]);
+      setError("Selecciona un periodo valido.");
+      setLoading(false);
+      return;
+    }
+    const searchError = has("search")
+      ? validateSearchText(filters.search, "La busqueda", { max: 120 })
+      : undefined;
+    if (searchError) {
+      setRes(null);
+      setRows([]);
+      setError(searchError);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -88,7 +107,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [def, branchId, filters.from, filters.to, filters.status, filters.movementType, filters.search, page, pageSize]);
+  }, [def, branchId, filters.from, filters.to, filters.status, filters.movementType, filters.search, period, page, pageSize]);
 
   useEffect(() => {
     const t = setTimeout(load, has("search") ? 300 : 0);
@@ -102,6 +121,9 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
   const kpis = def.kpis && res ? def.kpis(res, rows) : [];
   const cols = def.columns ?? [];
   const dateRangeError = has("dateRange") ? validateReportDateRange(filters.from, filters.to) : null;
+  const searchError = has("search")
+    ? validateSearchText(filters.search, "La busqueda", { max: 120 })
+    : undefined;
 
   const setFilter = (k: keyof ReportFilters, v: string) => {
     setPage(1);
@@ -114,7 +136,11 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
   };
 
   const handlePeriodChange = (value: string) => {
-    const nextPeriod = value as ReportPeriod;
+    if (!isReportPeriod(value)) {
+      setError("Selecciona un periodo valido.");
+      return;
+    }
+    const nextPeriod: ReportPeriod = value;
     setPeriod(nextPeriod);
     setPage(1);
 
@@ -233,6 +259,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                 style={{ ...ui.filterSelect, height: 38, ...(dateRangeError ? { borderColor: "#fca5a5" } : {}) }}
                 value={filters.from}
                 onChange={(e) => setDateFilter("from", e.target.value)}
+                max={filters.to || undefined}
                 aria-invalid={Boolean(dateRangeError)}
               />
             </div>
@@ -243,6 +270,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                 style={{ ...ui.filterSelect, height: 38, ...(dateRangeError ? { borderColor: "#fca5a5" } : {}) }}
                 value={filters.to}
                 onChange={(e) => setDateFilter("to", e.target.value)}
+                min={filters.from || undefined}
                 aria-invalid={Boolean(dateRangeError)}
               />
             </div>
@@ -267,9 +295,22 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
         {has("movementType") && def.movementOptions && (
           <FilterSelect value={filters.movementType} onChange={(v) => setFilter("movementType", v)} options={def.movementOptions} />
         )}
-        {has("search") && <SearchInput value={filters.search} onChange={(v) => setFilter("search", v)} placeholder="Buscar..." />}
+        {has("search") && (
+          <SearchInput
+            value={filters.search}
+            onChange={(v) => setFilter("search", v)}
+            placeholder="Buscar..."
+            maxLength={120}
+          />
+        )}
 
-        <button style={{ ...ui.primaryBtn }} className="active-tap" onClick={load} disabled={loading || Boolean(dateRangeError)} title="Actualizar">
+        <button
+          style={{ ...ui.primaryBtn }}
+          className="active-tap"
+          onClick={load}
+          disabled={loading || Boolean(dateRangeError) || Boolean(searchError)}
+          title="Actualizar"
+        >
           <RefreshCw size={15} /> {loading ? "Generando..." : "Generar"}
         </button>
         <button

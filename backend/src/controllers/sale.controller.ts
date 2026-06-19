@@ -1644,7 +1644,7 @@ export const searchCustomers = async (req: Request, res: Response): Promise<void
   try {
     const query = typeof req.query.query === "string" ? req.query.query.trim() : "";
     const phoneDigits = normalizePhoneDigits(query);
-    if (!phoneDigits || phoneDigits.length < 10 || phoneDigits.length > 15) {
+    if (!phoneDigits || phoneDigits.length !== 10) {
       res.status(200).json({ customers: [] });
       return;
     }
@@ -1684,29 +1684,46 @@ export const registerCustomer = async (req: Request, res: Response): Promise<voi
   try {
     const { name, phone, email } = req.body;
 
-    if (!name || typeof name !== "string" || !name.trim()) {
-      res.status(400).json({ message: "El nombre del cliente es obligatorio." });
-      return;
-    }
     if (!phone || typeof phone !== "string" || !phone.trim()) {
       res.status(400).json({ message: "El teléfono del cliente es obligatorio." });
       return;
     }
 
-    // Verificar si ya existe un cliente con ese teléfono
-    const existing = await prisma.customer.findFirst({
-      where: { phone: phone.trim() }
-    });
-
-    if (existing) {
-      res.status(400).json({ message: "Ya existe un cliente registrado con ese número de teléfono." });
+    const digits = normalizePhoneDigits(phone);
+    if (digits.length !== 10) {
+      res.status(400).json({ message: "El teléfono debe tener exactamente 10 dígitos." });
       return;
     }
 
+    // Verificar si ya existe un cliente con ese teléfono (normalizado)
+    const candidates = await prisma.customer.findMany({
+      where: {
+        phone: { contains: digits.slice(-4) }
+      }
+    });
+    const existing = candidates.find(c => normalizePhoneDigits(c.phone) === digits);
+
+    if (existing) {
+      res.status(200).json({
+        message: "Cliente registrado",
+        customer: {
+          id: existing.id,
+          name: existing.name,
+          phone: existing.phone,
+          email: existing.email,
+          points: existing.points,
+        },
+        alreadyExists: true
+      });
+      return;
+    }
+
+    const nameToUse = name && typeof name === "string" && name.trim() ? name.trim() : "Cliente registrado";
+
     const customer = await prisma.customer.create({
       data: {
-        name: name.trim(),
-        phone: phone.trim(),
+        name: nameToUse,
+        phone: digits,
         email: email && typeof email === "string" && email.trim() ? email.trim() : null,
         points: 0,
         creditLimit: 0,
@@ -1721,12 +1738,12 @@ export const registerCustomer = async (req: Request, res: Response): Promise<voi
     });
 
     res.status(201).json({
-      message: "Cliente registrado exitosamente.",
+      message: "Cliente registrado para puntos",
       customer,
     });
   } catch (error: any) {
     console.error(error);
-    res.status(500).json({ message: "Error al registrar el cliente." });
+    res.status(500).json({ message: "No se pudo registrar el cliente. Intenta nuevamente." });
   }
 };
 

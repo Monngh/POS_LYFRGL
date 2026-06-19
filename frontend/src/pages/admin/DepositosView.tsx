@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { ChevronDown, ChevronUp, Calendar, CreditCard, Eye } from "lucide-react";
 import api from "../../services/api";
+import { validateDateRange } from "../../utils/formValidation";
 import {
   ui,
   type ViewProps,
@@ -75,8 +76,16 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedDeposit, setSelectedDeposit] = useState<any>(null);
   const [confirmingDepositId, setConfirmingDepositId] = useState<number | null>(null);
+  const dateError = from && to ? validateDateRange(from, to) : undefined;
 
   const load = useCallback(async () => {
+    const invalidRange = from && to ? validateDateRange(from, to) : undefined;
+    if (invalidRange) {
+      setRows([]);
+      setError(invalidRange);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -108,6 +117,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const confirmDeposit = async (depositId: number) => {
     if (confirmingDepositId === depositId) return;
+    if (!window.confirm("¿Confirmas que este deposito fue verificado?")) return;
     setConfirmingDepositId(depositId);
     try {
       await api.post(`/api/sales/deposits/${depositId}/confirm`);
@@ -192,6 +202,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           <input
             type="date"
             value={from}
+            max={to || undefined}
             onChange={(e) => setFrom(e.target.value)}
             style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", flex: "1 1 120px", minWidth: 0, maxWidth: 180 }}
           />
@@ -199,6 +210,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           <input
             type="date"
             value={to}
+            min={from || undefined}
             onChange={(e) => setTo(e.target.value)}
             style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", flex: "1 1 120px", minWidth: 0, maxWidth: 180 }}
           />
@@ -212,6 +224,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           >
             Limpiar
           </button>
+          {dateError && <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 600 }}>{dateError}</span>}
         </div>
 
         <FilterSelect

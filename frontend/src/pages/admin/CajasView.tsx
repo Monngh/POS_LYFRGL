@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { ChevronDown, ChevronUp, Calendar, Eye, DollarSign } from "lucide-react";
 import api from "../../services/api";
-import { validateReference } from "../../utils/formValidation";
+import { validateDateRange, validateReference } from "../../utils/formValidation";
 import {
   ui,
   type ViewProps,
@@ -87,8 +87,16 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [forceReasonError, setForceReasonError] = useState("");
   const [forceLoading, setForceLoading] = useState(false);
   const [forceError, setForceError] = useState<string | null>(null);
+  const dateError = from && to ? validateDateRange(from, to) : undefined;
 
   const load = useCallback(async () => {
+    const invalidRange = from && to ? validateDateRange(from, to) : undefined;
+    if (invalidRange) {
+      setRows([]);
+      setError(invalidRange);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -151,7 +159,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   };
 
   const handleForceClose = async () => {
-    if (!selectedDetail) return;
+    if (!selectedDetail || forceLoading) return;
     const reasonError = validateReference(forceReason, "El motivo", { required: true, max: 180 });
     if (reasonError) {
       setForceReasonError(reasonError);
@@ -336,6 +344,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           <input
             type="date"
             value={from}
+            max={to || undefined}
             onChange={(e) => setFrom(e.target.value)}
             style={dateInput}
           />
@@ -343,6 +352,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           <input
             type="date"
             value={to}
+            min={from || undefined}
             onChange={(e) => setTo(e.target.value)}
             style={dateInput}
           />
@@ -355,6 +365,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               ✕
             </button>
           )}
+          {dateError && <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 600 }}>{dateError}</span>}
         </div>
         {openCount > 0 && (
           <span style={{ fontSize: 13, color: "#15803d", fontWeight: 700 }}>{openCount} caja(s) abierta(s)</span>
@@ -811,6 +822,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 }}
                 placeholder="Ingresa el motivo del cierre forzado..."
                 rows={3}
+                maxLength={180}
                 style={{
                   ...ui.input,
                   resize: "vertical",

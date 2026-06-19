@@ -7,7 +7,13 @@ import {
   handleDecimalInputChange,
   validateDecimalField,
 } from "../../utils/decimalInput";
-import { normalizeIntegerInput, validateInteger, validateSafeText } from "../../utils/formValidation";
+import {
+  normalizeIntegerInput,
+  validateDateInput,
+  validateDateRange,
+  validateInteger,
+  validateSafeText,
+} from "../../utils/formValidation";
 import {
   ui,
   type ViewProps,
@@ -83,6 +89,9 @@ interface PromotionDecimalValues {
   specialPrice: number | null;
   roundingMessages: string[];
 }
+
+const MAX_PROMOTION_AMOUNT = 1_000_000;
+const MAX_PROMOTION_QUANTITY = 100_000;
 
 const todayInput = () => new Date().toISOString().slice(0, 10);
 
@@ -330,13 +339,15 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     if (key === "name") return validateSafeText(value, "El nombre de la promocion", { required: true, min: 3, max: 100 });
     if (key === "description") return validateSafeText(value, "La descripcion", { required: false, max: 180 });
     if (key === "promotionTypeId" && !value) return "Seleccione un tipo de promocion.";
-    if (key === "startDate" && !value) return "La fecha inicial es obligatoria.";
-    if (key === "endDate" && !value) return "La fecha final es obligatoria.";
+    if (key === "startDate") return validateDateInput(value, "La fecha inicial");
+    if (key === "endDate") return validateDateInput(value, "La fecha final");
     if (key === "minQuantity") {
       const min = selectedRule === "buyXPayY" ? 2 : 1;
-      return validateInteger(value, "La cantidad minima", { min });
+      return validateInteger(value, "La cantidad minima", { min, max: MAX_PROMOTION_QUANTITY });
     }
-    if (key === "payQuantity") return validateInteger(value, "La cantidad a pagar", { min: 1 });
+    if (key === "payQuantity") {
+      return validateInteger(value, "La cantidad a pagar", { min: 1, max: MAX_PROMOTION_QUANTITY });
+    }
     return undefined;
   };
 
@@ -387,16 +398,20 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
             : key === "value" && selectedRule === "fixedAmount"
               ? validateDecimalField(nextValue, "El monto fijo", {
                   min: 0,
+                  max: MAX_PROMOTION_AMOUNT,
                   minExclusive: true,
                   invalidMessage: "El monto fijo debe ser un numero valido con maximo 3 decimales.",
                   minMessage: "El monto fijo debe ser mayor a 0.",
+                  maxMessage: "El monto de la promocion excede el maximo permitido.",
                 })
               : key === "specialPrice" && selectedRule === "specialPrice"
                 ? validateDecimalField(nextValue, "El precio especial", {
                     min: 0,
+                    max: MAX_PROMOTION_AMOUNT,
                     minExclusive: true,
                     invalidMessage: "El precio especial debe ser un numero valido con maximo 3 decimales.",
                     minMessage: "El precio especial debe ser mayor a 0.",
+                    maxMessage: "El precio especial excede el maximo permitido.",
                   })
                 : { ok: true as const };
         setFieldErrors((prev) => {
@@ -435,9 +450,11 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     if (selectedRule === "fixedAmount") {
       const value = validateDecimalField(form.value, "El monto fijo", {
         min: 0,
+        max: MAX_PROMOTION_AMOUNT,
         minExclusive: true,
         invalidMessage: "El monto fijo debe ser un numero valido con maximo 3 decimales.",
         minMessage: "El monto fijo debe ser mayor a 0.",
+        maxMessage: "El monto de la promocion excede el maximo permitido.",
       });
       if (!value.ok) return { ok: false, error: value.error };
       const decimalValue = value.value;
@@ -454,9 +471,11 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     if (selectedRule === "specialPrice") {
       const specialPrice = validateDecimalField(form.specialPrice, "El precio especial", {
         min: 0,
+        max: MAX_PROMOTION_AMOUNT,
         minExclusive: true,
         invalidMessage: "El precio especial debe ser un numero valido con maximo 3 decimales.",
         minMessage: "El precio especial debe ser mayor a 0.",
+        maxMessage: "El precio especial excede el maximo permitido.",
       });
       if (!specialPrice.ok) return { ok: false, error: specialPrice.error };
       const decimalValue = specialPrice.value;
@@ -529,9 +548,10 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     const endError = validateField("endDate", form.endDate);
     if (endError) errors.endDate = endError;
 
-    const start = new Date(`${form.startDate}T00:00:00`);
-    const end = new Date(`${form.endDate}T23:59:59`);
-    if (form.startDate && form.endDate && end <= start) errors.endDate = "La fecha final debe ser mayor que la fecha inicial.";
+    if (!startError && !endError) {
+      const rangeError = validateDateRange(form.startDate, form.endDate);
+      if (rangeError) errors.endDate = rangeError;
+    }
     if (typeof form.isActive !== "boolean") errors.isActive = "El estado de la promocion es invalido.";
     if (form.productIds.length === 0) errors.productIds = "Seleccione al menos un producto activo.";
 
@@ -548,16 +568,36 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     if (selectedRule === "buyXPayY") {
       const minQuantity = Number(form.minQuantity);
       const payQuantity = Number(form.payQuantity);
-      if (!Number.isInteger(minQuantity) || minQuantity < 2) errors.minQuantity = "La cantidad minima debe ser mayor o igual a 2.";
-      if (!Number.isInteger(payQuantity) || payQuantity < 1) errors.payQuantity = "La cantidad a pagar debe ser mayor o igual a 1.";
-      if (Number.isInteger(minQuantity) && Number.isInteger(payQuantity) && payQuantity >= minQuantity) {
+      const minQuantityError = validateInteger(form.minQuantity, "La cantidad minima", {
+        min: 2,
+        max: MAX_PROMOTION_QUANTITY,
+      });
+      const payQuantityError = validateInteger(form.payQuantity, "La cantidad a pagar", {
+        min: 1,
+        max: MAX_PROMOTION_QUANTITY,
+      });
+      if (minQuantityError) errors.minQuantity = minQuantityError;
+      if (payQuantityError) errors.payQuantity = payQuantityError;
+      if (
+        !minQuantityError &&
+        !payQuantityError &&
+        Number.isInteger(minQuantity) &&
+        Number.isInteger(payQuantity) &&
+        payQuantity >= minQuantity
+      ) {
         errors.payQuantity = "La cantidad a pagar debe ser menor que la cantidad minima.";
       }
     }
 
     if (selectedRule === "specialPrice") {
       const minQuantity = Number(form.minQuantity);
-      if (!Number.isInteger(minQuantity) || minQuantity < 1) errors.minQuantity = "La cantidad minima debe ser mayor o igual a 1.";
+      const minQuantityError = validateInteger(form.minQuantity, "La cantidad minima", {
+        min: 1,
+        max: MAX_PROMOTION_QUANTITY,
+      });
+      if (minQuantityError || !Number.isInteger(minQuantity)) {
+        errors.minQuantity = minQuantityError || "La cantidad minima debe ser un entero valido.";
+      }
       const decimalValidation = validatePromotionDecimals();
       if (!decimalValidation.ok) errors.specialPrice = decimalValidation.error;
     }
@@ -648,6 +688,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (saving) return;
 
     const validation = validateForm();
     if (Object.keys(validation).length > 0) {
@@ -722,7 +763,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const submitProducts = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!productEditor) return;
+    if (!productEditor || productSaving) return;
 
     if (productEditorIds.length === 0) {
       setProductError("Seleccione al menos un producto activo.");
@@ -1152,7 +1193,14 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
               <div style={styles.formGrid}>
                 <div style={{ gridColumn: "1 / -1" }}>
                   <label style={ui.fieldLabel}>Nombre *</label>
-                  <input style={ui.input} value={form.name} onChange={setField("name")} placeholder="Coca Cola 20% OFF" autoFocus />
+                  <input
+                    style={ui.input}
+                    value={form.name}
+                    onChange={setField("name")}
+                    placeholder="Coca Cola 20% OFF"
+                    autoFocus
+                    maxLength={100}
+                  />
                   {fieldErrors.name && <p style={styles.fieldError}>{fieldErrors.name}</p>}
                 </div>
 
@@ -1163,6 +1211,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     value={form.description}
                     onChange={setField("description")}
                     placeholder="Descuento en refrescos"
+                    maxLength={180}
                   />
                   {fieldErrors.description && <p style={styles.fieldError}>{fieldErrors.description}</p>}
                 </div>
@@ -1192,20 +1241,40 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
                 <div>
                   <label style={ui.fieldLabel}>Inicio *</label>
-                  <input type="date" style={ui.input} value={form.startDate} onChange={setField("startDate")} />
+                  <input
+                    type="date"
+                    style={ui.input}
+                    value={form.startDate}
+                    max={form.endDate || undefined}
+                    onChange={setField("startDate")}
+                  />
                   {fieldErrors.startDate && <p style={styles.fieldError}>{fieldErrors.startDate}</p>}
                 </div>
 
                 <div>
                   <label style={ui.fieldLabel}>Fin *</label>
-                  <input type="date" style={ui.input} value={form.endDate} onChange={setField("endDate")} />
+                  <input
+                    type="date"
+                    style={ui.input}
+                    value={form.endDate}
+                    min={form.startDate || undefined}
+                    onChange={setField("endDate")}
+                  />
                   {fieldErrors.endDate && <p style={styles.fieldError}>{fieldErrors.endDate}</p>}
                 </div>
 
                 {(selectedRule === "percentage" || selectedRule === "fixedAmount") && (
                   <div>
                     <label style={ui.fieldLabel}>{selectedRule === "percentage" ? "Porcentaje *" : "Monto fijo *"}</label>
-                    <input type="text" style={ui.input} value={form.value} onChange={setDecimalField("value")} placeholder={selectedRule === "percentage" ? "20" : "10.00"} inputMode="decimal" />
+                    <input
+                      type="text"
+                      style={ui.input}
+                      value={form.value}
+                      onChange={setDecimalField("value")}
+                      placeholder={selectedRule === "percentage" ? "20" : "10.00"}
+                      inputMode="decimal"
+                      maxLength={11}
+                    />
                     {fieldErrors.value && <p style={styles.fieldError}>{fieldErrors.value}</p>}
                   </div>
                 )}
@@ -1214,12 +1283,26 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                   <>
                     <div>
                       <label style={ui.fieldLabel}>Cantidad minima *</label>
-                      <input style={ui.input} value={form.minQuantity} onChange={setField("minQuantity")} placeholder="3" inputMode="numeric" />
+                      <input
+                        style={ui.input}
+                        value={form.minQuantity}
+                        onChange={setField("minQuantity")}
+                        placeholder="3"
+                        inputMode="numeric"
+                        maxLength={6}
+                      />
                       {fieldErrors.minQuantity && <p style={styles.fieldError}>{fieldErrors.minQuantity}</p>}
                     </div>
                     <div>
                       <label style={ui.fieldLabel}>Cantidad a pagar *</label>
-                      <input style={ui.input} value={form.payQuantity} onChange={setField("payQuantity")} placeholder="2" inputMode="numeric" />
+                      <input
+                        style={ui.input}
+                        value={form.payQuantity}
+                        onChange={setField("payQuantity")}
+                        placeholder="2"
+                        inputMode="numeric"
+                        maxLength={6}
+                      />
                       {fieldErrors.payQuantity && <p style={styles.fieldError}>{fieldErrors.payQuantity}</p>}
                     </div>
                   </>
@@ -1229,12 +1312,27 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                   <>
                     <div>
                       <label style={ui.fieldLabel}>Cantidad minima *</label>
-                      <input style={ui.input} value={form.minQuantity} onChange={setField("minQuantity")} placeholder="2" inputMode="numeric" />
+                      <input
+                        style={ui.input}
+                        value={form.minQuantity}
+                        onChange={setField("minQuantity")}
+                        placeholder="2"
+                        inputMode="numeric"
+                        maxLength={6}
+                      />
                       {fieldErrors.minQuantity && <p style={styles.fieldError}>{fieldErrors.minQuantity}</p>}
                     </div>
                     <div>
                       <label style={ui.fieldLabel}>Precio especial *</label>
-                      <input type="text" style={ui.input} value={form.specialPrice} onChange={setDecimalField("specialPrice")} placeholder="38.00" inputMode="decimal" />
+                      <input
+                        type="text"
+                        style={ui.input}
+                        value={form.specialPrice}
+                        onChange={setDecimalField("specialPrice")}
+                        placeholder="38.00"
+                        inputMode="decimal"
+                        maxLength={11}
+                      />
                       {fieldErrors.specialPrice && <p style={styles.fieldError}>{fieldErrors.specialPrice}</p>}
                     </div>
                   </>

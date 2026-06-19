@@ -21,11 +21,13 @@ import {
 import {
   type FieldErrors,
   normalizeIntegerInput,
-  normalizePhoneInput,
   normalizeRfcInput,
   normalizeSpaces,
+  validateCatalogValue,
   validateInteger,
-  validatePhone,
+  validateMexicanPhone,
+  validatePassword,
+  validatePasswordConfirmation,
   validateReference,
   validateRfc,
   validateSafeText,
@@ -63,8 +65,15 @@ interface InvoiceHistoryItem {
   xmlUrl: string | null;
 }
 
-type InvoiceFormField = "rfc" | "legalName" | "zip" | "email";
-type ProfileFormField = "profileRfc" | "profileLegalName" | "profileZip" | "profileEmail" | "profileAddress";
+type InvoiceFormField = "rfc" | "legalName" | "taxSystem" | "zip" | "email" | "cfdiUse";
+type ProfileFormField =
+  | "profileRfc"
+  | "profileLegalName"
+  | "profileTaxSystem"
+  | "profileZip"
+  | "profileEmail"
+  | "profileCfdiUse"
+  | "profileAddress";
 type LoginFormField = "loginPhone" | "loginPassword";
 type RegisterFormField = "registerPhone" | "registerEmail" | "registerInvoiceNumber" | "registerPassword" | "registerConfirmPassword";
 
@@ -109,6 +118,7 @@ const cleanEmailInput = (value: string) => value.trim().toLowerCase();
 const validateAutofactEmail = (value: string, options: { required?: boolean } = {}) => {
   const trimmed = value.trim();
   if (!trimmed) return options.required ? "El correo es obligatorio." : undefined;
+  if (trimmed.length > 254) return "El correo no puede exceder 254 caracteres.";
   if (trimmed !== value || !EMAIL_REGEX.test(trimmed)) {
     return EMAIL_FORMAT_ERROR;
   }
@@ -192,50 +202,88 @@ const Autofacturacion: React.FC = () => {
   const validateInvoiceField = (field: InvoiceFormField, value: string) => {
     if (field === "rfc") return validateRfc(value, { required: true });
     if (field === "legalName") return validateSafeText(value, "La razon social", { required: true, min: 3, max: 160 });
+    if (field === "taxSystem") {
+      return validateCatalogValue(
+        value,
+        getAvailableTaxSystems(rfc).map((option) => option.code),
+        "una opcion de regimen fiscal",
+      );
+    }
     if (field === "zip") return validateZipCode(value);
     if (field === "email") return validateAutofactEmail(value, { required: true });
+    if (field === "cfdiUse") {
+      return validateCatalogValue(
+        value,
+        USOS_CFDI.map((option) => option.code),
+        "una opcion de uso CFDI",
+      );
+    }
     return undefined;
   };
 
   const validateInvoiceForm = () => ({
     rfc: validateInvoiceField("rfc", rfc),
     legalName: validateInvoiceField("legalName", legalName),
+    taxSystem: validateInvoiceField("taxSystem", taxSystem),
     zip: validateInvoiceField("zip", zip),
     email: validateInvoiceField("email", email),
+    cfdiUse: validateInvoiceField("cfdiUse", cfdiUse),
   });
 
   const validateProfileField = (field: ProfileFormField, value: string) => {
     if (field === "profileRfc") return validateRfc(value, { required: true });
     if (field === "profileLegalName") return validateSafeText(value, "La razon social", { required: true, min: 3, max: 160 });
+    if (field === "profileTaxSystem") {
+      return validateCatalogValue(
+        value,
+        getAvailableTaxSystems(profileRfc).map((option) => option.code),
+        "una opcion de regimen fiscal",
+      );
+    }
     if (field === "profileZip") return validateZipCode(value);
     if (field === "profileEmail") return validateAutofactEmail(value, { required: true });
-    if (field === "profileAddress") return validateSafeText(value, "La direccion", { required: false, max: 180 });
+    if (field === "profileCfdiUse") {
+      return validateCatalogValue(
+        value,
+        USOS_CFDI.map((option) => option.code),
+        "una opcion de uso CFDI",
+      );
+    }
+    if (field === "profileAddress") return validateReference(value, "La direccion", { required: false, max: 180 });
     return undefined;
   };
 
   const validateProfileForm = () => ({
     profileRfc: validateProfileField("profileRfc", profileRfc),
     profileLegalName: validateProfileField("profileLegalName", profileLegalName),
+    profileTaxSystem: validateProfileField("profileTaxSystem", profileTaxSystem),
     profileZip: validateProfileField("profileZip", profileZip),
     profileEmail: validateProfileField("profileEmail", profileEmail),
+    profileCfdiUse: validateProfileField("profileCfdiUse", profileCfdiUse),
     profileAddress: validateProfileField("profileAddress", profileAddress),
   });
 
   const validateLoginForm = () => ({
-    loginPhone: validatePhone(loginPhone, { required: true, minDigits: 10, maxDigits: 15 }),
-    loginPassword: normalizeSpaces(loginPassword) ? undefined : "La contrasena es obligatoria.",
+    loginPhone: validateMexicanPhone(loginPhone, { required: true }),
+    loginPassword: validatePassword(loginPassword, {
+      required: true,
+      minLength: 1,
+      maxLength: 128,
+      requireLetterAndNumber: false,
+    }),
   });
 
   const validateRegisterForm = () => ({
-    registerPhone: validatePhone(registerPhone, { required: true, minDigits: 10, maxDigits: 15 }),
+    registerPhone: validateMexicanPhone(registerPhone, { required: true }),
     registerEmail: validateAutofactEmail(registerEmail, { required: true }),
     registerInvoiceNumber: validateReference(registerInvoiceNumber, "El folio", { required: true, max: 40 }),
-    registerPassword:
-      registerPassword.length >= 6 ? undefined : "La contrasena debe tener al menos 6 caracteres.",
-    registerConfirmPassword:
-      registerConfirmPassword && registerConfirmPassword === registerPassword
-        ? undefined
-        : "Las contrasenas no coinciden.",
+    registerPassword: validatePassword(registerPassword, {
+      required: true,
+      minLength: 6,
+      maxLength: 128,
+      requireLetterAndNumber: true,
+    }),
+    registerConfirmPassword: validatePasswordConfirmation(registerPassword, registerConfirmPassword),
   });
 
   // Cargar sesión persistida
@@ -285,7 +333,7 @@ const Autofacturacion: React.FC = () => {
 
   // Cargar facturas
   const loadInvoices = async () => {
-    if (!customerToken) return;
+    if (!customerToken || loading) return;
     setLoading(true);
     setError("");
     try {
@@ -303,6 +351,7 @@ const Autofacturacion: React.FC = () => {
   // Login
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setError("");
 
     const errors = validateLoginForm();
@@ -313,7 +362,7 @@ const Autofacturacion: React.FC = () => {
 
     try {
       const response = await axios.post(`${API_BASE_URL}/api/customers/login`, {
-        phone: normalizePhoneInput(loginPhone),
+        phone: normalizeIntegerInput(loginPhone),
         password: loginPassword
       });
 
@@ -341,6 +390,7 @@ const Autofacturacion: React.FC = () => {
   // Registro (Reclamo)
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setError("");
 
     const errors = validateRegisterForm();
@@ -351,7 +401,7 @@ const Autofacturacion: React.FC = () => {
 
     try {
       const response = await axios.post(`${API_BASE_URL}/api/customers/register`, {
-        phone: normalizePhoneInput(registerPhone),
+        phone: normalizeIntegerInput(registerPhone),
         email: cleanEmailInput(registerEmail),
         invoiceNumber: registerInvoiceNumber.trim().toUpperCase(),
         password: registerPassword
@@ -403,6 +453,7 @@ const Autofacturacion: React.FC = () => {
   // Actualizar datos fiscales
   const handleUpdateFiscalData = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setError("");
     setSuccessMessage("");
 
@@ -440,6 +491,7 @@ const Autofacturacion: React.FC = () => {
   // Buscar Ticket
   const handleSearchTicket = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     const invoiceError = validateTicketNumber(invoiceNumber);
     setTicketFieldErrors({ invoiceNumber: invoiceError });
     if (invoiceError) return;
@@ -472,6 +524,7 @@ const Autofacturacion: React.FC = () => {
   // Solicitar Facturación
   const handleIssueInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     const errors = validateInvoiceForm();
     setInvoiceFieldErrors(errors);
     if (hasErrors(errors)) return;
@@ -581,13 +634,18 @@ const Autofacturacion: React.FC = () => {
     let next = rawValue;
     let error: string | undefined;
     if (field === "loginPhone") {
-      next = normalizePhoneInput(rawValue);
-      if (rawValue !== next) error = "El telefono solo puede contener numeros, espacios, +, - y parentesis.";
+      next = normalizeIntegerInput(rawValue).slice(0, 10);
+      if (rawValue !== next) error = "El telefono solo puede contener numeros.";
       setLoginPhone(next);
-      error ||= validatePhone(next, { required: true, minDigits: 10, maxDigits: 15 });
+      error ||= validateMexicanPhone(next, { required: true });
     } else {
       setLoginPassword(next);
-      error = normalizeSpaces(next) ? undefined : "La contrasena es obligatoria.";
+      error = validatePassword(next, {
+        required: true,
+        minLength: 1,
+        maxLength: 128,
+        requireLetterAndNumber: false,
+      });
     }
     setLoginFieldErrors((prev) => ({ ...prev, [field]: error }));
   };
@@ -596,10 +654,10 @@ const Autofacturacion: React.FC = () => {
     let next = rawValue;
     let error: string | undefined;
     if (field === "registerPhone") {
-      next = normalizePhoneInput(rawValue);
-      if (rawValue !== next) error = "El telefono solo puede contener numeros, espacios, +, - y parentesis.";
+      next = normalizeIntegerInput(rawValue).slice(0, 10);
+      if (rawValue !== next) error = "El telefono solo puede contener numeros.";
       setRegisterPhone(next);
-      error ||= validatePhone(next, { required: true, minDigits: 10, maxDigits: 15 });
+      error ||= validateMexicanPhone(next, { required: true });
     }
     if (field === "registerEmail") {
       setRegisterEmail(next);
@@ -612,20 +670,22 @@ const Autofacturacion: React.FC = () => {
     }
     if (field === "registerPassword") {
       setRegisterPassword(next);
-      error = next.length >= 6 ? undefined : "La contrasena debe tener al menos 6 caracteres.";
+      error = validatePassword(next, {
+        required: true,
+        minLength: 6,
+        maxLength: 128,
+        requireLetterAndNumber: true,
+      });
       setRegisterFieldErrors((prev) => ({
         ...prev,
         registerPassword: error,
-        registerConfirmPassword:
-          registerConfirmPassword && registerConfirmPassword === next
-            ? undefined
-            : "Las contrasenas no coinciden.",
+        registerConfirmPassword: validatePasswordConfirmation(next, registerConfirmPassword),
       }));
       return;
     }
     if (field === "registerConfirmPassword") {
       setRegisterConfirmPassword(next);
-      error = next && next === registerPassword ? undefined : "Las contrasenas no coinciden.";
+      error = validatePasswordConfirmation(registerPassword, next);
     }
     setRegisterFieldErrors((prev) => ({ ...prev, [field]: error }));
   };
@@ -723,6 +783,7 @@ const Autofacturacion: React.FC = () => {
                       onBlur={() => setTicketFieldErrors({ invoiceNumber: validateTicketNumber(invoiceNumber) })}
                       style={{ ...styles.searchInput, ...(ticketFieldErrors.invoiceNumber ? styles.inputError : {}) }}
                       disabled={loading}
+                      maxLength={40}
                     />
                   </div>
                   {ticketFieldErrors.invoiceNumber && <p style={styles.fieldError}>{ticketFieldErrors.invoiceNumber}</p>}
@@ -822,6 +883,7 @@ const Autofacturacion: React.FC = () => {
                         onChange={(e) => setInvoiceField("legalName", e.target.value)}
                         onBlur={() => setInvoiceFieldErrors((prev) => ({ ...prev, legalName: validateInvoiceField("legalName", legalName) }))}
                         style={{ ...styles.input, ...(invoiceFieldErrors.legalName ? styles.inputError : {}) }}
+                        maxLength={160}
                       />
                       {invoiceFieldErrors.legalName && <p style={styles.fieldError}>{invoiceFieldErrors.legalName}</p>}
                     </div>
@@ -830,11 +892,19 @@ const Autofacturacion: React.FC = () => {
                       <label style={styles.label}>Régimen Fiscal *</label>
                       <select
                         value={taxSystem}
-                        onChange={(e) => setTaxSystem(e.target.value)}
+                        onChange={(e) => {
+                          const next = e.target.value;
+                          setTaxSystem(next);
+                          setInvoiceFieldErrors((prev) => ({
+                            ...prev,
+                            taxSystem: validateInvoiceField("taxSystem", next),
+                          }));
+                        }}
                         style={{
                           ...styles.select,
                           backgroundColor: loading || !rfc ? "#f3f4f6" : "#ffffff",
-                          cursor: !rfc ? "not-allowed" : "pointer"
+                          cursor: !rfc ? "not-allowed" : "pointer",
+                          ...(invoiceFieldErrors.taxSystem ? styles.inputError : {}),
                         }}
                         disabled={loading || !rfc || (rfc.length !== 12 && rfc.length !== 13)}
                       >
@@ -848,6 +918,7 @@ const Autofacturacion: React.FC = () => {
                           ⚠️ Primero ingrese el RFC para ver los regímenes disponibles
                         </span>
                       )}
+                      {invoiceFieldErrors.taxSystem && <p style={styles.fieldError}>{invoiceFieldErrors.taxSystem}</p>}
                     </div>
 
                     <div style={styles.formGroup}>
@@ -870,13 +941,24 @@ const Autofacturacion: React.FC = () => {
                       <label style={styles.label}>Uso de CFDI *</label>
                       <select
                         value={cfdiUse}
-                        onChange={(e) => setCfdiUse(e.target.value)}
-                        style={styles.select}
+                        onChange={(e) => {
+                          const next = e.target.value;
+                          setCfdiUse(next);
+                          setInvoiceFieldErrors((prev) => ({
+                            ...prev,
+                            cfdiUse: validateInvoiceField("cfdiUse", next),
+                          }));
+                        }}
+                        style={{
+                          ...styles.select,
+                          ...(invoiceFieldErrors.cfdiUse ? styles.inputError : {}),
+                        }}
                       >
                         {USOS_CFDI.map((u) => (
                           <option key={u.code} value={u.code}>{u.label}</option>
                         ))}
                       </select>
+                      {invoiceFieldErrors.cfdiUse && <p style={styles.fieldError}>{invoiceFieldErrors.cfdiUse}</p>}
                     </div>
 
                     <div style={styles.formGroup}>
@@ -893,6 +975,7 @@ const Autofacturacion: React.FC = () => {
                         onChange={(e) => setInvoiceField("email", e.target.value)}
                         onBlur={() => setInvoiceFieldErrors((prev) => ({ ...prev, email: validateInvoiceField("email", email) }))}
                         style={{ ...styles.input, ...(invoiceFieldErrors.email ? styles.inputError : {}) }}
+                        maxLength={254}
                       />
                       {invoiceFieldErrors.email && <p style={styles.fieldError}>{invoiceFieldErrors.email}</p>}
                     </div>
@@ -1123,6 +1206,7 @@ const Autofacturacion: React.FC = () => {
                     onChange={(e) => setProfileField("profileLegalName", e.target.value)}
                     onBlur={() => setProfileFieldErrors((prev) => ({ ...prev, profileLegalName: validateProfileField("profileLegalName", profileLegalName) }))}
                     style={{ ...styles.input, ...(profileFieldErrors.profileLegalName ? styles.inputError : {}) }}
+                    maxLength={160}
                   />
                   {profileFieldErrors.profileLegalName && <p style={styles.fieldError}>{profileFieldErrors.profileLegalName}</p>}
                 </div>
@@ -1131,11 +1215,19 @@ const Autofacturacion: React.FC = () => {
                   <label style={styles.label}>Régimen Fiscal *</label>
                   <select
                     value={profileTaxSystem}
-                    onChange={(e) => setProfileTaxSystem(e.target.value)}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setProfileTaxSystem(next);
+                      setProfileFieldErrors((prev) => ({
+                        ...prev,
+                        profileTaxSystem: validateProfileField("profileTaxSystem", next),
+                      }));
+                    }}
                     style={{
                       ...styles.select,
                       backgroundColor: loading || !profileRfc ? "#f3f4f6" : "#ffffff",
-                      cursor: !profileRfc ? "not-allowed" : "pointer"
+                      cursor: !profileRfc ? "not-allowed" : "pointer",
+                      ...(profileFieldErrors.profileTaxSystem ? styles.inputError : {}),
                     }}
                     disabled={loading || !profileRfc || (profileRfc.length !== 12 && profileRfc.length !== 13)}
                   >
@@ -1149,6 +1241,7 @@ const Autofacturacion: React.FC = () => {
                       ⚠️ Primero ingrese el RFC para ver los regímenes disponibles
                     </span>
                   )}
+                  {profileFieldErrors.profileTaxSystem && <p style={styles.fieldError}>{profileFieldErrors.profileTaxSystem}</p>}
                 </div>
 
                 <div style={styles.formGroup}>
@@ -1171,13 +1264,24 @@ const Autofacturacion: React.FC = () => {
                   <label style={styles.label}>Uso CFDI Preferido *</label>
                   <select
                     value={profileCfdiUse}
-                    onChange={(e) => setProfileCfdiUse(e.target.value)}
-                    style={styles.select}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setProfileCfdiUse(next);
+                      setProfileFieldErrors((prev) => ({
+                        ...prev,
+                        profileCfdiUse: validateProfileField("profileCfdiUse", next),
+                      }));
+                    }}
+                    style={{
+                      ...styles.select,
+                      ...(profileFieldErrors.profileCfdiUse ? styles.inputError : {}),
+                    }}
                   >
                     {USOS_CFDI.map((u) => (
                       <option key={u.code} value={u.code}>{u.label}</option>
                     ))}
                   </select>
+                  {profileFieldErrors.profileCfdiUse && <p style={styles.fieldError}>{profileFieldErrors.profileCfdiUse}</p>}
                 </div>
 
                 <div style={styles.formGroup}>
@@ -1194,6 +1298,7 @@ const Autofacturacion: React.FC = () => {
                     onChange={(e) => setProfileField("profileEmail", e.target.value)}
                     onBlur={() => setProfileFieldErrors((prev) => ({ ...prev, profileEmail: validateProfileField("profileEmail", profileEmail) }))}
                     style={{ ...styles.input, ...(profileFieldErrors.profileEmail ? styles.inputError : {}) }}
+                    maxLength={254}
                   />
                   {profileFieldErrors.profileEmail && <p style={styles.fieldError}>{profileFieldErrors.profileEmail}</p>}
                 </div>
@@ -1207,6 +1312,7 @@ const Autofacturacion: React.FC = () => {
                     onChange={(e) => setProfileField("profileAddress", e.target.value)}
                     onBlur={() => setProfileFieldErrors((prev) => ({ ...prev, profileAddress: validateProfileField("profileAddress", profileAddress) }))}
                     style={{ ...styles.input, ...(profileFieldErrors.profileAddress ? styles.inputError : {}) }}
+                    maxLength={180}
                   />
                   {profileFieldErrors.profileAddress && <p style={styles.fieldError}>{profileFieldErrors.profileAddress}</p>}
                 </div>
@@ -1246,8 +1352,10 @@ const Autofacturacion: React.FC = () => {
                     placeholder="Ej: 5551234567"
                     value={loginPhone}
                     onChange={(e) => setLoginField("loginPhone", e.target.value)}
-                    onBlur={() => setLoginFieldErrors((prev) => ({ ...prev, loginPhone: validatePhone(loginPhone, { required: true, minDigits: 10, maxDigits: 15 }) }))}
+                    onBlur={() => setLoginFieldErrors((prev) => ({ ...prev, loginPhone: validateMexicanPhone(loginPhone, { required: true }) }))}
                     style={{ ...styles.modalInput, ...(loginFieldErrors.loginPhone ? styles.inputError : {}) }}
+                    inputMode="numeric"
+                    maxLength={10}
                   />
                 </div>
                 {loginFieldErrors.loginPhone && <p style={styles.fieldError}>{loginFieldErrors.loginPhone}</p>}
@@ -1263,8 +1371,17 @@ const Autofacturacion: React.FC = () => {
                     placeholder="••••••••"
                     value={loginPassword}
                     onChange={(e) => setLoginField("loginPassword", e.target.value)}
-                    onBlur={() => setLoginFieldErrors((prev) => ({ ...prev, loginPassword: normalizeSpaces(loginPassword) ? undefined : "La contrasena es obligatoria." }))}
+                    onBlur={() => setLoginFieldErrors((prev) => ({
+                      ...prev,
+                      loginPassword: validatePassword(loginPassword, {
+                        required: true,
+                        minLength: 1,
+                        maxLength: 128,
+                        requireLetterAndNumber: false,
+                      }),
+                    }))}
                     style={{ ...styles.modalInput, ...(loginFieldErrors.loginPassword ? styles.inputError : {}) }}
+                    maxLength={128}
                   />
                 </div>
                 {loginFieldErrors.loginPassword && <p style={styles.fieldError}>{loginFieldErrors.loginPassword}</p>}
@@ -1314,8 +1431,10 @@ const Autofacturacion: React.FC = () => {
                   placeholder="Ej: 5551234567"
                   value={registerPhone}
                   onChange={(e) => setRegisterField("registerPhone", e.target.value)}
-                  onBlur={() => setRegisterFieldErrors((prev) => ({ ...prev, registerPhone: validatePhone(registerPhone, { required: true, minDigits: 10, maxDigits: 15 }) }))}
+                  onBlur={() => setRegisterFieldErrors((prev) => ({ ...prev, registerPhone: validateMexicanPhone(registerPhone, { required: true }) }))}
                   style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerPhone ? styles.inputError : {}) }}
+                  inputMode="numeric"
+                  maxLength={10}
                 />
                 {registerFieldErrors.registerPhone && <p style={styles.fieldError}>{registerFieldErrors.registerPhone}</p>}
               </div>
@@ -1334,6 +1453,7 @@ const Autofacturacion: React.FC = () => {
                   onChange={(e) => setRegisterField("registerEmail", e.target.value)}
                   onBlur={() => setRegisterFieldErrors((prev) => ({ ...prev, registerEmail: validateAutofactEmail(registerEmail, { required: true }) }))}
                   style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerEmail ? styles.inputError : {}) }}
+                  maxLength={254}
                 />
                 {registerFieldErrors.registerEmail && <p style={styles.fieldError}>{registerFieldErrors.registerEmail}</p>}
               </div>
@@ -1348,6 +1468,7 @@ const Autofacturacion: React.FC = () => {
                   onChange={(e) => setRegisterField("registerInvoiceNumber", e.target.value)}
                   onBlur={() => setRegisterFieldErrors((prev) => ({ ...prev, registerInvoiceNumber: validateReference(registerInvoiceNumber, "El folio", { required: true, max: 40 }) }))}
                   style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerInvoiceNumber ? styles.inputError : {}) }}
+                  maxLength={40}
                 />
                 {registerFieldErrors.registerInvoiceNumber && <p style={styles.fieldError}>{registerFieldErrors.registerInvoiceNumber}</p>}
               </div>
@@ -1362,6 +1483,7 @@ const Autofacturacion: React.FC = () => {
                   onChange={(e) => setRegisterField("registerPassword", e.target.value)}
                   onBlur={() => setRegisterField("registerPassword", registerPassword)}
                   style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerPassword ? styles.inputError : {}) }}
+                  maxLength={128}
                 />
                 {registerFieldErrors.registerPassword && <p style={styles.fieldError}>{registerFieldErrors.registerPassword}</p>}
               </div>
@@ -1376,6 +1498,7 @@ const Autofacturacion: React.FC = () => {
                   onChange={(e) => setRegisterField("registerConfirmPassword", e.target.value)}
                   onBlur={() => setRegisterField("registerConfirmPassword", registerConfirmPassword)}
                   style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerConfirmPassword ? styles.inputError : {}) }}
+                  maxLength={128}
                 />
                 {registerFieldErrors.registerConfirmPassword && <p style={styles.fieldError}>{registerFieldErrors.registerConfirmPassword}</p>}
               </div>

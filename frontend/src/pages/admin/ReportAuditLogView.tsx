@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import api from "../../services/api";
+import { validateDateRange, validateSearchText } from "../../utils/formValidation";
 import {
   ui,
   type ViewProps,
@@ -88,8 +89,17 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [to, setTo] = useState("");
   const [reportType, setReportType] = useState("");
   const [userSearch, setUserSearch] = useState("");
+  const dateError = from && to ? validateDateRange(from, to) : undefined;
+  const userSearchError = validateSearchText(userSearch, "La busqueda de usuario", { max: 120 });
 
   const load = useCallback(async () => {
+    const invalidRange = from && to ? validateDateRange(from, to) : undefined;
+    if (invalidRange) {
+      setRows([]);
+      setError(invalidRange);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -118,12 +128,14 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
     setUserSearch("");
   };
 
-  const visible = userSearch.trim()
-    ? rows.filter((r) =>
-        r.user.name.toLowerCase().includes(userSearch.toLowerCase()) ||
-        r.user.email.toLowerCase().includes(userSearch.toLowerCase())
-      )
-    : rows;
+  const visible = userSearchError
+    ? []
+    : userSearch.trim()
+      ? rows.filter((r) =>
+          r.user.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+          r.user.email.toLowerCase().includes(userSearch.toLowerCase())
+        )
+      : rows;
 
   return (
     <div>
@@ -138,15 +150,17 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
           <input
             type="date"
             value={from}
+            max={to || undefined}
             onChange={(e) => setFrom(e.target.value)}
-            style={inputStyle}
+            style={{ ...inputStyle, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
           />
           <label style={{ fontSize: 12, fontWeight: 600, color: "#1e3a8a" }}>Hasta:</label>
           <input
             type="date"
             value={to}
+            min={from || undefined}
             onChange={(e) => setTo(e.target.value)}
-            style={inputStyle}
+            style={{ ...inputStyle, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
           />
           <select
             value={reportType}
@@ -165,6 +179,7 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
             value={userSearch}
             onChange={(e) => setUserSearch(e.target.value)}
             style={{ ...inputStyle, minWidth: 160 }}
+            maxLength={120}
           />
           <button
             onClick={clearFilters}
@@ -181,6 +196,11 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
           >
             Limpiar filtros
           </button>
+          {(dateError || userSearchError) && (
+            <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 600 }}>
+              {dateError || userSearchError}
+            </span>
+          )}
         </div>
         <span style={{ marginLeft: "auto", fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>
           {visible.length} registro{visible.length !== 1 ? "s" : ""}

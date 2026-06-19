@@ -5,7 +5,7 @@ export type ValidatorRule =
   | { type: "textSafe"; label?: string; min?: number; max?: number; required?: boolean }
   | { type: "referenceSafe"; label?: string; max?: number; required?: boolean }
   | { type: "rfc"; required?: boolean }
-  | { type: "email"; required?: boolean }
+  | { type: "email"; required?: boolean; maxLength?: number }
   | { type: "phone"; required?: boolean; minDigits?: number; maxDigits?: number }
   | { type: "integer"; label?: string; required?: boolean; min?: number; max?: number }
   | { type: "decimalMoney"; label?: string; required?: boolean; min?: number; max?: number; minExclusive?: boolean }
@@ -24,6 +24,7 @@ export const DECIMAL_MONEY_INPUT_PATTERN = /^\d*(?:\.\d{0,3})?$/;
 export const DECIMAL_MONEY_SAVE_PATTERN = /^\d+(?:\.\d{1,3})?$/;
 export const SKU_PATTERN = /^[A-Za-z0-9_-]+$/;
 export const BARCODE_PATTERN = /^[0-9]+$/;
+export const DATE_INPUT_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const DANGEROUS_PATTERN = /[<>{}[\]`~|\\]/;
 const EMOJI_PATTERN = /[\p{Extended_Pictographic}\uFE0F]/u;
@@ -114,12 +115,99 @@ export const validatePhone = (value: string, options: { required?: boolean; minD
   return undefined;
 };
 
-export const validateEmail = (value: string, options: { required?: boolean } = {}) => {
+export const validateMexicanPhone = (value: string, options: { required?: boolean } = {}) => {
+  const v = normalizeSpaces(value);
+  if (!v) return options.required ? "El telefono es obligatorio." : undefined;
+  if (hasEmoji(v) || !PHONE_PATTERN.test(v)) {
+    return "El telefono solo puede contener numeros, espacios, +, - y parentesis.";
+  }
+  const digits = v.replace(/\D/g, "");
+  if (digits.length !== 10) return "El telefono debe tener exactamente 10 digitos.";
+  return undefined;
+};
+
+export const validateEmail = (
+  value: string,
+  options: { required?: boolean; maxLength?: number } = {},
+) => {
   const v = normalizeEmailInput(value);
   if (!v) return options.required ? "El correo es obligatorio." : undefined;
+  if (options.maxLength !== undefined && v.length > options.maxLength) {
+    return `El correo no puede exceder ${options.maxLength} caracteres.`;
+  }
   if (/\s/.test(v) || hasEmoji(v) || !EMAIL_PATTERN.test(v)) {
     return "El correo no tiene un formato valido.";
   }
+  return undefined;
+};
+
+export const validateDateInput = (value: string, label = "La fecha") => {
+  const raw = value.trim();
+  if (!raw) return `${label} es obligatoria.`;
+  if (!DATE_INPUT_PATTERN.test(raw)) return `${label} no es valida.`;
+
+  const [year, month, day] = raw.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    return `${label} no es valida.`;
+  }
+  return undefined;
+};
+
+export const validateDateRange = (
+  startDate: string,
+  endDate: string,
+  options: { startLabel?: string; endLabel?: string } = {},
+) => {
+  const startLabel = options.startLabel ?? "La fecha inicial";
+  const endLabel = options.endLabel ?? "La fecha final";
+  const startError = validateDateInput(startDate, startLabel);
+  if (startError) return startError;
+  const endError = validateDateInput(endDate, endLabel);
+  if (endError) return endError;
+  if (startDate > endDate) return `${startLabel} no puede ser mayor que ${endLabel.toLowerCase()}.`;
+  return undefined;
+};
+
+export const validateCatalogValue = (
+  value: string,
+  allowedValues: readonly string[],
+  label: string,
+  options: { required?: boolean } = {},
+) => {
+  const normalized = value.trim();
+  if (!normalized) return options.required === false ? undefined : `Selecciona ${label}.`;
+  if (!allowedValues.includes(normalized)) return `Selecciona ${label} valida.`;
+  return undefined;
+};
+
+export const validatePassword = (
+  value: string,
+  options: {
+    required?: boolean;
+    minLength?: number;
+    maxLength?: number;
+    requireLetterAndNumber?: boolean;
+  } = {},
+) => {
+  const minLength = options.minLength ?? 6;
+  const maxLength = options.maxLength ?? 128;
+  if (!value) return options.required === false ? undefined : "La contrasena es obligatoria.";
+  if (value.length < minLength) return `La contrasena debe tener al menos ${minLength} caracteres.`;
+  if (value.length > maxLength) return `La contrasena no puede exceder ${maxLength} caracteres.`;
+  if (options.requireLetterAndNumber !== false && (!/[A-Za-z]/.test(value) || !/\d/.test(value))) {
+    return "La contrasena debe incluir al menos una letra y un numero.";
+  }
+  return undefined;
+};
+
+export const validatePasswordConfirmation = (password: string, confirmation: string) => {
+  if (!confirmation) return "Confirma la contrasena.";
+  if (password !== confirmation) return "Las contrasenas no coinciden.";
   return undefined;
 };
 
