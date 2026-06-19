@@ -24,6 +24,8 @@ import {
   ShieldCheck,
   KeyRound,
   Lock,
+  Sun,
+  Moon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -115,6 +117,35 @@ const NAV_SECTIONS: { label: string; items: string[] }[] = [
   { label: "Seguridad", items: ["auditoria-reportes", "caja-access", "admin-access"] },
 ];
 
+// Estilos de interacción/movimiento del shell, aislados a esta vista.
+// Manejan hover/focus (que no son expresables con estilos en línea) y respetan
+// la preferencia de "reducir movimiento" del sistema.
+const ADMIN_CSS = `
+.adm-nav-item{ position:relative; transition: background-color .18s ease, color .18s ease, transform .16s ease, box-shadow .18s ease; }
+.adm-nav-item:hover{ background-color: rgba(255,255,255,.09); color:#ffffff; transform: translateX(3px); }
+.adm-rail{ transition: opacity .22s ease, transform .22s cubic-bezier(.34,1.56,.64,1); }
+.adm-icon-btn{ transition: background-color .15s ease, border-color .15s ease, transform .1s ease; }
+.adm-icon-btn:hover{ background-color: var(--surface-2); border-color: var(--border-strong); }
+.adm-logout{ transition: filter .15s ease, transform .1s ease, box-shadow .15s ease; }
+.adm-logout:hover{ filter: brightness(1.08); box-shadow: 0 8px 18px -6px rgba(37,99,235,.6); }
+.adm-logout:active{ transform: translateY(1px); }
+.adm-brand-logo{ transition: transform .25s ease, box-shadow .25s ease; }
+.adm-brand-row:hover .adm-brand-logo{ transform: rotate(-6deg) scale(1.05); }
+.adm-spin{ animation: admSpin .6s ease; }
+@keyframes admSpin{ from{transform:rotate(0)} to{transform:rotate(360deg)} }
+@media (prefers-reduced-motion: reduce){
+  .adm-nav-item, .adm-rail, .adm-icon-btn, .adm-logout, .adm-brand-logo{ transition:none !important; }
+  .adm-nav-item:hover, .adm-brand-row:hover .adm-brand-logo{ transform:none !important; }
+  .adm-spin{ animation:none !important; }
+}
+`;
+
+const initialsOf = (name?: string): string => {
+  const parts = (name || "Administrador").trim().split(/\s+/).filter(Boolean).slice(0, 2);
+  const txt = parts.map((w) => w[0]).join("").toUpperCase();
+  return txt || "A";
+};
+
 const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
 
@@ -127,6 +158,24 @@ const AdminDashboard: React.FC = () => {
   const [branches, setBranches] = useState<BranchOption[]>([]);
   const [refreshToken, setRefreshToken] = useState(0);
   const [navHistory, setNavHistory] = useState<string[]>([]);
+  const [spinning, setSpinning] = useState(false);
+
+  // Refrescar datos de la vista activa con feedback (giro del icono)
+  const handleRefresh = () => {
+    setRefreshToken((t) => t + 1);
+    setSpinning(true);
+    window.setTimeout(() => setSpinning(false), 600);
+  };
+
+  // Tema claro / oscuro (persistente, scopeado al panel admin)
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof window === "undefined") return "light";
+    return localStorage.getItem("fmb_pos_theme") === "dark" ? "dark" : "light";
+  });
+  useEffect(() => {
+    localStorage.setItem("fmb_pos_theme", theme);
+  }, [theme]);
+  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
 
   // Redirigir a dashboard si tiene un rol GERENTE e intenta entrar a una sección prohibida
   useEffect(() => {
@@ -205,7 +254,8 @@ const AdminDashboard: React.FC = () => {
     : { ...styles.sidebar, width: collapsed ? 72 : 248 };
 
   return (
-    <div style={styles.shell}>
+    <div style={styles.shell} className={`theme-aware${theme === "dark" ? " theme-dark" : ""}`}>
+      <style>{ADMIN_CSS}</style>
       {/* Backdrop del cajón en móvil */}
       {isMobile && mobileOpen && (
         <div onClick={() => setMobileOpen(false)} style={styles.backdrop} />
@@ -213,11 +263,16 @@ const AdminDashboard: React.FC = () => {
 
       {/* ===================== SIDEBAR RETRÁCTIL / CAJÓN ===================== */}
       <aside style={sidebarStyle}>
-        <div style={styles.brandRow}>
-          <div style={styles.brandLogo}>
+        <div style={styles.brandRow} className="adm-brand-row">
+          <div style={styles.brandLogo} className="adm-brand-logo">
             <Store size={20} color="#ffffff" />
           </div>
-          {!effectiveCollapsed && <span style={styles.brandText}>LYFRGL POS</span>}
+          {!effectiveCollapsed && (
+            <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.05, minWidth: 0 }}>
+              <span style={styles.brandText}>LYFRGL</span>
+              <span style={styles.brandSub}>Punto de venta</span>
+            </div>
+          )}
         </div>
 
         <nav style={styles.nav} className="admin-sidebar-nav">
@@ -236,15 +291,33 @@ const AdminDashboard: React.FC = () => {
                     key={item.key}
                     onClick={() => navigateTo(item.key)}
                     title={item.label}
-                    className="active-tap"
+                    className="active-tap adm-nav-item"
                     style={{
                       ...styles.navItem,
                       justifyContent: effectiveCollapsed ? "center" : "flex-start",
-                      backgroundColor: isActive ? "#3b82f6" : "transparent",
-                      color: isActive ? "#ffffff" : "#bfdbfe",
+                      backgroundColor: isActive ? "rgba(96,165,250,0.18)" : "transparent",
+                      boxShadow: isActive ? "inset 0 0 0 1px rgba(96,165,250,0.28)" : "none",
+                      color: isActive ? "#ffffff" : "#bcd0f0",
                       fontWeight: isActive ? 700 : 500,
                     }}
                   >
+                    {/* Riel de acento que crece cuando el módulo está activo */}
+                    <span
+                      className="adm-rail"
+                      aria-hidden
+                      style={{
+                        position: "absolute",
+                        left: 3,
+                        top: "50%",
+                        width: 3,
+                        height: 18,
+                        borderRadius: 999,
+                        background: "linear-gradient(180deg,#60a5fa,#22d3ee)",
+                        boxShadow: isActive ? "0 0 8px rgba(96,165,250,0.85)" : "none",
+                        transform: `translateY(-50%) scaleY(${isActive ? 1 : 0.2})`,
+                        opacity: isActive ? 1 : 0,
+                      }}
+                    />
                     <Icon size={19} />
                     {!effectiveCollapsed && <span>{item.label}</span>}
                   </button>
@@ -257,12 +330,13 @@ const AdminDashboard: React.FC = () => {
         <div style={styles.sidebarFooter}>
           <div style={styles.userMini}>
             <div style={styles.userAvatar}>
-              <UserCog size={16} color="#1e3a8a" />
+              {initialsOf(user?.name)}
+              <span style={styles.userOnlineDot} aria-hidden />
             </div>
             {!effectiveCollapsed && (
-              <div style={{ overflow: "hidden" }}>
+              <div style={{ overflow: "hidden", minWidth: 0 }}>
                 <p style={styles.userName}>{user?.name || "Administrador"}</p>
-                <p style={styles.userRole}>{user?.role || "ADMIN"}</p>
+                <span style={styles.userRoleBadge}>{user?.role || "ADMIN"}</span>
               </div>
             )}
           </div>
@@ -276,41 +350,44 @@ const AdminDashboard: React.FC = () => {
             <button
               onClick={toggleMenu}
               title={isMobile ? "Abrir menú" : collapsed ? "Expandir menú" : "Contraer menú"}
-              className="active-tap"
+              className="active-tap adm-icon-btn"
               style={styles.iconBtn}
             >
-              <Menu size={18} color="#1e3a8a" />
+              <Menu size={18} />
             </button>
             <button
               onClick={goBack}
               disabled={navHistory.length === 0}
               title="Regresar a la pestaña anterior"
-              className="active-tap"
+              className="active-tap adm-icon-btn"
               style={{
                 ...styles.iconBtn,
                 opacity: navHistory.length === 0 ? 0.4 : 1,
                 cursor: navHistory.length === 0 ? "default" : "pointer",
               }}
             >
-              <ArrowLeft size={18} color="#1e3a8a" />
+              <ArrowLeft size={18} />
             </button>
-            <span
-              style={{
-                ...styles.appLabel,
-                ...(isMobile
-                  ? {
-                      fontSize: 14,
-                      flex: "1 1 0",
-                      minWidth: 0,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }
-                  : {}),
-              }}
-            >
-              {isMobile ? active.label : "Panel Administrativo Central"}
-            </span>
+            {isMobile ? (
+              <span
+                style={{
+                  ...styles.appLabel,
+                  fontSize: 14,
+                  flex: "1 1 0",
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {active.label}
+              </span>
+            ) : (
+              <div style={styles.titleWrap}>
+                <span style={styles.appEyebrow}>Panel administrativo</span>
+                <span style={styles.appLabel}>{active.label}</span>
+              </div>
+            )}
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 6 : 10, flexShrink: 0 }}>
@@ -329,7 +406,7 @@ const AdminDashboard: React.FC = () => {
                   : "Filtrar por sucursal"
               }
             >
-              <Store size={15} color="#64748b" style={{ flexShrink: 0 }} />
+              <Store size={15} style={{ flexShrink: 0, color: "var(--text-muted)" }} />
               <select
                 value={branchId}
                 onChange={(e) => setBranchId(e.target.value)}
@@ -345,16 +422,25 @@ const AdminDashboard: React.FC = () => {
               </select>
             </div>
             <button
-              onClick={() => setRefreshToken((t) => t + 1)}
-              title="Actualizar"
-              className="active-tap"
+              onClick={toggleTheme}
+              title={theme === "dark" ? "Activar modo claro" : "Activar modo oscuro"}
+              aria-label={theme === "dark" ? "Activar modo claro" : "Activar modo oscuro"}
+              className="active-tap adm-icon-btn"
               style={styles.iconBtn}
             >
-              <RefreshCw size={16} color="#1e3a8a" />
+              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+            <button
+              onClick={handleRefresh}
+              title="Actualizar"
+              className="active-tap adm-icon-btn"
+              style={styles.iconBtn}
+            >
+              <RefreshCw size={16} className={spinning ? "adm-spin" : undefined} />
             </button>
             <button
               onClick={logout}
-              className="active-tap"
+              className="active-tap adm-logout"
               style={{ ...styles.logoutBtn, ...(isMobile ? { padding: 0, width: 38, justifyContent: "center" } : {}) }}
               title="Cerrar sesión"
             >
@@ -372,17 +458,23 @@ const AdminDashboard: React.FC = () => {
 };
 
 const styles: { [k: string]: React.CSSProperties } = {
-  shell: { display: "flex", minHeight: "100vh", backgroundColor: "#f1f5f9" },
+  shell: {
+    display: "flex",
+    minHeight: "100vh",
+    background: "var(--app-bg)",
+  },
 
   backdrop: {
     position: "fixed",
     inset: 0,
-    backgroundColor: "rgba(15,23,42,0.5)",
+    backgroundColor: "rgba(8,15,34,0.55)",
+    backdropFilter: "blur(2px)",
     zIndex: 290,
   },
 
   sidebar: {
-    backgroundColor: "#1e3a8a",
+    background: "linear-gradient(180deg, #1b2c57 0%, #0f1c3f 55%, #0c1834 100%)",
+    borderRight: "1px solid rgba(255,255,255,0.06)",
     display: "flex",
     flexDirection: "column",
     transition: "width 0.18s ease",
@@ -394,54 +486,80 @@ const styles: { [k: string]: React.CSSProperties } = {
   brandRow: {
     display: "flex",
     alignItems: "center",
-    gap: 10,
+    gap: 11,
     padding: "20px 18px",
-    borderBottom: "1px solid rgba(255,255,255,0.12)",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+    cursor: "default",
   },
   brandLogo: {
-    width: 34,
-    height: 34,
-    borderRadius: 8,
-    backgroundColor: "#3b82f6",
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    background: "linear-gradient(135deg, #60a5fa 0%, #2563eb 100%)",
+    boxShadow: "0 6px 16px -4px rgba(37,99,235,0.7)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
   },
-  brandText: { color: "#ffffff", fontWeight: 800, fontSize: 16, letterSpacing: "-0.3px", whiteSpace: "nowrap" },
-  nav: { display: "flex", flexDirection: "column", gap: 4, padding: "16px 12px", flex: 1, minHeight: 0, overflowY: "auto" },
+  brandText: { color: "#ffffff", fontWeight: 800, fontSize: 17, letterSpacing: "0.2px", whiteSpace: "nowrap" },
+  brandSub: {
+    color: "#7f9bd0",
+    fontWeight: 700,
+    fontSize: 9.5,
+    letterSpacing: "1.4px",
+    textTransform: "uppercase" as const,
+    whiteSpace: "nowrap",
+  },
+  nav: { display: "flex", flexDirection: "column", gap: 3, padding: "14px 12px", flex: 1, minHeight: 0, overflowY: "auto" },
   navSectionLabel: {
     fontSize: 10,
     fontWeight: 700,
-    color: "#93c5fd",
+    color: "#6f8cc4",
     textTransform: "uppercase" as const,
-    letterSpacing: "0.8px",
-    padding: "10px 12px 4px",
+    letterSpacing: "1px",
+    padding: "14px 12px 5px",
     display: "block",
   },
   navItem: {
     display: "flex",
     alignItems: "center",
     gap: 12,
-    padding: "11px 12px",
-    borderRadius: 8,
+    padding: "10px 12px 10px 14px",
+    borderRadius: 10,
     border: "none",
     cursor: "pointer",
     fontSize: 14,
     whiteSpace: "nowrap",
-    transition: "background-color 0.15s ease, color 0.15s ease",
+    background: "transparent",
   },
-  sidebarFooter: { padding: "14px 12px", borderTop: "1px solid rgba(255,255,255,0.12)" },
-  userMini: { display: "flex", alignItems: "center", gap: 10, padding: "4px 4px" },
+  sidebarFooter: { padding: "14px 12px", borderTop: "1px solid rgba(255,255,255,0.08)" },
+  userMini: { display: "flex", alignItems: "center", gap: 11, padding: "4px 4px" },
   userAvatar: {
-    width: 32,
-    height: 32,
+    position: "relative",
+    width: 36,
+    height: 36,
     borderRadius: "50%",
-    backgroundColor: "#ffffff",
+    background: "linear-gradient(135deg, #60a5fa 0%, #2563eb 100%)",
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: 800,
+    letterSpacing: "0.3px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+    boxShadow: "0 4px 10px -3px rgba(37,99,235,0.6)",
+  },
+  userOnlineDot: {
+    position: "absolute",
+    right: -1,
+    bottom: -1,
+    width: 10,
+    height: 10,
+    borderRadius: "50%",
+    backgroundColor: "#22c55e",
+    border: "2px solid #0f1c3f",
   },
   userName: {
     color: "#ffffff",
@@ -450,14 +568,26 @@ const styles: { [k: string]: React.CSSProperties } = {
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
+    margin: 0,
   },
-  userRole: { color: "#93c5fd", fontSize: 11, fontWeight: 600 },
+  userRoleBadge: {
+    display: "inline-block",
+    marginTop: 3,
+    fontSize: 9.5,
+    fontWeight: 800,
+    letterSpacing: "0.6px",
+    color: "#bfdbfe",
+    backgroundColor: "rgba(96,165,250,0.18)",
+    padding: "2px 8px",
+    borderRadius: 999,
+  },
 
   main: { flex: 1, display: "flex", flexDirection: "column", minWidth: 0 },
   topbar: {
     height: 64,
-    backgroundColor: "#ffffff",
-    borderBottom: "1px solid #e2e8f0",
+    backgroundColor: "var(--topbar-bg)",
+    borderBottom: "1px solid var(--border)",
+    boxShadow: "0 1px 3px rgba(15,23,42,0.04)",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
@@ -466,13 +596,22 @@ const styles: { [k: string]: React.CSSProperties } = {
     top: 0,
     zIndex: 10,
   },
-  appLabel: { fontSize: 15, fontWeight: 800, color: "#0f172a", letterSpacing: "-0.3px" },
+  titleWrap: { display: "flex", flexDirection: "column", lineHeight: 1.15, minWidth: 0 },
+  appEyebrow: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: "var(--text-muted)",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.9px",
+  },
+  appLabel: { fontSize: 16, fontWeight: 800, color: "var(--text)", letterSpacing: "-0.4px" },
   iconBtn: {
     width: 38,
     height: 38,
-    borderRadius: 8,
-    border: "1px solid #e2e8f0",
-    backgroundColor: "#ffffff",
+    borderRadius: 10,
+    border: "1px solid var(--border)",
+    backgroundColor: "var(--surface)",
+    color: "var(--accent-strong)",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
@@ -482,11 +621,12 @@ const styles: { [k: string]: React.CSSProperties } = {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    border: "1px solid #e2e8f0",
-    borderRadius: 8,
+    border: "1px solid var(--border)",
+    borderRadius: 10,
     padding: "0 12px",
     height: 38,
-    backgroundColor: "#ffffff",
+    color: "var(--text-muted)",
+    backgroundColor: "var(--surface)",
   },
   select: {
     border: "none",
@@ -494,7 +634,7 @@ const styles: { [k: string]: React.CSSProperties } = {
     backgroundColor: "transparent",
     fontSize: 13,
     fontWeight: 600,
-    color: "#334155",
+    color: "var(--text-secondary)",
     cursor: "pointer",
     fontFamily: "inherit",
   },
@@ -502,15 +642,16 @@ const styles: { [k: string]: React.CSSProperties } = {
     display: "flex",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#1e3a8a",
+    background: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)",
     color: "#ffffff",
     border: "none",
-    borderRadius: 8,
+    borderRadius: 10,
     padding: "9px 16px",
     fontSize: 13,
     fontWeight: 700,
     cursor: "pointer",
     height: 38,
+    boxShadow: "0 4px 12px -5px rgba(37,99,235,0.55)",
   },
   content: { padding: 24, overflowY: "auto", overflowX: "hidden", minWidth: 0, flex: 1 },
 };

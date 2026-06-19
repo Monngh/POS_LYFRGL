@@ -36,8 +36,8 @@ const ReportesView: React.FC<ViewProps> = ({ branchId }) => {
           subtitle={selected.description}
           right={
             selected.branchScoped ? (
-              <span style={{ fontSize: 13, color: "#64748b", fontWeight: 600 }}>
-                Sucursal: <span style={{ color: "#1e3a8a", fontWeight: 700 }}>{branchLabel}</span>
+              <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
+                Sucursal: <span style={{ color: "var(--accent-strong)", fontWeight: 700 }}>{branchLabel}</span>
               </span>
             ) : undefined
           }
@@ -95,7 +95,7 @@ const styles: { [k: string]: React.CSSProperties } = {
   catLabel: {
     fontSize: 12,
     fontWeight: 800,
-    color: "#94a3b8",
+    color: "var(--text-faint)",
     textTransform: "uppercase",
     letterSpacing: "0.6px",
     marginBottom: 12,
@@ -107,8 +107,8 @@ const styles: { [k: string]: React.CSSProperties } = {
   },
   card: {
     textAlign: "left",
-    backgroundColor: "#ffffff",
-    border: "1px solid #e2e8f0",
+    backgroundColor: "var(--surface)",
+    border: "1px solid var(--border)",
     borderRadius: 12,
     padding: 18,
     cursor: "pointer",
@@ -129,8 +129,8 @@ const styles: { [k: string]: React.CSSProperties } = {
     alignItems: "center",
     justifyContent: "center",
   },
-  cardTitle: { fontSize: 15, fontWeight: 800, color: "#0f172a", marginTop: 2 },
-  cardDesc: { fontSize: 12.5, color: "#64748b", lineHeight: 1.5 },
+  cardTitle: { fontSize: 15, fontWeight: 800, color: "var(--text)", marginTop: 2 },
+  cardDesc: { fontSize: 12.5, color: "var(--text-muted)", lineHeight: 1.5 },
 };
 
 export default ReportesView;

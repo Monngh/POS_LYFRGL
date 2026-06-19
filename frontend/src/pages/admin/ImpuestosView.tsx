@@ -334,11 +334,11 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
           <BadgePercent size={16} /> {activeCount} activo{activeCount === 1 ? "" : "s"}
         </span>
         {inactiveCount > 0 && (
-          <span style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
+          <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 700 }}>
             {inactiveCount} inactivo{inactiveCount === 1 ? "" : "s"}
           </span>
         )}
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b", fontWeight: 600 }}>
+        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
           {rows.length} impuesto{rows.length === 1 ? "" : "s"}
         </span>
       </Toolbar>
@@ -359,7 +359,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
             padding: "12px 16px",
             fontWeight: 700,
             fontSize: 11,
-            color: "#64748b",
+            color: "var(--text-muted)",
             textTransform: "uppercase" as const,
             letterSpacing: "0.4px",
           }}>
@@ -370,7 +370,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
           </div>
 
           {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
             </div>
           )}
@@ -380,7 +380,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
             </div>
           )}
           {!loading && !error && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               {search.trim() ? "No hay impuestos que coincidan con la búsqueda." : "No hay impuestos registrados."}
             </div>
           )}
@@ -393,8 +393,8 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <div
                   key={tax.id}
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e2e8f0",
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border)",
                     borderRadius: 12,
                     marginBottom: 10,
                     boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
@@ -409,12 +409,12 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                     alignItems: "center",
                   }}>
                     {/* Nombre */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {tax.name}
                     </div>
 
                     {/* Tasa */}
-                    <div style={{ textAlign: "center", fontSize: 13, fontWeight: 800, color: "#0f172a" }}>
+                    <div style={{ textAlign: "center", fontSize: 13, fontWeight: 800, color: "var(--text)" }}>
                       {formatPercent(tax.rate)}
                     </div>
 
@@ -438,7 +438,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#1e3a8a",
+                          color: "var(--accent-strong)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -478,13 +478,13 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#ffffff",
-                          border: "1px solid #cbd5e1",
+                          backgroundColor: "var(--surface)",
+                          border: "1px solid var(--border-strong)",
                           borderRadius: 8,
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#64748b",
+                          color: "var(--text-muted)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -499,34 +499,34 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                     <div style={{
                       padding: "16px",
                       margin: "0 16px 16px 16px",
-                      backgroundColor: "#f8fafc",
+                      backgroundColor: "var(--surface-2)",
                       borderRadius: 8,
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--border)",
                       display: "grid",
                       gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
                       gap: 16,
                       textAlign: "left",
                     }}>
                       <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>ID</div>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a" }}>{tax.id}</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>ID</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)" }}>{tax.id}</div>
                       </div>
                       <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Tasa decimal</div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "#475569" }}>{formatDecimal(tax.rate)}</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Tasa decimal</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)" }}>{formatDecimal(tax.rate)}</div>
                       </div>
                       <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Descripción</div>
-                        <div style={{ fontSize: 13, color: "#475569" }}>{tax.description || "Sin descripción"}</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Descripción</div>
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{tax.description || "Sin descripción"}</div>
                       </div>
                       <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Fecha de creación</div>
-                        <div style={{ fontSize: 13, color: "#475569" }}>{fmtDate(tax.createdAt)}</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Fecha de creación</div>
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmtDate(tax.createdAt)}</div>
                       </div>
                       {tax.updatedAt && (
                         <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Última actualización</div>
-                          <div style={{ fontSize: 13, color: "#475569" }}>{fmtDate(tax.updatedAt)}</div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Última actualización</div>
+                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmtDate(tax.updatedAt)}</div>
                         </div>
                       )}
                     </div>
@@ -562,17 +562,17 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                 !error &&
                 rows.map((tax) => (
                   <tr key={tax.id}>
-                    <td style={{ ...ui.td, fontWeight: 800, color: "#1e3a8a" }}>{tax.id}</td>
-                    <td style={{ ...ui.td, fontWeight: 800, color: "#0f172a", whiteSpace: "normal" }}>{tax.name}</td>
-                    <td style={{ ...ui.td, color: "#475569", whiteSpace: "normal" }}>{tax.description || "Sin descripcion"}</td>
+                    <td style={{ ...ui.td, fontWeight: 800, color: "var(--accent-strong)" }}>{tax.id}</td>
+                    <td style={{ ...ui.td, fontWeight: 800, color: "var(--text)", whiteSpace: "normal" }}>{tax.name}</td>
+                    <td style={{ ...ui.td, color: "var(--text-secondary)", whiteSpace: "normal" }}>{tax.description || "Sin descripcion"}</td>
                     <td style={{ ...ui.td, textAlign: "right" }}>
-                      <div style={{ fontWeight: 800, color: "#0f172a" }}>{formatPercent(tax.rate)}</div>
-                      <div style={{ fontSize: 11, color: "#94a3b8" }}>decimal {formatDecimal(tax.rate)}</div>
+                      <div style={{ fontWeight: 800, color: "var(--text)" }}>{formatPercent(tax.rate)}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-faint)" }}>decimal {formatDecimal(tax.rate)}</div>
                     </td>
                     <td style={{ ...ui.td, textAlign: "center" }}>
                       <Badge tone={tax.active ? "green" : "red"}>{tax.active ? "Activo" : "Inactivo"}</Badge>
                     </td>
-                    <td style={{ ...ui.td, color: "#64748b" }}>{fmtDate(tax.createdAt)}</td>
+                    <td style={{ ...ui.td, color: "var(--text-muted)" }}>{fmtDate(tax.createdAt)}</td>
                     <td style={{ ...ui.td, textAlign: "center" }}>
                       <div style={styles.actions}>
                         <button style={ui.linkBtn} className="active-tap" onClick={() => openEdit(tax)}>
@@ -680,7 +680,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     flexWrap: "wrap",
   },
   helpText: {
-    color: "#64748b",
+    color: "var(--text-muted)",
     fontSize: 12,
     fontWeight: 600,
     marginTop: 7,
@@ -695,7 +695,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     alignItems: "center",
     gap: 10,
-    color: "#334155",
+    color: "var(--text-secondary)",
     cursor: "pointer",
     fontSize: 13,
     fontWeight: 700,
@@ -704,7 +704,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   check: {
     width: 16,
     height: 16,
-    accentColor: "#1e3a8a",
+    accentColor: "var(--accent-strong)",
     cursor: "pointer",
   },
   formError: {
