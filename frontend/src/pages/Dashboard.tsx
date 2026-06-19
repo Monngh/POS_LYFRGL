@@ -1384,14 +1384,16 @@ const Dashboard: React.FC = () => {
                       <p><strong>Cambio:</strong> ${selectedSale.changeGiven.toFixed(2)}</p>
                     </>
                   )}
-                  {selectedSale.customerName && (
-                    <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "6px", paddingTop: "6px", fontSize: "10px" }}>
-                      <p><strong>Cliente:</strong> {selectedSale.customerName}</p>
-                      {selectedSale.pointsEarned > 0 && <p><strong>Puntos Ganados:</strong> +{selectedSale.pointsEarned}</p>}
-                      {selectedSale.pointsRedeemed > 0 && <p><strong>Puntos Canjeados:</strong> -{selectedSale.pointsRedeemed} (-${Number(selectedSale.pointsDiscount).toFixed(2)} MXN)</p>}
-                      <p><strong>Saldo Nuevo:</strong> {selectedSale.customerPoints} pts</p>
-                    </div>
-                  )}
+                  <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "6px", paddingTop: "6px", fontSize: "10px" }}>
+                    <p><strong>Cliente:</strong> {selectedSale.customerName ? "Cliente registrado" : "Público general"}</p>
+                    {selectedSale.customerName && (
+                      <>
+                        {selectedSale.pointsEarned > 0 && <p><strong>Puntos Ganados:</strong> +{selectedSale.pointsEarned}</p>}
+                        {selectedSale.pointsRedeemed > 0 && <p><strong>Puntos Canjeados:</strong> -{selectedSale.pointsRedeemed} (-${Number(selectedSale.pointsDiscount).toFixed(2)} MXN)</p>}
+                        <p><strong>Saldo Nuevo:</strong> {selectedSale.customerPoints} pts</p>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "12px", paddingTop: "8px", fontSize: "9px", textAlign: "center", color: "#64748b", lineHeight: "1.4", display: "flex", flexDirection: "column", alignItems: "center" }}>

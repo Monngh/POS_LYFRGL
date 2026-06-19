@@ -418,7 +418,7 @@ export function DashboardHomeView({
                   <thead>
                     <tr style={styles.tableHeaderRow}>
                       <th style={styles.th}>CUENTA TARGET</th>
-                      <th style={styles.th}>BENEFICIARIO</th>
+                      <th style={styles.th}>DESTINO</th>
                       <th style={styles.th}>MONTO</th>
                       <th style={styles.th} className="pos-cashier-responsive-menu-head">MAS</th>
                       <th style={styles.th}>ESTADO</th>
@@ -434,7 +434,7 @@ export function DashboardHomeView({
                             className={isExpanded ? "pos-cashier-table-row-expanded" : ""}
                           >
                             <td data-label="Cuenta" style={styles.td}>**** **** **** {dep.accountNumber.slice(-4)}</td>
-                            <td data-label="Beneficiario" style={styles.td}>{dep.targetName}</td>
+                            <td data-label="Destino" style={styles.td}>{dep.targetName ? "Destino registrado" : "Destino no registrado"}</td>
                             <td data-label="Monto" style={{ ...styles.td, fontWeight: "700", color: "#dc2626" }}>-${dep.amount.toFixed(2)}</td>
                             <td data-label="Estado" style={styles.td}>
                               <span style={styles.badgeSuccess}>Exitoso</span>
