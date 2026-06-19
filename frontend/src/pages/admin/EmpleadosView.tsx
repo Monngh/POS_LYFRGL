@@ -102,7 +102,6 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const [branches, setBranches] = useState<BranchOption[]>([]);
 
-  // Alta / edición de empleado
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editActive, setEditActive] = useState(true);
@@ -111,7 +110,6 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Operaciones del vendedor
   const [ops, setOps] = useState<Operations | null>(null);
   const [opsLoading, setOpsLoading] = useState(false);
 
@@ -140,7 +138,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   }, [load]);
 
   useEffect(() => {
-    api.get<{ branches: BranchOption[] }>("/api/auth/branches").then((r) => setBranches(r.data.branches)).catch(() => {});
+    api.get<{ branches: BranchOption[] }>("/api/auth/branches").then((r) => setBranches(r.data.branches)).catch(() => { });
   }, []);
 
   const validateEmployeeForm = (candidate: FormState = form) => {
@@ -179,10 +177,10 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
     const commissionValidation = candidate.commissionRate.trim()
       ? validateDecimalField(candidate.commissionRate, "La comision de ventas", {
-          max: 100,
-          invalidMessage: "La comision de ventas debe ser un numero valido con maximo 3 decimales.",
-          maxMessage: "La comision de ventas no puede ser mayor a 100.",
-        })
+        max: 100,
+        invalidMessage: "La comision de ventas debe ser un numero valido con maximo 3 decimales.",
+        maxMessage: "La comision de ventas no puede ser mayor a 100.",
+      })
       : null;
     if (commissionValidation && !commissionValidation.ok) errors.commissionRate = commissionValidation.error;
 
@@ -253,10 +251,10 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
     const commissionValidation = form.commissionRate.trim()
       ? validateDecimalField(form.commissionRate, "La comision de ventas", {
-          max: 100,
-          invalidMessage: "La comision de ventas debe ser un numero valido con maximo 3 decimales.",
-          maxMessage: "La comision de ventas no puede ser mayor a 100.",
-        })
+        max: 100,
+        invalidMessage: "La comision de ventas debe ser un numero valido con maximo 3 decimales.",
+        maxMessage: "La comision de ventas no puede ser mayor a 100.",
+      })
       : null;
     if (commissionValidation && !commissionValidation.ok) {
       setFormError(commissionValidation.error);
@@ -324,14 +322,18 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const set = (k: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const raw = e.target.value;
-    const value =
-      k === "email"
-        ? normalizeEmailInput(raw)
-        : k === "phone"
-          ? normalizePhoneInput(raw).slice(0, 20)
-          : k === "pinCode" || k === "newPin"
-            ? normalizeIntegerInput(raw).slice(0, 4)
-            : raw;
+    let value: string;
+
+    if (k === "email") {
+      value = normalizeEmailInput(raw);
+    } else if (k === "phone") {
+      value = normalizePhoneInput(raw).slice(0, 20);
+    } else if (k === "pinCode" || k === "newPin") {
+      value = normalizeIntegerInput(raw).slice(0, 4);
+    } else {
+      value = raw;
+    }
+
     const nextForm = { ...form, [k]: value };
     const validation = validateEmployeeForm(nextForm);
     setForm(nextForm);
@@ -369,6 +371,28 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     });
   };
 
+  // Componente Mini interno que usa isMobile del padre
+  const Mini: React.FC<{ label: string; value: string; accent?: "blue" | "green" }> = ({ label, value, accent }) => {
+    const accentStyles = {
+      blue: { background: "#eff6ff", borderLeft: "4px solid #60a5fa" },
+      green: { background: "#f0fdf4", borderLeft: "4px solid #4ade80" },
+    };
+    const valueColor = accent === "blue" ? "#2563eb" : accent === "green" ? "#16a34a" : "var(--text)";
+    return (
+      <div style={{
+        border: "1px solid var(--border)",
+        borderRadius: 8,
+        padding: "8px 10px",
+        ...(accent ? accentStyles[accent] : {})
+      }}>
+        <div style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+          {label}
+        </div>
+        <div style={{ fontSize: isMobile ? 16 : 18, fontWeight: 800, color: valueColor, marginTop: 2 }}>{value}</div>
+      </div>
+    );
+  };
+
   return (
     <div>
       <SectionHeader
@@ -399,23 +423,21 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       </Toolbar>
 
       {isMobile ? (
-        /* ── Mobile / Tablet: Card-based layout ── */
-        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
-          {/* Header row mirroring the fields */}
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 4px" }}>
           <div style={{
             display: "grid",
-            gridTemplateColumns: "1.5fr 1fr 1fr 1.6fr",
-            padding: "12px 16px",
+            gridTemplateColumns: "1.2fr 1fr 1fr 1.2fr",
+            padding: "10px 12px",
             fontWeight: 700,
-            fontSize: 11,
+            fontSize: 10,
             color: "var(--text-muted)",
             textTransform: "uppercase",
-            letterSpacing: "0.4px",
+            letterSpacing: "0.3px",
           }}>
             <div>Sucursal</div>
             <div style={{ textAlign: "center" }}>Estado</div>
-            <div style={{ textAlign: "center" }}>Operaciones</div>
-            <div style={{ textAlign: "right", paddingRight: 8 }}>Acción</div>
+            <div style={{ textAlign: "center" }}>Ops</div>
+            <div style={{ textAlign: "right" }}>Acción</div>
           </div>
 
           {loading && (
@@ -450,50 +472,68 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     overflow: "hidden",
                   }}
                 >
-                  {/* Header: Nombre y Rol */}
                   <div style={{
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    padding: "8px 16px 6px 16px",
-                    fontSize: 11,
+                    padding: "6px 12px 5px 12px",
+                    fontSize: 10,
                     fontWeight: 700,
                     color: "var(--text-muted)",
                     borderBottom: "1px solid var(--surface-3)",
                     backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
+                    textTransform: "uppercase"
                   }}>
-                    <span>{u.name.toUpperCase()}</span>
-                    <Badge tone={roleTone(u.role)}>{u.role}</Badge>
+                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "55%" }}>
+                      {u.name}
+                    </span>
+                    <span style={{ fontSize: 9 }}>
+                      <Badge tone={roleTone(u.role)}>{u.role}</Badge>
+                    </span>
                   </div>
 
-                  {/* Fila principal */}
                   <div style={{
                     display: "grid",
-                    gridTemplateColumns: "1.5fr 1fr 1fr 1.6fr",
-                    padding: "12px 16px",
+                    gridTemplateColumns: "1.2fr 1fr 1fr 1.2fr",
+                    padding: "10px 12px",
                     alignItems: "center",
+                    gap: "4px"
                   }}>
-                    {/* Sucursal */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)" }}>
+                    <div style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "var(--text-secondary)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis"
+                    }}>
                       {u.branch}
                     </div>
 
-                    {/* Estado */}
                     <div style={{ display: "flex", justifyContent: "center" }}>
-                      <Badge tone={u.active ? "green" : "red"}>{u.active ? "Activo" : "Inactivo"}</Badge>
+                      <span style={{ fontSize: 9 }}>
+                        <Badge tone={u.active ? "green" : "red"}>
+                          {u.active ? "Activo" : "Inactivo"}
+                        </Badge>
+                      </span>
                     </div>
 
-                    {/* Operaciones */}
                     <div style={{ display: "flex", justifyContent: "center" }}>
-                      <button style={ui.linkBtn} className="active-tap" onClick={() => openOps(u.id)}>
-                        <Activity size={14} style={{ verticalAlign: "-2px" }} /> Ver
+                      <button
+                        style={{
+                          ...ui.linkBtn,
+                          fontSize: 11,
+                          padding: "4px 8px"
+                        }}
+                        className="active-tap"
+                        onClick={() => openOps(u.id)}
+                      >
+                        <Activity size={13} style={{ verticalAlign: "-2px" }} /> Ver
                       </button>
                     </div>
 
-                    {/* Botones de Acción */}
-                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
-                      {/* Pencil/Editar */}
+                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6 }}>
                       <button
                         onClick={() => openEdit(u)}
                         style={{
@@ -502,9 +542,9 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           justifyContent: "center",
                           backgroundColor: "#eff6ff",
                           border: "1px solid #bfdbfe",
-                          borderRadius: 8,
-                          width: 34,
-                          height: 34,
+                          borderRadius: 6,
+                          width: 30,
+                          height: 30,
                           cursor: "pointer",
                           color: "var(--accent-strong)",
                           padding: 0,
@@ -512,10 +552,9 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         className="active-tap"
                         title="Editar empleado"
                       >
-                        <Pencil size={14} />
+                        <Pencil size={13} />
                       </button>
 
-                      {/* Chevron */}
                       <button
                         onClick={() => toggleExpandEmployee(u.id)}
                         style={{
@@ -524,60 +563,61 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           justifyContent: "center",
                           backgroundColor: "var(--surface)",
                           border: "1px solid var(--border-strong)",
-                          borderRadius: 8,
-                          width: 34,
-                          height: 34,
+                          borderRadius: 6,
+                          width: 30,
+                          height: 30,
                           cursor: "pointer",
                           color: "var(--text-muted)",
                           padding: 0,
                         }}
                         className="active-tap"
                       >
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       </button>
                     </div>
                   </div>
 
-                  {/* Detalle expandido */}
                   {isExpanded && (
                     <div style={{
-                      padding: "16px",
-                      margin: "0 16px 16px 16px",
+                      padding: "12px",
+                      margin: "0 12px 12px 12px",
                       backgroundColor: "var(--surface-2)",
                       borderRadius: "8px",
                       border: "1px solid var(--border)",
                       display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                      gap: "16px",
+                      gridTemplateColumns: "1fr",
+                      gap: "10px",
                       textAlign: "left",
                     }}>
-                      {/* Información de Contacto */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Contacto y Registro</h4>
-                        <div style={empDetailRow}>
+                        <h4 style={{ fontSize: 11, fontWeight: 800, color: "var(--text)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                          Contacto y Registro
+                        </h4>
+                        <div style={{ ...empDetailRow, fontSize: 12 }}>
                           <span style={empDetailLabel}>Correo:</span>
-                          <span style={empDetailValue}>{u.email}</span>
+                          <span style={{ ...empDetailValue, wordBreak: "break-word" }}>{u.email}</span>
                         </div>
-                        <div style={empDetailRow}>
+                        <div style={{ ...empDetailRow, fontSize: 12 }}>
                           <span style={empDetailLabel}>Teléfono:</span>
                           <span style={empDetailValue}>{u.phone || "—"}</span>
                         </div>
-                        <div style={empDetailRow}>
+                        <div style={{ ...empDetailRow, fontSize: 12 }}>
                           <span style={empDetailLabel}>F. Alta:</span>
                           <span style={empDetailValue}>{fmtDate(u.createdAt)}</span>
                         </div>
                       </div>
 
-                      {/* Configuración Salarial */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Sueldo y Comisiones</h4>
-                        <div style={empDetailRow}>
+                        <h4 style={{ fontSize: 11, fontWeight: 800, color: "var(--text)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                          Sueldo y Comisiones
+                        </h4>
+                        <div style={{ ...empDetailRow, fontSize: 12 }}>
                           <span style={empDetailLabel}>Sueldo base:</span>
                           <span style={empDetailValue}>
                             {u.baseSalary != null ? money(u.baseSalary) : "—"}
                           </span>
                         </div>
-                        <div style={empDetailRow}>
+                        <div style={{ ...empDetailRow, fontSize: 12 }}>
                           <span style={empDetailLabel}>Comisión:</span>
                           <span style={empDetailValue}>
                             {u.commissionRate != null ? `${u.commissionRate}%` : "—"}
@@ -591,7 +631,6 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             })}
         </div>
       ) : (
-        /* ── Desktop: Standard table ── */
         <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
           <table style={ui.table}>
             <thead>
@@ -630,7 +669,15 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <td style={{ ...ui.td, textAlign: "center" }}>
                       <button
                         onClick={() => openEdit(u)}
-                        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 4, color: "var(--accent-strong)" }}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: "4px 6px",
+                          borderRadius: 4,
+                          color: "var(--accent-strong)"
+                        }}
+                        className="active-tap"
                         title="Editar empleado"
                       >
                         <Pencil size={14} />
@@ -646,7 +693,17 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       {/* Modal alta / edición de empleado */}
       {showForm && (
         <div style={ui.overlay} onClick={closeForm}>
-          <form style={ui.modal} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+          <form
+            style={{
+              ...ui.modal,
+              maxWidth: 560,
+              maxHeight: "90vh",
+              overflowY: "auto",
+              padding: isMobile ? "16px" : "24px"
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={submit}
+          >
             <div style={ui.modalHeader}>
               <span style={ui.modalTitle}>{editingId !== null ? "Editar empleado" : "Registrar nuevo empleado"}</span>
               <button type="button" style={ui.linkBtn} onClick={closeForm}>
@@ -665,15 +722,13 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 {fieldErrors.email && <p style={styles.fieldError}>{fieldErrors.email}</p>}
               </div>
 
-              {/* Teléfono */}
               <div style={{ marginBottom: 14 }}>
                 <label style={ui.fieldLabel}>Teléfono</label>
                 <input style={ui.input} value={form.phone} onChange={set("phone")} placeholder="771 000 0000" />
                 {fieldErrors.phone && <p style={styles.fieldError}>{fieldErrors.phone}</p>}
               </div>
 
-              {/* Sueldo base + % comisión */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 14 }}>
                 <div>
                   <label style={ui.fieldLabel}>Sueldo base ($)</label>
                   <input style={ui.input} type="text" inputMode="decimal" value={form.baseSalary} onChange={setDecimal("baseSalary")} placeholder="0.00" />
@@ -687,10 +742,9 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 </div>
               </div>
 
-              {/* Solo en creación: rol, sucursal, contraseña, PIN */}
               {editingId === null && (
                 <>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 14 }}>
                     <div>
                       <label style={ui.fieldLabel}>Rol *</label>
                       <select style={ui.input} value={form.role} onChange={set("role")}>
@@ -711,7 +765,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       {fieldErrors.branchId && <p style={styles.fieldError}>{fieldErrors.branchId}</p>}
                     </div>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 6 }}>
                     <div>
                       <label style={ui.fieldLabel}>Contraseña *</label>
                       <input style={ui.input} type="password" value={form.password} onChange={set("password")} placeholder="Mínimo 6 caracteres" />
@@ -734,7 +788,6 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 </>
               )}
 
-              {/* Solo en edición: nuevo PIN + estado activo */}
               {editingId !== null && (
                 <>
                   <div style={{ marginBottom: 14 }}>
@@ -759,11 +812,34 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
               {formError && <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 10 }}>{formError}</p>}
 
-              <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-                <button type="button" style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={closeForm}>
+              <div style={{
+                display: "flex",
+                gap: 10,
+                marginTop: 20,
+                flexDirection: isMobile ? "column" : "row"
+              }}>
+                <button
+                  type="button"
+                  style={{
+                    ...ui.ghostBtn,
+                    flex: 1,
+                    justifyContent: "center",
+                    width: isMobile ? "100%" : "auto"
+                  }}
+                  onClick={closeForm}
+                >
                   Cancelar
                 </button>
-                <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  style={{
+                    ...ui.primaryBtn,
+                    flex: 1,
+                    justifyContent: "center",
+                    width: isMobile ? "100%" : "auto"
+                  }}
+                >
                   {saving ? "Guardando..." : editingId !== null ? "Actualizar empleado" : "Registrar empleado"}
                 </button>
               </div>
@@ -785,6 +861,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               borderRadius: isMobile ? 0 : 12,
               margin: 0,
               overflowY: "auto",
+              padding: isMobile ? "16px" : "24px"
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -796,7 +873,12 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </div>
             {ops && (
               <div style={ui.modalBody}>
-                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(3, 1fr)", gap: 10, marginBottom: 18 }}>
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(3, 1fr)",
+                  gap: 8,
+                  marginBottom: 18
+                }}>
                   <Mini label="Ventas" value={String(ops.summary.salesCount)} />
                   <Mini label="Total vendido" value={money(ops.summary.salesTotal)} />
                   <Mini label="Canceladas" value={String(ops.summary.cancelledCount)} />
@@ -811,11 +893,13 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   )}
                 </div>
 
-                <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)", marginBottom: 8 }}>Últimas ventas</h4>
+                <h4 style={{ fontSize: 12, fontWeight: 800, color: "var(--accent-strong)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                  Últimas ventas
+                </h4>
                 {isMobile ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18, overflowY: "auto", maxHeight: 220, paddingRight: 4 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 18, overflowY: "auto", maxHeight: 220, paddingRight: 4 }}>
                     {ops.recentSales.length === 0 ? (
-                      <p style={{ textAlign: "center", color: "var(--text-faint)", fontSize: 13, padding: 12 }}>Sin ventas registradas.</p>
+                      <p style={{ textAlign: "center", color: "var(--text-faint)", fontSize: 12, padding: 12 }}>Sin ventas registradas.</p>
                     ) : (
                       ops.recentSales.map((s) => (
                         <div
@@ -824,17 +908,19 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             backgroundColor: "var(--surface)",
                             border: "1px solid var(--border)",
                             borderRadius: 10,
-                            padding: "10px 14px",
+                            padding: "8px 12px",
                             display: "flex",
                             flexDirection: "column",
-                            gap: 6,
+                            gap: 4,
                           }}
                         >
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontWeight: 700, color: "var(--accent-strong)", fontSize: 13 }}>{s.invoiceNumber}</span>
-                            <Badge tone={statusTone(s.status)}>{s.status}</Badge>
+                            <span style={{ fontWeight: 700, color: "var(--accent-strong)", fontSize: 12 }}>{s.invoiceNumber}</span>
+                            <span style={{ fontSize: 9 }}>
+                              <Badge tone={statusTone(s.status)}>{s.status}</Badge>
+                            </span>
                           </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-secondary)" }}>
                             <span>{fmtDate(s.createdAt)} {fmtTime(s.createdAt)}</span>
                             <span style={{ fontWeight: 700, color: "var(--text)" }}>{money(s.totalAmount)}</span>
                           </div>
@@ -868,11 +954,13 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   </div>
                 )}
 
-                <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)", marginBottom: 8 }}>Últimos turnos de caja</h4>
+                <h4 style={{ fontSize: 12, fontWeight: 800, color: "var(--accent-strong)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                  Últimos turnos de caja
+                </h4>
                 {isMobile ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8, overflowY: "auto", maxHeight: 220, paddingRight: 4 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, overflowY: "auto", maxHeight: 220, paddingRight: 4 }}>
                     {ops.recentSessions.length === 0 ? (
-                      <p style={{ textAlign: "center", color: "var(--text-faint)", fontSize: 13, padding: 12 }}>Sin turnos registrados.</p>
+                      <p style={{ textAlign: "center", color: "var(--text-faint)", fontSize: 12, padding: 12 }}>Sin turnos registrados.</p>
                     ) : (
                       ops.recentSessions.map((s) => (
                         <div
@@ -881,19 +969,24 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             backgroundColor: "var(--surface)",
                             border: "1px solid var(--border)",
                             borderRadius: 10,
-                            padding: "10px 14px",
+                            padding: "8px 12px",
                             display: "flex",
                             flexDirection: "column",
-                            gap: 6,
+                            gap: 4,
                           }}
                         >
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontWeight: 700, color: "var(--accent-strong)", fontSize: 13 }}>Turno #{s.id}</span>
-                            <Badge tone={statusTone(s.status)}>{s.status}</Badge>
+                            <span style={{ fontWeight: 700, color: "var(--accent-strong)", fontSize: 12 }}>Turno #{s.id}</span>
+                            <span style={{ fontSize: 9 }}>
+                              <Badge tone={statusTone(s.status)}>{s.status}</Badge>
+                            </span>
                           </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-secondary)" }}>
                             <span>{fmtDate(s.openedAt)} {fmtTime(s.openedAt)}</span>
-                            <span style={{ fontWeight: 700, color: s.difference && s.difference < 0 ? "#b91c1c" : "var(--text-secondary)" }}>
+                            <span style={{
+                              fontWeight: 700,
+                              color: s.difference && s.difference < 0 ? "#b91c1c" : "var(--text-secondary)"
+                            }}>
                               {s.difference !== null ? money(s.difference) : "—"}
                             </span>
                           </div>
@@ -950,35 +1043,23 @@ const empDetailRow: React.CSSProperties = {
   display: "flex",
   justifyContent: "flex-start",
   alignItems: "center",
-  gap: "8px",
-  fontSize: 13,
-  marginBottom: 6,
+  gap: "6px",
+  marginBottom: 4,
 };
 
 const empDetailLabel: React.CSSProperties = {
   fontWeight: 700,
   color: "var(--text-muted)",
-  minWidth: "95px",
+  minWidth: "70px",
   display: "inline-block",
+  fontSize: "inherit",
 };
 
 const empDetailValue: React.CSSProperties = {
   fontWeight: 600,
   color: "var(--text-secondary)",
-};
-
-const Mini: React.FC<{ label: string; value: string; accent?: "blue" | "green" }> = ({ label, value, accent }) => {
-  const accentStyles = {
-    blue: { background: "#eff6ff", borderLeft: "4px solid #60a5fa" },
-    green: { background: "#f0fdf4", borderLeft: "4px solid #4ade80" },
-  };
-  const valueColor = accent === "blue" ? "#2563eb" : accent === "green" ? "#16a34a" : "var(--text)";
-  return (
-    <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "10px 12px", ...(accent ? accentStyles[accent] : {}) }}>
-      <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 800, color: valueColor, marginTop: 3 }}>{value}</div>
-    </div>
-  );
+  fontSize: "inherit",
+  wordBreak: "break-word",
 };
 
 export default EmpleadosView;

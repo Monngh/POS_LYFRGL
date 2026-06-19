@@ -303,22 +303,22 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
       {isMobile ? (
         <div style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-          <div style={{ padding: "8px 16px" }}>
-            {/* Cabecera de columnas */}
+          <div style={{ padding: "8px 8px" }}> {/* Reducido el padding para móvil */}
+            {/* Cabecera de columnas - más compacta */}
             <div style={{
               display: "grid",
-              gridTemplateColumns: "1.5fr 2.5fr 1.5fr 1.5fr",
-              padding: "12px 16px",
+              gridTemplateColumns: "1.2fr 2fr 1.2fr 1.2fr",
+              padding: "10px 12px",
               fontWeight: 700,
-              fontSize: 11,
+              fontSize: 10,
               color: "var(--text-muted)",
               textTransform: "uppercase",
-              letterSpacing: "0.4px"
+              letterSpacing: "0.3px"
             }}>
               <div>Folio</div>
               <div>Fecha</div>
-              <div>Precio</div>
-              <div style={{ textAlign: "right", paddingRight: 8 }}>Mas</div>
+              <div>Total</div>
+              <div style={{ textAlign: "right" }}>Acciones</div>
             </div>
 
             {loading && (
@@ -349,8 +349,8 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     style={{
                       backgroundColor: "var(--surface)",
                       border: "1px solid var(--border)",
-                      borderRadius: 12,
-                      marginBottom: 10,
+                      borderRadius: 10,
+                      marginBottom: 8,
                       boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
                       overflow: "hidden",
                     }}
@@ -359,27 +359,29 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <div style={{
                       display: "flex",
                       justifyContent: "space-between",
-                      padding: "8px 16px 6px 16px",
-                      fontSize: 11,
+                      padding: "6px 12px 5px 12px",
+                      fontSize: 10,
                       fontWeight: 700,
                       color: "var(--text-muted)",
                       borderBottom: "1px solid var(--surface-3)",
                       backgroundColor: "var(--surface-2)",
-                      letterSpacing: "0.2px"
+                      letterSpacing: "0.2px",
+                      textTransform: "uppercase"
                     }}>
-                      <span>{s.branch.toUpperCase()}</span>
-                      <span>CAJERO: {s.cajero.toUpperCase()}</span>
+                      <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "45%" }}>{s.branch}</span>
+                      <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "45%" }}>Cajero: {s.cajero}</span>
                     </div>
 
                     {/* Fila base */}
                     <div style={{
                       display: "grid",
-                      gridTemplateColumns: "1.5fr 2.5fr 1.5fr 1.5fr",
-                      padding: "12px 16px",
+                      gridTemplateColumns: "1.2fr 2fr 1.2fr 1.2fr",
+                      padding: "10px 12px",
                       alignItems: "center",
+                      gap: "4px"
                     }}>
                       {/* Folio */}
-                      <div>
+                      <div style={{ minWidth: 0 }}>
                         <button
                           onClick={() => openDetail(s.id)}
                           style={{
@@ -389,8 +391,10 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             fontWeight: 700,
                             cursor: "pointer",
                             padding: 0,
-                            fontSize: 13,
+                            fontSize: 12,
                             textAlign: "left",
+                            wordBreak: "break-word",
+                            maxWidth: "100%"
                           }}
                           className="active-tap"
                         >
@@ -399,18 +403,18 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       </div>
 
                       {/* Fecha */}
-                      <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                      <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
                         <div>{fmtDate(s.createdAt)}</div>
-                        <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2 }}>{fmtTime(s.createdAt)}</div>
+                        <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 1 }}>{fmtTime(s.createdAt)}</div>
                       </div>
 
                       {/* Precio */}
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", whiteSpace: "nowrap" }}>
                         {money(s.totalAmount)}
                       </div>
 
                       {/* Acciones (MAS) */}
-                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, alignItems: "center" }}>
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, alignItems: "center" }}>
                         <button
                           onClick={() => toggleExpand(s.id)}
                           style={{
@@ -419,16 +423,16 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             justifyContent: "center",
                             backgroundColor: "var(--surface)",
                             border: "1px solid var(--border-strong)",
-                            borderRadius: 8,
-                            width: 34,
-                            height: 34,
+                            borderRadius: 6,
+                            width: 30,
+                            height: 30,
                             cursor: "pointer",
                             color: "var(--text-muted)",
                             padding: 0,
                           }}
                           className="active-tap"
                         >
-                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                          {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                         </button>
                         <button
                           onClick={() => openDetail(s.id)}
@@ -438,16 +442,16 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             justifyContent: "center",
                             backgroundColor: "var(--surface)",
                             border: "1px solid var(--border-strong)",
-                            borderRadius: 8,
-                            width: 34,
-                            height: 34,
+                            borderRadius: 6,
+                            width: 30,
+                            height: 30,
                             cursor: "pointer",
                             color: "var(--text-muted)",
                             padding: 0,
                           }}
                           className="active-tap"
                         >
-                          <Eye size={16} />
+                          <Eye size={14} />
                         </button>
                       </div>
                     </div>
@@ -455,50 +459,54 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     {/* Tarjeta desplegable de datos adicionales */}
                     {isExpanded && (
                       <div style={{
-                        padding: "16px",
-                        margin: "0 16px 16px 16px",
+                        padding: "12px",
+                        margin: "0 12px 12px 12px",
                         backgroundColor: "var(--surface-2)",
-                        borderRadius: "8px",
+                        borderRadius: "6px",
                         border: "1px solid var(--border)",
                         display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                        gap: "16px",
+                        gridTemplateColumns: "1fr",
+                        gap: "12px",
                       }}>
                         {/* Datos de la Transacción */}
                         <div>
-                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Datos de la Transacción</h4>
-                          <div style={detailRowStyle}>
+                          <h4 style={{ fontSize: 11, fontWeight: 800, color: "var(--text)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.3px" }}>Datos de la Transacción</h4>
+                          <div style={{ ...detailRowStyle, fontSize: 12 }}>
                             <span style={detailLabelStyle}>Folio:</span>
                             <span style={detailValueStyle}>{s.invoiceNumber}</span>
                           </div>
-                          <div style={detailRowStyle}>
+                          <div style={{ ...detailRowStyle, fontSize: 12 }}>
                             <span style={detailLabelStyle}>Fecha:</span>
                             <span style={detailValueStyle}>{fmtDate(s.createdAt)} {fmtTime(s.createdAt)}</span>
                           </div>
-                          <div style={detailRowStyle}>
+                          <div style={{ ...detailRowStyle, fontSize: 12 }}>
                             <span style={detailLabelStyle}>Cajero:</span>
                             <span style={detailValueStyle}>{s.cajero}</span>
+                          </div>
+                          <div style={{ ...detailRowStyle, fontSize: 12 }}>
+                            <span style={detailLabelStyle}>Sucursal:</span>
+                            <span style={detailValueStyle}>{s.branch}</span>
                           </div>
                         </div>
 
                         {/* Detalle de Venta */}
                         <div>
-                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Detalle de Venta</h4>
-                          <div style={detailRowStyle}>
+                          <h4 style={{ fontSize: 11, fontWeight: 800, color: "var(--text)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.3px" }}>Detalle de Venta</h4>
+                          <div style={{ ...detailRowStyle, fontSize: 12 }}>
                             <span style={detailLabelStyle}>Cliente:</span>
-                            <span style={detailValueStyle}>{s.customer}</span>
+                            <span style={detailValueStyle}>{s.customer || "Público General"}</span>
                           </div>
-                          <div style={detailRowStyle}>
+                          <div style={{ ...detailRowStyle, fontSize: 12 }}>
                             <span style={detailLabelStyle}>Artículos:</span>
                             <span style={detailValueStyle}>{s.items}</span>
                           </div>
-                          <div style={detailRowStyle}>
+                          <div style={{ ...detailRowStyle, fontSize: 12 }}>
                             <span style={detailLabelStyle}>Método:</span>
                             <span style={detailValueStyle}>
                               <Badge tone={payTone(s.paymentMethod)}>{formattedMethod}</Badge>
                             </span>
                           </div>
-                          <div style={detailRowStyle}>
+                          <div style={{ ...detailRowStyle, fontSize: 12 }}>
                             <span style={detailLabelStyle}>Estado:</span>
                             <span style={detailValueStyle}>
                               <Badge tone={statusTone(s.status)}>{formattedStatus}</Badge>
@@ -508,10 +516,10 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                         {/* Resumen de Pago */}
                         <div>
-                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Resumen de Pago</h4>
-                          <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 8 }}>
-                            <span style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>Total:</span>
-                            <span style={{ fontSize: 20, fontWeight: 800, color: "var(--accent-strong)" }}>{moneyExact(s.totalAmount)}</span>
+                          <h4 style={{ fontSize: 11, fontWeight: 800, color: "var(--text)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.3px" }}>Resumen de Pago</h4>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 4 }}>
+                            <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>Total:</span>
+                            <span style={{ fontSize: 18, fontWeight: 800, color: "var(--accent-strong)" }}>{moneyExact(s.totalAmount)}</span>
                           </div>
                         </div>
                       </div>
@@ -657,7 +665,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       {/* Modal de detalle */}
       {(detail || detailLoading) && (
         <div style={ui.overlay} onClick={() => setDetail(null)}>
-          <div style={{ ...ui.modal, maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ ...ui.modal, maxWidth: isMobile ? "95%" : 520 }} onClick={(e) => e.stopPropagation()}>
             <div style={ui.modalHeader}>
               <span style={ui.modalTitle}>{detailLoading ? "Cargando venta..." : `Venta ${detail?.invoiceNumber}`}</span>
               <button style={ui.linkBtn} onClick={() => setDetail(null)}>
@@ -666,7 +674,12 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </div>
             {detail && (
               <div style={ui.modalBody}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+                  gap: isMobile ? 8 : 10,
+                  marginBottom: 16
+                }}>
                   <Info label="Fecha" value={`${fmtDate(detail.createdAt)} ${fmtTime(detail.createdAt)}`} />
                   <Info label="Estado" value={<Badge tone={statusTone(detail.status)}>{detail.status}</Badge>} />
                   <Info label="Sucursal" value={detail.branch} />
@@ -679,12 +692,12 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   /* ── Mobile / Tablet: Card-based product list ── */
                   <div style={{ marginBottom: 14 }}>
                     <div style={{
-                      fontSize: 11,
+                      fontSize: 10,
                       fontWeight: 700,
                       color: "var(--text-faint)",
                       textTransform: "uppercase",
                       letterSpacing: "0.5px",
-                      padding: "0 0 10px 0",
+                      padding: "0 0 8px 0",
                       borderBottom: "1px solid var(--border)",
                       marginBottom: 0,
                     }}>
@@ -694,36 +707,35 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       <div
                         key={i}
                         style={{
-                          padding: "14px 0",
+                          padding: "10px 0",
                           borderBottom: i < detail.items.length - 1 ? "1px solid var(--surface-3)" : "none",
                         }}
                       >
                         {/* Row 1: Product name + Cantidad badge */}
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text)", lineHeight: 1.3 }}>{it.name}</div>
-                            <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2, fontWeight: 600 }}>{it.sku}</div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                          <div style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text)", lineHeight: 1.2 }}>{it.name}</div>
+                            <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 1, fontWeight: 600 }}>{it.sku}</div>
                           </div>
                           <div style={{
                             border: "1px solid var(--border)",
-                            borderRadius: 8,
-                            padding: "4px 12px",
-                            fontSize: 12,
+                            borderRadius: 6,
+                            padding: "2px 10px",
+                            fontSize: 11,
                             fontWeight: 600,
                             color: "var(--text-secondary)",
                             backgroundColor: "var(--surface)",
                             whiteSpace: "nowrap",
-                            marginLeft: 12,
                           }}>
-                            Cantidad: <strong>{it.quantity}</strong>
+                            Cant: <strong>{it.quantity}</strong>
                           </div>
                         </div>
                         {/* Row 2: Unitario + Importe */}
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 500 }}>
+                          <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
                             Unitario: {moneyExact(it.unitPrice)}
                           </span>
-                          <span style={{ fontSize: 14, color: "var(--text)" }}>
+                          <span style={{ fontSize: 13, color: "var(--text)" }}>
                             Importe: <strong style={{ fontWeight: 800 }}>{moneyExact(it.importe)}</strong>
                           </span>
                         </div>
@@ -733,45 +745,52 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 ) : (
                   /* ── Desktop: Standard table ── */
                   <div style={{ ...ui.tableWrap, boxShadow: "none", marginBottom: 14 }}>
-                  <table style={ui.table}>
-                    <thead>
-                      <tr style={ui.theadRow}>
-                        <th style={ui.th}>Producto</th>
-                        <th style={{ ...ui.th, textAlign: "center" }}>Cant</th>
-                        <th style={{ ...ui.th, textAlign: "right" }}>P. unit.</th>
-                        <th style={{ ...ui.th, textAlign: "right" }}>Importe</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detail.items.map((it, i) => (
-                        <tr key={i}>
-                          <td style={ui.td}>
-                            <div style={{ fontWeight: 600 }}>{it.name}</div>
-                            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{it.sku}</div>
-                          </td>
-                          <td style={{ ...ui.td, textAlign: "center" }}>{it.quantity}</td>
-                          <td style={{ ...ui.td, textAlign: "right", color: "var(--text-muted)" }}>{moneyExact(it.unitPrice)}</td>
-                          <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{moneyExact(it.importe)}</td>
+                    <table style={ui.table}>
+                      <thead>
+                        <tr style={ui.theadRow}>
+                          <th style={ui.th}>Producto</th>
+                          <th style={{ ...ui.th, textAlign: "center" }}>Cant</th>
+                          <th style={{ ...ui.th, textAlign: "right" }}>P. unit.</th>
+                          <th style={{ ...ui.th, textAlign: "right" }}>Importe</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {detail.items.map((it, i) => (
+                          <tr key={i}>
+                            <td style={ui.td}>
+                              <div style={{ fontWeight: 600 }}>{it.name}</div>
+                              <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{it.sku}</div>
+                            </td>
+                            <td style={{ ...ui.td, textAlign: "center" }}>{it.quantity}</td>
+                            <td style={{ ...ui.td, textAlign: "right", color: "var(--text-muted)" }}>{moneyExact(it.unitPrice)}</td>
+                            <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{moneyExact(it.importe)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
 
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <Row label="Subtotal" value={moneyExact(detail.subtotal)} />
                   {detail.discountAmount > 0 && <Row label="Descuento" value={`- ${moneyExact(detail.discountAmount)}`} />}
                   <Row label="IVA (16%)" value={moneyExact(detail.taxAmount)} />
-                  <div style={{ borderTop: "1px solid var(--border)", marginTop: 4, paddingTop: 8 }}>
+                  <div style={{ borderTop: "1px solid var(--border)", marginTop: 4, paddingTop: 6 }}>
                     <Row label="Total" value={moneyExact(detail.totalAmount)} strong />
                   </div>
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20 }}>
+                <div style={{
+                  display: "flex",
+                  flexDirection: isMobile ? "column" : "row",
+                  justifyContent: "space-between",
+                  alignItems: isMobile ? "stretch" : "center",
+                  marginTop: 16,
+                  gap: isMobile ? 8 : 0
+                }}>
                   {detail.status !== "CANCELADA" ? (
                     <button
-                      style={{ ...ui.primaryBtn, backgroundColor: "#dc2626" }}
+                      style={{ ...ui.primaryBtn, backgroundColor: "#dc2626", width: isMobile ? "100%" : "auto" }}
                       className="active-tap"
                       onClick={openPinModal}
                     >
@@ -780,7 +799,11 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   ) : (
                     <span />
                   )}
-                  <button style={ui.primaryBtn} className="active-tap" onClick={() => reprintTicket(detail)}>
+                  <button
+                    style={{ ...ui.primaryBtn, width: isMobile ? "100%" : "auto" }}
+                    className="active-tap"
+                    onClick={() => reprintTicket(detail)}
+                  >
                     <Printer size={15} /> Reimprimir ticket
                   </button>
                 </div>
@@ -832,21 +855,24 @@ const detailRowStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "flex-start",
   alignItems: "center",
-  gap: "8px",
+  gap: "6px",
   fontSize: 13,
-  marginBottom: 6,
+  marginBottom: 4,
 };
 
 const detailLabelStyle: React.CSSProperties = {
   fontWeight: 700,
   color: "var(--text-muted)",
-  minWidth: "85px",
+  minWidth: "70px",
   display: "inline-block",
+  fontSize: "inherit",
 };
 
 const detailValueStyle: React.CSSProperties = {
   fontWeight: 600,
   color: "var(--text-secondary)",
+  fontSize: "inherit",
+  wordBreak: "break-word",
 };
 
 export default VentasView;

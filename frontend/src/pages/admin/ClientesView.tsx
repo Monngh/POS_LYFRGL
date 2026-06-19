@@ -21,7 +21,6 @@ import {
   useMediaQuery,
 } from "./shared";
 
-
 interface CustomerRow {
   id: number;
   name: string;
@@ -313,8 +312,8 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const set =
     (k: keyof typeof emptyForm) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-      updateFormField(k, e.target.value);
+      (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+        updateFormField(k, e.target.value);
 
   const setCreditLimit = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.trim();
@@ -389,23 +388,22 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
       </Toolbar>
 
       {isMobile ? (
-        /* ── Mobile / Tablet: Card-based layout ── */
-        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
-          {/* Header row mirroring the fields */}
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 4px" }}>
+          {/* Header row - más compacto */}
           <div style={{
             display: "grid",
-            gridTemplateColumns: "1.2fr 1fr 2fr 1.6fr",
-            padding: "12px 16px",
+            gridTemplateColumns: "1.2fr 1fr 1.8fr 1.2fr",
+            padding: "10px 12px",
             fontWeight: 700,
-            fontSize: 11,
+            fontSize: 10,
             color: "var(--text-muted)",
             textTransform: "uppercase",
-            letterSpacing: "0.4px",
+            letterSpacing: "0.3px",
           }}>
             <div>Saldo</div>
             <div style={{ textAlign: "center" }}>Compras</div>
             <div>Contacto</div>
-            <div style={{ textAlign: "right", paddingRight: 8 }}>Acción</div>
+            <div style={{ textAlign: "right" }}>Acción</div>
           </div>
 
           {loading && (
@@ -413,13 +411,19 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
               Cargando información...
             </div>
           )}
-          {!loading && rows.length === 0 && (
+          {error && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
+              {error}
+            </div>
+          )}
+          {!loading && !error && rows.length === 0 && (
             <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               No hay clientes registrados.
             </div>
           )}
 
           {!loading &&
+            !error &&
             rows.map((c) => {
               const isExpanded = expandedCustomers[c.id];
               return (
@@ -439,24 +443,28 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    padding: "8px 16px 6px 16px",
-                    fontSize: 11,
+                    padding: "6px 12px 5px 12px",
+                    fontSize: 10,
                     fontWeight: 700,
                     color: "var(--text-muted)",
                     borderBottom: "1px solid var(--surface-3)",
                     backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
+                    textTransform: "uppercase"
                   }}>
-                    <span>{c.name.toUpperCase()}</span>
-                    <span style={{ fontFamily: "monospace" }}>{c.taxId || "SIN RFC"}</span>
+                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "55%" }}>
+                      {c.name}
+                    </span>
+                    <span style={{ fontFamily: "monospace", fontSize: 10 }}>{c.taxId || "SIN RFC"}</span>
                   </div>
 
                   {/* Fila principal */}
                   <div style={{
                     display: "grid",
-                    gridTemplateColumns: "1.2fr 1fr 2fr 1.6fr",
-                    padding: "12px 16px",
+                    gridTemplateColumns: "1.2fr 1fr 1.8fr 1.2fr",
+                    padding: "10px 12px",
                     alignItems: "center",
+                    gap: "4px"
                   }}>
                     {/* Saldo */}
                     <div style={{ fontSize: 13, fontWeight: 700, color: c.balance > 0 ? "#b91c1c" : "var(--text-secondary)" }}>
@@ -469,13 +477,18 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     </div>
 
                     {/* Contacto */}
-                    <div style={{ fontSize: 12, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{
+                      fontSize: 11,
+                      color: "var(--text-secondary)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap"
+                    }}>
                       {c.phone || c.email || "—"}
                     </div>
 
                     {/* Botones de Acción */}
-                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
-                      {/* Pencil/Editar */}
+                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6 }}>
                       <button
                         onClick={() => openEdit(c)}
                         style={{
@@ -484,9 +497,9 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           justifyContent: "center",
                           backgroundColor: "#eff6ff",
                           border: "1px solid #bfdbfe",
-                          borderRadius: 8,
-                          width: 34,
-                          height: 34,
+                          borderRadius: 6,
+                          width: 30,
+                          height: 30,
                           cursor: "pointer",
                           color: "var(--accent-strong)",
                           padding: 0,
@@ -494,10 +507,9 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                         className="active-tap"
                         title="Editar cliente"
                       >
-                        <Pencil size={14} />
+                        <Pencil size={13} />
                       </button>
 
-                      {/* Chevron */}
                       <button
                         onClick={() => toggleExpandCustomer(c.id)}
                         style={{
@@ -506,49 +518,51 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           justifyContent: "center",
                           backgroundColor: "var(--surface)",
                           border: "1px solid var(--border-strong)",
-                          borderRadius: 8,
-                          width: 34,
-                          height: 34,
+                          borderRadius: 6,
+                          width: 30,
+                          height: 30,
                           cursor: "pointer",
                           color: "var(--text-muted)",
                           padding: 0,
                         }}
                         className="active-tap"
                       >
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       </button>
                     </div>
                   </div>
 
-                  {/* Detalle expandido */}
+                  {/* Detalle expandido - más compacto */}
                   {isExpanded && (
                     <div style={{
-                      padding: "16px",
-                      margin: "0 16px 16px 16px",
+                      padding: "12px",
+                      margin: "0 12px 12px 12px",
                       backgroundColor: "var(--surface-2)",
                       borderRadius: "8px",
                       border: "1px solid var(--border)",
                       display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                      gap: "16px",
+                      gridTemplateColumns: "1fr",
+                      gap: "10px",
                       textAlign: "left",
                     }}>
                       {/* Datos Fiscales */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Datos CFDI</h4>
-                        <div style={cliDetailRow}>
+                        <h4 style={{ fontSize: 11, fontWeight: 800, color: "var(--text)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                          Datos CFDI
+                        </h4>
+                        <div style={{ ...cliDetailRow, fontSize: 12 }}>
                           <span style={cliDetailLabel}>RFC:</span>
-                          <span style={{ ...cliDetailValue, fontFamily: "monospace" }}>{c.taxId || "—"}</span>
+                          <span style={{ ...cliDetailValue, fontFamily: "monospace", fontSize: 11 }}>{c.taxId || "—"}</span>
                         </div>
-                        <div style={cliDetailRow}>
+                        <div style={{ ...cliDetailRow, fontSize: 12 }}>
                           <span style={cliDetailLabel}>C. Postal:</span>
                           <span style={cliDetailValue}>{c.zipCode || "—"}</span>
                         </div>
-                        <div style={cliDetailRow}>
+                        <div style={{ ...cliDetailRow, fontSize: 12 }}>
                           <span style={cliDetailLabel}>Régimen:</span>
                           <span style={cliDetailValue}>{c.taxRegime || "—"}</span>
                         </div>
-                        <div style={cliDetailRow}>
+                        <div style={{ ...cliDetailRow, fontSize: 12 }}>
                           <span style={cliDetailLabel}>Uso CFDI:</span>
                           <span style={cliDetailValue}>{c.cfdiUse || "—"}</span>
                         </div>
@@ -556,20 +570,22 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
                       {/* Información de Contacto */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Contacto y Alta</h4>
-                        <div style={cliDetailRow}>
+                        <h4 style={{ fontSize: 11, fontWeight: 800, color: "var(--text)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                          Contacto y Alta
+                        </h4>
+                        <div style={{ ...cliDetailRow, fontSize: 12 }}>
                           <span style={cliDetailLabel}>Correo:</span>
-                          <span style={cliDetailValue}>{c.email || "—"}</span>
+                          <span style={{ ...cliDetailValue, wordBreak: "break-word" }}>{c.email || "—"}</span>
                         </div>
-                        <div style={cliDetailRow}>
+                        <div style={{ ...cliDetailRow, fontSize: 12 }}>
                           <span style={cliDetailLabel}>Teléfono:</span>
                           <span style={cliDetailValue}>{c.phone || "—"}</span>
                         </div>
-                        <div style={cliDetailRow}>
+                        <div style={{ ...cliDetailRow, fontSize: 12 }}>
                           <span style={cliDetailLabel}>Dirección:</span>
-                          <span style={cliDetailValue}>{c.address || "—"}</span>
+                          <span style={{ ...cliDetailValue, wordBreak: "break-word" }}>{c.address || "—"}</span>
                         </div>
-                        <div style={cliDetailRow}>
+                        <div style={{ ...cliDetailRow, fontSize: 12 }}>
                           <span style={cliDetailLabel}>F. Alta:</span>
                           <span style={cliDetailValue}>{fmtDate(c.createdAt)}</span>
                         </div>
@@ -577,18 +593,20 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
                       {/* Límites de Crédito */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Crédito y Historial</h4>
-                        <div style={cliDetailRow}>
-                          <span style={cliDetailLabel}>Límite Crédito:</span>
+                        <h4 style={{ fontSize: 11, fontWeight: 800, color: "var(--text)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                          Crédito y Historial
+                        </h4>
+                        <div style={{ ...cliDetailRow, fontSize: 12 }}>
+                          <span style={cliDetailLabel}>Límite:</span>
                           <span style={cliDetailValue}>{money(c.creditLimit)}</span>
                         </div>
-                        <div style={cliDetailRow}>
-                          <span style={cliDetailLabel}>Saldo Actual:</span>
+                        <div style={{ ...cliDetailRow, fontSize: 12 }}>
+                          <span style={cliDetailLabel}>Saldo:</span>
                           <span style={{ ...cliDetailValue, color: c.balance > 0 ? "#b91c1c" : "var(--text-secondary)" }}>{money(c.balance)}</span>
                         </div>
-                        <div style={cliDetailRow}>
+                        <div style={{ ...cliDetailRow, fontSize: 12 }}>
                           <span style={cliDetailLabel}>Compras:</span>
-                          <span style={cliDetailValue}>{c.salesCount} compras</span>
+                          <span style={cliDetailValue}>{c.salesCount}</span>
                         </div>
                       </div>
                     </div>
@@ -646,7 +664,15 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     <td style={{ ...ui.td, textAlign: "center" }}>
                       <button
                         onClick={() => openEdit(c)}
-                        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 4, color: "var(--accent-strong)" }}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: "4px 6px",
+                          borderRadius: 4,
+                          color: "var(--accent-strong)"
+                        }}
+                        className="active-tap"
                         title="Editar cliente"
                       >
                         <Pencil size={14} />
@@ -659,10 +685,20 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
         </div>
       )}
 
-      {/* Modal crear / editar */}
+      {/* Modal crear / editar - MEJORADO para móvil */}
       {showForm && (
         <div style={ui.overlay} onClick={closeForm}>
-          <form style={{ ...ui.modal, maxWidth: 560 }} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+          <form
+            style={{
+              ...ui.modal,
+              maxWidth: 560,
+              maxHeight: "90vh",
+              overflowY: "auto",
+              padding: isMobile ? "16px" : "24px"
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={submit}
+          >
             <div style={ui.modalHeader}>
               <span style={ui.modalTitle}>{editingId !== null ? "Editar cliente" : "Registrar nuevo cliente"}</span>
               <button type="button" style={{ ...ui.linkBtn, opacity: saving ? 0.6 : 1 }} onClick={closeForm} disabled={saving}>
@@ -679,7 +715,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
               </div>
 
               {/* RFC + Teléfono */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 14 }}>
                 <div>
                   <label style={ui.fieldLabel}>RFC</label>
                   <input
@@ -711,7 +747,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
               </div>
 
               {/* Límite crédito + CP */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 14 }}>
                 <div>
                   <label style={ui.fieldLabel}>Límite de crédito ($)</label>
                   <input type="text" inputMode="decimal" style={ui.input} value={form.creditLimit} onChange={setCreditLimit} placeholder="0.00" />
@@ -736,7 +772,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <p style={{ fontSize: 12, fontWeight: 700, color: "var(--accent-strong)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   Datos CFDI 4.0
                 </p>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
                   <div>
                     <label style={ui.fieldLabel}>Régimen Fiscal</label>
                     <select style={{ ...ui.input, cursor: "pointer" }} value={form.taxRegime} onChange={set("taxRegime")}>
@@ -764,11 +800,35 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 4 }}>{formError}</p>
               )}
 
-              <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-                <button type="button" disabled={saving} style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={closeForm}>
+              <div style={{
+                display: "flex",
+                gap: 10,
+                marginTop: 20,
+                flexDirection: isMobile ? "column" : "row"
+              }}>
+                <button
+                  type="button"
+                  disabled={saving}
+                  style={{
+                    ...ui.ghostBtn,
+                    flex: 1,
+                    justifyContent: "center",
+                    width: isMobile ? "100%" : "auto"
+                  }}
+                  onClick={closeForm}
+                >
                   Cancelar
                 </button>
-                <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  style={{
+                    ...ui.primaryBtn,
+                    flex: 1,
+                    justifyContent: "center",
+                    width: isMobile ? "100%" : "auto"
+                  }}
+                >
                   {saving ? "Guardando..." : editingId !== null ? "Actualizar cliente" : "Guardar cliente"}
                 </button>
               </div>
@@ -784,22 +844,23 @@ const cliDetailRow: React.CSSProperties = {
   display: "flex",
   justifyContent: "flex-start",
   alignItems: "center",
-  gap: "8px",
-  fontSize: 13,
-  marginBottom: 6,
+  gap: "6px",
+  marginBottom: 4,
 };
 
 const cliDetailLabel: React.CSSProperties = {
   fontWeight: 700,
   color: "var(--text-muted)",
-  minWidth: "95px",
+  minWidth: "70px",
   display: "inline-block",
+  fontSize: "inherit",
 };
 
 const cliDetailValue: React.CSSProperties = {
   fontWeight: 600,
   color: "var(--text-secondary)",
+  fontSize: "inherit",
+  wordBreak: "break-word",
 };
 
 export default ClientesView;
-
