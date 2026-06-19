@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { ArrowUp, ArrowDown, Printer } from "lucide-react";
+import { ArrowUp, ArrowDown, Printer, ChevronDown, ChevronUp } from "lucide-react";
 import api from "../../services/api";
 import {
   ui,
@@ -12,6 +12,7 @@ import {
   fmtDate,
   fmtTime,
   printTicketHtml,
+  useMediaQuery,
 } from "./shared";
 
 interface KardexRow {
@@ -80,6 +81,15 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [movementType, setMovementType] = useState("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const isMobile = useMediaQuery("(max-width: 1024px)");
+  const [expandedKardex, setExpandedKardex] = useState<Record<number, boolean>>({});
+
+  const toggleExpandKardex = (id: number) => {
+    setExpandedKardex((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -183,82 +193,328 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         </span>
       </Toolbar>
 
-      <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-        <table style={ui.table}>
-          <thead>
-            <tr style={ui.theadRow}>
-              <th style={ui.th}>Fecha</th>
-              <th style={ui.th}>Producto</th>
-              <th style={ui.th}>Sucursal</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Tipo</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Cambio</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Antes</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Después</th>
-              <th style={ui.th}>Usuario</th>
-              <th style={ui.th}>Motivo</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Imprimir</th>
-            </tr>
-          </thead>
-          <tbody>
-            <TableState colSpan={10} loading={loading} error={error} empty={!loading && !error && rows.length === 0} />
-            {!loading &&
-              !error &&
-              rows.map((k) => {
-                const balanceBefore = k.balanceAfter - k.quantityChange;
-                return (
-                  <tr key={k.id}>
-                    <td style={ui.td}>
-                      {fmtDate(k.createdAt)} <span style={{ color: "#94a3b8" }}>{fmtTime(k.createdAt)}</span>
-                    </td>
-                    <td style={{ ...ui.td, whiteSpace: "normal" }}>
-                      <div style={{ fontWeight: 600, color: "#0f172a" }}>{k.product}</div>
-                      <div style={{ fontSize: 11, color: "#94a3b8" }}>{k.sku}</div>
-                    </td>
-                    <td style={ui.td}>{k.branch}</td>
-                    <td style={{ ...ui.td, textAlign: "center" }}>
-                      <Badge tone={typeTone(k.movementType)}>
-                        {movementLabel[k.movementType] ?? k.movementType.replace(/_/g, " ")}
-                      </Badge>
-                    </td>
-                    <td style={{ ...ui.td, textAlign: "center", fontWeight: 800, color: k.quantityChange >= 0 ? "#15803d" : "#b91c1c" }}>
+      {isMobile ? (
+        /* ── Mobile / Tablet: Card-based layout ── */
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0" }}>
+          {/* Header row mirroring the fields */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "3fr 1.3fr 1fr 1.5fr",
+            padding: "12px 16px",
+            fontWeight: 700,
+            fontSize: 11,
+            color: "#64748b",
+            textTransform: "uppercase",
+            letterSpacing: "0.4px",
+          }}>
+            <div>Producto</div>
+            <div>Cambio</div>
+            <div style={{ textAlign: "center" }}>Saldo</div>
+            <div style={{ textAlign: "right", paddingRight: 8 }}>Acción</div>
+          </div>
+
+          {loading && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              Cargando información...
+            </div>
+          )}
+          {!loading && error && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
+              {error}
+            </div>
+          )}
+          {!loading && !error && rows.length === 0 && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              Sin registros en el periodo seleccionado.
+            </div>
+          )}
+
+          {!loading &&
+            !error &&
+            rows.map((k) => {
+              const isExpanded = expandedKardex[k.id];
+              const balanceBefore = k.balanceAfter - k.quantityChange;
+              return (
+                <div
+                  key={k.id}
+                  style={{
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 12,
+                    marginBottom: 10,
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                    overflow: "hidden",
+                    textAlign: "left",
+                  }}
+                >
+                  {/* Header: SKU y Tipo */}
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "8px 16px 6px 16px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "#64748b",
+                    borderBottom: "1px solid #f1f5f9",
+                    backgroundColor: "#f8fafc",
+                    letterSpacing: "0.2px",
+                  }}>
+                    <span style={{ fontFamily: "monospace" }}>{k.sku}</span>
+                    <Badge tone={typeTone(k.movementType)}>
+                      {movementLabel[k.movementType] ?? k.movementType.replace(/_/g, " ")}
+                    </Badge>
+                  </div>
+
+                  {/* Fila principal */}
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "3fr 1.3fr 1fr 1.5fr",
+                    padding: "12px 16px",
+                    alignItems: "center",
+                  }}>
+                    {/* Producto */}
+                    <div style={{ fontSize: 13, color: "#0f172a", fontWeight: 600, paddingRight: 8, whiteSpace: "normal" }}>
+                      {k.product}
+                    </div>
+
+                    {/* Cambio */}
+                    <div style={{ fontSize: 13, fontWeight: 800, color: k.quantityChange >= 0 ? "#15803d" : "#b91c1c" }}>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
                         {k.quantityChange >= 0 ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
                         {Math.abs(k.quantityChange)}
                       </span>
-                    </td>
-                    <td style={{ ...ui.td, textAlign: "center", color: "#64748b" }}>{balanceBefore}</td>
-                    <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{k.balanceAfter}</td>
-                    <td style={ui.td}>{k.user}</td>
-                    <td style={{ ...ui.td, whiteSpace: "normal", color: "#64748b", fontSize: 12, maxWidth: 240 }}>{k.reason || "—"}</td>
-                    <td style={{ ...ui.td, textAlign: "center" }}>
+                    </div>
+
+                    {/* Saldo después */}
+                    <div style={{
+                      fontSize: 13,
+                      fontWeight: 800,
+                      textAlign: "center",
+                      color: "#0f172a",
+                    }}>
+                      {k.balanceAfter}
+                    </div>
+
+                    {/* Botones de Acción */}
+                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+                      {/* Imprimir */}
                       <button
                         onClick={() => printMovement(k)}
-                        title="Imprimir comprobante de este movimiento"
-                        className="active-tap"
                         style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 7,
-                          border: "1px solid #e2e8f0",
-                          backgroundColor: "#ffffff",
-                          color: "#1e3a8a",
-                          cursor: "pointer",
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
+                          backgroundColor: "#eff6ff",
+                          border: "1px solid #bfdbfe",
+                          borderRadius: 8,
+                          width: 34,
+                          height: 34,
+                          cursor: "pointer",
+                          color: "#2563eb",
+                          padding: 0,
                         }}
+                        className="active-tap"
+                        title="Imprimir comprobante"
                       >
                         <Printer size={15} />
                       </button>
-                    </td>
-                  </tr>
-                );
-              })}
-          </tbody>
-        </table>
-      </div>
+
+                      {/* Chevron */}
+                      <button
+                        onClick={() => toggleExpandKardex(k.id)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#ffffff",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: 8,
+                          width: 34,
+                          height: 34,
+                          cursor: "pointer",
+                          color: "#64748b",
+                          padding: 0,
+                        }}
+                        className="active-tap"
+                      >
+                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Detalle expandido */}
+                  {isExpanded && (
+                    <div style={{
+                      padding: "16px",
+                      margin: "0 16px 16px 16px",
+                      backgroundColor: "#f8fafc",
+                      borderRadius: "8px",
+                      border: "1px solid #e2e8f0",
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                      gap: "16px",
+                    }}>
+                      {/* Datos del Movimiento */}
+                      <div>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Datos del Movimiento</h4>
+                        <div style={kardexDetailRow}>
+                          <span style={kardexDetailLabel}>Fecha/Hora:</span>
+                          <span style={kardexDetailValue}>
+                            {fmtDate(k.createdAt)} <span style={{ color: "#94a3b8", fontWeight: 500 }}>{fmtTime(k.createdAt)}</span>
+                          </span>
+                        </div>
+                        <div style={kardexDetailRow}>
+                          <span style={kardexDetailLabel}>Sucursal:</span>
+                          <span style={kardexDetailValue}>{k.branch}</span>
+                        </div>
+                        <div style={kardexDetailRow}>
+                          <span style={kardexDetailLabel}>Usuario:</span>
+                          <span style={kardexDetailValue}>{k.user}</span>
+                        </div>
+                      </div>
+
+                      {/* Resumen Físico */}
+                      <div>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Resumen Físico</h4>
+                        <div style={kardexDetailRow}>
+                          <span style={kardexDetailLabel}>Exist. anterior:</span>
+                          <span style={kardexDetailValue}>{balanceBefore} uds</span>
+                        </div>
+                        <div style={kardexDetailRow}>
+                          <span style={kardexDetailLabel}>Cambio:</span>
+                          <span style={{ ...kardexDetailValue, color: k.quantityChange >= 0 ? "#15803d" : "#b91c1c" }}>
+                            {k.quantityChange >= 0 ? `+${k.quantityChange}` : k.quantityChange}
+                          </span>
+                        </div>
+                        <div style={kardexDetailRow}>
+                          <span style={kardexDetailLabel}>Exist. final:</span>
+                          <span style={{ ...kardexDetailValue, fontWeight: 700 }}>{k.balanceAfter} uds</span>
+                        </div>
+                      </div>
+
+                      {/* Referencia / Motivo */}
+                      <div style={{ gridColumn: "1 / -1" }}>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Referencia / Motivo</h4>
+                        <div style={{
+                          padding: "8px 12px",
+                          backgroundColor: "#ffffff",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: 8,
+                          fontSize: 12,
+                          color: "#475569",
+                          whiteSpace: "normal",
+                          lineHeight: 1.5,
+                        }}>
+                          {k.reason || "Sin observaciones registradas."}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      ) : (
+        /* ── Desktop: Standard table ── */
+        <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
+          <table style={ui.table}>
+            <thead>
+              <tr style={ui.theadRow}>
+                <th style={ui.th}>Fecha</th>
+                <th style={ui.th}>Producto</th>
+                <th style={ui.th}>Sucursal</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Tipo</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Cambio</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Antes</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Después</th>
+                <th style={ui.th}>Usuario</th>
+                <th style={ui.th}>Motivo</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Imprimir</th>
+              </tr>
+            </thead>
+            <tbody>
+              <TableState colSpan={10} loading={loading} error={error} empty={!loading && !error && rows.length === 0} />
+              {!loading &&
+                !error &&
+                rows.map((k) => {
+                  const balanceBefore = k.balanceAfter - k.quantityChange;
+                  return (
+                    <tr key={k.id}>
+                      <td style={ui.td}>
+                        {fmtDate(k.createdAt)} <span style={{ color: "#94a3b8" }}>{fmtTime(k.createdAt)}</span>
+                      </td>
+                      <td style={{ ...ui.td, whiteSpace: "normal" }}>
+                        <div style={{ fontWeight: 600, color: "#0f172a" }}>{k.product}</div>
+                        <div style={{ fontSize: 11, color: "#94a3b8" }}>{k.sku}</div>
+                      </td>
+                      <td style={ui.td}>{k.branch}</td>
+                      <td style={{ ...ui.td, textAlign: "center" }}>
+                        <Badge tone={typeTone(k.movementType)}>
+                          {movementLabel[k.movementType] ?? k.movementType.replace(/_/g, " ")}
+                        </Badge>
+                      </td>
+                      <td style={{ ...ui.td, textAlign: "center", fontWeight: 800, color: k.quantityChange >= 0 ? "#15803d" : "#b91c1c" }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+                          {k.quantityChange >= 0 ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
+                          {Math.abs(k.quantityChange)}
+                        </span>
+                      </td>
+                      <td style={{ ...ui.td, textAlign: "center", color: "#64748b" }}>{balanceBefore}</td>
+                      <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{k.balanceAfter}</td>
+                      <td style={ui.td}>{k.user}</td>
+                      <td style={{ ...ui.td, whiteSpace: "normal", color: "#64748b", fontSize: 12, maxWidth: 240 }}>{k.reason || "—"}</td>
+                      <td style={{ ...ui.td, textAlign: "center" }}>
+                        <button
+                          onClick={() => printMovement(k)}
+                          title="Imprimir comprobante de este movimiento"
+                          className="active-tap"
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 7,
+                            border: "1px solid #e2e8f0",
+                            backgroundColor: "#ffffff",
+                            color: "#1e3a8a",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <Printer size={15} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
+};
+
+const kardexDetailRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-start",
+  alignItems: "center",
+  gap: "8px",
+  fontSize: 13,
+  marginBottom: 6,
+};
+
+const kardexDetailLabel: React.CSSProperties = {
+  fontWeight: 700,
+  color: "#64748b",
+  minWidth: "105px",
+  display: "inline-block",
+};
+
+const kardexDetailValue: React.CSSProperties = {
+  fontWeight: 600,
+  color: "#334155",
 };
 
 export default KardexView;

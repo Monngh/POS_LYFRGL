@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Printer } from "lucide-react";
 import api from "../../../services/api";
-import { ui, Panel, TableState, Badge, money, moneyExact, payTone, statusTone, fmtDate, printHtml } from "../shared";
+import { ui, Panel, TableState, Badge, money, moneyExact, payTone, statusTone, fmtDate, printHtml, useMediaQuery } from "../shared";
 import {
   CUSTOM_REPORT_PERIOD,
   REPORT_PERIOD_OPTIONS,
@@ -35,6 +35,7 @@ interface ReportData {
 }
 
 const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ branchId, branchLabel }) => {
+  const isMobile = useMediaQuery("(max-width: 1024px)");
   const [from, setFrom] = useState(daysAgoInputValue(29));
   const [to, setTo] = useState(daysAgoInputValue(0));
   const [period, setPeriod] = useState<ReportPeriod>(CUSTOM_REPORT_PERIOD);
@@ -264,66 +265,213 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
             </Panel>
           </div>
 
-          <div className="table-sticky-head" style={{ ...ui.tableWrap, marginTop: 20, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
+          <div style={{ ...ui.tableWrap, marginTop: 20 }}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0" }}>
               <h3 style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Listado detallado de ventas</h3>
             </div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={ui.table}>
-                <thead>
-                  <tr style={ui.theadRow}>
-                    <th style={ui.th}>Folio</th>
-                    <th style={ui.th}>Fecha</th>
-                    <th style={{ ...ui.th, textAlign: "right" }}>Subtotal</th>
-                    <th style={{ ...ui.th, textAlign: "right" }}>Impuestos</th>
-                    <th style={{ ...ui.th, textAlign: "right" }}>Total Neto</th>
-                    <th style={{ ...ui.th, textAlign: "center" }}>Estatus</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <TableState colSpan={6} loading={loading && !data} empty={!loading && (data?.salesList ?? []).length === 0} emptyText="Sin ventas en el periodo seleccionado." />
-                  {(data?.salesList ?? []).map((s) => (
-                    <tr key={s.id}>
-                      <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.invoiceNumber}</td>
-                      <td style={ui.td}>{fmtDate(s.createdAt)}</td>
-                      <td style={{ ...ui.td, textAlign: "right" }}>{money(s.subtotal)}</td>
-                      <td style={{ ...ui.td, textAlign: "right" }}>{money(s.taxAmount)}</td>
-                      <td style={{ ...ui.td, textAlign: "right", fontWeight: 800 }}>{money(s.totalAmount)}</td>
-                      <td style={{ ...ui.td, textAlign: "center" }}>
-                        <Badge tone={statusTone(s.status)}>{s.status}</Badge>
-                      </td>
-                    </tr>
+            {isMobile ? (
+              <div style={{ overflowY: "auto", maxHeight: "360px", padding: "12px 16px", backgroundColor: "#f8fafc" }}>
+                {loading && !data && (
+                  <div style={{ textAlign: "center", padding: "24px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+                    Cargando ventas...
+                  </div>
+                )}
+                {!loading && (data?.salesList ?? []).length === 0 && (
+                  <div style={{ textAlign: "center", padding: "24px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+                    Sin ventas en el periodo seleccionado.
+                  </div>
+                )}
+                {!loading &&
+                  (data?.salesList ?? []).map((s) => (
+                    <div
+                      key={s.id}
+                      style={{
+                        backgroundColor: "#ffffff",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: 12,
+                        padding: "12px 16px",
+                        marginBottom: 10,
+                        boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                      }}
+                    >
+                      {/* Top section: Folio and Status */}
+                      <div style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: 6,
+                      }}>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: "#1e3a8a" }}>
+                          {s.invoiceNumber}
+                        </span>
+                        <Badge tone={statusTone(s.status)}>
+                          {s.status}
+                        </Badge>
+                      </div>
+
+                      {/* Middle section: Date */}
+                      <div style={{
+                        fontSize: 12,
+                        color: "#64748b",
+                        marginBottom: 10,
+                      }}>
+                        {fmtDate(s.createdAt)}
+                      </div>
+
+                      {/* Bottom section: Amounts */}
+                      <div style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr 1.2fr",
+                        borderTop: "1px solid #f1f5f9",
+                        paddingTop: 10,
+                        fontSize: 12,
+                        color: "#475569",
+                      }}>
+                        <div>
+                          <span>Subtotal: </span>
+                          <span style={{ fontWeight: 600 }}>{money(s.subtotal)}</span>
+                        </div>
+                        <div style={{ textAlign: "center" }}>
+                          <span>Impuestos: </span>
+                          <span style={{ fontWeight: 600 }}>{money(s.taxAmount)}</span>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <span>Total Neto: </span>
+                          <span style={{ fontWeight: 800, color: "#0f172a" }}>{money(s.totalAmount)}</span>
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
+              </div>
+            ) : (
+              <div className="table-sticky-head" style={{ overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
+                <table style={ui.table}>
+                  <thead>
+                    <tr style={ui.theadRow}>
+                      <th style={ui.th}>Folio</th>
+                      <th style={ui.th}>Fecha</th>
+                      <th style={{ ...ui.th, textAlign: "right" }}>Subtotal</th>
+                      <th style={{ ...ui.th, textAlign: "right" }}>Impuestos</th>
+                      <th style={{ ...ui.th, textAlign: "right" }}>Total Neto</th>
+                      <th style={{ ...ui.th, textAlign: "center" }}>Estatus</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <TableState colSpan={6} loading={loading && !data} empty={!loading && (data?.salesList ?? []).length === 0} emptyText="Sin ventas en el periodo seleccionado." />
+                    {(data?.salesList ?? []).map((s) => (
+                      <tr key={s.id}>
+                        <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.invoiceNumber}</td>
+                        <td style={ui.td}>{fmtDate(s.createdAt)}</td>
+                        <td style={{ ...ui.td, textAlign: "right" }}>{money(s.subtotal)}</td>
+                        <td style={{ ...ui.td, textAlign: "right" }}>{money(s.taxAmount)}</td>
+                        <td style={{ ...ui.td, textAlign: "right", fontWeight: 800 }}>{money(s.totalAmount)}</td>
+                        <td style={{ ...ui.td, textAlign: "center" }}>
+                          <Badge tone={statusTone(s.status)}>{s.status}</Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
-          <div className="table-sticky-head" style={{ ...ui.tableWrap, marginTop: 20, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
+          <div style={{ ...ui.tableWrap, marginTop: 20 }}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0" }}>
               <h3 style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Productos más vendidos</h3>
             </div>
-            <table style={ui.table}>
-              <thead>
-                <tr style={ui.theadRow}>
-                  <th style={{ ...ui.th, width: 50, textAlign: "center" }}>#</th>
-                  <th style={ui.th}>Producto</th>
-                  <th style={{ ...ui.th, textAlign: "center" }}>Unidades</th>
-                  <th style={{ ...ui.th, textAlign: "right" }}>Importe</th>
-                </tr>
-              </thead>
-              <tbody>
-                <TableState colSpan={4} loading={loading && !data} empty={!loading && (data?.topProducts ?? []).length === 0} emptyText="Sin ventas en el periodo seleccionado." />
-                {(data?.topProducts ?? []).map((p, i) => (
-                  <tr key={p.id}>
-                    <td style={{ ...ui.td, textAlign: "center", fontWeight: 800, color: "#2563eb" }}>{i + 1}</td>
-                    <td style={{ ...ui.td, fontWeight: 600, color: "#0f172a", whiteSpace: "normal" }}>{p.name}</td>
-                    <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{p.unidades}</td>
-                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{money(p.importe)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {isMobile ? (
+              <div style={{ overflowY: "auto", maxHeight: "360px", padding: "12px 16px", backgroundColor: "#f8fafc" }}>
+                {loading && !data && (
+                  <div style={{ textAlign: "center", padding: "24px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+                    Cargando productos...
+                  </div>
+                )}
+                {!loading && (data?.topProducts ?? []).length === 0 && (
+                  <div style={{ textAlign: "center", padding: "24px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+                    Sin ventas en el periodo seleccionado.
+                  </div>
+                )}
+                {!loading &&
+                  (data?.topProducts ?? []).map((p, i) => (
+                    <div
+                      key={p.id}
+                      style={{
+                        backgroundColor: "#ffffff",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: 12,
+                        padding: "12px 16px",
+                        marginBottom: 10,
+                        boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                      }}
+                    >
+                      {/* Top Row: rank + Product Name and Importe */}
+                      <div style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        marginBottom: 4,
+                      }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 8, maxWidth: "70%" }}>
+                          <span style={{
+                            fontSize: 11,
+                            fontWeight: 800,
+                            color: "#2563eb",
+                            backgroundColor: "#eff6ff",
+                            borderRadius: 4,
+                            padding: "2px 6px",
+                            flexShrink: 0,
+                            marginTop: 1,
+                          }}>
+                            #{i + 1}
+                          </span>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: "#2563eb", whiteSpace: "normal" }}>
+                            {p.name.toUpperCase()}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: "#0f172a", flexShrink: 0 }}>
+                          {money(p.importe)}
+                        </span>
+                      </div>
+
+                      {/* Bottom Row: Unidades */}
+                      <div style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "#94a3b8",
+                        textTransform: "uppercase",
+                        paddingLeft: 34,
+                      }}>
+                        {p.unidades} unidades
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <div className="table-sticky-head" style={{ overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
+                <table style={ui.table}>
+                  <thead>
+                    <tr style={ui.theadRow}>
+                      <th style={{ ...ui.th, width: 50, textAlign: "center" }}>#</th>
+                      <th style={ui.th}>Producto</th>
+                      <th style={{ ...ui.th, textAlign: "center" }}>Unidades</th>
+                      <th style={{ ...ui.th, textAlign: "right" }}>Importe</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <TableState colSpan={4} loading={loading && !data} empty={!loading && (data?.topProducts ?? []).length === 0} emptyText="Sin ventas en el periodo seleccionado." />
+                    {(data?.topProducts ?? []).map((p, i) => (
+                      <tr key={p.id}>
+                        <td style={{ ...ui.td, textAlign: "center", fontWeight: 800, color: "#2563eb" }}>{i + 1}</td>
+                        <td style={{ ...ui.td, fontWeight: 600, color: "#0f172a", whiteSpace: "normal" }}>{p.name}</td>
+                        <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{p.unidades}</td>
+                        <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{money(p.importe)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </>
       )}
