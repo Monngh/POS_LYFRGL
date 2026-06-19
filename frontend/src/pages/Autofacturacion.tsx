@@ -115,7 +115,22 @@ const validateAutofactEmail = (value: string, options: { required?: boolean } = 
   return undefined;
 };
 
+const useMediaQuery = (query: string): boolean => {
+  const [matches, setMatches] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(query).matches
+  );
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
+    setMatches(m.matches);
+    m.addEventListener("change", handler);
+    return () => m.removeEventListener("change", handler);
+  }, [query]);
+  return matches;
+};
+
 const Autofacturacion: React.FC = () => {
+  const isMobile = useMediaQuery("(max-width: 1024px)");
   const [activeTab, setActiveTab] = useState<"facturar" | "facturas" | "datos">("facturar");
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [invoiceNumber, setInvoiceNumber] = useState("");
@@ -367,7 +382,8 @@ const Autofacturacion: React.FC = () => {
       setRegisterConfirmPassword("");
       setRegisterFieldErrors({});
 
-      alert(response.data.message);
+      setSuccessMessage(response.data.message || "¡Cuenta registrada con éxito! Ya puedes iniciar sesión.");
+      setTimeout(() => setSuccessMessage(""), 5000);
     } catch (err: any) {
       setError(err.response?.data?.message || "Error al registrar cuenta. Verifique sus datos e intente de nuevo.");
     } finally {
@@ -766,28 +782,81 @@ const Autofacturacion: React.FC = () => {
                     </div>
                   </div>
 
-                  <div style={{ overflowX: "auto", marginTop: "16px" }} className="autofact-table-scroll">
-                    <table style={styles.table}>
-                      <thead>
-                        <tr style={styles.thRow}>
-                          <th style={styles.th}>Producto</th>
-                          <th style={styles.th}>Cant.</th>
-                          <th style={styles.th}>P. Unitario</th>
-                          <th style={styles.th}>Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {ticket.items.map((item, idx) => (
-                          <tr key={idx} style={styles.tr}>
-                            <td style={styles.td}>{item.name}</td>
-                            <td style={styles.td}>{item.quantity}</td>
-                            <td style={styles.td}>${item.unitPrice.toFixed(2)}</td>
-                            <td style={{ ...styles.td, fontWeight: "600" }}>${item.total.toFixed(2)}</td>
+                  {isMobile ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "16px" }}>
+                      {ticket.items.map((item, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            padding: "16px 0",
+                            borderBottom: "1px solid #f1f5f9",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "10px",
+                          }}
+                        >
+                          {/* Fila 1: Nombre del producto + SKU y Cantidad */}
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: "14px", fontWeight: "700", color: "#0f172a", whiteSpace: "normal", wordBreak: "break-word" }}>
+                                {item.name}
+                              </div>
+                              <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "2px", fontWeight: "600" }}>
+                                {item.sku}
+                              </div>
+                            </div>
+                            <div
+                              style={{
+                                padding: "4px 12px",
+                                borderRadius: "20px",
+                                border: "1px solid #e2e8f0",
+                                fontSize: "12px",
+                                fontWeight: "600",
+                                color: "#334155",
+                                whiteSpace: "nowrap",
+                                backgroundColor: "#ffffff",
+                              }}
+                            >
+                              Cantidad: {item.quantity}
+                            </div>
+                          </div>
+
+                          {/* Fila 2: Unitario e Importe */}
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "13px", color: "#64748b" }}>
+                            <div>
+                              Unitario: ${item.unitPrice.toFixed(2)}
+                            </div>
+                            <div>
+                              Importe: <span style={{ fontWeight: "800", color: "#0f172a", fontSize: "14px" }}>${item.total.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ overflowX: "auto", marginTop: "16px" }} className="autofact-table-scroll">
+                      <table style={styles.table}>
+                        <thead>
+                          <tr style={styles.thRow}>
+                            <th style={styles.th}>Producto</th>
+                            <th style={styles.th}>Cant.</th>
+                            <th style={styles.th}>P. Unitario</th>
+                            <th style={styles.th}>Total</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {ticket.items.map((item, idx) => (
+                            <tr key={idx} style={styles.tr}>
+                              <td style={styles.td}>{item.name}</td>
+                              <td style={styles.td}>{item.quantity}</td>
+                              <td style={styles.td}>${item.unitPrice.toFixed(2)}</td>
+                              <td style={{ ...styles.td, fontWeight: "600" }}>${item.total.toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
 
                 <h2 style={{ ...styles.sectionHeader, marginTop: "24px" }}>Datos Fiscales de Facturación</h2>
