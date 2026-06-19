@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../app";
 import { getRequestDeviceId } from "../middlewares/device.middleware";
+import { comparePassword } from "../utils/auth";
 
 /**
  * Consultar si el cajero tiene un turno activo en la sucursal actual
@@ -49,10 +50,50 @@ export const openSession = async (req: Request, res: Response): Promise<void> =>
     return;
   }
 
-  const { initialAmount } = req.body;
+  const { initialAmount, pinCode } = req.body;
 
   if (initialAmount === undefined || initialAmount === null || isNaN(Number(initialAmount))) {
     res.status(400).json({ message: "El monto del fondo inicial es requerido y debe ser numérico." });
+    return;
+  }
+
+  // ── Filtro de seguridad: la apertura debe ser confirmada con el PIN de un
+  // usuario autorizado (admin, gerente o cajero) activo. No se crea ninguna
+  // tabla: se valida contra el pinCode ya existente en User.
+  if (!pinCode || typeof pinCode !== "string" || !pinCode.trim()) {
+    res.status(400).json({
+      code: "PIN_REQUERIDO",
+      message: "Ingrese el PIN de autorización para abrir la caja.",
+    });
+    return;
+  }
+
+  let approverName = "";
+  try {
+    const staff = await prisma.user.findMany({
+      where: { role: { in: ["ADMIN", "GERENTE", "CAJERO"] }, active: true },
+      select: { name: true, pinCode: true },
+    });
+    let approver: { name: string } | null = null;
+    for (const s of staff) {
+      if (s.pinCode && (await comparePassword(pinCode.trim(), s.pinCode))) {
+        approver = { name: s.name };
+        break;
+      }
+    }
+    if (!approver) {
+      // 403 (no 401) a propósito: un PIN incorrecto NO es sesión expirada y no
+      // debe cerrar la sesión del cajero desde el interceptor del frontend.
+      res.status(403).json({
+        code: "PIN_INVALIDO",
+        message: "PIN de autorización incorrecto. Verifique e intente de nuevo.",
+      });
+      return;
+    }
+    approverName = approver.name;
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ message: "Error al validar el PIN de autorización." });
     return;
   }
 
@@ -104,6 +145,7 @@ export const openSession = async (req: Request, res: Response): Promise<void> =>
     res.status(201).json({
       message: "Caja abierta exitosamente.",
       session: newSession,
+      authorizedBy: approverName,
     });
   } catch (error: any) {
     if (error.isSessionConflict) {
