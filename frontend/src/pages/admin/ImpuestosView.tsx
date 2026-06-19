@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { BadgePercent, Pencil, Plus, Power } from "lucide-react";
+import { BadgePercent, ChevronDown, ChevronUp, Pencil, Plus, Power } from "lucide-react";
 import api from "../../services/api";
 import { useAdminData } from "../../hooks";
 import { DataTable, ActionModal } from "../../components/common";
@@ -19,6 +19,7 @@ import {
   Badge,
   SectionHeader,
   fmtDate,
+  useMediaQuery
 } from "./shared";
 
 interface TaxRow {
@@ -97,6 +98,12 @@ const getErrorMessage = (err: unknown, fallback: string) => {
 };
 
 const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
+  const [expandedTaxes, setExpandedTaxes] = useState<Record<number, boolean>>({});
+  const isMobile = useMediaQuery("(max-width: 1024px)");
+
+  const toggleExpandTax = (id: number) =>
+    setExpandedTaxes((prev) => ({ ...prev, [id]: !prev[id] }));
+
   const [notice, setNotice] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -414,16 +421,204 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
         </div>
       )}
 
-      <div className="table-sticky-head">
-        <DataTable
-          columns={columns}
-          data={rows}
-          loading={loading}
-          error={loadError || mutationError}
-          emptyMessage={debouncedSearch.trim() ? "No hay impuestos que coincidan con la busqueda." : "No hay impuestos registrados."}
-          keyExtractor={(tax) => tax.id}
-        />
-      </div>
+      {isMobile ? (
+        /* ── Mobile / Tablet: Card-based layout ── */
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
+          {/* Header row */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1.4fr 0.8fr 0.8fr 1fr",
+            padding: "12px 16px",
+            fontWeight: 700,
+            fontSize: 11,
+            color: "#64748b",
+            textTransform: "uppercase" as const,
+            letterSpacing: "0.4px",
+          }}>
+            <div>Nombre</div>
+            <div style={{ textAlign: "center" }}>Tasa</div>
+            <div style={{ textAlign: "center" }}>Estado</div>
+            <div style={{ textAlign: "right", paddingRight: 8 }}>Acción</div>
+          </div>
+
+          {loading && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              Cargando información...
+            </div>
+          )}
+          {!loading && loadError && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
+              {loadError}
+            </div>
+          )}
+          {!loading && !loadError && rows.length === 0 && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              {search.trim() ? "No hay impuestos que coincidan con la búsqueda." : "No hay impuestos registrados."}
+            </div>
+          )}
+
+          {!loading &&
+            !loadError &&
+            rows.map((tax) => {
+              const isExpanded = expandedTaxes[tax.id];
+              return (
+                <div
+                  key={tax.id}
+                  style={{
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 12,
+                    marginBottom: 10,
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* Fila principal */}
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.4fr 0.8fr 0.8fr 1fr",
+                    padding: "12px 16px",
+                    alignItems: "center",
+                  }}>
+                    {/* Nombre */}
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {tax.name}
+                    </div>
+
+                    {/* Tasa */}
+                    <div style={{ textAlign: "center", fontSize: 13, fontWeight: 800, color: "#0f172a" }}>
+                      {formatPercent(tax.rate)}
+                    </div>
+
+                    {/* Estado */}
+                    <div style={{ textAlign: "center" }}>
+                      <Badge tone={tax.active ? "green" : "red"}>{tax.active ? "Activo" : "Inactivo"}</Badge>
+                    </div>
+
+                    {/* Botones de Acción */}
+                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+                      {/* Editar */}
+                      <button
+                        onClick={() => openEdit(tax)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#eff6ff",
+                          border: "1px solid #bfdbfe",
+                          borderRadius: 8,
+                          width: 34,
+                          height: 34,
+                          cursor: "pointer",
+                          color: "#1e3a8a",
+                          padding: 0,
+                        }}
+                        className="active-tap"
+                        title="Editar impuesto"
+                      >
+                        <Pencil size={14} />
+                      </button>
+
+                      {/* Activar/Desactivar */}
+                      <button
+                        onClick={() => toggleStatus(tax)}
+                        disabled={statusUpdatingId === tax.id}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: tax.active ? "#fef2f2" : "#f0fdf4",
+                          border: `1px solid ${tax.active ? "#fecaca" : "#bbf7d0"}`,
+                          borderRadius: 8,
+                          width: 34,
+                          height: 34,
+                          cursor: "pointer",
+                          color: tax.active ? "#b91c1c" : "#15803d",
+                          padding: 0,
+                          opacity: statusUpdatingId === tax.id ? 0.55 : 1,
+                        }}
+                        className="active-tap"
+                        title={tax.active ? "Desactivar" : "Activar"}
+                      >
+                        <Power size={14} />
+                      </button>
+
+                      {/* Chevron */}
+                      <button
+                        onClick={() => toggleExpandTax(tax.id)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#ffffff",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: 8,
+                          width: 34,
+                          height: 34,
+                          cursor: "pointer",
+                          color: "#64748b",
+                          padding: 0,
+                        }}
+                        className="active-tap"
+                      >
+                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Detalle expandido */}
+                  {isExpanded && (
+                    <div style={{
+                      padding: "16px",
+                      margin: "0 16px 16px 16px",
+                      backgroundColor: "#f8fafc",
+                      borderRadius: 8,
+                      border: "1px solid #e2e8f0",
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                      gap: 16,
+                      textAlign: "left",
+                    }}>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>ID</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a" }}>{tax.id}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Tasa decimal</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#475569" }}>{formatDecimal(tax.rate)}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Descripción</div>
+                        <div style={{ fontSize: 13, color: "#475569" }}>{tax.description || "Sin descripción"}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Fecha de creación</div>
+                        <div style={{ fontSize: 13, color: "#475569" }}>{fmtDate(tax.createdAt)}</div>
+                      </div>
+                      {tax.updatedAt && (
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Última actualización</div>
+                          <div style={{ fontSize: 13, color: "#475569" }}>{fmtDate(tax.updatedAt)}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      ) : (
+        <div className="table-sticky-head">
+          <DataTable
+            columns={columns}
+            data={rows}
+            loading={loading}
+            error={loadError || mutationError}
+            emptyMessage={debouncedSearch.trim() ? "No hay impuestos que coincidan con la busqueda." : "No hay impuestos registrados."}
+            keyExtractor={(tax) => tax.id}
+          />
+        </div>
+      )}
 
       <ActionModal
         isOpen={editing !== null}

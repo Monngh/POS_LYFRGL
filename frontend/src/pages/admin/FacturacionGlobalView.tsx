@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { RefreshCw, CheckCircle, AlertCircle } from "lucide-react";
+import { RefreshCw, CheckCircle, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import api from "../../services/api";
 import {
   ui,
@@ -10,6 +10,7 @@ import {
   SectionHeader,
   moneyExact,
   fmtDate,
+  fmtTime,
   useMediaQuery,
 } from "./shared";
 import { type FieldErrors, normalizeIntegerInput, validateInteger } from "../../utils/formValidation";
@@ -37,7 +38,15 @@ const MESES = [
 ];
 
 const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
-  const isMobile = useMediaQuery("(max-width: 768px)");
+  const isMobile = useMediaQuery("(max-width: 1024px)");
+  const [expandedTickets, setExpandedTickets] = useState<Record<number, boolean>>({});
+
+  const toggleExpandTicket = (id: number) => {
+    setExpandedTickets((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
   // Configuración de la factura global
   const todayStr = new Date().toISOString().substring(0, 10);
   const [startDate, setStartDate] = useState(todayStr);
@@ -327,45 +336,226 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
               <strong style={{ fontSize: 13, color: "#334155" }}>Ventas completadas en el rango de fechas</strong>
             </div>
-            <div className="table-sticky-head" style={{ overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-            <table style={{ ...ui.table, minWidth: 720 }}>
-              <thead>
-                <tr style={ui.theadRow}>
-                  <th style={ui.th}>Folio Venta</th>
-                  <th style={ui.th}>Fecha</th>
-                  <th style={ui.th}>Cliente</th>
-                  <th style={ui.th}>Método</th>
-                  <th style={{ ...ui.th, textAlign: "right" }}>Impuestos</th>
-                  <th style={{ ...ui.th, textAlign: "right" }}>Total</th>
-                  <th style={{ ...ui.th, textAlign: "center" }}>Estatus</th>
-                </tr>
-              </thead>
-              <tbody>
-                <TableState
-                  colSpan={7}
-                  loading={loading}
-                  error={error}
-                  empty={!loading && !error && tickets.length === 0}
-                  emptyText="No hay ventas pendientes de facturar en este rango de fechas."
-                />
-                {!loading && !error && tickets.map((t) => (
-                  <tr key={t.id}>
-                    <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{t.invoiceNumber}</td>
-                    <td style={ui.td}>{fmtDate(t.createdAt)}</td>
-                    <td style={ui.td}>{t.customer}</td>
-                    <td style={ui.td}>
-                      <Badge tone={payTone(t.paymentMethod)}>{t.paymentMethod}</Badge>
-                    </td>
-                    <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(t.taxAmount)}</td>
-                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{moneyExact(t.totalAmount)}</td>
-                    <td style={{ ...ui.td, textAlign: "center" }}>
-                      <Badge tone="slate">Sin Facturar</Badge>
-                    </td>
+
+            {isMobile ? (
+              /* ── Mobile / Tablet: Card-based layout ── */
+              <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
+                {/* Column header */}
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "1.5fr 2fr 1.5fr 0.8fr",
+                  padding: "12px 16px",
+                  fontWeight: 700,
+                  fontSize: 11,
+                  color: "#64748b",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.4px",
+                }}>
+                  <div>Folio</div>
+                  <div>Fecha</div>
+                  <div>Total</div>
+                  <div style={{ textAlign: "right", paddingRight: 8 }}>Mas</div>
+                </div>
+
+                {loading && (
+                  <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+                    Cargando información...
+                  </div>
+                )}
+                {error && (
+                  <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
+                    {error}
+                  </div>
+                )}
+                {!loading && !error && tickets.length === 0 && (
+                  <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+                    No hay ventas pendientes de facturar en este rango de fechas.
+                  </div>
+                )}
+
+                {!loading &&
+                  !error &&
+                  tickets.map((t: any) => {
+                    const isExpanded = expandedTickets[t.id];
+                    return (
+                      <div
+                        key={t.id}
+                        style={{
+                          backgroundColor: "#ffffff",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: 12,
+                          marginBottom: 10,
+                          boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {/* Card header: Cliente */}
+                        <div style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          padding: "8px 16px 6px 16px",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: "#64748b",
+                          borderBottom: "1px solid #f1f5f9",
+                          backgroundColor: "#f8fafc",
+                          letterSpacing: "0.2px",
+                        }}>
+                          <span>{t.customer ? t.customer.toUpperCase() : "PÚBLICO GENERAL"}</span>
+                          <span><Badge tone="slate">Sin Facturar</Badge></span>
+                        </div>
+
+                        {/* Row base: Folio, Fecha, Total, Chevron */}
+                        <div style={{
+                          display: "grid",
+                          gridTemplateColumns: "1.5fr 2fr 1.5fr 0.8fr",
+                          padding: "12px 16px",
+                          alignItems: "center",
+                        }}>
+                          {/* Folio */}
+                          <div style={{ fontWeight: 700, fontSize: 13, color: "#1e3a8a" }}>
+                            {t.invoiceNumber}
+                          </div>
+
+                          {/* Fecha */}
+                          <div style={{ fontSize: 13, color: "#334155" }}>
+                            <div>{fmtDate(t.createdAt)}</div>
+                            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{fmtTime(t.createdAt)}</div>
+                          </div>
+
+                          {/* Total */}
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>
+                            {moneyExact(t.totalAmount)}
+                          </div>
+
+                          {/* Chevron */}
+                          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
+                            <button
+                              onClick={() => toggleExpandTicket(t.id)}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                backgroundColor: "#ffffff",
+                                border: "1px solid #cbd5e1",
+                                borderRadius: 8,
+                                width: 34,
+                                height: 34,
+                                cursor: "pointer",
+                                color: "#64748b",
+                                padding: 0,
+                              }}
+                              className="active-tap"
+                            >
+                              {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Expanded detail card */}
+                        {isExpanded && (
+                          <div style={{
+                            padding: "16px",
+                            margin: "0 16px 16px 16px",
+                            backgroundColor: "#f8fafc",
+                            borderRadius: "8px",
+                            border: "1px solid #e2e8f0",
+                            display: "grid",
+                            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                            gap: "16px",
+                          }}>
+                            {/* Datos de la Venta */}
+                            <div>
+                              <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Datos de la Venta</h4>
+                              <div style={facDetailRow}>
+                                <span style={facDetailLabel}>Folio:</span>
+                                <span style={facDetailValue}>{t.invoiceNumber}</span>
+                              </div>
+                              <div style={facDetailRow}>
+                                <span style={facDetailLabel}>Cliente:</span>
+                                <span style={facDetailValue}>{t.customer || "Público General"}</span>
+                              </div>
+                              <div style={facDetailRow}>
+                                <span style={facDetailLabel}>Sucursal:</span>
+                                <span style={facDetailValue}>{t.branch || "—"}</span>
+                              </div>
+                            </div>
+
+                            {/* Detalle Fiscal */}
+                            <div>
+                              <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Detalle Fiscal</h4>
+                              <div style={facDetailRow}>
+                                <span style={facDetailLabel}>Método:</span>
+                                <span style={facDetailValue}>
+                                  <Badge tone={payTone(t.paymentMethod)}>{t.paymentMethod}</Badge>
+                                </span>
+                              </div>
+                              <div style={facDetailRow}>
+                                <span style={facDetailLabel}>Impuestos:</span>
+                                <span style={facDetailValue}>{moneyExact(t.taxAmount)}</span>
+                              </div>
+                              <div style={facDetailRow}>
+                                <span style={facDetailLabel}>Artículos:</span>
+                                <span style={facDetailValue}>{t.items ?? "—"}</span>
+                              </div>
+                            </div>
+
+                            {/* Resumen */}
+                            <div>
+                              <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Resumen</h4>
+                              <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 8 }}>
+                                <span style={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}>Total:</span>
+                                <span style={{ fontSize: 20, fontWeight: 800, color: "#1e3a8a" }}>{moneyExact(t.totalAmount)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            ) : (
+              /* ── Desktop: Standard table ── */
+              <div className="table-sticky-head" style={{ overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
+              <table style={{ ...ui.table, minWidth: 720 }}>
+                <thead>
+                  <tr style={ui.theadRow}>
+                    <th style={ui.th}>Folio Venta</th>
+                    <th style={ui.th}>Fecha</th>
+                    <th style={ui.th}>Cliente</th>
+                    <th style={ui.th}>Método</th>
+                    <th style={{ ...ui.th, textAlign: "right" }}>Impuestos</th>
+                    <th style={{ ...ui.th, textAlign: "right" }}>Total</th>
+                    <th style={{ ...ui.th, textAlign: "center" }}>Estatus</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            </div>
+                </thead>
+                <tbody>
+                  <TableState
+                    colSpan={7}
+                    loading={loading}
+                    error={error}
+                    empty={!loading && !error && tickets.length === 0}
+                    emptyText="No hay ventas pendientes de facturar en este rango de fechas."
+                  />
+                  {!loading && !error && tickets.map((t) => (
+                    <tr key={t.id}>
+                      <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{t.invoiceNumber}</td>
+                      <td style={ui.td}>{fmtDate(t.createdAt)}</td>
+                      <td style={ui.td}>{t.customer}</td>
+                      <td style={ui.td}>
+                        <Badge tone={payTone(t.paymentMethod)}>{t.paymentMethod}</Badge>
+                      </td>
+                      <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(t.taxAmount)}</td>
+                      <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{moneyExact(t.totalAmount)}</td>
+                      <td style={{ ...ui.td, textAlign: "center" }}>
+                        <Badge tone="slate">Sin Facturar</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              </div>
+            )}
           </div>
 
         </div>
@@ -443,6 +633,28 @@ const downloadBtn: React.CSSProperties = {
   textDecoration: "none",
   cursor: "pointer",
 };
+
+const facDetailRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-start",
+  alignItems: "center",
+  gap: "8px",
+  fontSize: 13,
+  marginBottom: 6,
+};
+
+const facDetailLabel: React.CSSProperties = {
+  fontWeight: 700,
+  color: "#64748b",
+  minWidth: "85px",
+  display: "inline-block",
+};
+
+const facDetailValue: React.CSSProperties = {
+  fontWeight: 600,
+  color: "#334155",
+};
+
 
 const payTone = (m: string) => {
   if (m === "EFECTIVO") return "green";

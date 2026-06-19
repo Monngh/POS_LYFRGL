@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Plus, Edit2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Edit2, Pencil, Plus } from "lucide-react";
 import api from "../../services/api";
 import { useAdminData } from "../../hooks";
 import { DataTable, ActionModal } from "../../components/common";
@@ -15,7 +15,10 @@ import {
   validateRfc,
   validateSafeText,
 } from "../../utils/formValidation";
-import { ui, type ViewProps, SectionHeader, Badge } from "./shared";
+import { ui, type ViewProps, SectionHeader, Badge,
+  useMediaQuery,
+  fmtDate
+} from "./shared";
 
 // =========================
 // TIPOS
@@ -132,6 +135,27 @@ const validateZip = (value: string): string | undefined => {
 // =========================
 // COMPONENTE PRINCIPAL
 // =========================
+const supDetailRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-start",
+  alignItems: "center",
+  gap: "8px",
+  fontSize: 13,
+  marginBottom: 6,
+};
+
+const supDetailLabel: React.CSSProperties = {
+  fontWeight: 700,
+  color: "#64748b",
+  minWidth: "95px",
+  display: "inline-block",
+};
+
+const supDetailValue: React.CSSProperties = {
+  fontWeight: 600,
+  color: "#334155",
+};
+
 const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
   const { data, loading, error, refetch } = useAdminData<Supplier[]>("/api/admin/suppliers");
   const suppliers = data ?? [];
@@ -145,6 +169,16 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
     refetch();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshToken]);
+
+  const isMobile = useMediaQuery("(max-width: 1024px)");
+  const [expandedSuppliers, setExpandedSuppliers] = useState<Record<number, boolean>>({});
+
+  const toggleExpandSupplier = (id: number) => {
+    setExpandedSuppliers((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -447,16 +481,212 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
         }
       />
 
-      <div className="table-sticky-head">
-        <DataTable
-          columns={columns}
-          data={suppliers}
-          loading={loading}
-          error={error}
-          emptyMessage="Aún no hay proveedores registrados."
-          keyExtractor={(s) => s.id}
-        />
-      </div>
+      {isMobile ? (
+        /* ── Mobile / Tablet: Card-based layout ── */
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
+          {/* Header row mirroring the fields */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1.2fr 1fr 1.6fr 1.6fr",
+            padding: "12px 16px",
+            fontWeight: 700,
+            fontSize: 11,
+            color: "#64748b",
+            textTransform: "uppercase",
+            letterSpacing: "0.4px",
+          }}>
+            <div>Contacto</div>
+            <div>Teléfono</div>
+            <div>Email</div>
+            <div style={{ textAlign: "right", paddingRight: 8 }}>Acción</div>
+          </div>
+
+          {loading && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              Cargando información...
+            </div>
+          )}
+          {!loading && error && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
+              {error}
+            </div>
+          )}
+          {!loading && !error && suppliers.length === 0 && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              No hay proveedores registrados.
+            </div>
+          )}
+
+          {!loading &&
+            !error &&
+            suppliers.map((s) => {
+              const isExpanded = expandedSuppliers[s.id];
+              return (
+                <div
+                  key={s.id}
+                  style={{
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 12,
+                    marginBottom: 10,
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* Header: Nombre y Estatus */}
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "8px 16px 6px 16px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "#64748b",
+                    borderBottom: "1px solid #f1f5f9",
+                    backgroundColor: "#f8fafc",
+                    letterSpacing: "0.2px",
+                  }}>
+                    <span>{s.name.toUpperCase()}</span>
+                    <Badge tone={s.active ? "green" : "slate"}>
+                      {s.active ? "Activo" : "Inactivo"}
+                    </Badge>
+                  </div>
+
+                  {/* Fila principal */}
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.2fr 1fr 1.6fr 1.6fr",
+                    padding: "12px 16px",
+                    alignItems: "center",
+                  }}>
+                    {/* Contacto */}
+                    <div style={{ fontSize: 12, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {s.contactName || "—"}
+                    </div>
+
+                    {/* Teléfono */}
+                    <div style={{ fontSize: 12, color: "#475569" }}>
+                      {s.phone || "—"}
+                    </div>
+
+                    {/* Email */}
+                    <div style={{ fontSize: 12, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {s.email || "—"}
+                    </div>
+
+                    {/* Botones de Acción */}
+                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+                      {/* Pencil/Editar */}
+                      <button
+                        onClick={() => openEdit(s)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#eff6ff",
+                          border: "1px solid #bfdbfe",
+                          borderRadius: 8,
+                          width: 34,
+                          height: 34,
+                          cursor: "pointer",
+                          color: "#1e3a8a",
+                          padding: 0,
+                        }}
+                        className="active-tap"
+                        title="Editar proveedor"
+                      >
+                        <Pencil size={14} />
+                      </button>
+
+                      {/* Chevron */}
+                      <button
+                        onClick={() => toggleExpandSupplier(s.id)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#ffffff",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: 8,
+                          width: 34,
+                          height: 34,
+                          cursor: "pointer",
+                          color: "#64748b",
+                          padding: 0,
+                        }}
+                        className="active-tap"
+                      >
+                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Detalle expandido */}
+                  {isExpanded && (
+                    <div style={{
+                      padding: "16px",
+                      margin: "0 16px 16px 16px",
+                      backgroundColor: "#f8fafc",
+                      borderRadius: "8px",
+                      border: "1px solid #e2e8f0",
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                      gap: "16px",
+                      textAlign: "left",
+                    }}>
+                      {/* Datos de Identificación */}
+                      <div>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Identificación y Alta</h4>
+                        <div style={supDetailRow}>
+                          <span style={supDetailLabel}>RFC:</span>
+                          <span style={{ ...supDetailValue, fontFamily: "monospace" }}>{s.rfc || "—"}</span>
+                        </div>
+                        <div style={supDetailRow}>
+                          <span style={supDetailLabel}>Contacto:</span>
+                          <span style={supDetailValue}>{s.contactName || "—"}</span>
+                        </div>
+                        <div style={supDetailRow}>
+                          <span style={supDetailLabel}>F. Alta:</span>
+                          <span style={supDetailValue}>{fmtDate(s.createdAt)}</span>
+                        </div>
+                      </div>
+
+                      {/* Dirección y Ubicación */}
+                      <div>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Dirección y Ubicación</h4>
+                        <div style={supDetailRow}>
+                          <span style={supDetailLabel}>Dirección:</span>
+                          <span style={supDetailValue}>{s.address || "—"}</span>
+                        </div>
+                        <div style={supDetailRow}>
+                          <span style={supDetailLabel}>Ciudad/Edo:</span>
+                          <span style={supDetailValue}>
+                            {s.city ? `${s.city}${s.state ? `, ${s.state}` : ""}` : "—"}
+                          </span>
+                        </div>
+                        <div style={supDetailRow}>
+                          <span style={supDetailLabel}>C. Postal:</span>
+                          <span style={supDetailValue}>{s.zipCode || "—"}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      ) : (
+        <div className="table-sticky-head">
+          <DataTable
+            columns={columns}
+            data={suppliers}
+            loading={loading}
+            error={error}
+            emptyMessage="Aún no hay proveedores registrados."
+            keyExtractor={(s) => s.id}
+          />
+        </div>
+      )}
 
       {/* Modal alta / edición de proveedor */}
       <ActionModal
