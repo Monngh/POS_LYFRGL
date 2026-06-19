@@ -21,6 +21,8 @@ import {
   normalizeEmailInput,
   normalizeIntegerInput,
   normalizePhoneInput,
+  normalizeSpaces,
+  validateDateRange,
   validateEmail,
   validateInteger,
   validatePhone,
@@ -45,7 +47,9 @@ import {
   RotateCcw,
   Mail,
   ArrowLeft,
-  MoreVertical
+  MoreVertical,
+  Eye,
+  EyeOff
 } from "lucide-react";
 
 interface Product {
@@ -552,11 +556,17 @@ const Dashboard: React.FC = () => {
     phone?: string | null;
     email?: string | null;
     points: number;
+    taxId?: string | null;
+    zipCode?: string | null;
+    taxRegime?: string | null;
+    cfdiUse?: string | null;
   }
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerSearchError, setCustomerSearchError] = useState("");
+  const [isPhoneVisible, setIsPhoneVisible] = useState(false);
+  const [isPhoneFocused, setIsPhoneFocused] = useState(false);
   const [customerLookupStatus, setCustomerLookupStatus] = useState<CustomerLookupStatus>("idle");
   const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
   const [newCustomerForm, setNewCustomerForm] = useState({ name: "", phone: "", email: "" });
@@ -605,6 +615,15 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     if (activeModal !== "ticket-history") return;
 
+    if (ticketDateFrom && ticketDateTo) {
+      const dateRangeError = validateDateRange(ticketDateFrom, ticketDateTo);
+      if (dateRangeError) {
+        alert(dateRangeError);
+        setFilteredSales([]);
+        return;
+      }
+    }
+
     const timer = setTimeout(async () => {
       try {
         const params: any = {};
@@ -630,7 +649,7 @@ const Dashboard: React.FC = () => {
     const query = customerSearch.trim();
     const digits = getPhoneDigits(query);
     const searchError = query
-      ? validatePhone(query, { required: false, minDigits: 1, maxDigits: 15 })
+      ? (/[^\d\s()+-]/.test(query) ? "El teléfono solo puede contener números, espacios, +, - y paréntesis." : undefined)
       : undefined;
     if (!query) {
       setCustomerSearchError("");
@@ -708,7 +727,7 @@ const Dashboard: React.FC = () => {
 
   const validateNewCustomerField = (field: keyof typeof newCustomerForm, value: string) => {
     if (field === "name") return validateSafeText(value, "El nombre", { required: true, min: 2, max: 100 });
-    if (field === "phone") return validatePhone(value, { required: true, minDigits: 10, maxDigits: 15 });
+    if (field === "phone") return validatePhone(value, { required: true });
     if (field === "email") return validateEmail(value, { required: false });
     return undefined;
   };
@@ -1262,6 +1281,31 @@ const Dashboard: React.FC = () => {
     setCheckoutError(null);
     setCheckoutFieldErrors({});
 
+    // Branch/cashier validation: verify session is open
+    if (!session) {
+      setCheckoutError("No hay una sesión de caja activa. Debe abrir la caja primero.");
+      return;
+    }
+
+    // Max payment amount validation
+    if (netTotalToPay > 500000) {
+      setCheckoutError("El monto total del pago no puede exceder los $500,000.00.");
+      return;
+    }
+
+    // Invoice validations
+    if (invoiceRequested) {
+      if (!selectedCustomer) {
+        setCheckoutError("Debe seleccionar un cliente para poder facturar.");
+        return;
+      }
+      const c = selectedCustomer;
+      if (!c.taxId || !c.zipCode || !c.taxRegime || !c.cfdiUse || !c.email) {
+        setCheckoutError("El cliente seleccionado no cuenta con datos fiscales completos para facturación (SAT 4.0). Se requiere RFC, Código Postal, Régimen Fiscal, Uso de CFDI y Correo Electrónico.");
+        return;
+      }
+    }
+
     let itemsPayload: ReturnType<typeof buildCheckoutItemsPayload>;
     try {
       itemsPayload = buildCheckoutItemsPayload();
@@ -1776,7 +1820,7 @@ const Dashboard: React.FC = () => {
     if (invoiceError) errors.invoice = invoiceError;
     const pinError = validateInteger(cancelPin, "El PIN", { min: 0 });
     if (pinError || cancelPin.length !== 4) errors.pin = "El PIN debe contener 4 digitos.";
-    const reasonError = validateReference(cancelReason, "El motivo", { required: true, max: 180 });
+    const reasonError = validateReference(cancelReason, "El motivo", { required: true, max: 100 });
     if (reasonError) errors.reason = reasonError;
     return errors;
   };
@@ -1797,7 +1841,7 @@ const Dashboard: React.FC = () => {
           ? validateReference(nextValue, "El folio de venta", { required: true, max: 40 })
           : field === "pin"
             ? (validateInteger(nextValue, "El PIN", { min: 0 }) || nextValue.length !== 4 ? "El PIN debe contener 4 digitos." : undefined)
-            : validateReference(nextValue, "El motivo", { required: true, max: 180 });
+            : validateReference(nextValue, "El motivo", { required: true, max: 100 });
       if (error) next[field] = error;
       else delete next[field];
       return next;
@@ -1806,6 +1850,7 @@ const Dashboard: React.FC = () => {
 
   const handleCancelSaleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (cancelLoading) return;
     const errors = validateCancelFields();
     if (Object.keys(errors).length > 0) {
       setCancelFieldErrors(errors);
@@ -1960,6 +2005,7 @@ const Dashboard: React.FC = () => {
 
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (depLoading) return;
     const isMercadoPago = depType.startsWith("MERCADOPAGO_");
     const errors: Record<string, string> = {};
 
@@ -1981,8 +2027,14 @@ const Dashboard: React.FC = () => {
     });
     if (!depAmountValidation.ok) {
       errors.amount = depAmountValidation.error;
+    } else {
+      const availableCash = sessionStats?.expectedAmount || 0;
+      if (depAmountValidation.value.value > availableCash) {
+        errors.amount = `El monto a retirar excede el efectivo disponible en caja ($${availableCash.toFixed(2)}).`;
+      }
     }
-    const commentsError = validateReference(depComments, "La referencia", { required: false, max: 180 });
+    const normalizedComments = normalizeSpaces(depComments);
+    const commentsError = validateReference(normalizedComments, "La referencia", { required: false, max: 100 });
     if (commentsError) errors.comments = commentsError;
     if (Object.keys(errors).length > 0) {
       setDepositFieldErrors(errors);
@@ -2003,7 +2055,7 @@ const Dashboard: React.FC = () => {
         targetName: isMercadoPago ? "" : depName,
         amount: depAmountValue.value,
         paymentType: depType,
-        comments: depComments
+        comments: normalizedComments
       });
 
       setLastDeposit(res.data.deposit);
@@ -2252,6 +2304,14 @@ const Dashboard: React.FC = () => {
   };
 
   const handleSearchDeposits = async () => {
+    if (searchDepDateFrom && searchDepDateTo) {
+      const dateRangeError = validateDateRange(searchDepDateFrom, searchDepDateTo);
+      if (dateRangeError) {
+        alert(dateRangeError);
+        setDepSearchResults([]);
+        return;
+      }
+    }
     setDepSearchLoading(true);
     try {
       const params: any = {};
@@ -2433,7 +2493,48 @@ const Dashboard: React.FC = () => {
       showToast("Seleccione al menos un producto para devolver.", "error");
       return;
     }
-    const reasonError = validateReference(returnReason, "El motivo", { required: true, max: 180 });
+
+    // Validate destinations
+    const validDestinations = ["INVENTARIO_VENDIBLE", "MERMA", "GARANTIA", "REPARACION", "PROVEEDOR"];
+    for (const item of selected) {
+      if (!validDestinations.includes(item.destination)) {
+        showToast(`Destino de devolución inválido: ${item.destination}.`, "error");
+        return;
+      }
+
+      // Validate serial/lot tracking
+      if (item.trackingType === "SERIAL") {
+        const serial = (item.serialNumberInput || "").trim();
+        if (!serial) {
+          showToast(`El número de serie es obligatorio para el producto: ${item.name}`, "error");
+          return;
+        }
+        if (serial.length > 50) {
+          showToast(`El número de serie no puede exceder los 50 caracteres para el producto: ${item.name}`, "error");
+          return;
+        }
+      }
+      if (item.trackingType === "LOT") {
+        const lot = (item.batchNumberInput || "").trim();
+        if (!lot) {
+          showToast(`El número de lote es obligatorio para el producto: ${item.name}`, "error");
+          return;
+        }
+        if (lot.length > 50) {
+          showToast(`El número de lote no puede exceder los 50 caracteres para el producto: ${item.name}`, "error");
+          return;
+        }
+      }
+    }
+
+    // Validate refund method
+    const validPaymentMethods = ["EFECTIVO", "TARJETA", "QR_MERCADOPAGO", "VALE_DEVOLUCION", "CAMBIO_PRODUCTO"];
+    if (!validPaymentMethods.includes(returnPaymentMethod)) {
+      showToast(`Método de reembolso no válido: ${returnPaymentMethod}`, "error");
+      return;
+    }
+
+    const reasonError = validateReference(returnReason, "El motivo", { required: true, max: 100 });
     if (reasonError) {
       setReturnFieldErrors((prev) => ({ ...prev, reason: reasonError }));
       return;
@@ -2818,6 +2919,8 @@ const Dashboard: React.FC = () => {
                         setNewCustomerError(null);
                         setNewCustomerFieldErrors({});
                         setNewCustomerForm({ name: "", phone: getPhoneDigits(customerSearch), email: "" });
+                        setIsPhoneVisible(false);
+                        setIsPhoneFocused(false);
                         setIsNewCustomerModalOpen(true);
                       }}
                     >
@@ -3548,29 +3651,45 @@ const Dashboard: React.FC = () => {
                   />
                   {newCustomerFieldErrors.name && <p style={styles.fieldError}>{newCustomerFieldErrors.name}</p>}
                 </div>
+
                 <div style={styles.inputGroup}>
                   <label style={styles.label}>TELÉFONO</label>
-                  {/* Mostrar el teléfono enmascarado (solo lectura). El valor completo se conserva
-                      internamente en newCustomerForm.phone para guardarlo en BD sin modificación. */}
-                  <div style={{
-                    padding: "10px 14px",
-                    borderRadius: "6px",
-                    border: "1px solid #cbd5e1",
-                    backgroundColor: "#f8fafc",
-                    color: "#0f172a",
-                    fontSize: "14px",
-                    fontWeight: "700",
-                    letterSpacing: "0.12em",
-                    cursor: "default",
-                    userSelect: "none"
-                  }}>
-                    {maskPhone(newCustomerForm.phone) || "—"}
+                  <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                    <input
+                      type={isPhoneVisible ? "text" : "password"}
+                      className="input-corporate"
+                      style={{ paddingRight: "40px", width: "100%", letterSpacing: isPhoneVisible ? "0.05em" : "0.2em" }}
+                      placeholder="Ej. 5551234567"
+                      autoComplete="off"
+                      value={newCustomerForm.phone}
+                      onChange={(e) => setNewCustomerField("phone")(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsPhoneVisible(!isPhoneVisible)}
+                      style={{
+                        position: "absolute",
+                        right: "10px",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "4px",
+                        color: "#64748b"
+                      }}
+                      title={isPhoneVisible ? "Ocultar número" : "Mostrar número"}
+                    >
+                      {isPhoneVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
                   </div>
                   <p style={{ fontSize: "11px", color: "#64748b", margin: "4px 0 0 2px" }}>
-                    🔒 El número se oculta por seguridad.
+                    🔒 El número se oculta por seguridad. Haz clic en el ojito para revelarlo.
                   </p>
                   {newCustomerFieldErrors.phone && <p style={styles.fieldError}>{newCustomerFieldErrors.phone}</p>}
                 </div>
+
                 <div style={styles.inputGroup}>
                   <label style={styles.label}>Correo Electrónico (Opcional)</label>
                   <input
