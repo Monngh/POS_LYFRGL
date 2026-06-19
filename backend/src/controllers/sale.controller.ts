@@ -421,6 +421,11 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     const exactTotal = finalSubtotal + finalTax;
     const finalTotal = Math.round(exactTotal * 2) / 2;
 
+    if (finalTotal > 500000) {
+      res.status(400).json({ message: "El total de la venta no puede exceder $500,000." });
+      return;
+    }
+
     // Lógica de Lealtad (Puntos FMB)
     let pointsDiscount = 0;
     let pointsEarned = 0;
@@ -697,6 +702,14 @@ export const getRecentSales = async (req: Request, res: Response): Promise<void>
       }
 
       if (dateFrom || dateTo) {
+        if (dateFrom && dateTo) {
+          const fromDate = new Date(`${dateFrom}T00:00:00`);
+          const toDate = new Date(`${dateTo}T23:59:59.999`);
+          if (fromDate > toDate) {
+            res.status(400).json({ message: "La fecha inicial no puede ser posterior a la fecha final." });
+            return;
+          }
+        }
         where.createdAt = {};
         if (dateFrom) {
           where.createdAt.gte = new Date(`${dateFrom}T00:00:00`);
@@ -787,6 +800,14 @@ export const getMyRecentSales = async (req: Request, res: Response): Promise<voi
       }
 
       if (dateFrom || dateTo) {
+        if (dateFrom && dateTo) {
+          const fromDate = new Date(String(dateFrom));
+          const toDate = new Date(String(dateTo));
+          if (fromDate > toDate) {
+            res.status(400).json({ message: "La fecha inicial no puede ser posterior a la fecha final." });
+            return;
+          }
+        }
         where.createdAt = {};
         if (dateFrom) {
           where.createdAt.gte = new Date(String(dateFrom));
@@ -1056,6 +1077,12 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
 
   const { accountNumber, targetName, amount, paymentType, comments } = req.body;
 
+  const normalizedComments = comments ? String(comments).trim().replace(/\s+/g, " ") : "";
+  if (normalizedComments.length > 100) {
+    res.status(400).json({ message: "Los comentarios del depósito no pueden exceder los 100 caracteres." });
+    return;
+  }
+
   if (!amount || !paymentType) {
     res.status(400).json({ message: "El monto y el tipo de depósito son requeridos para procesar el resguardo." });
     return;
@@ -1143,7 +1170,7 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
     let finalAccountNumber = accountNumber || "";
     let finalTargetName = targetName || "";
     let finalStatus = "COMPLETED"; // Por defecto manual es COMPLETED
-    let finalComments = comments || "Sin comentarios";
+    let finalComments = normalizedComments || "Sin comentarios";
 
     if (isMercadoPago) {
       const description = `Depósito de resguardo POS a ${mpProviderName}`;
@@ -1164,7 +1191,7 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
         barcode: mpResponse.barcode,
         expirationDate: mpResponse.expirationDate,
         ticketUrl: mpResponse.ticketUrl,
-        userComments: comments || ""
+        userComments: normalizedComments || ""
       };
       finalComments = JSON.stringify(meta);
     }
@@ -1318,6 +1345,14 @@ export const searchDeposits = async (req: Request, res: Response): Promise<void>
     }
 
     if (dateFrom || dateTo) {
+      if (dateFrom && dateTo) {
+        const fromDate = new Date(`${dateFrom}T00:00:00`);
+        const toDate = new Date(`${dateTo}T23:59:59.999`);
+        if (fromDate > toDate) {
+          res.status(400).json({ message: "La fecha inicial no puede ser posterior a la fecha final." });
+          return;
+        }
+      }
       whereClause.createdAt = {};
       if (dateFrom) {
         whereClause.createdAt.gte = new Date(`${dateFrom}T00:00:00`);

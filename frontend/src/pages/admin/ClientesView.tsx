@@ -8,6 +8,7 @@ import {
   handleDecimalInputChange,
   validateDecimalField,
 } from "../../utils/decimalInput";
+import { validatePhone } from "../../utils/formValidation";
 import {
   ui,
   type ViewProps,
@@ -94,7 +95,6 @@ type CustomerPayload = {
 
 const CUSTOMER_NAME_PATTERN = /^[A-Za-z0-9\u00C0-\u017F\s.,'&-]+$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_PATTERN = /^[0-9\s()+-]+$/;
 const RFC_PATTERN = /^([A-Z\u00D1&]{3,4})\d{6}([A-Z0-9]{3})$/;
 const ADDRESS_PATTERN = /^[A-Za-z0-9\u00C0-\u017F\s.,#\-\/]+$/;
 const ZIP_CODE_PATTERN = /^\d{5}$/;
@@ -128,6 +128,28 @@ const validateCustomerForm = (form: FormState): {
   }
 
   const taxId = form.taxId.trim().toUpperCase().replace(/\s+/g, "");
+  const zipCode = form.zipCode.trim();
+  const taxRegime = form.taxRegime.trim();
+  const cfdiUse = form.cfdiUse.trim();
+
+  // If any fiscal field is filled, all of them are required
+  const hasAnyFiscal = !!(taxId || zipCode || taxRegime || cfdiUse);
+
+  if (hasAnyFiscal) {
+    if (!taxId) {
+      errors.taxId = "El RFC es obligatorio si llenas datos fiscales.";
+    }
+    if (!zipCode) {
+      errors.zipCode = "El codigo postal es obligatorio si llenas datos fiscales.";
+    }
+    if (!taxRegime) {
+      errors.taxRegime = "El regimen fiscal es obligatorio si llenas datos fiscales.";
+    }
+    if (!cfdiUse) {
+      errors.cfdiUse = "El uso de CFDI es obligatorio si llenas datos fiscales.";
+    }
+  }
+
   if (taxId && !RFC_PATTERN.test(taxId)) {
     errors.taxId = "El RFC debe tener formato valido de 12 o 13 caracteres.";
   }
@@ -139,11 +161,9 @@ const validateCustomerForm = (form: FormState): {
 
   const phone = normalizeSpaces(form.phone);
   if (phone) {
-    const digits = phone.replace(/\D/g, "");
-    if (!PHONE_PATTERN.test(phone)) {
-      errors.phone = "El telefono solo puede contener numeros, espacios, +, - y parentesis.";
-    } else if (digits.length < 10 || digits.length > 15) {
-      errors.phone = "El telefono debe tener entre 10 y 15 digitos.";
+    const phoneError = validatePhone(phone);
+    if (phoneError) {
+      errors.phone = phoneError;
     }
   }
 
@@ -167,17 +187,14 @@ const validateCustomerForm = (form: FormState): {
     roundingMessages.push(...collectRoundedDecimalMessages([creditLimitValue]));
   }
 
-  const zipCode = form.zipCode.trim();
   if (zipCode && !ZIP_CODE_PATTERN.test(zipCode)) {
     errors.zipCode = "El codigo postal debe tener exactamente 5 digitos.";
   }
 
-  const taxRegime = form.taxRegime.trim();
   if (taxRegime && !TAX_REGIMES.some((r) => r.value === taxRegime)) {
     errors.taxRegime = "Seleccione un regimen fiscal valido.";
   }
 
-  const cfdiUse = form.cfdiUse.trim();
   if (cfdiUse && !CFDI_USES.some((u) => u.value === cfdiUse)) {
     errors.cfdiUse = "Seleccione un uso de CFDI valido.";
   }

@@ -36,6 +36,49 @@ const SAT_UNIT_KEY_REGEX = /^[A-Za-z0-9]+$/;
 const MONEY_REGEX = /^\d+(?:\.\d+)?$/;
 const MOVEMENT_TYPE_REGEX = /^[A-Z_]+$/;
 
+const VALID_SAT_PRODUCT_KEYS = [
+  "01010101",
+  "50192100",
+  "50202300",
+  "50181900",
+  "50161800",
+  "50131700",
+  "50201700",
+  "50221300",
+  "50111500",
+  "50151500",
+  "50401500",
+  "50411500",
+  "50202200",
+  "53131600",
+  "51101500"
+];
+
+const VALID_SAT_UNIT_KEYS = [
+  "H87",
+  "KGM",
+  "LTR",
+  "MTR",
+  "E48"
+];
+
+const validatePhoneInput = (phone: string | null | undefined, required = false): { valid: boolean; message: string } => {
+  if (!phone || phone.trim() === "") {
+    return required ? { valid: false, message: "El teléfono es requerido." } : { valid: true, message: "" };
+  }
+  const clean = phone.trim();
+  const PHONE_PATTERN = /^[0-9\s()+-]+$/;
+  if (!PHONE_PATTERN.test(clean)) {
+    return { valid: false, message: "El teléfono solo puede contener números, espacios, +, - y paréntesis." };
+  }
+  const digits = clean.replace(/\D/g, "");
+  const isLadaValid = digits.length === 10 || (digits.length === 12 && ["52", "55", "33", "81"].includes(digits.substring(0, 2)));
+  if (!isLadaValid) {
+    return { valid: false, message: "El teléfono debe tener exactamente 10 dígitos (o 12 dígitos iniciando con lada autorizada 52, 55, 33, 81)." };
+  }
+  return { valid: true, message: "" };
+};
+
 type MoneyValidation = { ok: true; value: number } | { ok: false; message: string };
 
 const cleanBodyText = (value: unknown): string => String(value ?? "").trim();
@@ -276,7 +319,6 @@ type CustomerInput = {
 
 const CUSTOMER_NAME_PATTERN = /^[A-Za-z0-9\u00C0-\u017F\s.,'&-]+$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_PATTERN = /^[0-9\s()+-]+$/;
 const ADDRESS_PATTERN = /^[A-Za-z0-9\u00C0-\u017F\s.,#\-\/]+$/;
 const ZIP_CODE_PATTERN = /^\d{5}$/;
 const TAX_REGIME_PATTERN = /^\d{3}$/;
@@ -296,6 +338,19 @@ const validateCustomerInput = (
 ): { valid: true; data: CustomerInput } | { valid: false; message: string } => {
   const data: CustomerInput = {};
 
+  // Fiscal set required if any fiscal field is filled
+  const hasTaxId = !!(body.taxId !== undefined && readString(body.taxId).trim());
+  const hasZipCode = !!(body.zipCode !== undefined && readString(body.zipCode).trim());
+  const hasTaxRegime = !!(body.taxRegime !== undefined && readString(body.taxRegime).trim());
+  const hasCfdiUse = !!(body.cfdiUse !== undefined && readString(body.cfdiUse).trim());
+
+  if (hasTaxId || hasZipCode || hasTaxRegime || hasCfdiUse) {
+    if (!hasTaxId) return { valid: false, message: "El RFC es obligatorio si llenas datos fiscales." };
+    if (!hasZipCode) return { valid: false, message: "El código postal es obligatorio si llenas datos fiscales." };
+    if (!hasTaxRegime) return { valid: false, message: "El régimen fiscal es obligatorio si llenas datos fiscales." };
+    if (!hasCfdiUse) return { valid: false, message: "El uso de CFDI es obligatorio si llenas datos fiscales." };
+  }
+
   if (options.requireName || body.name !== undefined) {
     const name = normalizeSpaces(readString(body.name));
     if (!name) return { valid: false, message: "El nombre del cliente es requerido." };
@@ -307,16 +362,18 @@ const validateCustomerInput = (
 
   if (body.email !== undefined) {
     const email = readString(body.email).toLowerCase();
-    if (email && (!EMAIL_PATTERN.test(email) || /\s/.test(email))) return { valid: false, message: "El correo no tiene un formato valido." };
+    if (email) {
+      if (email.length > 254) return { valid: false, message: "El correo no puede exceder 254 caracteres." };
+      if (!EMAIL_PATTERN.test(email) || /\s/.test(email)) return { valid: false, message: "El correo no tiene un formato valido." };
+    }
     data.email = email || null;
   }
 
   if (body.phone !== undefined) {
     const phone = normalizeSpaces(readString(body.phone));
     if (phone) {
-      const digits = phone.replace(/\D/g, "");
-      if (!PHONE_PATTERN.test(phone)) return { valid: false, message: "El telefono solo puede contener numeros, espacios, +, - y parentesis." };
-      if (digits.length < 10 || digits.length > 15) return { valid: false, message: "El telefono debe tener entre 10 y 15 digitos." };
+      const phoneCheck = validatePhoneInput(phone, false);
+      if (!phoneCheck.valid) return { valid: false, message: phoneCheck.message };
     }
     data.phone = phone || null;
   }
@@ -748,10 +805,11 @@ export const createBranch = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // ---- Teléfono: obligatorio, exactamente 10 dígitos ----
+    // ---- Teléfono: obligatorio, 10 o 12 dígitos con lada ----
     const cleanPhone = typeof phone === "string" ? phone.trim() : "";
-    if (!/^\d{10}$/.test(cleanPhone)) {
-      res.status(400).json({ message: "El teléfono debe contener exactamente 10 dígitos." });
+    const phoneCheck = validatePhoneInput(cleanPhone, true);
+    if (!phoneCheck.valid) {
+      res.status(400).json({ message: phoneCheck.message });
       return;
     }
 
@@ -814,10 +872,11 @@ export const updateBranch = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // ---- Teléfono: obligatorio, exactamente 10 dígitos ----
+    // ---- Teléfono: obligatorio, 10 o 12 dígitos con lada ----
     const cleanPhone = typeof phone === "string" ? phone.trim() : "";
-    if (!/^\d{10}$/.test(cleanPhone)) {
-      res.status(400).json({ message: "El teléfono debe contener exactamente 10 dígitos." });
+    const phoneCheck = validatePhoneInput(cleanPhone, true);
+    if (!phoneCheck.valid) {
+      res.status(400).json({ message: phoneCheck.message });
       return;
     }
 
@@ -1145,6 +1204,26 @@ export const createEmployee = async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    if (phone !== undefined) {
+      const phoneCheck = validatePhoneInput(phone, false);
+      if (!phoneCheck.valid) {
+        res.status(400).json({ message: phoneCheck.message });
+        return;
+      }
+    }
+
+    if (baseSalary !== undefined && baseSalary !== null && baseSalary !== "") {
+      const parsedSalary = parseFloat(String(baseSalary));
+      if (isNaN(parsedSalary) || parsedSalary < 0) {
+        res.status(400).json({ message: "El sueldo base debe ser un número válido no negativo." });
+        return;
+      }
+      if (parsedSalary > 100000) {
+        res.status(400).json({ message: "El sueldo base no puede exceder $100,000." });
+        return;
+      }
+    }
+
     const branch = await prisma.branch.findUnique({ where: { id: Number(branchId) } });
     if (!branch) {
       res.status(404).json({ message: "La sucursal seleccionada no existe." });
@@ -1238,6 +1317,26 @@ export const updateEmployee = async (req: Request, res: Response): Promise<void>
       const validRoles = ["ADMIN", "GERENTE", "CAJERO"];
       if (!validRoles.includes(String(role).toUpperCase())) {
         res.status(400).json({ message: "Rol inválido. Use ADMIN, GERENTE o CAJERO." });
+        return;
+      }
+    }
+
+    if (phone !== undefined) {
+      const phoneCheck = validatePhoneInput(phone, false);
+      if (!phoneCheck.valid) {
+        res.status(400).json({ message: phoneCheck.message });
+        return;
+      }
+    }
+
+    if (baseSalary !== undefined && baseSalary !== null && baseSalary !== "") {
+      const parsedSalary = parseFloat(String(baseSalary));
+      if (isNaN(parsedSalary) || parsedSalary < 0) {
+        res.status(400).json({ message: "El sueldo base debe ser un número válido no negativo." });
+        return;
+      }
+      if (parsedSalary > 100000) {
+        res.status(400).json({ message: "El sueldo base no puede exceder $100,000." });
         return;
       }
     }
@@ -1608,11 +1707,10 @@ export const registerPurchase = async (req: Request, res: Response): Promise<voi
 // =========================
 // REGEX
 // =========================
-const NAME_REGEX = /^[a-zA-ZÀ-ÿÑñ\s]+$/;
-const COMPANY_NAME_REGEX = /^[a-zA-ZÀ-ÿ0-9\s.-]+$/;
+const NAME_REGEX = /^[a-zA-ZÀ-ÿÑñ\s'-]+$/;
+const COMPANY_NAME_REGEX = /^[a-zA-ZÀ-ÿ0-9\s.'-]+$/;
 const RFC_REGEX = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_REGEX = /^\d{10}$/;
 const ZIP_REGEX = /^\d{5}$/;
 const CITY_STATE_REGEX = /^[a-zA-ZÀ-ÿÑñ\s]+$/;
 
@@ -1678,7 +1776,10 @@ const validateSupplierData = (
   // Email
   // =========================
   if (!isUpdate || data.email !== undefined) {
-    const email = data.email?.trim();
+    const email = data.email?.trim().toLowerCase();
+    if (data.email !== undefined && data.email !== null) {
+      data.email = email;
+    }
 
     if (!email) {
       errors.push("El correo electrónico es requerido.");
@@ -1694,11 +1795,9 @@ const validateSupplierData = (
   // =========================
   if (!isUpdate || data.phone !== undefined) {
     const phone = data.phone?.trim();
-
-    if (!phone) {
-      errors.push("El teléfono es requerido.");
-    } else if (!PHONE_REGEX.test(phone)) {
-      errors.push("El teléfono debe contener exactamente 10 dígitos.");
+    const phoneCheck = validatePhoneInput(phone, true);
+    if (!phoneCheck.valid) {
+      errors.push(phoneCheck.message);
     }
   }
 
@@ -2629,6 +2728,10 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       res.status(400).json({ message: "El SKU solo puede contener letras, números, guion medio y guion bajo." });
       return;
     }
+    if (skuClean.length > 50) {
+      res.status(400).json({ message: "El SKU no puede exceder los 50 caracteres." });
+      return;
+    }
     const nameClean = cleanBodyText(name);
     if (!nameClean) {
       res.status(400).json({ message: "El nombre del producto es requerido." });
@@ -2640,15 +2743,27 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
     }
 
     const descriptionClean = cleanOptionalBodyText(description);
-    if (descriptionClean && !PRODUCT_TEXT_REGEX.test(descriptionClean)) {
-      res.status(400).json({ message: "La descripción contiene caracteres no permitidos." });
-      return;
+    if (descriptionClean) {
+      if (!PRODUCT_TEXT_REGEX.test(descriptionClean)) {
+        res.status(400).json({ message: "La descripción contiene caracteres no permitidos." });
+        return;
+      }
+      if (descriptionClean.length > 100) {
+        res.status(400).json({ message: "La descripción no puede exceder 100 caracteres." });
+        return;
+      }
     }
 
     const barcodeClean = cleanOptionalBodyText(barcode);
-    if (barcodeClean && !BARCODE_REGEX.test(barcodeClean)) {
-      res.status(400).json({ message: "El código de barras solo puede contener números." });
-      return;
+    if (barcodeClean) {
+      if (!BARCODE_REGEX.test(barcodeClean)) {
+        res.status(400).json({ message: "El código de barras solo puede contener números." });
+        return;
+      }
+      if (barcodeClean.length < 8 || barcodeClean.length > 14) {
+        res.status(400).json({ message: "El código de barras debe tener entre 8 y 14 caracteres." });
+        return;
+      }
     }
 
     const cost = parseMoney(costPrice, "costo");
@@ -2663,15 +2778,28 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    if (cost.value > 1000000) {
+      res.status(400).json({ message: "El precio de costo no puede exceder $1,000,000." });
+      return;
+    }
+    if (sell.value > 1000000) {
+      res.status(400).json({ message: "El precio de venta no puede exceder $1,000,000." });
+      return;
+    }
+    if (sell.value < cost.value) {
+      res.status(400).json({ message: "El precio de venta debe ser mayor o igual al precio de costo." });
+      return;
+    }
+
     const satProductKeyClean = cleanOptionalBodyText(satProductKey) ?? "01010101";
-    if (!SAT_PRODUCT_KEY_REGEX.test(satProductKeyClean)) {
-      res.status(400).json({ message: "La clave SAT debe contener 8 números." });
+    if (!SAT_PRODUCT_KEY_REGEX.test(satProductKeyClean) || !VALID_SAT_PRODUCT_KEYS.includes(satProductKeyClean)) {
+      res.status(400).json({ message: "La clave SAT no está permitida o es inválida." });
       return;
     }
 
     const satUnitKeyClean = cleanOptionalBodyText(satUnitKey) ?? "H87";
-    if (!SAT_UNIT_KEY_REGEX.test(satUnitKeyClean)) {
-      res.status(400).json({ message: "La clave de unidad SAT solo puede contener letras y números." });
+    if (!SAT_UNIT_KEY_REGEX.test(satUnitKeyClean) || !VALID_SAT_UNIT_KEYS.includes(satUnitKeyClean)) {
+      res.status(400).json({ message: "La clave de unidad SAT no está permitida o es inválida." });
       return;
     }
 
@@ -2910,15 +3038,27 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
     }
 
     const descriptionClean = description !== undefined ? cleanOptionalBodyText(description) : existingProduct.description;
-    if (description !== undefined && descriptionClean && !PRODUCT_TEXT_REGEX.test(descriptionClean)) {
-      res.status(400).json({ message: "La descripción contiene caracteres no permitidos." });
-      return;
+    if (description !== undefined && descriptionClean) {
+      if (!PRODUCT_TEXT_REGEX.test(descriptionClean)) {
+        res.status(400).json({ message: "La descripción contiene caracteres no permitidos." });
+        return;
+      }
+      if (descriptionClean.length > 100) {
+        res.status(400).json({ message: "La descripción no puede exceder 100 caracteres." });
+        return;
+      }
     }
 
     const barcodeClean = barcode !== undefined ? cleanOptionalBodyText(barcode) : existingProduct.barcode;
-    if (barcode !== undefined && barcodeClean && !BARCODE_REGEX.test(barcodeClean)) {
-      res.status(400).json({ message: "El código de barras solo puede contener números." });
-      return;
+    if (barcode !== undefined && barcodeClean) {
+      if (!BARCODE_REGEX.test(barcodeClean)) {
+        res.status(400).json({ message: "El código de barras solo puede contener números." });
+        return;
+      }
+      if (barcodeClean.length < 8 || barcodeClean.length > 14) {
+        res.status(400).json({ message: "El código de barras debe tener entre 8 y 14 caracteres." });
+        return;
+      }
     }
 
     let cost = Number(existingProduct.costPrice);
@@ -2941,11 +3081,24 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
       sell = parsedSell.value;
     }
 
+    if (cost > 1000000) {
+      res.status(400).json({ message: "El precio de costo no puede exceder $1,000,000." });
+      return;
+    }
+    if (sell > 1000000) {
+      res.status(400).json({ message: "El precio de venta no puede exceder $1,000,000." });
+      return;
+    }
+    if (sell < cost) {
+      res.status(400).json({ message: "El precio de venta debe ser mayor o igual al precio de costo." });
+      return;
+    }
+
     let satProductKeyClean = existingProduct.satProductKey || "01010101";
     if (satProductKey !== undefined) {
       satProductKeyClean = cleanOptionalBodyText(satProductKey) ?? "01010101";
-      if (!SAT_PRODUCT_KEY_REGEX.test(satProductKeyClean)) {
-        res.status(400).json({ message: "La clave SAT debe contener 8 números." });
+      if (!SAT_PRODUCT_KEY_REGEX.test(satProductKeyClean) || !VALID_SAT_PRODUCT_KEYS.includes(satProductKeyClean)) {
+        res.status(400).json({ message: "La clave SAT no está permitida o es inválida." });
         return;
       }
     }
@@ -2953,8 +3106,8 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
     let satUnitKeyClean = existingProduct.satUnitKey || "H87";
     if (satUnitKey !== undefined) {
       satUnitKeyClean = cleanOptionalBodyText(satUnitKey) ?? "H87";
-      if (!SAT_UNIT_KEY_REGEX.test(satUnitKeyClean)) {
-        res.status(400).json({ message: "La clave de unidad SAT solo puede contener letras y números." });
+      if (!SAT_UNIT_KEY_REGEX.test(satUnitKeyClean) || !VALID_SAT_UNIT_KEYS.includes(satUnitKeyClean)) {
+        res.status(400).json({ message: "La clave de unidad SAT no está permitida o es inválida." });
         return;
       }
     }
@@ -3047,6 +3200,10 @@ export const adjustInventory = async (req: Request, res: Response): Promise<void
     }
     if (!PRODUCT_TEXT_REGEX.test(reason)) {
       res.status(400).json({ message: "El motivo contiene caracteres no permitidos." });
+      return;
+    }
+    if (reason.length > 100) {
+      res.status(400).json({ message: "El motivo de ajuste no puede exceder 100 caracteres." });
       return;
     }
 

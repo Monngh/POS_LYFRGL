@@ -96,7 +96,7 @@ const validateEmail = (value: string): string | undefined => {
 };
 
 const validatePhone = (value: string): string | undefined => {
-  return validatePhoneFormat(value, { required: true, minDigits: 10, maxDigits: 15 });
+  return validatePhoneFormat(value, { required: true });
 };
 
 const validateAddress = (value: string): string | undefined => {
@@ -755,13 +755,13 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
 
                 {/* Teléfono */}
                 <div>
-                  <label style={ui.fieldLabel}>Teléfono *</label>
+                  <label style={ui.fieldLabel}>Teléfono (con LADA) *</label>
                   <input
                     style={{ ...ui.input, borderColor: fieldErrors.phone ? "#dc2626" : "#d1d5db" }}
                     value={form.phone}
                     onChange={handlePhone}
                     onBlur={() => handleBlur('phone')}
-                    placeholder="5512345678"
+                    placeholder="Ej. 5512345678 o 525512345678"
                     disabled={saving}
                   />
                   {fieldErrors.phone && (

@@ -64,7 +64,7 @@ const validateAddress = (value: string): string | undefined => {
 };
 
 const validatePhone = (value: string): string | undefined => {
-  return validatePhoneFormat(value, { required: true, minDigits: 10, maxDigits: 15 });
+  return validatePhoneFormat(value, { required: true });
 };
 
 // ---------------------------------------------------------------------------
@@ -631,12 +631,12 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
               {/* Teléfono — solo acepta dígitos */}
               <div style={{ marginBottom: 14 }}>
-                <label style={ui.fieldLabel}>Teléfono * (10 dígitos)</label>
+                <label style={ui.fieldLabel}>Teléfono (con LADA) *</label>
                 <input
                   style={inputWithError(!!fieldErrors.phone)}
                   value={form.phone}
                   onChange={handlePhoneChange}
-                  placeholder="7710000000"
+                  placeholder="Ej. 5512345678 o 525512345678"
                   inputMode="numeric"
                 />
                 {fieldErrors.phone && (
