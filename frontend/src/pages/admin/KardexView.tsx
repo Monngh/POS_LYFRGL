@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { ArrowUp, ArrowDown, Printer, ChevronDown, ChevronUp } from "lucide-react";
 import api from "../../services/api";
+import { validateDateRange, validateSearchText } from "../../utils/formValidation";
 import {
   ui,
   type ViewProps,
@@ -83,6 +84,8 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [to, setTo] = useState("");
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [expandedKardex, setExpandedKardex] = useState<Record<number, boolean>>({});
+  const dateError = from && to ? validateDateRange(from, to) : undefined;
+  const searchError = validateSearchText(search, "La busqueda", { max: 120 });
 
   const toggleExpandKardex = (id: number) => {
     setExpandedKardex((prev) => ({
@@ -92,6 +95,14 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   };
 
   const load = useCallback(async () => {
+    const invalidRange = from && to ? validateDateRange(from, to) : undefined;
+    const invalidSearch = validateSearchText(search, "La busqueda", { max: 120 });
+    if (invalidRange || invalidSearch) {
+      setRows([]);
+      setError(invalidRange || invalidSearch || null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -174,21 +185,36 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
       {/* Búsqueda + rango de fechas */}
       <Toolbar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Buscar por producto o SKU" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Buscar por producto o SKU" maxLength={120} />
         <div>
           <label style={ui.fieldLabel}>Desde</label>
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={{ ...ui.filterSelect, height: 38 }} />
+          <input
+            type="date"
+            value={from}
+            max={to || undefined}
+            onChange={(e) => setFrom(e.target.value)}
+            style={{ ...ui.filterSelect, height: 38, ...(dateError ? { borderColor: "#fca5a5" } : {}) }}
+          />
         </div>
         <div>
           <label style={ui.fieldLabel}>Hasta</label>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={{ ...ui.filterSelect, height: 38 }} />
+          <input
+            type="date"
+            value={to}
+            min={from || undefined}
+            onChange={(e) => setTo(e.target.value)}
+            style={{ ...ui.filterSelect, height: 38, ...(dateError ? { borderColor: "#fca5a5" } : {}) }}
+          />
         </div>
         {(from || to) && (
           <button onClick={() => { setFrom(""); setTo(""); }} style={{ ...ui.ghostBtn, fontSize: 12, marginTop: 18 }}>
             ✕ Limpiar fechas
           </button>
         )}
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
+        {(dateError || searchError) && (
+          <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 600 }}>{dateError || searchError}</span>
+        )}
+        <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b", fontWeight: 600 }}>
           {rows.length} movimiento{rows.length === 1 ? "" : "s"}
         </span>
       </Toolbar>

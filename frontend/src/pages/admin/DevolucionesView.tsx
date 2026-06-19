@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Eye, RefreshCw, ChevronDown, ChevronUp, Calendar, User, Tag } from "lucide-react";
 import api from "../../services/api";
+import { validateDateRange } from "../../utils/formValidation";
 import {
   ui,
   type ViewProps,
@@ -178,6 +179,8 @@ const ReturnDetailSubView: React.FC<{
   };
 
   const handleRetryRefund = async () => {
+    if (actionLoading) return;
+    if (!window.confirm("¿Seguro que deseas reintentar este reembolso?")) return;
     setActionLoading(true);
     try {
       await api.post(`/api/admin/returns/${current.id}/retry-refund`);
@@ -190,6 +193,8 @@ const ReturnDetailSubView: React.FC<{
   };
 
   const handleCreateCfdi = async () => {
+    if (actionLoading) return;
+    if (!window.confirm("¿Seguro que deseas generar el CFDI de esta devolucion?")) return;
     setActionLoading(true);
     try {
       const res = await api.post(`/api/admin/returns/${current.id}/create-cfdi`);
@@ -554,8 +559,20 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   };
 
   const LIMIT = 20;
+  const dateError = dateFrom && dateTo
+    ? validateDateRange(dateFrom, dateTo)
+    : undefined;
 
   const load = useCallback(async () => {
+    const invalidRange = dateFrom && dateTo
+      ? validateDateRange(dateFrom, dateTo)
+      : undefined;
+    if (invalidRange) {
+      setRows([]);
+      setError(invalidRange);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -628,6 +645,7 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           value={search}
           onChange={setSearch}
           placeholder="Buscar por folio DEV-... o V-..."
+          maxLength={120}
         />
         <FilterSelect
           value={paymentFilter}
@@ -647,6 +665,7 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         <input
           type="date"
           value={dateFrom}
+          max={dateTo || undefined}
           onChange={(e) => {
             setDateFrom(e.target.value);
             setPage(1);
@@ -657,6 +676,7 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         <input
           type="date"
           value={dateTo}
+          min={dateFrom || undefined}
           onChange={(e) => {
             setDateTo(e.target.value);
             setPage(1);
@@ -676,6 +696,7 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             Limpiar fechas
           </button>
         )}
+        {dateError && <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 600 }}>{dateError}</span>}
       </Toolbar>
 
       {!isMobile && (

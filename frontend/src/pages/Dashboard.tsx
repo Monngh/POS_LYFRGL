@@ -18,12 +18,10 @@ import {
   validateDecimalField,
 } from "../utils/decimalInput";
 import {
-  normalizeEmailInput,
   normalizeIntegerInput,
   normalizePhoneInput,
   normalizeSpaces,
   validateDateRange,
-  validateEmail,
   validateInteger,
   validatePhone,
   validateReference,
@@ -47,9 +45,7 @@ import {
   RotateCcw,
   Mail,
   ArrowLeft,
-  MoreVertical,
-  Eye,
-  EyeOff
+  MoreVertical
 } from "lucide-react";
 
 interface Product {
@@ -586,32 +582,33 @@ const Dashboard: React.FC = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerSearchError, setCustomerSearchError] = useState("");
-  const [isPhoneVisible, setIsPhoneVisible] = useState(false);
   const [customerLookupStatus, setCustomerLookupStatus] = useState<CustomerLookupStatus>("idle");
-  const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
-  const [newCustomerForm, setNewCustomerForm] = useState({ name: "", phone: "", email: "" });
-  const [newCustomerFieldErrors, setNewCustomerFieldErrors] = useState<Partial<Record<keyof typeof newCustomerForm, string>>>({});
-  const [newCustomerLoading, setNewCustomerLoading] = useState(false);
-  const [newCustomerError, setNewCustomerError] = useState<string | null>(null);
+  const [isCustomerSearchMasked, setIsCustomerSearchMasked] = useState(false);
+  const [customerMessage, setCustomerMessage] = useState("");
 
   // Puntos a redimir en el cobro
   const [pointsToRedeem, setPointsToRedeem] = useState<number>(0);
   const [usePoints, setUsePoints] = useState<boolean>(false);
   const [invoiceRequested, setInvoiceRequested] = useState<boolean>(false);
   const selectedCustomerMaskedPhone = maskPhone(selectedCustomer?.phone);
+  const shouldMaskCustomerSearch =
+    isCustomerSearchMasked ||
+    customerLookupStatus === "loading" ||
+    customerLookupStatus === "not-found" ||
+    customerLookupStatus === "error";
+  const customerSearchDisplayValue = shouldMaskCustomerSearch
+    ? maskPhone(customerSearch)
+    : customerSearch;
   const customerLookupFeedback =
     customerSearchError ||
     (customerLookupStatus === "typing" ? "Captura el telefono completo para consultar puntos." :
       customerLookupStatus === "loading" ? "Consultando cliente registrado..." :
-        customerLookupStatus === "not-found" ? "Cliente no registrado." :
-          customerLookupStatus === "error" ? "No se pudo consultar el cliente. Intente nuevamente." :
-            "");
+        customerLookupStatus === "error" ? "No se pudo registrar el cliente. Intenta nuevamente." :
+          "");
   const customerLookupFeedbackColor =
     customerSearchError || customerLookupStatus === "error"
       ? "#b91c1c"
-      : customerLookupStatus === "not-found"
-        ? "#64748b"
-        : "#166534";
+      : "#166534";
 
   // Estados para búsqueda de tickets en reimpresión (Fase 3.8)
   const [ticketSearch, setTicketSearch] = useState("");
@@ -668,16 +665,22 @@ const Dashboard: React.FC = () => {
     if (view !== "sales-terminal") return;
     const query = customerSearch.trim();
     const digits = getPhoneDigits(query);
-    const searchError = query
-      ? (/[^\d\s()+-]/.test(query) ? "El teléfono solo puede contener números, espacios, +, - y paréntesis." : undefined)
-      : undefined;
     if (!query) {
       setCustomerSearchError("");
       setCustomerLookupStatus("idle");
       return;
     }
-    if (searchError) {
-      setCustomerSearchError(searchError);
+
+    if (digits.length > 10) {
+      setCustomerSearchError("El teléfono debe tener exactamente 10 dígitos.");
+      setCustomerLookupStatus("idle");
+      setSelectedCustomer(null);
+      return;
+    }
+
+    const charError = validatePhone(query, { required: false });
+    if (charError && !charError.includes("digitos")) {
+      setCustomerSearchError(charError);
       setCustomerLookupStatus("idle");
       setSelectedCustomer(null);
       return;
@@ -700,17 +703,39 @@ const Dashboard: React.FC = () => {
         const exactMatch = customers.find((c) => getPhoneDigits(c.phone) === digits) || null;
         if (exactMatch) {
           setSelectedCustomer(exactMatch);
-          setCustomerSearch("");
+          setCustomerSearch(digits);
+          setIsCustomerSearchMasked(true);
           setCustomerLookupStatus("idle");
+          setCustomerMessage("Cliente registrado");
+          showToast("Cliente registrado", "success");
         } else {
-          setSelectedCustomer(null);
-          setCustomerLookupStatus("not-found");
+          // Si no existe, crear automáticamente un cliente nuevo con ese teléfono.
+          try {
+            const regRes = await api.post("/api/sales/customers", {
+              phone: digits
+            });
+            if (cancelled) return;
+            const newCust = regRes.data.customer;
+            setSelectedCustomer(newCust);
+            setCustomerSearch(digits);
+            setIsCustomerSearchMasked(true);
+            setCustomerLookupStatus("idle");
+            setCustomerMessage("Cliente registrado para puntos");
+            showToast("Cliente registrado para puntos", "success");
+          } catch (regErr: any) {
+            if (cancelled) return;
+            console.error("Error al registrar cliente automático:", regErr);
+            setSelectedCustomer(null);
+            setCustomerLookupStatus("error");
+            showToast("No se pudo registrar el cliente. Intenta nuevamente.", "error");
+          }
         }
       } catch (err) {
         if (cancelled) return;
         console.error("Error al buscar clientes:", err);
         setSelectedCustomer(null);
         setCustomerLookupStatus("error");
+        showToast("No se pudo registrar el cliente. Intenta nuevamente.", "error");
       }
     }, 300);
 
@@ -745,78 +770,8 @@ const Dashboard: React.FC = () => {
     loadSaleSimulation();
   }, [cart]);
 
-  const validateNewCustomerField = (field: keyof typeof newCustomerForm, value: string) => {
-    if (field === "name") return validateSafeText(value, "El nombre", { required: true, min: 2, max: 100 });
-    if (field === "phone") return validatePhone(value, { required: true });
-    if (field === "email") return validateEmail(value, { required: false });
-    return undefined;
-  };
 
-  const validateNewCustomerForm = () => {
-    const errors: Partial<Record<keyof typeof newCustomerForm, string>> = {};
-    (Object.keys(newCustomerForm) as Array<keyof typeof newCustomerForm>).forEach((field) => {
-      const error = validateNewCustomerField(field, newCustomerForm[field]);
-      if (error) errors[field] = error;
-    });
-    return errors;
-  };
 
-  const setNewCustomerField =
-    (field: keyof typeof newCustomerForm) =>
-      (value: string) => {
-        const nextValue =
-          field === "phone"
-            ? normalizePhoneInput(value).slice(0, 20)
-            : field === "email"
-              ? normalizeEmailInput(value)
-              : field === "name"
-                ? validateNameInput(value)
-                : value;
-        setNewCustomerForm((prev) => ({ ...prev, [field]: nextValue }));
-        setNewCustomerError(null);
-        setNewCustomerFieldErrors((prev) => {
-          const next = { ...prev };
-          const error = validateNewCustomerField(field, nextValue);
-          if (error) next[field] = error;
-          else delete next[field];
-          return next;
-        });
-      };
-
-  const handleRegisterCustomerSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const errors = validateNewCustomerForm();
-    if (Object.keys(errors).length > 0) {
-      setNewCustomerFieldErrors(errors);
-      setNewCustomerError(null);
-      return;
-    }
-    const { name, phone, email } = newCustomerForm;
-    if (!name.trim() || !phone.trim()) {
-      setNewCustomerError("El nombre y el teléfono son obligatorios.");
-      return;
-    }
-    setNewCustomerLoading(true);
-    setNewCustomerError(null);
-    try {
-      const res = await api.post("/api/sales/customers", {
-        name: name.trim(),
-        phone: phone.trim(),
-        email: email.trim() || undefined
-      });
-      setSelectedCustomer(res.data.customer);
-      setCustomerSearch("");
-      setCustomerLookupStatus("idle");
-      setIsNewCustomerModalOpen(false);
-      setNewCustomerForm({ name: "", phone: "", email: "" });
-      setNewCustomerFieldErrors({});
-      showToast("Cliente registrado y vinculado para puntos.", "success");
-    } catch (err: any) {
-      setNewCustomerError(err.response?.data?.message || "Error al registrar cliente.");
-    } finally {
-      setNewCustomerLoading(false);
-    }
-  };
 
   const handleProductBarcodeSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -976,6 +931,17 @@ const Dashboard: React.FC = () => {
     setActiveModal("cart-pin-auth");
   };
 
+  const resetCustomerSaleState = () => {
+    setSelectedCustomer(null);
+    setCustomerMessage("");
+    setCustomerSearch("");
+    setIsCustomerSearchMasked(false);
+    setCustomerLookupStatus("idle");
+    setUsePoints(false);
+    setPointsToRedeem(0);
+    setInvoiceRequested(false);
+  };
+
   function resetCurrentSaleAndReturnToDashboard() {
     setCart([]);
     localStorage.removeItem(DRAFT_KEY);
@@ -986,10 +952,10 @@ const Dashboard: React.FC = () => {
     setCheckoutError(null);
     setCheckoutModalOpen(false);
     setSelectedCustomer(null);
+    setCustomerMessage("");
     setCustomerSearch("");
+    setIsCustomerSearchMasked(false);
     setCustomerLookupStatus("idle");
-    setIsNewCustomerModalOpen(false);
-    setNewCustomerError(null);
     setUsePoints(false);
     setPointsToRedeem(0);
     setPaymentMethod("EFECTIVO");
@@ -1231,6 +1197,7 @@ const Dashboard: React.FC = () => {
         setQrModalOpen(false);
         setCart([]);
         setPaymentMethod("EFECTIVO");
+        resetCustomerSaleState();
 
         // Fetch fully populated sale details from backend
         try {
@@ -1497,10 +1464,7 @@ const Dashboard: React.FC = () => {
       // Limpiar carrito, borrador, cliente seleccionado y cerrar cobro
       setCart([]);
       localStorage.removeItem(DRAFT_KEY);
-      setSelectedCustomer(null);
-      setUsePoints(false);
-      setPointsToRedeem(0);
-      setInvoiceRequested(false);
+      resetCustomerSaleState();
       setCheckoutModalOpen(false);
       setPaymentMethod("EFECTIVO");
       setCashReceived("");
@@ -2149,10 +2113,7 @@ const Dashboard: React.FC = () => {
 
     // Limpiar el carrito de compras
     setCart([]);
-    setSelectedCustomer(null);
-    setUsePoints(false);
-    setPointsToRedeem(0);
-    setInvoiceRequested(false);
+    resetCustomerSaleState();
     setCashReceived("");
     setPaymentMethod("EFECTIVO");
     setQrModalOpen(false);
@@ -2907,9 +2868,9 @@ const Dashboard: React.FC = () => {
                     fontSize: "13px"
                   }} className="pos-cashier-customer-selected">
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                      <span style={{ fontWeight: "700", color: "#166534" }}>Cliente vinculado para puntos</span>
+                      <span style={{ fontWeight: "700", color: "#166534" }}>{customerMessage || "Cliente registrado"}</span>
                       {selectedCustomerMaskedPhone && (
-                        <span style={{ color: "#475569" }}>Tel: {selectedCustomerMaskedPhone}</span>
+                        <span style={{ color: "#475569" }}>Teléfono: {selectedCustomerMaskedPhone}</span>
                       )}
                       <span style={{
                         backgroundColor: "#dcfce7",
@@ -2925,6 +2886,10 @@ const Dashboard: React.FC = () => {
                       type="button"
                       onClick={() => {
                         setSelectedCustomer(null);
+                        setCustomerMessage("");
+                        setCustomerSearch("");
+                        setIsCustomerSearchMasked(false);
+                        setCustomerLookupStatus("idle");
                         setUsePoints(false);
                         setPointsToRedeem(0);
                         setInvoiceRequested(false);
@@ -2946,14 +2911,24 @@ const Dashboard: React.FC = () => {
                     <div style={{ flex: 1, position: "relative" }}>
                       <span style={{ position: "absolute", left: "12px", top: "12px", fontSize: "14px" }}>👤</span>
                       <input
-                        type="password"
+                        type="text"
                         className="input-corporate"
-                        style={{ paddingLeft: "38px", letterSpacing: "0.15em" }}
+                        style={{
+                          paddingLeft: "38px",
+                          letterSpacing: shouldMaskCustomerSearch ? "0.15em" : "normal",
+                          backgroundColor: shouldMaskCustomerSearch ? "#f8fafc" : "#ffffff"
+                        }}
                         placeholder="Telefono del cliente para puntos..."
-                        value={customerSearch}
+                        value={customerSearchDisplayValue}
                         inputMode="tel"
                         autoComplete="off"
-                        onChange={(e) => setCustomerSearch(normalizePhoneInput(e.target.value).slice(0, 20))}
+                        readOnly={shouldMaskCustomerSearch}
+                        aria-label="Telefono del cliente para puntos"
+                        onChange={(e) => {
+                          if (shouldMaskCustomerSearch) return;
+                          setIsCustomerSearchMasked(false);
+                          setCustomerSearch(normalizePhoneInput(e.target.value).slice(0, 20));
+                        }}
                       />
                       {customerLookupFeedback && (
                         <p style={{ ...styles.fieldError, color: customerLookupFeedbackColor }}>
@@ -2963,20 +2938,20 @@ const Dashboard: React.FC = () => {
                         </p>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      style={{ backgroundColor: "#0f172a" }}
-                      onClick={() => {
-                        setNewCustomerError(null);
-                        setNewCustomerFieldErrors({});
-                        setNewCustomerForm({ name: "", phone: getPhoneDigits(customerSearch), email: "" });
-                        setIsPhoneVisible(false);
-                        setIsNewCustomerModalOpen(true);
-                      }}
-                    >
-                      + Nuevo
-                    </button>
+                    {shouldMaskCustomerSearch && customerLookupStatus !== "loading" && (
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        style={{ backgroundColor: "#475569" }}
+                        onClick={() => {
+                          setCustomerSearchError("");
+                          setIsCustomerSearchMasked(false);
+                          setCustomerLookupStatus(customerSearch ? "typing" : "idle");
+                        }}
+                      >
+                        Cambiar
+                      </button>
+                    )}
                   </>
                 )}
               </div>
@@ -3630,34 +3605,34 @@ const Dashboard: React.FC = () => {
             <div style={styles.checkoutModal} className="pos-cashier-modal">
               <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
               <div style={{ textAlign: "center", padding: "20px 0" }}>
-                 <p style={{marginBottom: "10px", fontSize: "14px", color: "#475569"}}>Escanea el siguiente código para pagar <strong>${cartTotal.toFixed(2)}</strong></p>
-                 {qrUrl ? (
-                   <>
-                     <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" width="200" height="200" />
-                     <div style={{ marginTop: "12px" }}>
-                       <a 
-                         href={qrUrl} 
-                         target="_blank" 
-                         rel="noopener noreferrer" 
-                         style={{ 
-                           fontSize: "12px", 
-                           color: "#2563eb", 
-                           textDecoration: "underline", 
-                           fontWeight: "600", 
-                           display: "inline-block", 
-                           padding: "6px 12px", 
-                           backgroundColor: "#f1f5f9", 
-                           borderRadius: "6px" 
-                         }}
-                       >
-                         🔗 Abrir enlace de pago / Sandbox
-                       </a>
-                     </div>
-                   </>
-                 ) : (
-                   <p>Generando QR...</p>
-                 )}
-                 <p style={{ marginTop: "12px", fontSize: "12px", color: "#64748b" }}>Ref: {qrReference}</p>
+                <p style={{ marginBottom: "10px", fontSize: "14px", color: "#475569" }}>Escanea el siguiente código para pagar <strong>${cartTotal.toFixed(2)}</strong></p>
+                {qrUrl ? (
+                  <>
+                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" width="200" height="200" loading="lazy" />
+                    <div style={{ marginTop: "12px" }}>
+                      <a
+                        href={qrUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          fontSize: "12px",
+                          color: "#2563eb",
+                          textDecoration: "underline",
+                          fontWeight: "600",
+                          display: "inline-block",
+                          padding: "6px 12px",
+                          backgroundColor: "#f1f5f9",
+                          borderRadius: "6px"
+                        }}
+                      >
+                        🔗 Abrir enlace de pago / Sandbox
+                      </a>
+                    </div>
+                  </>
+                ) : (
+                  <p>Generando QR...</p>
+                )}
+                <p style={{ marginTop: "12px", fontSize: "12px", color: "#64748b" }}>Ref: {qrReference}</p>
               </div>
               <div style={{ display: "flex", gap: "10px", marginTop: "24px" }} className="pos-cashier-modal-actions">
                 <button
@@ -3682,115 +3657,7 @@ const Dashboard: React.FC = () => {
           </div>
         )}
 
-        {/* MODAL: REGISTRO RÁPIDO DE CLIENTE (Fase 3.6) */}
-        {isNewCustomerModalOpen && (
-          <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-            <div style={styles.checkoutModal} className="pos-cashier-modal">
-              <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>
-                REGISTRO RÁPIDO DE CLIENTE
-              </h3>
-              <form onSubmit={handleRegisterCustomerSubmit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>Nombre Completo *</label>
-                  <input
-                    type="text"
-                    required
-                    className="input-corporate"
-                    placeholder="Ej. Juan Pérez"
-                    value={newCustomerForm.name}
-                    onChange={(e) => setNewCustomerField("name")(e.target.value)}
-                  />
-                  {newCustomerFieldErrors.name && <p style={styles.fieldError}>{newCustomerFieldErrors.name}</p>}
-                </div>
-
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>TELÉFONO</label>
-                  <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                    <input
-                      type={isPhoneVisible ? "text" : "password"}
-                      className="input-corporate"
-                      style={{ paddingRight: "40px", width: "100%", letterSpacing: isPhoneVisible ? "0.05em" : "0.2em" }}
-                      placeholder="Ej. 5551234567"
-                      autoComplete="off"
-                      value={newCustomerForm.phone}
-                      onChange={(e) => setNewCustomerField("phone")(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setIsPhoneVisible(!isPhoneVisible)}
-                      style={{
-                        position: "absolute",
-                        right: "10px",
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        padding: "4px",
-                        color: "#64748b"
-                      }}
-                      title={isPhoneVisible ? "Ocultar número" : "Mostrar número"}
-                    >
-                      {isPhoneVisible ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-                  <p style={{ fontSize: "11px", color: "#64748b", margin: "4px 0 0 2px" }}>
-                    🔒 El número se oculta por seguridad. Haz clic en el ojito para revelarlo.
-                  </p>
-                  {newCustomerFieldErrors.phone && <p style={styles.fieldError}>{newCustomerFieldErrors.phone}</p>}
-                </div>
-
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>Correo Electrónico (Opcional)</label>
-                  <input
-                    type="email"
-                    className="input-corporate"
-                    placeholder="Ej. cliente@correo.com"
-                    value={newCustomerForm.email}
-                    onChange={(e) => setNewCustomerField("email")(e.target.value)}
-                  />
-                  {newCustomerFieldErrors.email && <p style={styles.fieldError}>{newCustomerFieldErrors.email}</p>}
-                </div>
-
-                {newCustomerError && (
-                  <div style={{
-                    backgroundColor: "#fef2f2",
-                    border: "1px solid #fca5a5",
-                    color: "#b91c1c",
-                    padding: "10px 12px",
-                    borderRadius: "6px",
-                    fontSize: "13px",
-                    fontWeight: "600",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px"
-                  }}>
-                    <AlertTriangle size={16} color="#b91c1c" />
-                    <span>{newCustomerError}</span>
-                  </div>
-                )}
-
-                <div style={{ display: "flex", gap: "10px", marginTop: "16px" }} className="pos-cashier-modal-actions">
-                  <button
-                    type="button"
-                    onClick={() => { setIsNewCustomerModalOpen(false); setNewCustomerFieldErrors({}); }}
-                    style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}
-                  >
-                    CANCELAR
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={newCustomerLoading}
-                    style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
-                  >
-                    {newCustomerLoading ? "Registrando..." : "REGISTRAR Y SELECCIONAR"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        {/* MODAL: REGISTRO RÁPIDO DE CLIENTE (Eliminado por flujo automático) */}
 
         {/* MODAL: AUTORIZACIÓN PIN GERENTE/ADMIN PARA CARRITO (Fase 3.0) */}
         {renderCartAuthorizationModal()}
@@ -6055,41 +5922,42 @@ const Dashboard: React.FC = () => {
             <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
 
             <div style={{ textAlign: "center", padding: "12px 0" }}>
-               <p style={{ marginBottom: "10px", fontSize: "13px", color: "#475569" }}>
-                 Escanea el siguiente código para pagar la venta <strong>${Number(viewingPendingQrSale.amount).toFixed(2)}</strong>
-               </p>
-               {viewingPendingQrSale.qrUrl ? (
-                 <>
-                   <img 
-                     src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(viewingPendingQrSale.qrUrl)}`} 
-                     alt="QR Code" 
-                     width="180" 
-                     height="180" 
-                   />
-                   <div style={{ marginTop: "10px" }}>
-                     <a 
-                       href={viewingPendingQrSale.qrUrl} 
-                       target="_blank" 
-                       rel="noopener noreferrer" 
-                       style={{ 
-                         fontSize: "12px", 
-                         color: "#2563eb", 
-                         textDecoration: "underline", 
-                         fontWeight: "600", 
-                         display: "inline-block", 
-                         padding: "6px 12px", 
-                         backgroundColor: "#f1f5f9", 
-                         borderRadius: "6px" 
-                       }}
-                     >
-                       🔗 Abrir enlace de pago / Sandbox
-                     </a>
-                   </div>
-                 </>
-               ) : (
-                 <p style={{ fontSize: "12px", color: "#64748b" }}>Código QR no disponible.</p>
-               )}
-               <p style={{ marginTop: "10px", fontSize: "11px", color: "#64748b" }}>Folio: {viewingPendingQrSale.invoiceNumber}</p>
+              <p style={{ marginBottom: "10px", fontSize: "13px", color: "#475569" }}>
+                Escanea el siguiente código para pagar la venta <strong>${Number(viewingPendingQrSale.amount).toFixed(2)}</strong>
+              </p>
+              {viewingPendingQrSale.qrUrl ? (
+                <>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(viewingPendingQrSale.qrUrl)}`}
+                    alt="QR Code"
+                    width="180"
+                    height="180"
+                    loading="lazy"
+                  />
+                  <div style={{ marginTop: "10px" }}>
+                    <a
+                      href={viewingPendingQrSale.qrUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontSize: "12px",
+                        color: "#2563eb",
+                        textDecoration: "underline",
+                        fontWeight: "600",
+                        display: "inline-block",
+                        padding: "6px 12px",
+                        backgroundColor: "#f1f5f9",
+                        borderRadius: "6px"
+                      }}
+                    >
+                      🔗 Abrir enlace de pago / Sandbox
+                    </a>
+                  </div>
+                </>
+              ) : (
+                <p style={{ fontSize: "12px", color: "#64748b" }}>Código QR no disponible.</p>
+              )}
+              <p style={{ marginTop: "10px", fontSize: "11px", color: "#64748b" }}>Folio: {viewingPendingQrSale.invoiceNumber}</p>
             </div>
 
             {/* Formulario de Cancelación con PIN si la venta sigue pendiente */}

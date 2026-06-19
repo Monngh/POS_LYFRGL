@@ -13,7 +13,14 @@ import {
   fmtTime,
   useMediaQuery,
 } from "./shared";
-import { type FieldErrors, normalizeIntegerInput, validateInteger } from "../../utils/formValidation";
+import {
+  type FieldErrors,
+  normalizeIntegerInput,
+  validateCatalogValue,
+  validateDateInput,
+  validateDateRange,
+  validateInteger,
+} from "../../utils/formValidation";
 
 const PERIODICIDADES = [
   { value: "day", label: "Diario" },
@@ -37,6 +44,66 @@ const MESES = [
   { value: "12", label: "Diciembre" },
 ];
 
+type ConfigurationField = "startDate" | "endDate" | "periodicity" | "month" | "year" | "branchId";
+
+const validateYear = (value: string) => {
+  const error = validateInteger(value, "El anio", { required: true, min: 2000, max: 2100 });
+  if (error) return error;
+  return value.length === 4 ? undefined : "El anio debe tener 4 digitos.";
+};
+
+const validateConfiguration = ({
+  startDate,
+  endDate,
+  periodicity,
+  month,
+  year,
+  branchId,
+}: {
+  startDate: string;
+  endDate: string;
+  periodicity: string;
+  month: string;
+  year: string;
+  branchId: string;
+}) => {
+  const errors: FieldErrors<ConfigurationField> = {};
+  const startDateError = validateDateInput(startDate, "La fecha inicial");
+  const endDateError = validateDateInput(endDate, "La fecha final");
+  if (startDateError) errors.startDate = startDateError;
+  if (endDateError) errors.endDate = endDateError;
+  if (!startDateError && !endDateError) {
+    const rangeError = validateDateRange(startDate, endDate);
+    if (rangeError) errors.endDate = rangeError;
+  }
+
+  const periodicityError = validateCatalogValue(
+    periodicity,
+    PERIODICIDADES.map((option) => option.value),
+    "una periodicidad",
+  );
+  if (periodicityError) errors.periodicity = periodicityError;
+
+  const monthError = validateCatalogValue(
+    month,
+    MESES.map((option) => option.value),
+    "una opcion de mes",
+  );
+  if (monthError) errors.month = monthError;
+
+  const yearError = validateYear(year);
+  if (yearError) errors.year = yearError;
+
+  const normalizedBranchId = String(branchId);
+  if (
+    normalizedBranchId !== "all" &&
+    (!/^\d+$/.test(normalizedBranchId) || Number(normalizedBranchId) <= 0)
+  ) {
+    errors.branchId = "Selecciona una sucursal valida.";
+  }
+  return errors;
+};
+
 const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [expandedTickets, setExpandedTickets] = useState<Record<number, boolean>>({});
@@ -54,7 +121,6 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
   const [periodicity, setPeriodicity] = useState("day");
   const [month, setMonth] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
   const [year, setYear] = useState(String(new Date().getFullYear()));
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors<"year">>({});
 
   // Estado de los tickets a facturar
   const [tickets, setTickets] = useState<any[]>([]);
@@ -66,21 +132,27 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
   const [stampResult, setStampResult] = useState<any | null>(null);
   const [stampError, setStampError] = useState<string | null>(null);
 
-  const validateYear = (value: string) => {
-    const error = validateInteger(value, "El anio", { required: true, min: 2000, max: 2100 });
-    if (error) return error;
-    return value.length === 4 ? undefined : "El anio debe tener 4 digitos.";
-  };
-
   const handleYearChange = (value: string) => {
     const normalized = normalizeIntegerInput(value).slice(0, 4);
-    const forcedError = value !== normalized ? "El anio solo puede contener numeros enteros." : undefined;
     setYear(normalized);
-    setFieldErrors((prev) => ({ ...prev, year: forcedError || validateYear(normalized) }));
   };
 
   // Cargar tickets elegibles
   const loadEligibleTickets = useCallback(async () => {
+    const validation = validateConfiguration({
+      startDate,
+      endDate,
+      periodicity,
+      month,
+      year,
+      branchId: String(branchId),
+    });
+    if (Object.keys(validation).length > 0) {
+      setTickets([]);
+      setError("Revisa la configuracion antes de cargar las ventas.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setStampResult(null);
@@ -116,7 +188,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
     } finally {
       setLoading(false);
     }
-  }, [branchId, startDate, endDate, refreshToken]);
+  }, [branchId, startDate, endDate, periodicity, month, year, refreshToken]);
 
   useEffect(() => {
     loadEligibleTickets();
@@ -124,9 +196,19 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
 
   // Ejecutar timbrado de Factura Global
   const handleStampGlobal = async () => {
-    const yearError = validateYear(year);
-    setFieldErrors({ year: yearError });
-    if (yearError) return;
+    if (stamping) return;
+    const validation = validateConfiguration({
+      startDate,
+      endDate,
+      periodicity,
+      month,
+      year,
+      branchId: String(branchId),
+    });
+    if (Object.keys(validation).length > 0) {
+      setStampError("Revisa la configuracion antes de timbrar.");
+      return;
+    }
 
     if (tickets.length === 0) {
       alert("No hay tickets disponibles para facturar en este rango.");
@@ -147,7 +229,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
         periodicity,
         month,
         year,
-        branchId: branchId === "all" ? undefined : parseInt(branchId),
+        branchId: branchId === "all" ? undefined : Number(branchId),
       });
 
       setStampResult(res.data);
@@ -163,6 +245,15 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
   // Cálculos resumen
   const totalAmount = tickets.reduce((acc, t) => acc + t.totalAmount, 0);
   const totalTax = tickets.reduce((acc, t) => acc + t.taxAmount, 0);
+  const configurationErrors = validateConfiguration({
+    startDate,
+    endDate,
+    periodicity,
+    month,
+    year,
+    branchId: String(branchId),
+  });
+  const hasConfigurationErrors = Object.keys(configurationErrors).length > 0;
 
   return (
     <div>
@@ -184,8 +275,9 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                style={ui.input}
+                style={{ ...ui.input, ...(configurationErrors.startDate ? fieldErrorInput : {}) }}
               />
+              {configurationErrors.startDate && <p style={ui.fieldError}>{configurationErrors.startDate}</p>}
             </div>
 
             <div>
@@ -194,8 +286,10 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                style={ui.input}
+                min={startDate || undefined}
+                style={{ ...ui.input, ...(configurationErrors.endDate ? fieldErrorInput : {}) }}
               />
+              {configurationErrors.endDate && <p style={ui.fieldError}>{configurationErrors.endDate}</p>}
             </div>
 
             <div>
@@ -203,7 +297,11 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
               <select
                 value={periodicity}
                 onChange={(e) => setPeriodicity(e.target.value)}
-                style={{ ...ui.input, cursor: "pointer" }}
+                style={{
+                  ...ui.input,
+                  cursor: "pointer",
+                  ...(configurationErrors.periodicity ? fieldErrorInput : {}),
+                }}
               >
                 {PERIODICIDADES.map((p) => (
                   <option key={p.value} value={p.value}>
@@ -211,6 +309,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                   </option>
                 ))}
               </select>
+              {configurationErrors.periodicity && <p style={ui.fieldError}>{configurationErrors.periodicity}</p>}
             </div>
 
             <div>
@@ -218,7 +317,11 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
               <select
                 value={month}
                 onChange={(e) => setMonth(e.target.value)}
-                style={{ ...ui.input, cursor: "pointer" }}
+                style={{
+                  ...ui.input,
+                  cursor: "pointer",
+                  ...(configurationErrors.month ? fieldErrorInput : {}),
+                }}
               >
                 {MESES.map((m) => (
                   <option key={m.value} value={m.value}>
@@ -226,6 +329,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                   </option>
                 ))}
               </select>
+              {configurationErrors.month && <p style={ui.fieldError}>{configurationErrors.month}</p>}
             </div>
 
             <div>
@@ -236,15 +340,16 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                 maxLength={4}
                 value={year}
                 onChange={(e) => handleYearChange(e.target.value)}
-                onBlur={() => setFieldErrors({ year: validateYear(year) })}
-                style={{ ...ui.input, ...(fieldErrors.year ? fieldErrorInput : {}) }}
+                style={{ ...ui.input, ...(configurationErrors.year ? fieldErrorInput : {}) }}
               />
-              {fieldErrors.year && <p style={ui.fieldError}>{fieldErrors.year}</p>}
+              {configurationErrors.year && <p style={ui.fieldError}>{configurationErrors.year}</p>}
             </div>
+
+            {configurationErrors.branchId && <p style={ui.fieldError}>{configurationErrors.branchId}</p>}
 
             <button
               onClick={loadEligibleTickets}
-              disabled={loading || stamping}
+              disabled={loading || stamping || hasConfigurationErrors}
               style={{ ...ui.ghostBtn, width: "100%", justifyContent: "center", height: 38 }}
             >
               <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Actualizar Listado
@@ -318,7 +423,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
             <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
               <button
                 onClick={handleStampGlobal}
-                disabled={tickets.length === 0 || stamping}
+                disabled={tickets.length === 0 || stamping || hasConfigurationErrors}
                 style={{
                   ...ui.primaryBtn,
                   backgroundColor: stamping ? "var(--text-faint)" : "var(--accent-strong)",
