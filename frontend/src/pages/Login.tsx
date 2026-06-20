@@ -732,58 +732,66 @@ const Login: React.FC = () => {
             </div>
           )}
 
-          {/* Leyenda de seguridad del teclado */}
-          <div style={styles.keypadHint}>
-            <ShieldCheck size={13} color="#64748b" />
-            <span>Teclado seguro: los números cambian de lugar para proteger su PIN.</span>
-          </div>
+          {isTouch ? (
+            <>
+              {/* Leyenda de seguridad del teclado */}
+              <div style={styles.keypadHint}>
+                <ShieldCheck size={13} color="#64748b" />
+                <span>Teclado seguro: los números cambian de lugar para proteger su PIN.</span>
+              </div>
 
-          {/* PIN Pad — orden aleatorio (anti-espía) */}
-          <div style={{ ...pinPadStyle, ...(isLocked ? { opacity: 0.5, pointerEvents: "none" as const } : {}) }}>
-            {shuffledDigits.slice(0, 9).map((num) => (
-              <button
-                key={num}
-                type="button"
-                disabled={isLocked || loading}
-                style={pinBtnStyle}
-                onClick={() => handleCashierPinPress(num)}
-                className="active-tap"
-              >
-                {num}
-              </button>
-            ))}
-            <button
-              type="button"
-              disabled={isLocked || loading}
-              style={{ ...pinBtnStyle, ...styles.pinBtnAction }}
-              onClick={handleClearPin}
-              className="active-tap"
-            >
-              <Delete size={20} />
-            </button>
-            <button
-              type="button"
-              disabled={isLocked || loading}
-              style={pinBtnStyle}
-              onClick={() => handleCashierPinPress(shuffledDigits[9])}
-              className="active-tap"
-            >
-              {shuffledDigits[9]}
-            </button>
-            <button
-              type="button"
-              disabled={loading || pinCode.length < 4 || !cashierEmail || isLocked}
-              style={{
-                ...pinBtnStyle,
-                ...styles.pinBtnOK,
-                ...(pinCode.length === 4 && cashierEmail && !isLocked ? styles.pinBtnOKReady : {}),
-              }}
-              onClick={handleCashierSubmit}
-              className="active-tap"
-            >
-              <KeyRound size={20} />
-            </button>
-          </div>
+              {/* PIN Pad — orden aleatorio (anti-espía) */}
+              <div style={{ ...pinPadStyle, ...(isLocked ? { opacity: 0.5, pointerEvents: "none" as const } : {}) }}>
+                {shuffledDigits.slice(0, 9).map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    disabled={isLocked || loading}
+                    style={pinBtnStyle}
+                    onClick={() => handleCashierPinPress(num)}
+                    className="active-tap"
+                  >
+                    {num}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={isLocked || loading}
+                  style={{ ...pinBtnStyle, ...styles.pinBtnAction }}
+                  onClick={handleClearPin}
+                  className="active-tap"
+                >
+                  <Delete size={20} />
+                </button>
+                <button
+                  type="button"
+                  disabled={isLocked || loading}
+                  style={pinBtnStyle}
+                  onClick={() => handleCashierPinPress(shuffledDigits[9])}
+                  className="active-tap"
+                >
+                  {shuffledDigits[9]}
+                </button>
+                <button
+                  type="button"
+                  disabled={loading || pinCode.length < 4 || !cashierEmail || isLocked}
+                  style={{
+                    ...pinBtnStyle,
+                    ...styles.pinBtnOK,
+                    ...(pinCode.length === 4 && cashierEmail && !isLocked ? styles.pinBtnOKReady : {}),
+                  }}
+                  onClick={handleCashierSubmit}
+                  className="active-tap"
+                >
+                  <KeyRound size={20} />
+                </button>
+              </div>
+            </>
+          ) : (
+            <p style={{ textAlign: "center", fontSize: "13px", color: "var(--text-muted)", marginTop: "8px" }}>
+              Use su teclado físico para ingresar el PIN
+            </p>
+          )}
         </div>
       )}
     </div>
