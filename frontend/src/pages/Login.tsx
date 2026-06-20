@@ -75,8 +75,8 @@ const Login: React.FC = () => {
   const [loadingCashiers, setLoadingCashiers] = useState(false);
 
   // Formulario Admin
-  const [adminEmail, setAdminEmail] = useState("admin@fmb.com");
-  const [adminPassword, setAdminPassword] = useState("AdminPassword#2026");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
   const [adminFieldErrors, setAdminFieldErrors] = useState<FieldErrors<"email" | "password">>({});
 
   // Fallback OTP (se activa cuando WebAuthn falla)
@@ -160,8 +160,8 @@ const Login: React.FC = () => {
 
   const validateAdminForm = () => ({
     email: validateEmail(adminEmail, { required: true }),
-    password: adminPassword.length > 16
-      ? "La contraseña no puede exceder 16 caracteres."
+    password: adminPassword.length > 30
+      ? "La contraseña no puede exceder los 30 caracteres."
       : normalizeSpaces(adminPassword) ? undefined : "La contrasena es obligatoria.",
   });
 
@@ -173,15 +173,15 @@ const Login: React.FC = () => {
   });
 
   const setAdminField = (field: "email" | "password", value: string) => {
-    const next = field === "email" ? normalizeEmailInput(value) : value.slice(0, 16);
+    const next = field === "email" ? normalizeEmailInput(value) : value.slice(0, 30);
     if (field === "email") setAdminEmail(next);
     if (field === "password") setAdminPassword(next);
     setAdminFieldErrors((prev) => ({
       ...prev,
       [field]: field === "email"
         ? validateEmail(next, { required: true })
-        : next.length > 16
-          ? "La contraseña no puede exceder 16 caracteres."
+        : next.length > 30
+          ? "La contraseña no puede exceder los 30 caracteres."
           : normalizeSpaces(next) ? undefined : "La contrasena es obligatoria.",
     }));
   };
@@ -452,7 +452,7 @@ const Login: React.FC = () => {
               type="email"
               required
               className="input-corporate"
-              placeholder="admin@fmb.com"
+              placeholder="correo@ejemplo.com"
               value={adminEmail}
               onChange={(e) => setAdminField("email", e.target.value)}
               onBlur={() => setAdminFieldErrors((prev) => ({ ...prev, email: validateEmail(adminEmail, { required: true }) }))}
