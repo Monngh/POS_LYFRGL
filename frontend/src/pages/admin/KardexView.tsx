@@ -188,14 +188,14 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             ✕ Limpiar fechas
           </button>
         )}
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b", fontWeight: 600 }}>
+        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
           {rows.length} movimiento{rows.length === 1 ? "" : "s"}
         </span>
       </Toolbar>
 
       {isMobile ? (
         /* ── Mobile / Tablet: Card-based layout ── */
-        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0" }}>
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)" }}>
           {/* Header row mirroring the fields */}
           <div style={{
             display: "grid",
@@ -203,7 +203,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             padding: "12px 16px",
             fontWeight: 700,
             fontSize: 11,
-            color: "#64748b",
+            color: "var(--text-muted)",
             textTransform: "uppercase",
             letterSpacing: "0.4px",
           }}>
@@ -214,7 +214,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           </div>
 
           {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
             </div>
           )}
@@ -224,7 +224,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </div>
           )}
           {!loading && !error && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Sin registros en el periodo seleccionado.
             </div>
           )}
@@ -238,8 +238,8 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <div
                   key={k.id}
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e2e8f0",
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border)",
                     borderRadius: 12,
                     marginBottom: 10,
                     boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
@@ -255,9 +255,9 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     padding: "8px 16px 6px 16px",
                     fontSize: 11,
                     fontWeight: 700,
-                    color: "#64748b",
+                    color: "var(--text-muted)",
                     borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "#f8fafc",
+                    backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
                     <span style={{ fontFamily: "monospace" }}>{k.sku}</span>
@@ -274,7 +274,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     alignItems: "center",
                   }}>
                     {/* Producto */}
-                    <div style={{ fontSize: 13, color: "#0f172a", fontWeight: 600, paddingRight: 8, whiteSpace: "normal" }}>
+                    <div style={{ fontSize: 13, color: "var(--text)", fontWeight: 600, paddingRight: 8, whiteSpace: "normal" }}>
                       {k.product}
                     </div>
 
@@ -291,7 +291,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       fontSize: 13,
                       fontWeight: 800,
                       textAlign: "center",
-                      color: "#0f172a",
+                      color: "var(--text)",
                     }}>
                       {k.balanceAfter}
                     </div>
@@ -311,7 +311,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#2563eb",
+                          color: "var(--accent)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -327,13 +327,13 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#ffffff",
-                          border: "1px solid #cbd5e1",
+                          backgroundColor: "var(--surface)",
+                          border: "1px solid var(--border-strong)",
                           borderRadius: 8,
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#64748b",
+                          color: "var(--text-muted)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -348,20 +348,20 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <div style={{
                       padding: "16px",
                       margin: "0 16px 16px 16px",
-                      backgroundColor: "#f8fafc",
+                      backgroundColor: "var(--surface-2)",
                       borderRadius: "8px",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--border)",
                       display: "grid",
                       gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
                       gap: "16px",
                     }}>
                       {/* Datos del Movimiento */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Datos del Movimiento</h4>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Datos del Movimiento</h4>
                         <div style={kardexDetailRow}>
                           <span style={kardexDetailLabel}>Fecha/Hora:</span>
                           <span style={kardexDetailValue}>
-                            {fmtDate(k.createdAt)} <span style={{ color: "#94a3b8", fontWeight: 500 }}>{fmtTime(k.createdAt)}</span>
+                            {fmtDate(k.createdAt)} <span style={{ color: "var(--text-faint)", fontWeight: 500 }}>{fmtTime(k.createdAt)}</span>
                           </span>
                         </div>
                         <div style={kardexDetailRow}>
@@ -376,7 +376,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                       {/* Resumen Físico */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Resumen Físico</h4>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Resumen Físico</h4>
                         <div style={kardexDetailRow}>
                           <span style={kardexDetailLabel}>Exist. anterior:</span>
                           <span style={kardexDetailValue}>{balanceBefore} uds</span>
@@ -395,11 +395,11 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                       {/* Referencia / Motivo */}
                       <div style={{ gridColumn: "1 / -1" }}>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Referencia / Motivo</h4>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 6 }}>Referencia / Motivo</h4>
                         <div style={{
                           padding: "8px 12px",
-                          backgroundColor: "#ffffff",
-                          border: "1px solid #e2e8f0",
+                          backgroundColor: "var(--surface)",
+                          border: "1px solid var(--border)",
                           borderRadius: 8,
                           fontSize: 12,
                           color: "#475569",
@@ -442,11 +442,11 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   return (
                     <tr key={k.id}>
                       <td style={ui.td}>
-                        {fmtDate(k.createdAt)} <span style={{ color: "#94a3b8" }}>{fmtTime(k.createdAt)}</span>
+                        {fmtDate(k.createdAt)} <span style={{ color: "var(--text-faint)" }}>{fmtTime(k.createdAt)}</span>
                       </td>
                       <td style={{ ...ui.td, whiteSpace: "normal" }}>
-                        <div style={{ fontWeight: 600, color: "#0f172a" }}>{k.product}</div>
-                        <div style={{ fontSize: 11, color: "#94a3b8" }}>{k.sku}</div>
+                        <div style={{ fontWeight: 600, color: "var(--text)" }}>{k.product}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{k.sku}</div>
                       </td>
                       <td style={ui.td}>{k.branch}</td>
                       <td style={{ ...ui.td, textAlign: "center" }}>
@@ -460,10 +460,10 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           {Math.abs(k.quantityChange)}
                         </span>
                       </td>
-                      <td style={{ ...ui.td, textAlign: "center", color: "#64748b" }}>{balanceBefore}</td>
+                      <td style={{ ...ui.td, textAlign: "center", color: "var(--text-muted)" }}>{balanceBefore}</td>
                       <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{k.balanceAfter}</td>
                       <td style={ui.td}>{k.user}</td>
-                      <td style={{ ...ui.td, whiteSpace: "normal", color: "#64748b", fontSize: 12, maxWidth: 240 }}>{k.reason || "—"}</td>
+                      <td style={{ ...ui.td, whiteSpace: "normal", color: "var(--text-muted)", fontSize: 12, maxWidth: 240 }}>{k.reason || "—"}</td>
                       <td style={{ ...ui.td, textAlign: "center" }}>
                         <button
                           onClick={() => printMovement(k)}
@@ -473,9 +473,9 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             width: 32,
                             height: 32,
                             borderRadius: 7,
-                            border: "1px solid #e2e8f0",
-                            backgroundColor: "#ffffff",
-                            color: "#1e3a8a",
+                            border: "1px solid var(--border)",
+                            backgroundColor: "var(--surface)",
+                            color: "var(--accent-strong)",
                             cursor: "pointer",
                             display: "inline-flex",
                             alignItems: "center",
@@ -507,14 +507,14 @@ const kardexDetailRow: React.CSSProperties = {
 
 const kardexDetailLabel: React.CSSProperties = {
   fontWeight: 700,
-  color: "#64748b",
+  color: "var(--text-muted)",
   minWidth: "105px",
   display: "inline-block",
 };
 
 const kardexDetailValue: React.CSSProperties = {
   fontWeight: 600,
-  color: "#334155",
+  color: "var(--text-secondary)",
 };
 
 export default KardexView;

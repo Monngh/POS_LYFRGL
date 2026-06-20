@@ -83,14 +83,14 @@ const branchDetailRow: React.CSSProperties = {
 
 const branchDetailLabel: React.CSSProperties = {
   fontWeight: 700,
-  color: "#64748b",
+  color: "var(--text-muted)",
   minWidth: "95px",
   display: "inline-block",
 };
 
 const branchDetailValue: React.CSSProperties = {
   fontWeight: 600,
-  color: "#334155",
+  color: "var(--text-secondary)",
 };
 
 const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
@@ -323,13 +323,13 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
     {
       key: "id",
       header: "#",
-      render: (b) => <span style={{ fontWeight: 700, color: "#1e3a8a" }}>{b.id}</span>,
+      render: (b) => <span style={{ fontWeight: 700, color: "var(--accent-strong)" }}>{b.id}</span>,
     },
     {
       key: "name",
       header: "Nombre",
       render: (b) => (
-        <span style={{ fontWeight: 700, color: "#0f172a", whiteSpace: "normal" }}>{b.name}</span>
+        <span style={{ fontWeight: 700, color: "var(--text)", whiteSpace: "normal" }}>{b.name}</span>
       ),
     },
     {
@@ -367,7 +367,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
     {
       key: "createdAt",
       header: "Alta",
-      render: (b) => <span style={{ color: "#64748b" }}>{fmtDate(b.createdAt)}</span>,
+      render: (b) => <span style={{ color: "var(--text-muted)" }}>{fmtDate(b.createdAt)}</span>,
     },
     {
       key: "actions",
@@ -410,7 +410,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
           <option value="active">Solo activas ({activeCount})</option>
           <option value="inactive">Solo inactivas ({inactiveCount})</option>
         </select>
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b", fontWeight: 600 }}>
+        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
           {filteredRows.length} sucursal{filteredRows.length === 1 ? "" : "es"}
         </span>
       </Toolbar>
@@ -425,7 +425,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
             padding: "12px 16px",
             fontWeight: 700,
             fontSize: 11,
-            color: "#64748b",
+            color: "var(--text-muted)",
             textTransform: "uppercase",
             letterSpacing: "0.4px",
           }}>
@@ -436,7 +436,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
           </div>
 
           {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
             </div>
           )}
@@ -446,7 +446,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
             </div>
           )}
           {!loading && !error && filteredRows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               No hay sucursales registradas.
             </div>
           )}
@@ -459,8 +459,8 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <div
                   key={b.id}
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e2e8f0",
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border)",
                     borderRadius: 12,
                     marginBottom: 10,
                     boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
@@ -475,9 +475,9 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     padding: "8px 16px 6px 16px",
                     fontSize: 11,
                     fontWeight: 700,
-                    color: "#64748b",
+                    color: "var(--text-muted)",
                     borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "#f8fafc",
+                    backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
                     <span>{b.name.toUpperCase()}</span>
@@ -492,12 +492,12 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     alignItems: "center",
                   }}>
                     {/* Empleados */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)" }}>
                       {b.employees}
                     </div>
 
                     {/* Ventas */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", textAlign: "center" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "center" }}>
                       {b.sales}
                     </div>
 
@@ -521,7 +521,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#1e3a8a",
+                          color: "var(--accent-strong)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -537,13 +537,13 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#ffffff",
-                          border: "1px solid #cbd5e1",
+                          backgroundColor: "var(--surface)",
+                          border: "1px solid var(--border-strong)",
                           borderRadius: 8,
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#64748b",
+                          color: "var(--text-muted)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -558,9 +558,9 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     <div style={{
                       padding: "16px",
                       margin: "0 16px 16px 16px",
-                      backgroundColor: "#f8fafc",
+                      backgroundColor: "var(--surface-2)",
                       borderRadius: "8px",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--border)",
                       display: "grid",
                       gridTemplateColumns: "repeat(auto-fit, minmax(185px, 1fr))",
                       gap: "16px",
@@ -568,7 +568,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     }}>
                       {/* Datos Generales */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Dirección y Alta</h4>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Dirección y Alta</h4>
                         <div style={branchDetailRow}>
                           <span style={branchDetailLabel}>Dirección:</span>
                           <span style={branchDetailValue}>{b.address || "—"}</span>
@@ -581,12 +581,12 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
                       {/* Gestión de Personal */}
                       <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "flex-start" }}>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Colaboradores</h4>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Colaboradores</h4>
                         <button
                           onClick={() => openEmployeesModal(b)}
                           style={{
                             ...ui.ghostBtn,
-                            color: "#2563eb",
+                            color: "var(--accent)",
                             borderColor: "#93c5fd",
                             fontSize: 12,
                             padding: "6px 12px",
@@ -681,7 +681,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
               onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
               style={{ width: 16, height: 16, accentColor: "#1e3a8a", cursor: "pointer" }}
             />
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Sucursal activa</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Sucursal activa</span>
           </label>
 
           {/* Error general del servidor */}
@@ -727,7 +727,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
             (e: any) => e.branchId === selectedBranch.id
           );
           return branchEmployees.length === 0 ? (
-            <p style={{ color: "#64748b", textAlign: "center", padding: "16px 0" }}>
+            <p style={{ color: "var(--text-muted)", textAlign: "center", padding: "16px 0" }}>
               No hay empleados en esta sucursal.
             </p>
           ) : (

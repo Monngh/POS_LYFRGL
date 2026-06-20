@@ -1069,7 +1069,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <AlertTriangle size={16} /> {lowCount} con stock bajo
               </span>
             )}
-            <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b", fontWeight: 600 }}>
+            <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
               {filteredRows.length} producto{filteredRows.length === 1 ? "" : "s"}
             </span>
             {user?.role !== "GERENTE" && (
@@ -1089,7 +1089,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 padding: "12px 16px",
                 fontWeight: 700,
                 fontSize: 11,
-                color: "#64748b",
+                color: "var(--text-muted)",
                 textTransform: "uppercase",
                 letterSpacing: "0.4px",
               }}>
@@ -1100,12 +1100,12 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               </div>
 
               {loading && (
-                <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+                <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
                   Cargando información...
                 </div>
               )}
               {!loading && filteredRows.length === 0 && (
-                <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+                <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
                   No hay productos registrados.
                 </div>
               )}
@@ -1118,7 +1118,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       key={p.id}
                       style={{
                         backgroundColor: p.low ? "#fffbeb" : "#ffffff",
-                        border: "1px solid #e2e8f0",
+                        border: "1px solid var(--border)",
                         borderRadius: 12,
                         marginBottom: 10,
                         boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
@@ -1133,9 +1133,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         padding: "8px 16px 6px 16px",
                         fontSize: 11,
                         fontWeight: 700,
-                        color: "#64748b",
+                        color: "var(--text-muted)",
                         borderBottom: "1px solid #f1f5f9",
-                        backgroundColor: "#f8fafc",
+                        backgroundColor: "var(--surface-2)",
                         letterSpacing: "0.2px",
                       }}>
                         <span>{p.sku}</span>
@@ -1156,12 +1156,12 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         alignItems: "center",
                       }}>
                         {/* Producto */}
-                        <div style={{ fontSize: 13, color: "#0f172a", fontWeight: 600, paddingRight: 8, whiteSpace: "normal" }}>
+                        <div style={{ fontSize: 13, color: "var(--text)", fontWeight: 600, paddingRight: 8, whiteSpace: "normal" }}>
                           {p.name}
                         </div>
 
                         {/* Precio */}
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
                           {money(p.sellPrice)}
                         </div>
 
@@ -1190,7 +1190,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               width: 34,
                               height: 34,
                               cursor: "pointer",
-                              color: "#2563eb",
+                              color: "var(--accent)",
                               padding: 0,
                             }}
                             className="active-tap"
@@ -1206,13 +1206,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               display: "inline-flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              backgroundColor: "#ffffff",
-                              border: "1px solid #cbd5e1",
+                              backgroundColor: "var(--surface)",
+                              border: "1px solid var(--border-strong)",
                               borderRadius: 8,
                               width: 34,
                               height: 34,
                               cursor: "pointer",
-                              color: "#64748b",
+                              color: "var(--text-muted)",
                               padding: 0,
                             }}
                             className="active-tap"
@@ -1227,16 +1227,16 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         <div style={{
                           padding: "16px",
                           margin: "0 16px 16px 16px",
-                          backgroundColor: "#f8fafc",
+                          backgroundColor: "var(--surface-2)",
                           borderRadius: "8px",
-                          border: "1px solid #e2e8f0",
+                          border: "1px solid var(--border)",
                           display: "grid",
                           gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
                           gap: "16px",
                         }}>
                           {/* Información General */}
                           <div>
-                            <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Información General</h4>
+                            <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Información General</h4>
                             <div style={invDetailRow}>
                               <span style={invDetailLabel}>Código Barras:</span>
                               <span style={invDetailValue}>{p.barcode || "—"}</span>
@@ -1249,7 +1249,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                           {/* Valores Económicos */}
                           <div>
-                            <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Valores Económicos</h4>
+                            <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Valores Económicos</h4>
                             <div style={invDetailRow}>
                               <span style={invDetailLabel}>Costo:</span>
                               <span style={invDetailValue}>{money(p.costPrice)}</span>
@@ -1270,7 +1270,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                           {/* Stock y Sucursales */}
                           <div>
-                            <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Stock y Sucursales</h4>
+                            <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Stock y Sucursales</h4>
                             <div style={invDetailRow}>
                               <span style={invDetailLabel}>Stock Actual:</span>
                               <span style={{ ...invDetailValue, color: p.low ? "#b45309" : "#15803d" }}>{p.stock}</span>
@@ -1325,8 +1325,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                                 : undefined,
                         }}
                       >
-                        <td style={{ ...ui.td, color: "#94a3b8", fontWeight: 600 }}>{p.sku}</td>
-                        <td style={{ ...ui.td, fontWeight: 600, color: "#0f172a", whiteSpace: "normal" }}>{p.name}</td>
+                        <td style={{ ...ui.td, color: "var(--text-faint)", fontWeight: 600 }}>{p.sku}</td>
+                        <td style={{ ...ui.td, fontWeight: 600, color: "var(--text)", whiteSpace: "normal" }}>{p.name}</td>
                         <td style={{ ...ui.td, textAlign: "right" }}>{money(p.costPrice)}</td>
                         <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{money(p.sellPrice)}</td>
                         <td
@@ -1339,7 +1339,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         >
                           {p.stock}
                         </td>
-                        <td style={{ ...ui.td, textAlign: "center", color: "#64748b" }}>{p.minStock}</td>
+                        <td style={{ ...ui.td, textAlign: "center", color: "var(--text-muted)" }}>{p.minStock}</td>
                         <td style={{ ...ui.td, textAlign: "center" }}>
                           {!p.active ? (
                             <Badge tone="red">Inactivo</Badge>
@@ -1368,7 +1368,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   {selectedProduct ? selectedProduct.name : "Cargando…"}
                 </div>
                 {selectedProduct && (
-                  <div style={{ fontSize: 12, color: "#64748b", marginTop: 3 }}>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>
                     SKU: {selectedProduct.sku}
                     {selectedProduct.barcode ? ` · Barcode: ${selectedProduct.barcode}` : ""}
                   </div>
@@ -1381,7 +1381,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
             <div style={ui.modalBody}>
               {detailLoading && (
-                <p style={{ textAlign: "center", color: "#94a3b8", padding: "32px 0" }}>Cargando detalle…</p>
+                <p style={{ textAlign: "center", color: "var(--text-faint)", padding: "32px 0" }}>Cargando detalle…</p>
               )}
               {detailError && (
                 <p style={{ textAlign: "center", color: "#b91c1c", padding: "32px 0" }}>{detailError}</p>
@@ -1389,7 +1389,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               {selectedProduct && !detailLoading && (
                 <>
                   {/* ── Precios (con modo edición) ── */}
-                  <div style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 16, marginBottom: 20 }}>
+                  <div style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 16, marginBottom: 20 }}>
                     {!editMode ? (
                       <>
                         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 12, marginBottom: 12 }}>
@@ -1417,7 +1417,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             style={{
                               ...ui.ghostBtn,
                               fontSize: 12,
-                              color: "#2563eb",
+                              color: "var(--accent)",
                               borderColor: "#93c5fd",
                             }}
                           >
@@ -1453,8 +1453,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             {priceFieldErrors.price && <p style={styles.fieldError}>{priceFieldErrors.price}</p>}
                           </div>
                         </div>
-                        <div style={{ fontSize: 12, color: "#64748b", marginBottom: 12 }}>
-                          Margen calculado: <strong style={{ color: "#0f172a" }}>{liveMargem}%</strong>
+                        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>
+                          Margen calculado: <strong style={{ color: "var(--text)" }}>{liveMargem}%</strong>
                         </div>
                         {saveError && (
                           <p style={{ fontSize: 12, color: "#b91c1c", marginBottom: 10 }}>{saveError}</p>
@@ -1478,13 +1478,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     )}
                     <Badge tone="slate">SAT: {selectedProduct.satProductKey || "01010101"} ({selectedProduct.satUnitKey || "H87"})</Badge>
                     {selectedProduct.description && (
-                      <span style={{ fontSize: 12, color: "#64748b" }}>{selectedProduct.description}</span>
+                      <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{selectedProduct.description}</span>
                     )}
                   </div>
 
                   {/* ── Stock por sucursal ── */}
                   <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1e3a8a", marginBottom: 10 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-strong)", marginBottom: 10 }}>
                       Stock por sucursal
                     </div>
 
@@ -1492,20 +1492,20 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       /* ── Mobile: card-based branch stock ── */
                       <div style={{ maxHeight: 220, overflowY: "auto", paddingRight: 4 }}>
                         {selectedProduct.inventories.length === 0 && (
-                          <div style={{ textAlign: "center", padding: "20px 16px", color: "#94a3b8", fontSize: 13 }}>
+                          <div style={{ textAlign: "center", padding: "20px 16px", color: "var(--text-faint)", fontSize: 13 }}>
                             Sin inventario registrado
                           </div>
                         )}
                         {selectedProduct.inventories.map((inv) => (
                           <div key={inv.id} style={{
                             backgroundColor: inv.quantity <= inv.minStock ? "#fffbeb" : "#ffffff",
-                            border: "1px solid #e2e8f0",
+                            border: "1px solid var(--border)",
                             borderRadius: 10,
                             marginBottom: 8,
                             padding: "12px 14px",
                           }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>{inv.branch}</span>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{inv.branch}</span>
                               {inv.quantity <= inv.minStock ? (
                                 <Badge tone="amber">Stock bajo</Badge>
                               ) : (
@@ -1514,16 +1514,16 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             </div>
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
                               <div style={{ textAlign: "center" }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.3px" }}>Stock</div>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Stock</div>
                                 <div style={{ fontSize: 15, fontWeight: 800, color: inv.quantity <= inv.minStock ? "#b45309" : "#0f172a" }}>{inv.quantity}</div>
                               </div>
                               <div style={{ textAlign: "center" }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.3px" }}>Mín</div>
-                                <div style={{ fontSize: 15, fontWeight: 700, color: "#64748b" }}>{inv.minStock}</div>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Mín</div>
+                                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-muted)" }}>{inv.minStock}</div>
                               </div>
                               <div style={{ textAlign: "center" }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.3px" }}>Máx</div>
-                                <div style={{ fontSize: 15, fontWeight: 700, color: "#64748b" }}>{inv.maxStock}</div>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Máx</div>
+                                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-muted)" }}>{inv.maxStock}</div>
                               </div>
                             </div>
                           </div>
@@ -1545,7 +1545,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           <tbody>
                             {selectedProduct.inventories.length === 0 && (
                               <tr>
-                                <td colSpan={5} style={{ ...ui.td, textAlign: "center", color: "#94a3b8" }}>
+                                <td colSpan={5} style={{ ...ui.td, textAlign: "center", color: "var(--text-faint)" }}>
                                   Sin inventario registrado
                                 </td>
                               </tr>
@@ -1556,8 +1556,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                                 <td style={{ ...ui.td, textAlign: "center", fontWeight: 800, color: inv.quantity <= inv.minStock ? "#b45309" : "#0f172a" }}>
                                   {inv.quantity}
                                 </td>
-                                <td style={{ ...ui.td, textAlign: "center", color: "#64748b" }}>{inv.minStock}</td>
-                                <td style={{ ...ui.td, textAlign: "center", color: "#64748b" }}>{inv.maxStock}</td>
+                                <td style={{ ...ui.td, textAlign: "center", color: "var(--text-muted)" }}>{inv.minStock}</td>
+                                <td style={{ ...ui.td, textAlign: "center", color: "var(--text-muted)" }}>{inv.maxStock}</td>
                                 <td style={{ ...ui.td, textAlign: "center" }}>
                                   {inv.quantity <= inv.minStock ? (
                                     <Badge tone="amber">Stock bajo</Badge>
@@ -1619,11 +1619,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   {/* ── Proveedores ── */}
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1e3a8a" }}>Proveedores</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-strong)" }}>Proveedores</div>
                       {!editingSuppliersMode && user?.role !== "GERENTE" && (
                         <button
                           onClick={() => { setEditingSuppliersMode(true); setSuppliersError(null); }}
-                          style={{ ...ui.ghostBtn, fontSize: 12, padding: "4px 10px", color: "#2563eb", borderColor: "#93c5fd" }}
+                          style={{ ...ui.ghostBtn, fontSize: 12, padding: "4px 10px", color: "var(--accent)", borderColor: "#93c5fd" }}
                         >
                           Editar
                         </button>
@@ -1633,7 +1633,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     {!editingSuppliersMode ? (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                         {productSuppliers.length === 0 ? (
-                          <span style={{ fontSize: 12, color: "#94a3b8" }}>Sin proveedores asignados</span>
+                          <span style={{ fontSize: 12, color: "var(--text-faint)" }}>Sin proveedores asignados</span>
                         ) : (
                           productSuppliers.map((sid) => {
                             const s = suppliers.find((x) => x.id === sid);
@@ -1647,12 +1647,12 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       </div>
                     ) : (
                       <div>
-                        <div style={{ maxHeight: 140, overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>
+                        <div style={{ maxHeight: 140, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>
                           {suppliers.length === 0 && (
-                            <p style={{ fontSize: 12, color: "#94a3b8", margin: 0 }}>No hay proveedores disponibles</p>
+                            <p style={{ fontSize: 12, color: "var(--text-faint)", margin: 0 }}>No hay proveedores disponibles</p>
                           )}
                           {suppliers.map((s) => (
-                            <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "4px 0", fontSize: 13, color: "#334155" }}>
+                            <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "4px 0", fontSize: 13, color: "var(--text-secondary)" }}>
                               <input
                                 type="checkbox"
                                 checked={productSuppliers.includes(s.id)}
@@ -1682,7 +1682,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                   {/* ── Últimos movimientos kardex ── */}
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1e3a8a", marginBottom: 10 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-strong)", marginBottom: 10 }}>
                       Últimos 20 movimientos Kardex
                     </div>
 
@@ -1690,14 +1690,14 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       /* ── Mobile: card-based kardex ── */
                       <div style={{ maxHeight: 320, overflowY: "auto", paddingRight: 4 }}>
                         {selectedProduct.recentKardex.length === 0 && (
-                          <div style={{ textAlign: "center", padding: "20px 16px", color: "#94a3b8", fontSize: 13 }}>
+                          <div style={{ textAlign: "center", padding: "20px 16px", color: "var(--text-faint)", fontSize: 13 }}>
                             Sin movimientos registrados
                           </div>
                         )}
                         {selectedProduct.recentKardex.map((k) => (
                           <div key={k.id} style={{
-                            backgroundColor: "#ffffff",
-                            border: "1px solid #e2e8f0",
+                            backgroundColor: "var(--surface)",
+                            border: "1px solid var(--border)",
                             borderRadius: 10,
                             marginBottom: 8,
                             overflow: "hidden",
@@ -1709,10 +1709,10 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               alignItems: "center",
                               padding: "8px 14px 6px 14px",
                               borderBottom: "1px solid #f1f5f9",
-                              backgroundColor: "#f8fafc",
+                              backgroundColor: "var(--surface-2)",
                             }}>
-                              <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>
-                                {fmtDate(k.date)} <span style={{ color: "#94a3b8" }}>{fmtTime(k.date)}</span>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>
+                                {fmtDate(k.date)} <span style={{ color: "var(--text-faint)" }}>{fmtTime(k.date)}</span>
                               </span>
                               <Badge tone={k.quantityChange >= 0 ? "green" : "red"}>
                                 {k.movementType.replace(/_/g, " ")}
@@ -1721,24 +1721,24 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             {/* Body: Sucursal, Cambio, Saldo */}
                             <div style={{ padding: "10px 14px", display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 8, alignItems: "center" }}>
                               <div>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.3px" }}>Sucursal</div>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>{k.branch}</div>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Sucursal</div>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{k.branch}</div>
                               </div>
                               <div style={{ textAlign: "center" }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.3px" }}>Cambio</div>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Cambio</div>
                                 <div style={{ fontSize: 15, fontWeight: 800, color: k.quantityChange >= 0 ? "#15803d" : "#b91c1c" }}>
                                   {k.quantityChange >= 0 ? "+" : ""}{k.quantityChange}
                                 </div>
                               </div>
                               <div style={{ textAlign: "center" }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.3px" }}>Saldo</div>
-                                <div style={{ fontSize: 15, fontWeight: 700, color: "#0f172a" }}>{k.balanceAfter}</div>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Saldo</div>
+                                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>{k.balanceAfter}</div>
                               </div>
                             </div>
                             {/* Reason if present */}
                             {k.reason && (
-                              <div style={{ padding: "0 14px 10px 14px", fontSize: 12, color: "#64748b" }}>
-                                <span style={{ fontWeight: 700, color: "#94a3b8" }}>Motivo:</span> {k.reason}
+                              <div style={{ padding: "0 14px 10px 14px", fontSize: 12, color: "var(--text-muted)" }}>
+                                <span style={{ fontWeight: 700, color: "var(--text-faint)" }}>Motivo:</span> {k.reason}
                               </div>
                             )}
                           </div>
@@ -1760,7 +1760,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           <tbody>
                             {selectedProduct.recentKardex.length === 0 && (
                               <tr>
-                                <td colSpan={5} style={{ ...ui.td, textAlign: "center", color: "#94a3b8" }}>
+                                <td colSpan={5} style={{ ...ui.td, textAlign: "center", color: "var(--text-faint)" }}>
                                   Sin movimientos registrados
                                 </td>
                               </tr>
@@ -1769,7 +1769,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               <tr key={k.id}>
                                 <td style={ui.td}>
                                   {fmtDate(k.date)}{" "}
-                                  <span style={{ color: "#94a3b8" }}>{fmtTime(k.date)}</span>
+                                  <span style={{ color: "var(--text-faint)" }}>{fmtTime(k.date)}</span>
                                 </td>
                                 <td style={ui.td}>{k.branch}</td>
                                 <td style={{ ...ui.td, textAlign: "center" }}>
@@ -1796,7 +1796,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </div>
 
             {/* Footer */}
-            <div style={{ borderTop: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
+            <div style={{ borderTop: "1px solid #e2e8f0", backgroundColor: "var(--surface-2)" }}>
               <div
                 style={
                   isMobile
@@ -1844,7 +1844,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       onClick={() => handleEdit(selectedProduct)}
                       style={{
                         ...ui.ghostBtn,
-                        color: "#2563eb",
+                        color: "var(--accent)",
                         borderColor: "#93c5fd",
                         whiteSpace: "nowrap",
                         ...(isMobile
@@ -1991,7 +1991,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               Diferencia: {diff! > 0 ? "+" : ""}{diff} uds. → Stock quedará en <strong>{expectedStock}</strong>
                             </p>
                           ) : (
-                            <p style={{ fontSize: 12, color: "#1e3a8a", marginTop: 4 }}>
+                            <p style={{ fontSize: 12, color: "var(--accent-strong)", marginTop: 4 }}>
                               Stock esperado: <strong>{expectedStock}</strong> uds.
                               {expectedStock < 0 && <span style={{ color: "#b91c1c" }}> (stock negativo — no permitido)</span>}
                             </p>
@@ -2093,7 +2093,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               {/* Overlay de confirmación dentro del modal */}
               {transferConfirm && fromInv && toInv ? (
                 <div style={{ padding: "24px 22px" }}>
-                  <p style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: "#1e3a8a" }}>⚠️ Confirmar traslado</p>
+                  <p style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: "var(--accent-strong)" }}>⚠️ Confirmar traslado</p>
                   <p style={{ fontSize: 14, marginBottom: 16 }}>
                     Trasladar <strong>{transferQty} uds.</strong> de <strong>{fromInv.branch}</strong> a <strong>{toInv.branch}</strong>
                   </p>
@@ -2374,9 +2374,9 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginTop: 5,
   },
   taxSection: {
-    border: "1px solid #e2e8f0",
+    border: "1px solid var(--border)",
     borderRadius: 10,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "var(--surface-2)",
     padding: 14,
     marginBottom: 14,
   },
@@ -2393,17 +2393,17 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: 8,
   },
   taxTitle: {
-    color: "#0f172a",
+    color: "var(--text)",
     fontSize: 13,
     fontWeight: 800,
   },
   taxCounter: {
-    color: "#64748b",
+    color: "var(--text-muted)",
     fontSize: 12,
     fontWeight: 700,
   },
   taxMuted: {
-    color: "#64748b",
+    color: "var(--text-muted)",
     fontSize: 13,
     fontWeight: 600,
     margin: 0,
@@ -2430,7 +2430,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     alignItems: "center",
     gap: 10,
-    border: "1px solid #e2e8f0",
+    border: "1px solid var(--border)",
     borderRadius: 8,
     padding: "10px 12px",
     cursor: "pointer",
@@ -2449,7 +2449,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     minWidth: 0,
   },
   taxOptionName: {
-    color: "#0f172a",
+    color: "var(--text)",
     fontSize: 13,
     fontWeight: 800,
     overflow: "hidden",
@@ -2457,7 +2457,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     whiteSpace: "nowrap",
   },
   taxOptionMeta: {
-    color: "#64748b",
+    color: "var(--text-muted)",
     fontSize: 12,
     fontWeight: 700,
     marginTop: 2,
@@ -2475,14 +2475,14 @@ const invDetailRow: React.CSSProperties = {
 
 const invDetailLabel: React.CSSProperties = {
   fontWeight: 700,
-  color: "#64748b",
+  color: "var(--text-muted)",
   minWidth: "105px",
   display: "inline-block",
 };
 
 const invDetailValue: React.CSSProperties = {
   fontWeight: 600,
-  color: "#334155",
+  color: "var(--text-secondary)",
 };
 
 export default InventarioView;
