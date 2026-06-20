@@ -110,7 +110,7 @@ export function useCashSession({
     }
   };
 
-  const handleOpenCash = async () => {
+  const handleOpenCash = async (pinCode?: string) => {
     const initialFundValidation = validateDecimalField(initialFund, "El fondo inicial", {
       invalidMessage: "El fondo inicial debe ser un monto valido con maximo 3 decimales.",
     });
@@ -128,11 +128,16 @@ export function useCashSession({
       }
       const res = await api.post("/api/cash-session/open", {
         initialAmount: initialFundValue.value,
+        pinCode: pinCode,
       });
       setSession(res.data.session);
       onSetView("dashboard");
       await loadDashboardData();
     } catch (err: any) {
+      const code = err.response?.data?.code;
+      if (code === "PIN_INVALIDO" || code === "PIN_REQUERIDO") {
+        throw err; // AperturaView maneja estos errores directamente
+      }
       onToast(err.response?.data?.message || "Error al abrir la caja registradora.");
     } finally {
       setOpeningLoading(false);
