@@ -146,14 +146,14 @@ const supDetailRow: React.CSSProperties = {
 
 const supDetailLabel: React.CSSProperties = {
   fontWeight: 700,
-  color: "#64748b",
+  color: "var(--text-muted)",
   minWidth: "95px",
   display: "inline-block",
 };
 
 const supDetailValue: React.CSSProperties = {
   fontWeight: 600,
-  color: "#334155",
+  color: "var(--text-secondary)",
 };
 
 const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
@@ -417,7 +417,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
     {
       key: "name",
       header: "Nombre",
-      render: (s) => <span style={{ fontWeight: 700, color: "#0f172a" }}>{s.name}</span>,
+      render: (s) => <span style={{ fontWeight: 700, color: "var(--text)" }}>{s.name}</span>,
     },
     {
       key: "rfc",
@@ -491,7 +491,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
             padding: "12px 16px",
             fontWeight: 700,
             fontSize: 11,
-            color: "#64748b",
+            color: "var(--text-muted)",
             textTransform: "uppercase",
             letterSpacing: "0.4px",
           }}>
@@ -502,7 +502,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
           </div>
 
           {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
             </div>
           )}
@@ -512,7 +512,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
             </div>
           )}
           {!loading && !error && suppliers.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               No hay proveedores registrados.
             </div>
           )}
@@ -525,8 +525,8 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <div
                   key={s.id}
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e2e8f0",
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border)",
                     borderRadius: 12,
                     marginBottom: 10,
                     boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
@@ -541,9 +541,9 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                     padding: "8px 16px 6px 16px",
                     fontSize: 11,
                     fontWeight: 700,
-                    color: "#64748b",
+                    color: "var(--text-muted)",
                     borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "#f8fafc",
+                    backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
                     <span>{s.name.toUpperCase()}</span>
@@ -589,7 +589,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#1e3a8a",
+                          color: "var(--accent-strong)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -605,13 +605,13 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#ffffff",
-                          border: "1px solid #cbd5e1",
+                          backgroundColor: "var(--surface)",
+                          border: "1px solid var(--border-strong)",
                           borderRadius: 8,
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#64748b",
+                          color: "var(--text-muted)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -626,9 +626,9 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                     <div style={{
                       padding: "16px",
                       margin: "0 16px 16px 16px",
-                      backgroundColor: "#f8fafc",
+                      backgroundColor: "var(--surface-2)",
                       borderRadius: "8px",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--border)",
                       display: "grid",
                       gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
                       gap: "16px",
@@ -636,7 +636,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                     }}>
                       {/* Datos de Identificación */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Identificación y Alta</h4>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Identificación y Alta</h4>
                         <div style={supDetailRow}>
                           <span style={supDetailLabel}>RFC:</span>
                           <span style={{ ...supDetailValue, fontFamily: "monospace" }}>{s.rfc || "—"}</span>
@@ -653,7 +653,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
 
                       {/* Dirección y Ubicación */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Dirección y Ubicación</h4>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Dirección y Ubicación</h4>
                         <div style={supDetailRow}>
                           <span style={supDetailLabel}>Dirección:</span>
                           <span style={supDetailValue}>{s.address || "—"}</span>
@@ -862,7 +862,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
 
           {/* Estatus */}
           <div>
-            <label style={{ display: "block", marginBottom: "8px", fontSize: "12px", fontWeight: "600", color: "#1e3a8a" }}>
+            <label style={{ display: "block", marginBottom: "8px", fontSize: "12px", fontWeight: "600", color: "var(--accent-strong)" }}>
               ESTATUS
             </label>
             <select

@@ -135,16 +135,16 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
           justifyContent: "center",
           textAlign: "center",
           padding: "70px 24px",
-          backgroundColor: "#ffffff",
-          border: "1px solid #e2e8f0",
+          backgroundColor: "var(--surface)",
+          border: "1px solid var(--border)",
           borderRadius: 12,
         }}
       >
         <div style={{ width: 60, height: 60, borderRadius: 14, backgroundColor: "#fef3c7", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
           <CalendarClock size={28} color="#d97706" />
         </div>
-        <h3 style={{ fontSize: 18, fontWeight: 800, color: "#1e3a8a" }}>{def.title}</h3>
-        <p style={{ fontSize: 14, color: "#64748b", marginTop: 6, maxWidth: 460 }}>{def.description}</p>
+        <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--accent-strong)" }}>{def.title}</h3>
+        <p style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 6, maxWidth: 460 }}>{def.description}</p>
         <p style={{ fontSize: 13, color: "#b45309", marginTop: 14, fontWeight: 600 }}>
           Este reporte estará disponible cuando se implemente el módulo de apartados/reservas en la base de datos.
         </p>
@@ -158,7 +158,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
       const tone = col.badgeTone ? col.badgeTone(row) : "slate";
       return <Badge tone={tone}>{raw ?? "—"}</Badge>;
     }
-    if (raw === null || raw === undefined || raw === "") return <span style={{ color: "#94a3b8" }}>—</span>;
+    if (raw === null || raw === undefined || raw === "") return <span style={{ color: "var(--text-faint)" }}>—</span>;
     switch (col.type) {
       case "money":
         return money(Number(raw));
@@ -169,7 +169,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
       case "datetime":
         return (
           <>
-            {fmtDate(raw)} <span style={{ color: "#94a3b8" }}>{fmtTime(raw)}</span>
+            {fmtDate(raw)} <span style={{ color: "var(--text-faint)" }}>{fmtTime(raw)}</span>
           </>
         );
       default:
@@ -281,7 +281,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
         >
           <Printer size={15} /> Imprimir
         </button>
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b", fontWeight: 600 }}>
+        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
           {rows.length} registro{rows.length === 1 ? "" : "s"}
         </span>
       </div>
@@ -300,9 +300,9 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
 
       {isMobile && def.key === "ventas" ? (
         /* ── Mobile / Tablet: Card-based layout for Venta report ── */
-        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0" }}>
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)" }}>
           {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
             </div>
           )}
@@ -312,7 +312,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
             </div>
           )}
           {!loading && !error && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Sin registros en el periodo seleccionado.
             </div>
           )}
@@ -325,8 +325,8 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                 <div
                   key={i}
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e2e8f0",
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border)",
                     borderRadius: 12,
                     marginBottom: 10,
                     boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
@@ -342,12 +342,12 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     padding: "8px 16px 6px 16px",
                     fontSize: 11,
                     fontWeight: 700,
-                    color: "#64748b",
+                    color: "var(--text-muted)",
                     borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "#f8fafc",
+                    backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
-                    <span style={{ fontFamily: "monospace", color: "#64748b" }}>{row.invoiceNumber}</span>
+                    <span style={{ fontFamily: "monospace", color: "var(--text-muted)" }}>{row.invoiceNumber}</span>
                     <Badge tone={statusTone(row.status)}>
                       {row.status}
                     </Badge>
@@ -361,17 +361,17 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     alignItems: "center",
                   }}>
                     {/* Cliente */}
-                    <div style={{ fontWeight: 700, fontSize: 13, color: "#1e3a8a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--accent-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {row.customer || "Público General"}
                     </div>
 
                     {/* Fecha */}
-                    <div style={{ fontSize: 13, color: "#334155" }}>
-                      {fmtDate(row.createdAt)} <span style={{ color: "#94a3b8" }}>{fmtTime(row.createdAt)}</span>
+                    <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                      {fmtDate(row.createdAt)} <span style={{ color: "var(--text-faint)" }}>{fmtTime(row.createdAt)}</span>
                     </div>
 
                     {/* Total */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
                       {money(row.totalAmount)}
                     </div>
 
@@ -383,13 +383,13 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#ffffff",
-                          border: "1px solid #cbd5e1",
+                          backgroundColor: "var(--surface)",
+                          border: "1px solid var(--border-strong)",
                           borderRadius: 8,
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#64748b",
+                          color: "var(--text-muted)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -404,53 +404,53 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     <div style={{
                       padding: "16px",
                       margin: "0 16px 16px 16px",
-                      backgroundColor: "#f8fafc",
+                      backgroundColor: "var(--surface-2)",
                       borderRadius: "8px",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--border)",
                       display: "grid",
                       gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
                       gap: "16px",
                     }}>
                       {/* Datos de la Venta */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Datos de la Venta</h4>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Datos de la Venta</h4>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                          <span style={{ color: "#64748b", fontWeight: 600 }}>Folio:</span>
-                          <span style={{ color: "#334155", fontWeight: 700 }}>{row.invoiceNumber}</span>
+                          <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Folio:</span>
+                          <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{row.invoiceNumber}</span>
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                          <span style={{ color: "#64748b", fontWeight: 600 }}>Sucursal:</span>
-                          <span style={{ color: "#334155", fontWeight: 700 }}>{row.branch}</span>
+                          <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Sucursal:</span>
+                          <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{row.branch}</span>
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                          <span style={{ color: "#64748b", fontWeight: 600 }}>Vendedor:</span>
-                          <span style={{ color: "#334155", fontWeight: 700 }}>{row.cajero}</span>
+                          <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Vendedor:</span>
+                          <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{row.cajero}</span>
                         </div>
                       </div>
 
                       {/* Detalles Económicos */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Detalles Económicos</h4>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Detalles Económicos</h4>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                          <span style={{ color: "#64748b", fontWeight: 600 }}>Subtotal:</span>
-                          <span style={{ color: "#334155", fontWeight: 700 }}>{money(row.subtotal)}</span>
+                          <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Subtotal:</span>
+                          <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{money(row.subtotal)}</span>
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                          <span style={{ color: "#64748b", fontWeight: 600 }}>Impuestos:</span>
-                          <span style={{ color: "#334155", fontWeight: 700 }}>{money(row.taxAmount)}</span>
+                          <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Impuestos:</span>
+                          <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{money(row.taxAmount)}</span>
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                          <span style={{ color: "#64748b", fontWeight: 600 }}>Método de Pago:</span>
+                          <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Método de Pago:</span>
                           <Badge tone={payTone(row.paymentMethod)}>{row.paymentMethod}</Badge>
                         </div>
                       </div>
 
                       {/* Artículos */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Artículos</h4>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Artículos</h4>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                          <span style={{ color: "#64748b", fontWeight: 600 }}>Cantidad:</span>
-                          <span style={{ color: "#334155", fontWeight: 700 }}>{row.items} artículos</span>
+                          <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Cantidad:</span>
+                          <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{row.items} artículos</span>
                         </div>
                       </div>
                     </div>
@@ -461,9 +461,9 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
         </div>
       ) : isMobile && def.key === "articulos" ? (
         /* ── Mobile / Tablet: Card-based layout for Artículos vendidos report ── */
-        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0" }}>
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)" }}>
           {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
             </div>
           )}
@@ -473,7 +473,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
             </div>
           )}
           {!loading && !error && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Sin registros en el periodo seleccionado.
             </div>
           )}
@@ -486,8 +486,8 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                 <div
                   key={i}
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e2e8f0",
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border)",
                     borderRadius: 12,
                     marginBottom: 10,
                     boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
@@ -503,13 +503,13 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     padding: "8px 16px 6px 16px",
                     fontSize: 11,
                     fontWeight: 700,
-                    color: "#64748b",
+                    color: "var(--text-muted)",
                     borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "#f8fafc",
+                    backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
-                    <span style={{ color: "#1e3a8a", fontWeight: 800, fontSize: 12 }}>#{row.rank}</span>
-                    <span style={{ fontFamily: "monospace", color: "#64748b", fontSize: 11 }}>{row.sku}</span>
+                    <span style={{ color: "var(--accent-strong)", fontWeight: 800, fontSize: 12 }}>#{row.rank}</span>
+                    <span style={{ fontFamily: "monospace", color: "var(--text-muted)", fontSize: 11 }}>{row.sku}</span>
                   </div>
 
                   {/* Fila principal: Producto, Cantidad, Importe, Chevron */}
@@ -521,17 +521,17 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     gap: 8,
                   }}>
                     {/* Producto */}
-                    <div style={{ fontWeight: 700, fontSize: 13, color: "#1e3a8a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--accent-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {row.name}
                     </div>
 
                     {/* Cantidad */}
-                    <div style={{ fontSize: 13, color: "#334155", textAlign: "center", fontWeight: 600 }}>
-                      {row.cantidad} <span style={{ color: "#94a3b8", fontSize: 11 }}>uds</span>
+                    <div style={{ fontSize: 13, color: "var(--text-secondary)", textAlign: "center", fontWeight: 600 }}>
+                      {row.cantidad} <span style={{ color: "var(--text-faint)", fontSize: 11 }}>uds</span>
                     </div>
 
                     {/* Importe */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", textAlign: "right" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "right" }}>
                       {money(row.importe)}
                     </div>
 
@@ -543,13 +543,13 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#ffffff",
-                          border: "1px solid #cbd5e1",
+                          backgroundColor: "var(--surface)",
+                          border: "1px solid var(--border-strong)",
                           borderRadius: 8,
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#64748b",
+                          color: "var(--text-muted)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -564,21 +564,21 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     <div style={{
                       padding: "16px",
                       margin: "0 16px 16px 16px",
-                      backgroundColor: "#f8fafc",
+                      backgroundColor: "var(--surface-2)",
                       borderRadius: "8px",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--border)",
                     }}>
-                      <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Detalles del Producto</h4>
+                      <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Detalles del Producto</h4>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Transacciones:</span>
-                        <span style={{ color: "#334155", fontWeight: 700 }}>{row.transacciones}</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Transacciones:</span>
+                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{row.transacciones}</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Precio promedio:</span>
-                        <span style={{ color: "#334155", fontWeight: 700 }}>{money(row.precioPromedio)}</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Precio promedio:</span>
+                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{money(row.precioPromedio)}</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Utilidad:</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Utilidad:</span>
                         <span style={{ color: "#16a34a", fontWeight: 700 }}>{money(row.utilidad)}</span>
                       </div>
                     </div>
@@ -589,9 +589,9 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
         </div>
       ) : isMobile && def.key === "existencias" ? (
         /* ── Mobile / Tablet: Card-based layout for Existencias report ── */
-        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0" }}>
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)" }}>
           {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
             </div>
           )}
@@ -601,7 +601,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
             </div>
           )}
           {!loading && !error && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Sin registros.
             </div>
           )}
@@ -614,8 +614,8 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                 <div
                   key={i}
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e2e8f0",
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border)",
                     borderRadius: 12,
                     marginBottom: 10,
                     boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
@@ -631,12 +631,12 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     padding: "8px 16px 6px 16px",
                     fontSize: 11,
                     fontWeight: 700,
-                    color: "#64748b",
+                    color: "var(--text-muted)",
                     borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "#f8fafc",
+                    backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
-                    <span style={{ fontFamily: "monospace", color: "#64748b" }}>{row.sku}</span>
+                    <span style={{ fontFamily: "monospace", color: "var(--text-muted)" }}>{row.sku}</span>
                     {getCell(row, "estado")}
                   </div>
 
@@ -649,17 +649,17 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     gap: 8,
                   }}>
                     {/* Producto */}
-                    <div style={{ fontWeight: 700, fontSize: 13, color: "#1e3a8a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--accent-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {row.name}
                     </div>
 
                     {/* Stock */}
-                    <div style={{ fontSize: 13, color: "#334155", textAlign: "center", fontWeight: 600 }}>
-                      {row.stock} <span style={{ color: "#94a3b8", fontSize: 11 }}>uds</span>
+                    <div style={{ fontSize: 13, color: "var(--text-secondary)", textAlign: "center", fontWeight: 600 }}>
+                      {row.stock} <span style={{ color: "var(--text-faint)", fontSize: 11 }}>uds</span>
                     </div>
 
                     {/* Precio */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", textAlign: "right" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "right" }}>
                       {getCell(row, "sellPrice")}
                     </div>
 
@@ -671,13 +671,13 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#ffffff",
-                          border: "1px solid #cbd5e1",
+                          backgroundColor: "var(--surface)",
+                          border: "1px solid var(--border-strong)",
                           borderRadius: 8,
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#64748b",
+                          color: "var(--text-muted)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -692,22 +692,22 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     <div style={{
                       padding: "16px",
                       margin: "0 16px 16px 16px",
-                      backgroundColor: "#f8fafc",
+                      backgroundColor: "var(--surface-2)",
                       borderRadius: "8px",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--border)",
                     }}>
-                      <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Detalles de Inventario</h4>
+                      <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Detalles de Inventario</h4>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Stock mínimo:</span>
-                        <span style={{ color: "#334155", fontWeight: 700 }}>{row.minStock} uds</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Stock mínimo:</span>
+                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{row.minStock} uds</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Costo:</span>
-                        <span style={{ color: "#334155", fontWeight: 700 }}>{getCell(row, "costPrice")}</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Costo:</span>
+                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "costPrice")}</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Valor del Inventario:</span>
-                        <span style={{ color: "#0f172a", fontWeight: 700 }}>{getCell(row, "valor")}</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Valor del Inventario:</span>
+                        <span style={{ color: "var(--text)", fontWeight: 700 }}>{getCell(row, "valor")}</span>
                       </div>
                     </div>
                   )}
@@ -717,9 +717,9 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
         </div>
       ) : isMobile && def.key === "kardex" ? (
         /* ── Mobile / Tablet: Card-based layout for Kardex report ── */
-        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0" }}>
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)" }}>
           {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
             </div>
           )}
@@ -729,7 +729,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
             </div>
           )}
           {!loading && !error && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Sin registros en el periodo seleccionado.
             </div>
           )}
@@ -742,8 +742,8 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                 <div
                   key={i}
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e2e8f0",
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border)",
                     borderRadius: 12,
                     marginBottom: 10,
                     boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
@@ -759,12 +759,12 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     padding: "8px 16px 6px 16px",
                     fontSize: 11,
                     fontWeight: 700,
-                    color: "#64748b",
+                    color: "var(--text-muted)",
                     borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "#f8fafc",
+                    backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
-                    <span style={{ fontFamily: "monospace", color: "#64748b" }}>{row.sku}</span>
+                    <span style={{ fontFamily: "monospace", color: "var(--text-muted)" }}>{row.sku}</span>
                     {getCell(row, "movementType")}
                   </div>
 
@@ -777,7 +777,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     gap: 8,
                   }}>
                     {/* Producto */}
-                    <div style={{ fontWeight: 700, fontSize: 13, color: "#1e3a8a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--accent-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {row.product}
                     </div>
 
@@ -787,8 +787,8 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     </div>
 
                     {/* Saldo */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", textAlign: "right" }}>
-                      {row.balanceAfter} <span style={{ color: "#94a3b8", fontSize: 11, fontWeight: 500 }}>uds</span>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "right" }}>
+                      {row.balanceAfter} <span style={{ color: "var(--text-faint)", fontSize: 11, fontWeight: 500 }}>uds</span>
                     </div>
 
                     {/* Chevron */}
@@ -799,13 +799,13 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#ffffff",
-                          border: "1px solid #cbd5e1",
+                          backgroundColor: "var(--surface)",
+                          border: "1px solid var(--border-strong)",
                           borderRadius: 8,
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#64748b",
+                          color: "var(--text-muted)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -820,26 +820,26 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     <div style={{
                       padding: "16px",
                       margin: "0 16px 16px 16px",
-                      backgroundColor: "#f8fafc",
+                      backgroundColor: "var(--surface-2)",
                       borderRadius: "8px",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--border)",
                     }}>
-                      <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Detalles del Movimiento</h4>
+                      <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Detalles del Movimiento</h4>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Fecha y hora:</span>
-                        <span style={{ color: "#334155", fontWeight: 700 }}>{getCell(row, "createdAt")}</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Fecha y hora:</span>
+                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "createdAt")}</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Sucursal:</span>
-                        <span style={{ color: "#334155", fontWeight: 700 }}>{getCell(row, "branch")}</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Sucursal:</span>
+                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "branch")}</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Usuario:</span>
-                        <span style={{ color: "#334155", fontWeight: 700 }}>{getCell(row, "user")}</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Usuario:</span>
+                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "user")}</span>
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Referencia / Motivo:</span>
-                        <span style={{ color: "#334155", padding: "6px 8px", backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 6, minHeight: 32 }}>{row.reason || "—"}</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Referencia / Motivo:</span>
+                        <span style={{ color: "var(--text-secondary)", padding: "6px 8px", backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, minHeight: 32 }}>{row.reason || "—"}</span>
                       </div>
                     </div>
                   )}
@@ -849,9 +849,9 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
         </div>
       ) : isMobile && def.key === "compras" ? (
         /* ── Mobile / Tablet: Card-based layout for Compras report ── */
-        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0" }}>
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)" }}>
           {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
             </div>
           )}
@@ -861,7 +861,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
             </div>
           )}
           {!loading && !error && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Sin registros en el periodo seleccionado.
             </div>
           )}
@@ -874,8 +874,8 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                 <div
                   key={i}
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e2e8f0",
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border)",
                     borderRadius: 12,
                     marginBottom: 10,
                     boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
@@ -891,12 +891,12 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     padding: "8px 16px 6px 16px",
                     fontSize: 11,
                     fontWeight: 700,
-                    color: "#64748b",
+                    color: "var(--text-muted)",
                     borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "#f8fafc",
+                    backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
-                    <span style={{ fontFamily: "monospace", color: "#64748b" }}>{row.reference}</span>
+                    <span style={{ fontFamily: "monospace", color: "var(--text-muted)" }}>{row.reference}</span>
                     {getCell(row, "status")}
                   </div>
 
@@ -909,17 +909,17 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     gap: 8,
                   }}>
                     {/* Proveedor */}
-                    <div style={{ fontWeight: 700, fontSize: 13, color: "#1e3a8a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--accent-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {getCell(row, "supplier")}
                     </div>
 
                     {/* Fecha */}
-                    <div style={{ fontSize: 13, color: "#334155", textAlign: "center" }}>
+                    <div style={{ fontSize: 13, color: "var(--text-secondary)", textAlign: "center" }}>
                       {getCell(row, "purchaseDate")}
                     </div>
 
                     {/* Total */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", textAlign: "right" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "right" }}>
                       {getCell(row, "total")}
                     </div>
 
@@ -931,13 +931,13 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#ffffff",
-                          border: "1px solid #cbd5e1",
+                          backgroundColor: "var(--surface)",
+                          border: "1px solid var(--border-strong)",
                           borderRadius: 8,
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#64748b",
+                          color: "var(--text-muted)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -952,26 +952,26 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     <div style={{
                       padding: "16px",
                       margin: "0 16px 16px 16px",
-                      backgroundColor: "#f8fafc",
+                      backgroundColor: "var(--surface-2)",
                       borderRadius: "8px",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--border)",
                     }}>
-                      <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Desglose de Compra</h4>
+                      <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Desglose de Compra</h4>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Sucursal:</span>
-                        <span style={{ color: "#334155", fontWeight: 700 }}>{getCell(row, "branch")}</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Sucursal:</span>
+                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "branch")}</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Subtotal:</span>
-                        <span style={{ color: "#334155", fontWeight: 700 }}>{getCell(row, "subtotal")}</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Subtotal:</span>
+                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "subtotal")}</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Impuestos:</span>
-                        <span style={{ color: "#334155", fontWeight: 700 }}>{getCell(row, "tax")}</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Impuestos:</span>
+                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "tax")}</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Registró:</span>
-                        <span style={{ color: "#334155", fontWeight: 700 }}>{getCell(row, "createdByUser")}</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Registró:</span>
+                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "createdByUser")}</span>
                       </div>
                     </div>
                   )}
@@ -981,9 +981,9 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
         </div>
       ) : isMobile && def.key === "operaciones" ? (
         /* ── Mobile / Tablet: Card-based layout for Operaciones del vendedor report ── */
-        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0" }}>
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)" }}>
           {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
             </div>
           )}
@@ -993,7 +993,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
             </div>
           )}
           {!loading && !error && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Sin registros en el periodo seleccionado.
             </div>
           )}
@@ -1006,8 +1006,8 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                 <div
                   key={i}
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e2e8f0",
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border)",
                     borderRadius: 12,
                     marginBottom: 10,
                     boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
@@ -1023,12 +1023,12 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     padding: "8px 16px 6px 16px",
                     fontSize: 11,
                     fontWeight: 700,
-                    color: "#64748b",
+                    color: "var(--text-muted)",
                     borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "#f8fafc",
+                    backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
-                    <span style={{ color: "#1e3a8a", fontWeight: 800, fontSize: 12 }}>{row.name}</span>
+                    <span style={{ color: "var(--accent-strong)", fontWeight: 800, fontSize: 12 }}>{row.name}</span>
                     {getCell(row, "role")}
                   </div>
 
@@ -1041,17 +1041,17 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     gap: 8,
                   }}>
                     {/* Sucursal */}
-                    <div style={{ fontSize: 13, color: "#334155", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontSize: 13, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {row.branch || "—"}
                     </div>
 
                     {/* Ventas */}
                     <div style={{ fontSize: 13, color: "#475569", textAlign: "center", fontWeight: 600 }}>
-                      {row.ventasCount} <span style={{ color: "#94a3b8", fontSize: 11 }}>vts</span>
+                      {row.ventasCount} <span style={{ color: "var(--text-faint)", fontSize: 11 }}>vts</span>
                     </div>
 
                     {/* Total Vendido */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", textAlign: "right" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "right" }}>
                       {getCell(row, "totalVendido")}
                     </div>
 
@@ -1063,13 +1063,13 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#ffffff",
-                          border: "1px solid #cbd5e1",
+                          backgroundColor: "var(--surface)",
+                          border: "1px solid var(--border-strong)",
                           borderRadius: 8,
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#64748b",
+                          color: "var(--text-muted)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -1084,21 +1084,21 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     <div style={{
                       padding: "16px",
                       margin: "0 16px 16px 16px",
-                      backgroundColor: "#f8fafc",
+                      backgroundColor: "var(--surface-2)",
                       borderRadius: "8px",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--border)",
                     }}>
-                      <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Métricas del Vendedor</h4>
+                      <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Métricas del Vendedor</h4>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Devoluciones:</span>
-                        <span style={{ color: "#334155", fontWeight: 700 }}>{row.devolucionesCount}</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Devoluciones:</span>
+                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{row.devolucionesCount}</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Cancelaciones:</span>
-                        <span style={{ color: "#334155", fontWeight: 700 }}>{row.canceladas}</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Cancelaciones:</span>
+                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{row.canceladas}</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Comisión Generada:</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Comisión Generada:</span>
                         <span style={{ color: "#16a34a", fontWeight: 700 }}>{getCell(row, "comision")}</span>
                       </div>
                     </div>
@@ -1109,9 +1109,9 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
         </div>
       ) : isMobile && def.key === "ventas-usuario" ? (
         /* ── Mobile / Tablet: Card-based layout for Ventas del usuario report ── */
-        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0" }}>
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)" }}>
           {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
             </div>
           )}
@@ -1121,7 +1121,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
             </div>
           )}
           {!loading && !error && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Sin registros en el periodo seleccionado.
             </div>
           )}
@@ -1134,8 +1134,8 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                 <div
                   key={i}
                   style={{
-                    backgroundColor: "#ffffff",
-                    border: "1px solid #e2e8f0",
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border)",
                     borderRadius: 12,
                     marginBottom: 10,
                     boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
@@ -1151,12 +1151,12 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     padding: "8px 16px 6px 16px",
                     fontSize: 11,
                     fontWeight: 700,
-                    color: "#64748b",
+                    color: "var(--text-muted)",
                     borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "#f8fafc",
+                    backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
-                    <span style={{ color: "#1e3a8a", fontWeight: 800, fontSize: 12 }}>{row.name}</span>
+                    <span style={{ color: "var(--accent-strong)", fontWeight: 800, fontSize: 12 }}>{row.name}</span>
                     {getCell(row, "role")}
                   </div>
 
@@ -1169,17 +1169,17 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     gap: 8,
                   }}>
                     {/* Sucursal */}
-                    <div style={{ fontSize: 13, color: "#334155", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontSize: 13, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {row.branch || "—"}
                     </div>
 
                     {/* Tickets */}
                     <div style={{ fontSize: 13, color: "#475569", textAlign: "center", fontWeight: 600 }}>
-                      {row.ventasCount} <span style={{ color: "#94a3b8", fontSize: 11 }}>tks</span>
+                      {row.ventasCount} <span style={{ color: "var(--text-faint)", fontSize: 11 }}>tks</span>
                     </div>
 
                     {/* Importe Vendido */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", textAlign: "right" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "right" }}>
                       {getCell(row, "totalVendido")}
                     </div>
 
@@ -1191,13 +1191,13 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#ffffff",
-                          border: "1px solid #cbd5e1",
+                          backgroundColor: "var(--surface)",
+                          border: "1px solid var(--border-strong)",
                           borderRadius: 8,
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#64748b",
+                          color: "var(--text-muted)",
                           padding: 0,
                         }}
                         className="active-tap"
@@ -1212,26 +1212,26 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                     <div style={{
                       padding: "16px",
                       margin: "0 16px 16px 16px",
-                      backgroundColor: "#f8fafc",
+                      backgroundColor: "var(--surface-2)",
                       borderRadius: "8px",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--border)",
                     }}>
-                      <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Resumen del Usuario</h4>
+                      <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Resumen del Usuario</h4>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Promedio por ticket:</span>
-                        <span style={{ color: "#334155", fontWeight: 700 }}>{getCell(row, "ticketPromedio")}</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Promedio por ticket:</span>
+                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "ticketPromedio")}</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Descuentos:</span>
-                        <span style={{ color: "#334155", fontWeight: 700 }}>{getCell(row, "descuentos")}</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Descuentos:</span>
+                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "descuentos")}</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Cancelaciones:</span>
-                        <span style={{ color: "#334155", fontWeight: 700 }}>{getCell(row, "canceladas")}</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Cancelaciones:</span>
+                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "canceladas")}</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "#64748b", fontWeight: 600 }}>Devoluciones:</span>
-                        <span style={{ color: "#334155", fontWeight: 700 }}>{getCell(row, "devolucionesCount")}</span>
+                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Devoluciones:</span>
+                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "devolucionesCount")}</span>
                       </div>
                     </div>
                   )}
@@ -1279,8 +1279,8 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
           justifyContent: "space-between",
           gap: isMobile ? 10 : 0,
           padding: isMobile ? "10px 12px" : "12px 16px",
-          backgroundColor: "#ffffff",
-          border: "1px solid #e2e8f0",
+          backgroundColor: "var(--surface)",
+          border: "1px solid var(--border)",
           borderTop: "none",
           borderBottomLeftRadius: 12,
           borderBottomRightRadius: 12,
@@ -1293,8 +1293,8 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
               style={{
                 padding: "4px 8px",
                 borderRadius: 4,
-                border: "1px solid #cbd5e1",
-                backgroundColor: "#ffffff",
+                border: "1px solid var(--border-strong)",
+                backgroundColor: "var(--surface)",
                 fontSize: 13,
                 cursor: "pointer"
               }}
@@ -1312,7 +1312,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
           </div>
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: isMobile ? "space-between" : "flex-end", gap: 8 }}>
-            <span style={{ fontSize: 12, color: "#64748b" }}>
+            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
               Pág. <strong>{res.pagination.page}</strong> / <strong>{res.pagination.totalPages || 1}</strong>{!isMobile && <> ({res.pagination.total} registros)</>}
             </span>
             <div style={{ display: "flex", gap: 4 }}>
@@ -1325,7 +1325,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                   height: 34,
                   padding: 0,
                   borderRadius: 8,
-                  border: "1px solid #cbd5e1",
+                  border: "1px solid var(--border-strong)",
                   backgroundColor: res.pagination.hasPreviousPage ? "#ffffff" : "#f1f5f9",
                   color: res.pagination.hasPreviousPage ? "#0f172a" : "#94a3b8",
                   cursor: res.pagination.hasPreviousPage ? "pointer" : "default",
@@ -1347,7 +1347,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                   height: 34,
                   padding: 0,
                   borderRadius: 8,
-                  border: "1px solid #cbd5e1",
+                  border: "1px solid var(--border-strong)",
                   backgroundColor: res.pagination.hasNextPage ? "#ffffff" : "#f1f5f9",
                   color: res.pagination.hasNextPage ? "#0f172a" : "#94a3b8",
                   cursor: res.pagination.hasNextPage ? "pointer" : "default",
