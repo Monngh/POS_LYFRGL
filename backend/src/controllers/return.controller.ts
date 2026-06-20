@@ -161,6 +161,17 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
     return;
   }
 
+  if (String(reason).trim().length > 100) {
+    res.status(400).json({ message: "El motivo de la devolución no puede exceder los 100 caracteres." });
+    return;
+  }
+
+  const VALID_RETURN_METHODS = ['EFECTIVO', 'TARJETA', 'QR_MERCADOPAGO', 'VALE_DEVOLUCION', 'CAMBIO_PRODUCTO'];
+  if (!VALID_RETURN_METHODS.includes(paymentMethod)) {
+    res.status(400).json({ message: "El método de reembolso seleccionado no es válido." });
+    return;
+  }
+
   try {
     // 1. Validar PIN del Administrador/Gerente
     const managers = await prisma.user.findMany({
@@ -236,6 +247,12 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
     const validatedItems: any[] = [];
 
     for (const item of items) {
+      const VALID_DESTINATIONS = ["INVENTARIO_VENDIBLE", "MERMA", "GARANTIA", "REPARACION"];
+      if (!VALID_DESTINATIONS.includes(item.destination)) {
+        res.status(400).json({ message: `El destino de devolución '${item.destination}' no es válido.` });
+        return;
+      }
+
       const saleDetail = sale.saleDetails.find((sd) => sd.id === Number(item.saleDetailId));
       if (!saleDetail) {
         res.status(404).json({ message: `Línea de venta con ID ${item.saleDetailId} no encontrada.` });
@@ -278,8 +295,16 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
         res.status(400).json({ message: `El producto ${saleDetail.product.name} requiere número de serie para su devolución.` });
         return;
       }
+      if (item.serialNumber && String(item.serialNumber).length > 50) {
+        res.status(400).json({ message: `El número de serie del producto ${saleDetail.product.name} no puede exceder los 50 caracteres.` });
+        return;
+      }
       if (saleDetail.product.trackingType === "LOT" && !item.batchNumber) {
         res.status(400).json({ message: `El producto ${saleDetail.product.name} requiere número de lote para su devolución.` });
+        return;
+      }
+      if (item.batchNumber && String(item.batchNumber).length > 50) {
+        res.status(400).json({ message: `El número de lote del producto ${saleDetail.product.name} no puede exceder los 50 caracteres.` });
         return;
       }
 
