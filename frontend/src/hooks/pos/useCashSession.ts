@@ -131,6 +131,7 @@ export function useCashSession({
         pinCode: pinCode,
       });
       setSession(res.data.session);
+      onToast(res.data.message || "Caja abierta exitosamente.", "success");
       onSetView("dashboard");
       await loadDashboardData();
     } catch (err: any) {
