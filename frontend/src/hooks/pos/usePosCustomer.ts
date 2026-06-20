@@ -49,7 +49,7 @@ export function usePosCustomer({ onToast, view }: UsePosCustomerProps) {
 
   const validateNewCustomerField = (field: keyof NewCustomerForm, value: string) => {
     if (field === "name") return validateSafeText(value, "El nombre", { required: true, min: 2, max: 100 });
-    if (field === "phone") return validatePhone(value, { required: true, minDigits: 10, maxDigits: 15 });
+    if (field === "phone") return validatePhone(value, { required: true });
     if (field === "email") return validateEmail(value, { required: false });
     return undefined;
   };
