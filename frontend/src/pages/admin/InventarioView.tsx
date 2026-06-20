@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { AlertTriangle, Printer, X, Plus, BadgePercent, Eye, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertTriangle, Printer, X, Plus, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -1231,7 +1231,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           borderRadius: "8px",
                           border: "1px solid var(--border)",
                           display: "grid",
-                          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
                           gap: "16px",
                         }}>
                           {/* Información General */}
@@ -2201,11 +2201,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               <span style={ui.modalTitle}>
                 {editingId !== null ? "Editar producto" : "Registrar nuevo producto"}
               </span>
-              <button type="button" style={ui.linkBtn} onClick={closeForm}>
+              <button type="button" style={{ ...ui.linkBtn, opacity: saving ? 0.6 : 1 }} onClick={closeForm} disabled={saving}>
                 <X size={18} color="#64748b" />
               </button>
             </div>
-            <div style={ui.modalBody}>
+            <div style={{ ...ui.modalBody, maxHeight: "90vh", overflowY: "auto", padding: isMobile ? "16px" : "24px" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
                 <div>
                   <label style={ui.fieldLabel}>SKU *</label>
@@ -2270,7 +2270,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+              <div style={{ display: "none" }}>
                 <div>
                   <label style={ui.fieldLabel}>Clave SAT (ClaveProdServ) *</label>
                   <input style={ui.input} value={form.satProductKey} onChange={set("satProductKey")} placeholder="01010101" />
@@ -2283,14 +2283,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 </div>
               </div>
 
-              <div style={styles.taxSection}>
-                <div style={styles.taxHeader}>
-                  <div style={styles.taxTitleWrap}>
-                    <BadgePercent size={16} color="#1e3a8a" />
-                    <span style={styles.taxTitle}>Impuestos aplicables</span>
+              <div style={{ border: "1px solid var(--border)", borderRadius: 10, backgroundColor: "var(--surface-2)", padding: 14, marginBottom: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ color: "var(--text)", fontSize: 13, fontWeight: 800 }}>Impuestos aplicables</span>
                   </div>
                   {!taxLoading && !taxError && (
-                    <span style={styles.taxCounter}>
+                    <span style={{ color: "var(--text-muted)", fontSize: 12, fontWeight: 700 }}>
                       {taxOptions.filter((tax) => selectedTaxIds.includes(tax.id)).length} seleccionado(s)
                     </span>
                   )}
@@ -2316,16 +2315,22 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 )}
 
                 {!taxLoading && !taxError && taxOptions.length > 0 && (
-                  <div style={styles.taxGrid}>
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10 }}>
                     {taxOptions.map((tax) => {
                       const checked = selectedTaxIds.includes(tax.id);
                       return (
                         <label
                           key={tax.id}
                           style={{
-                            ...styles.taxOption,
-                            borderColor: checked ? "#93c5fd" : "#e2e8f0",
-                            backgroundColor: checked ? "#eff6ff" : "#ffffff",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                            border: `1px solid ${checked ? "#93c5fd" : "var(--border)"}`,
+                            borderRadius: 8,
+                            padding: "12px 14px",
+                            cursor: "pointer",
+                            minHeight: 52,
+                            backgroundColor: checked ? "#eff6ff" : "var(--surface)",
                           }}
                         >
                           <input
@@ -2333,11 +2338,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             checked={checked}
                             disabled={saving}
                             onChange={() => toggleTax(tax.id)}
-                            style={styles.taxCheckbox}
+                            style={{ width: 16, height: 16, accentColor: "#1e3a8a", cursor: "pointer", flexShrink: 0, alignSelf: "center", marginTop: 0 }}
                           />
-                          <span style={styles.taxOptionText}>
-                            <span style={styles.taxOptionName}>{tax.name}</span>
-                            <span style={styles.taxOptionMeta}>{formatTaxRate(tax.rate)}</span>
+                          <span style={{ display: "flex", flexDirection: "column", minWidth: 0, gap: 3 }}>
+                            <span style={{ color: "var(--text)", fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tax.name}</span>
+                            <span style={{ color: "var(--text-muted)", fontSize: 12, fontWeight: 700, marginTop: 2 }}>{formatTaxRate(tax.rate)}</span>
                           </span>
                         </label>
                       );
@@ -2350,11 +2355,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 4, marginBottom: 14 }}>{formError}</p>
               )}
 
-              <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-                <button type="button" style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={closeForm}>
+              <div style={{ display: "flex", gap: 10, marginTop: 20, flexWrap: isMobile ? "wrap" : "nowrap" }}>
+                <button type="button" disabled={saving} style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center", width: isMobile ? "100%" : "auto" }} onClick={closeForm}>
                   Cancelar
                 </button>
-                <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
+                <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center", width: isMobile ? "100%" : "auto" }}>
                   {saving ? (editingId !== null ? "Actualizando..." : "Guardando...") : editingId !== null ? "Actualizar producto" : "Guardar producto"}
                 </button>
               </div>
@@ -2423,18 +2428,18 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   taxGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+    gridTemplateColumns: "1fr 1fr",
     gap: 10,
   },
   taxOption: {
     display: "flex",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
     border: "1px solid var(--border)",
     borderRadius: 8,
-    padding: "10px 12px",
+    padding: "12px 14px",
     cursor: "pointer",
-    minHeight: 46,
+    minHeight: 52,
   },
   taxCheckbox: {
     width: 16,
@@ -2442,11 +2447,14 @@ const styles: { [key: string]: React.CSSProperties } = {
     accentColor: "#1e3a8a",
     cursor: "pointer",
     flexShrink: 0,
+    alignSelf: "center",
+    marginTop: 0,
   },
   taxOptionText: {
     display: "flex",
     flexDirection: "column",
     minWidth: 0,
+    gap: 3,
   },
   taxOptionName: {
     color: "var(--text)",

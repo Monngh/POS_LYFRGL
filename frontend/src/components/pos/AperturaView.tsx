@@ -121,7 +121,7 @@ export function AperturaView({ sessionData, user, currentTime, onLogout }: Apert
 
             <div style={{ marginBottom: "12px", marginTop: "16px" }}>
               <label style={{ display: "block", marginBottom: "4px", fontSize: "13px", color: "var(--text-secondary)" }}>
-                PIN de autorización (Gerente/Admin):
+                Un admin o gerente debe confirmar la apertura con su PIN.
               </label>
               <input
                 type="password"
