@@ -62,7 +62,7 @@ const typeBadgeColor: Record<string, { bg: string; color: string }> = {
 };
 
 const TypeBadge: React.FC<{ type: string }> = ({ type }) => {
-  const c = typeBadgeColor[type] ?? { bg: "#f1f5f9", color: "#334155" };
+  const c = typeBadgeColor[type] ?? { bg: "#f1f5f9", color: "var(--text-secondary)" };
   return (
     <span
       style={{
@@ -134,14 +134,14 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
 
       <Toolbar>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: "#1e3a8a" }}>Desde:</label>
+          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Desde:</label>
           <input
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
             style={inputStyle}
           />
-          <label style={{ fontSize: 12, fontWeight: 600, color: "#1e3a8a" }}>Hasta:</label>
+          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Hasta:</label>
           <input
             type="date"
             value={to}
@@ -182,7 +182,7 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
             Limpiar filtros
           </button>
         </div>
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>
+        <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
           {visible.length} registro{visible.length !== 1 ? "s" : ""}
         </span>
       </Toolbar>
@@ -219,10 +219,10 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
                     {fmtDateTime(row.createdAt)}
                   </td>
                   <td style={ui.td}>
-                    <div style={{ fontWeight: 700, color: "#0f172a" }}>{row.user.name}</div>
-                    <div style={{ fontSize: 11, color: "#64748b" }}>{row.user.email}</div>
+                    <div style={{ fontWeight: 700, color: "var(--text)" }}>{row.user.name}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{row.user.email}</div>
                   </td>
-                  <td style={{ ...ui.td, color: "#64748b" }}>
+                  <td style={{ ...ui.td, color: "var(--text-muted)" }}>
                     {row.branch?.name ?? <span style={{ color: "#cbd5e1" }}>—</span>}
                   </td>
                   <td style={{ ...ui.td, fontWeight: 600, color: "#1e293b" }}>
@@ -239,7 +239,7 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
                       ...ui.td,
                       fontFamily: "monospace",
                       fontSize: 12,
-                      color: "#64748b",
+                      color: "var(--text-muted)",
                       whiteSpace: "nowrap",
                     }}
                   >

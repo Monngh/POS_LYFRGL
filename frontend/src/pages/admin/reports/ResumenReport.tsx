@@ -229,13 +229,13 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20, marginTop: 20 }}>
             <Panel style={{ padding: 20 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Ventas por método de pago</h3>
+              <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>Ventas por método de pago</h3>
               <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 14 }}>
                 {(data?.byPaymentMethod ?? []).map((p) => (
                   <div key={p.method}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                       <Badge tone={payTone(p.method)}>{p.method}</Badge>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a" }}>{money(p.total)}</span>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)" }}>{money(p.total)}</span>
                     </div>
                     <div style={{ height: 9, backgroundColor: "#eef2f7", borderRadius: 999, overflow: "hidden" }}>
                       <div style={{ height: "100%", width: `${(p.total / maxPay) * 100}%`, backgroundColor: "#3b82f6", borderRadius: 999 }} />
@@ -247,13 +247,13 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
             </Panel>
 
             <Panel style={{ padding: 20 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Ventas por sucursal</h3>
+              <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>Ventas por sucursal</h3>
               <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 14 }}>
                 {(data?.byBranch ?? []).map((b) => (
                   <div key={b.id}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{b.name}</span>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a" }}>{money(b.total)}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>{b.name}</span>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)" }}>{money(b.total)}</span>
                     </div>
                     <div style={{ height: 9, backgroundColor: "#eef2f7", borderRadius: 999, overflow: "hidden" }}>
                       <div style={{ height: "100%", width: `${(b.total / maxBranch) * 100}%`, backgroundColor: "#1e3a8a", borderRadius: 999 }} />
@@ -267,17 +267,17 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
 
           <div style={{ ...ui.tableWrap, marginTop: 20 }}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0" }}>
-              <h3 style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Listado detallado de ventas</h3>
+              <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>Listado detallado de ventas</h3>
             </div>
             {isMobile ? (
-              <div style={{ overflowY: "auto", maxHeight: "360px", padding: "12px 16px", backgroundColor: "#f8fafc" }}>
+              <div style={{ overflowY: "auto", maxHeight: "360px", padding: "12px 16px", backgroundColor: "var(--surface-2)" }}>
                 {loading && !data && (
-                  <div style={{ textAlign: "center", padding: "24px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+                  <div style={{ textAlign: "center", padding: "24px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
                     Cargando ventas...
                   </div>
                 )}
                 {!loading && (data?.salesList ?? []).length === 0 && (
-                  <div style={{ textAlign: "center", padding: "24px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+                  <div style={{ textAlign: "center", padding: "24px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
                     Sin ventas en el periodo seleccionado.
                   </div>
                 )}
@@ -286,8 +286,8 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
                     <div
                       key={s.id}
                       style={{
-                        backgroundColor: "#ffffff",
-                        border: "1px solid #e2e8f0",
+                        backgroundColor: "var(--surface)",
+                        border: "1px solid var(--border)",
                         borderRadius: 12,
                         padding: "12px 16px",
                         marginBottom: 10,
@@ -301,7 +301,7 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
                         alignItems: "center",
                         marginBottom: 6,
                       }}>
-                        <span style={{ fontSize: 14, fontWeight: 800, color: "#1e3a8a" }}>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: "var(--accent-strong)" }}>
                           {s.invoiceNumber}
                         </span>
                         <Badge tone={statusTone(s.status)}>
@@ -312,7 +312,7 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
                       {/* Middle section: Date */}
                       <div style={{
                         fontSize: 12,
-                        color: "#64748b",
+                        color: "var(--text-muted)",
                         marginBottom: 10,
                       }}>
                         {fmtDate(s.createdAt)}
@@ -337,7 +337,7 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
                         </div>
                         <div style={{ textAlign: "right" }}>
                           <span>Total Neto: </span>
-                          <span style={{ fontWeight: 800, color: "#0f172a" }}>{money(s.totalAmount)}</span>
+                          <span style={{ fontWeight: 800, color: "var(--text)" }}>{money(s.totalAmount)}</span>
                         </div>
                       </div>
                     </div>
@@ -360,7 +360,7 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
                     <TableState colSpan={6} loading={loading && !data} empty={!loading && (data?.salesList ?? []).length === 0} emptyText="Sin ventas en el periodo seleccionado." />
                     {(data?.salesList ?? []).map((s) => (
                       <tr key={s.id}>
-                        <td style={{ ...ui.td, fontWeight: 700, color: "#1e3a8a" }}>{s.invoiceNumber}</td>
+                        <td style={{ ...ui.td, fontWeight: 700, color: "var(--accent-strong)" }}>{s.invoiceNumber}</td>
                         <td style={ui.td}>{fmtDate(s.createdAt)}</td>
                         <td style={{ ...ui.td, textAlign: "right" }}>{money(s.subtotal)}</td>
                         <td style={{ ...ui.td, textAlign: "right" }}>{money(s.taxAmount)}</td>
@@ -378,17 +378,17 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
 
           <div style={{ ...ui.tableWrap, marginTop: 20 }}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0" }}>
-              <h3 style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>Productos más vendidos</h3>
+              <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>Productos más vendidos</h3>
             </div>
             {isMobile ? (
-              <div style={{ overflowY: "auto", maxHeight: "360px", padding: "12px 16px", backgroundColor: "#f8fafc" }}>
+              <div style={{ overflowY: "auto", maxHeight: "360px", padding: "12px 16px", backgroundColor: "var(--surface-2)" }}>
                 {loading && !data && (
-                  <div style={{ textAlign: "center", padding: "24px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+                  <div style={{ textAlign: "center", padding: "24px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
                     Cargando productos...
                   </div>
                 )}
                 {!loading && (data?.topProducts ?? []).length === 0 && (
-                  <div style={{ textAlign: "center", padding: "24px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+                  <div style={{ textAlign: "center", padding: "24px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
                     Sin ventas en el periodo seleccionado.
                   </div>
                 )}
@@ -397,8 +397,8 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
                     <div
                       key={p.id}
                       style={{
-                        backgroundColor: "#ffffff",
-                        border: "1px solid #e2e8f0",
+                        backgroundColor: "var(--surface)",
+                        border: "1px solid var(--border)",
                         borderRadius: 12,
                         padding: "12px 16px",
                         marginBottom: 10,
@@ -416,7 +416,7 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
                           <span style={{
                             fontSize: 11,
                             fontWeight: 800,
-                            color: "#2563eb",
+                            color: "var(--accent)",
                             backgroundColor: "#eff6ff",
                             borderRadius: 4,
                             padding: "2px 6px",
@@ -425,11 +425,11 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
                           }}>
                             #{i + 1}
                           </span>
-                          <span style={{ fontSize: 13, fontWeight: 800, color: "#2563eb", whiteSpace: "normal" }}>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: "var(--accent)", whiteSpace: "normal" }}>
                             {p.name.toUpperCase()}
                           </span>
                         </div>
-                        <span style={{ fontSize: 14, fontWeight: 800, color: "#0f172a", flexShrink: 0 }}>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: "var(--text)", flexShrink: 0 }}>
                           {money(p.importe)}
                         </span>
                       </div>
@@ -438,7 +438,7 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
                       <div style={{
                         fontSize: 11,
                         fontWeight: 700,
-                        color: "#94a3b8",
+                        color: "var(--text-faint)",
                         textTransform: "uppercase",
                         paddingLeft: 34,
                       }}>
@@ -462,8 +462,8 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
                     <TableState colSpan={4} loading={loading && !data} empty={!loading && (data?.topProducts ?? []).length === 0} emptyText="Sin ventas en el periodo seleccionado." />
                     {(data?.topProducts ?? []).map((p, i) => (
                       <tr key={p.id}>
-                        <td style={{ ...ui.td, textAlign: "center", fontWeight: 800, color: "#2563eb" }}>{i + 1}</td>
-                        <td style={{ ...ui.td, fontWeight: 600, color: "#0f172a", whiteSpace: "normal" }}>{p.name}</td>
+                        <td style={{ ...ui.td, textAlign: "center", fontWeight: 800, color: "var(--accent)" }}>{i + 1}</td>
+                        <td style={{ ...ui.td, fontWeight: 600, color: "var(--text)", whiteSpace: "normal" }}>{p.name}</td>
                         <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{p.unidades}</td>
                         <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{money(p.importe)}</td>
                       </tr>
@@ -480,7 +480,7 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
 };
 
 const Empty: React.FC = () => (
-  <p style={{ fontSize: 13, color: "#94a3b8", padding: "16px 0", textAlign: "center" }}>Sin datos en el periodo.</p>
+  <p style={{ fontSize: 13, color: "var(--text-faint)", padding: "16px 0", textAlign: "center" }}>Sin datos en el periodo.</p>
 );
 
 export default ResumenReport;

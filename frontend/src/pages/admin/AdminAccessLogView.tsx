@@ -298,10 +298,10 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
               ...ui.ghostBtn,
               padding: "8px 14px",
               fontSize: 13,
-              backgroundColor: "#f1f5f9",
-              border: "1px solid #e2e8f0",
+              backgroundColor: "var(--surface-3)",
+              border: "1px solid var(--border)",
               borderRadius: "8px",
-              color: "#64748b",
+              color: "var(--text-muted)",
               fontWeight: 600,
               width: "100%"
             }}

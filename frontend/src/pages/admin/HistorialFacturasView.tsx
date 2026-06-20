@@ -60,8 +60,8 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
       />
 
       <Panel>
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <strong style={{ fontSize: 14, color: "#334155" }}>Facturas Emitidas</strong>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", backgroundColor: "var(--surface-2)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <strong style={{ fontSize: 14, color: "var(--text-secondary)" }}>Facturas Emitidas</strong>
           <button onClick={fetchHistory} style={ui.ghostBtn}>
             Actualizar
           </button>
@@ -77,7 +77,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
               padding: "12px 16px",
               fontWeight: 700,
               fontSize: 11,
-              color: "#64748b",
+              color: "var(--text-muted)",
               textTransform: "uppercase",
               letterSpacing: "0.4px",
             }}>
@@ -88,7 +88,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
             </div>
 
             {loading && (
-              <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
                 Cargando información...
               </div>
             )}
@@ -98,7 +98,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
               </div>
             )}
             {!loading && !error && history.length === 0 && (
-              <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
+              <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
                 No hay facturas emitidas.
               </div>
             )}
@@ -112,8 +112,8 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                   <div
                     key={item.uuid}
                     style={{
-                      backgroundColor: "#ffffff",
-                      border: "1px solid #e2e8f0",
+                      backgroundColor: "var(--surface)",
+                      border: "1px solid var(--border)",
                       borderRadius: 12,
                       marginBottom: 10,
                       boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
@@ -128,12 +128,12 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                       padding: "8px 16px 6px 16px",
                       fontSize: 11,
                       fontWeight: 700,
-                      color: "#64748b",
+                      color: "var(--text-muted)",
                       borderBottom: "1px solid #f1f5f9",
-                      backgroundColor: "#f8fafc",
+                      backgroundColor: "var(--surface-2)",
                       letterSpacing: "0.2px",
                     }}>
-                      <span style={{ fontFamily: "monospace", color: "#64748b" }}>{displayUuid}</span>
+                      <span style={{ fontFamily: "monospace", color: "var(--text-muted)" }}>{displayUuid}</span>
                       <Badge tone={item.type === "Global" ? "blue" : "slate"}>
                         {item.type}
                       </Badge>
@@ -147,17 +147,17 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                       alignItems: "center",
                     }}>
                       {/* Cliente */}
-                      <div style={{ fontWeight: 700, fontSize: 13, color: "#1e3a8a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--accent-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {item.customer || "Público General"}
                       </div>
 
                       {/* Fecha */}
-                      <div style={{ fontSize: 13, color: "#334155" }}>
+                      <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
                         {formatDate(item.date)}
                       </div>
 
                       {/* Total */}
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
                         {moneyExact(item.totalAmount)}
                       </div>
 
@@ -169,13 +169,13 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                             display: "inline-flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            backgroundColor: "#ffffff",
-                            border: "1px solid #cbd5e1",
+                            backgroundColor: "var(--surface)",
+                            border: "1px solid var(--border-strong)",
                             borderRadius: 8,
                             width: 34,
                             height: 34,
                             cursor: "pointer",
-                            color: "#64748b",
+                            color: "var(--text-muted)",
                             padding: 0,
                           }}
                           className="active-tap"
@@ -190,16 +190,16 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                       <div style={{
                         padding: "16px",
                         margin: "0 16px 16px 16px",
-                        backgroundColor: "#f8fafc",
+                        backgroundColor: "var(--surface-2)",
                         borderRadius: "8px",
-                        border: "1px solid #e2e8f0",
+                        border: "1px solid var(--border)",
                         display: "grid",
                         gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
                         gap: "16px",
                       }}>
                         {/* Datos Generales */}
                         <div>
-                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Datos de la Factura</h4>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Datos de la Factura</h4>
                           <div style={hisDetailRow}>
                             <span style={hisDetailLabel}>UUID:</span>
                             <span style={{ ...hisDetailValue, fontFamily: "monospace", fontSize: 11, wordBreak: "break-all" }}>{item.uuid}</span>
@@ -216,7 +216,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
 
                         {/* Tickets Relacionados */}
                         <div>
-                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Ventas Involucradas</h4>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Ventas Involucradas</h4>
                           <div style={hisDetailRow}>
                             <span style={hisDetailLabel}>Detalle:</span>
                             <span style={hisDetailValue}>
@@ -231,7 +231,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
 
                         {/* Descarga de Archivos */}
                         <div>
-                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginBottom: 10 }}>Descargar Comprobantes</h4>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Descargar Comprobantes</h4>
                           <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
                             <a
                               href={`${api.defaults.baseURL}/api/public/sales/invoice/${item.uuid}/pdf`}
@@ -283,7 +283,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                 {!loading && !error && history.map((item) => (
                   <tr key={item.uuid}>
                     <td style={ui.td}>{formatDate(item.date)}</td>
-                    <td style={{ ...ui.td, fontFamily: "monospace", color: "#1e3a8a", fontWeight: 600 }}>{item.uuid}</td>
+                    <td style={{ ...ui.td, fontFamily: "monospace", color: "var(--accent-strong)", fontWeight: 600 }}>{item.uuid}</td>
                     <td style={ui.td}>
                       <Badge tone={item.type === "Global" ? "blue" : "slate"}>
                         {item.type}
@@ -292,7 +292,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                     <td style={ui.td}>{item.customer}</td>
                     <td style={ui.td}>
                       {item.type === "Global" ? (
-                        <span style={{ fontSize: 12, color: "#64748b", fontWeight: 500 }}>
+                        <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
                           {item.ticketsCount} tickets
                         </span>
                       ) : (
@@ -317,7 +317,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                           target="_blank"
                           rel="noreferrer"
                           title="Descargar XML"
-                          style={{ ...actionBtn, color: "#0f172a", backgroundColor: "#f1f5f9" }}
+                          style={{ ...actionBtn, color: "var(--text)", backgroundColor: "var(--surface-3)" }}
                         >
                           <Download size={16} />
                           <span style={srOnly}>XML</span>
@@ -369,14 +369,14 @@ const hisDetailRow: React.CSSProperties = {
 
 const hisDetailLabel: React.CSSProperties = {
   fontWeight: 700,
-  color: "#64748b",
+  color: "var(--text-muted)",
   minWidth: "75px",
   display: "inline-block",
 };
 
 const hisDetailValue: React.CSSProperties = {
   fontWeight: 600,
-  color: "#334155",
+  color: "var(--text-secondary)",
 };
 
 const downloadBtn: React.CSSProperties = {
