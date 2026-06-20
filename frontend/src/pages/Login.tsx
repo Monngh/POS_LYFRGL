@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { ShieldCheck, UserCheck, Delete, KeyRound, AlertCircle, RefreshCw, Lock } from "lucide-react";
 import api from "../services/api";
@@ -60,6 +60,7 @@ const Login: React.FC = () => {
 
   const isMobile = useMediaQuery("(max-width: 860px)");
   const shortScreen = useMediaQuery("(max-height: 860px)");
+  const isTouch = useMediaQuery("(pointer: coarse)");
 
   // Estados de control
   const [activeTab, setActiveTab] = useState<"admin" | "cashier">("cashier"); // Por defecto cajero según maquetas
@@ -97,6 +98,7 @@ const Login: React.FC = () => {
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
   const [lockRemaining, setLockRemaining] = useState(0); // segundos restantes de bloqueo
   const isLocked = lockRemaining > 0;
+  const pinInputRef = useRef<HTMLInputElement>(null);
 
   // Cargar sucursales al montar el componente
   useEffect(() => {
@@ -158,7 +160,9 @@ const Login: React.FC = () => {
 
   const validateAdminForm = () => ({
     email: validateEmail(adminEmail, { required: true }),
-    password: normalizeSpaces(adminPassword) ? undefined : "La contrasena es obligatoria.",
+    password: adminPassword.length > 16
+      ? "La contraseña no puede exceder 16 caracteres."
+      : normalizeSpaces(adminPassword) ? undefined : "La contrasena es obligatoria.",
   });
 
   const validateCashierForm = () => ({
@@ -169,12 +173,16 @@ const Login: React.FC = () => {
   });
 
   const setAdminField = (field: "email" | "password", value: string) => {
-    const next = field === "email" ? normalizeEmailInput(value) : value;
+    const next = field === "email" ? normalizeEmailInput(value) : value.slice(0, 16);
     if (field === "email") setAdminEmail(next);
     if (field === "password") setAdminPassword(next);
     setAdminFieldErrors((prev) => ({
       ...prev,
-      [field]: field === "email" ? validateEmail(next, { required: true }) : normalizeSpaces(next) ? undefined : "La contrasena es obligatoria.",
+      [field]: field === "email"
+        ? validateEmail(next, { required: true })
+        : next.length > 16
+          ? "La contraseña no puede exceder 16 caracteres."
+          : normalizeSpaces(next) ? undefined : "La contrasena es obligatoria.",
     }));
   };
 
@@ -199,9 +207,17 @@ const Login: React.FC = () => {
     return () => clearTimeout(t);
   }, [lockRemaining]);
 
+  // Enfocar el input oculto de captura al entrar en modo cajero (solo desktop)
+  useEffect(() => {
+    if (!isTouch && activeTab === "cashier" && pinInputRef.current) {
+      pinInputRef.current.focus();
+    }
+  }, [isTouch, activeTab]);
+
   // Escuchar teclado físico para el ingreso del PIN de cajero
   useEffect(() => {
     if (activeTab !== "cashier") return;
+    if (isTouch) return; // dispositivos táctiles usan el PIN pad visual
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isLocked) return; // bloqueado por seguridad: ignorar el teclado físico
@@ -237,7 +253,7 @@ const Login: React.FC = () => {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [activeTab, pinCode, cashierEmail, isLocked]);
+  }, [activeTab, pinCode, cashierEmail, isLocked, isTouch]);
 
   const handleRequestOtp = async () => {
     setOtpLoading(true);
@@ -661,6 +677,17 @@ const Login: React.FC = () => {
               </div>
             )}
           </div>
+
+          {!isTouch && (
+            <input
+              ref={pinInputRef}
+              type="tel"
+              style={{ position: "fixed", opacity: 0, width: 0, height: 0, pointerEvents: "none" }}
+              tabIndex={-1}
+              readOnly
+              aria-hidden="true"
+            />
+          )}
 
           {/* Display de PIN */}
           <div style={pinDisplayStyle}>
