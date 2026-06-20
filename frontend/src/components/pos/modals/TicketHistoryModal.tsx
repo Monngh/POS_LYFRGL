@@ -7,7 +7,7 @@ import {
 const maskPhone = (value: string | null | undefined): string => {
   const digits = (value || "").replace(/\D/g, "");
   if (!digits) return "";
-  return `${"*".repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}`;
+  return `${"•".repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}`;
 };
 
 const validateFolioInput = (value: string): string =>

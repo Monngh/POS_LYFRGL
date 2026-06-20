@@ -144,7 +144,7 @@ export function AperturaView({ sessionData, user, currentTime, onLogout }: Apert
 
             <button
               onClick={handleOpen}
-              disabled={openingLoading}
+              disabled={openingLoading || !openPin.trim()}
               className="btn-primary active-tap"
               style={{ ...styles.submitBtn, width: "100%", marginTop: "8px" }}
             >
