@@ -40,6 +40,10 @@ export const generatePendingToken = (userId: number, tfa: "register" | "authenti
   return jwt.sign({ userId, tfa }, JWT_SECRET, { expiresIn: "5m" });
 };
 
+export const generateAuditToken = (userId: number): string => {
+  return jwt.sign({ userId, scope: "audit" }, JWT_SECRET, { expiresIn: "10m" });
+};
+
 /**
  * Verifica y decodifica un token JWT.
  */

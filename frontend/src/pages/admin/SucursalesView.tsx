@@ -66,7 +66,7 @@ const validateAddress = (value: string): string | undefined => {
 };
 
 const validatePhone = (value: string): string | undefined => {
-  return validatePhoneFormat(value, { required: true, minDigits: 10, maxDigits: 15 });
+  return validatePhoneFormat(value, { required: true });
 };
 
 // ---------------------------------------------------------------------------

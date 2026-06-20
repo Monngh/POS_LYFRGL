@@ -5,7 +5,7 @@ export type ValidatorRule =
   | { type: "textSafe"; label?: string; min?: number; max?: number; required?: boolean }
   | { type: "referenceSafe"; label?: string; max?: number; required?: boolean }
   | { type: "rfc"; required?: boolean }
-  | { type: "email"; required?: boolean }
+  | { type: "email"; required?: boolean; maxLength?: number }
   | { type: "phone"; required?: boolean; minDigits?: number; maxDigits?: number }
   | { type: "integer"; label?: string; required?: boolean; min?: number; max?: number }
   | { type: "decimalMoney"; label?: string; required?: boolean; min?: number; max?: number; minExclusive?: boolean }
@@ -24,6 +24,7 @@ export const DECIMAL_MONEY_INPUT_PATTERN = /^\d*(?:\.\d{0,3})?$/;
 export const DECIMAL_MONEY_SAVE_PATTERN = /^\d+(?:\.\d{1,3})?$/;
 export const SKU_PATTERN = /^[A-Za-z0-9_-]+$/;
 export const BARCODE_PATTERN = /^[0-9]+$/;
+export const DATE_INPUT_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const DANGEROUS_PATTERN = /[<>{}[\]`~|\\]/;
 const EMOJI_PATTERN = /[\p{Extended_Pictographic}\uFE0F]/u;
@@ -101,25 +102,119 @@ export const validateRfc = (value: string, options: { required?: boolean } = {})
   return undefined;
 };
 
-export const validatePhone = (value: string, options: { required?: boolean; minDigits?: number; maxDigits?: number } = {}) => {
+export const validatePhone = (value: string, options: { required?: boolean } = {}) => {
   const v = normalizeSpaces(value);
   if (!v) return options.required ? "El telefono es obligatorio." : undefined;
   if (hasEmoji(v) || !PHONE_PATTERN.test(v)) {
     return "El telefono solo puede contener numeros, espacios, +, - y parentesis.";
   }
   const digits = v.replace(/\D/g, "");
-  const min = options.minDigits ?? 10;
-  const max = options.maxDigits ?? 15;
-  if (digits.length < min || digits.length > max) return `El telefono debe tener entre ${min} y ${max} digitos.`;
+  if (digits.length === 10) {
+    return undefined;
+  }
+  if (digits.length === 12) {
+    const lada = digits.substring(0, 2);
+    if (["52", "55", "33", "81"].includes(lada)) {
+      return undefined;
+    }
+  }
+  return "El telefono debe tener exactamente 10 digitos (o 12 digitos iniciando con lada autorizada 52, 55, 33, 81).";
+};
+
+export const validateMexicanPhone = (value: string, options: { required?: boolean } = {}) => {
+  const v = normalizeSpaces(value);
+  if (!v) return options.required ? "El telefono es obligatorio." : undefined;
+  if (hasEmoji(v) || !PHONE_PATTERN.test(v)) {
+    return "El telefono solo puede contener numeros, espacios, +, - y parentesis.";
+  }
+  const digits = v.replace(/\D/g, "");
+  if (digits.length !== 10) return "El telefono debe tener exactamente 10 digitos.";
   return undefined;
 };
 
-export const validateEmail = (value: string, options: { required?: boolean } = {}) => {
+export const validateEmail = (
+  value: string,
+  options: { required?: boolean; maxLength?: number } = {},
+) => {
   const v = normalizeEmailInput(value);
   if (!v) return options.required ? "El correo es obligatorio." : undefined;
+  if (options.maxLength !== undefined && v.length > options.maxLength) {
+    return `El correo no puede exceder ${options.maxLength} caracteres.`;
+  }
+  if (v.length > 254) return "El correo no puede exceder 254 caracteres.";
   if (/\s/.test(v) || hasEmoji(v) || !EMAIL_PATTERN.test(v)) {
     return "El correo no tiene un formato valido.";
   }
+  return undefined;
+};
+
+export const validateDateInput = (value: string, label = "La fecha") => {
+  const raw = value.trim();
+  if (!raw) return `${label} es obligatoria.`;
+  if (!DATE_INPUT_PATTERN.test(raw)) return `${label} no es valida.`;
+
+  const [year, month, day] = raw.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    return `${label} no es valida.`;
+  }
+  return undefined;
+};
+
+export const validateDateRange = (
+  startDate: string,
+  endDate: string,
+  options: { startLabel?: string; endLabel?: string } = {},
+) => {
+  const startLabel = options.startLabel ?? "La fecha inicial";
+  const endLabel = options.endLabel ?? "La fecha final";
+  const startError = validateDateInput(startDate, startLabel);
+  if (startError) return startError;
+  const endError = validateDateInput(endDate, endLabel);
+  if (endError) return endError;
+  if (startDate > endDate) return `${startLabel} no puede ser mayor que ${endLabel.toLowerCase()}.`;
+  return undefined;
+};
+
+export const validateCatalogValue = (
+  value: string,
+  allowedValues: readonly string[],
+  label: string,
+  options: { required?: boolean } = {},
+) => {
+  const normalized = value.trim();
+  if (!normalized) return options.required === false ? undefined : `Selecciona ${label}.`;
+  if (!allowedValues.includes(normalized)) return `Selecciona ${label} valida.`;
+  return undefined;
+};
+
+export const validatePassword = (
+  value: string,
+  options: {
+    required?: boolean;
+    minLength?: number;
+    maxLength?: number;
+    requireLetterAndNumber?: boolean;
+  } = {},
+) => {
+  const minLength = options.minLength ?? 6;
+  const maxLength = options.maxLength ?? 128;
+  if (!value) return options.required === false ? undefined : "La contrasena es obligatoria.";
+  if (value.length < minLength) return `La contrasena debe tener al menos ${minLength} caracteres.`;
+  if (value.length > maxLength) return `La contrasena no puede exceder ${maxLength} caracteres.`;
+  if (options.requireLetterAndNumber !== false && (!/[A-Za-z]/.test(value) || !/\d/.test(value))) {
+    return "La contrasena debe incluir al menos una letra y un numero.";
+  }
+  return undefined;
+};
+
+export const validatePasswordConfirmation = (password: string, confirmation: string) => {
+  if (!confirmation) return "Confirma la contrasena.";
+  if (password !== confirmation) return "Las contrasenas no coinciden.";
   return undefined;
 };
 
@@ -161,6 +256,7 @@ export const validateDecimalMoney = (
 export const validateSku = (value: string, options: { required?: boolean } = {}) => {
   const raw = value.trim();
   if (!raw) return options.required === false ? undefined : "El SKU es obligatorio.";
+  if (raw.length > 50) return "El SKU no puede exceder 50 caracteres.";
   if (hasEmoji(raw) || !SKU_PATTERN.test(raw)) return "El SKU solo permite letras, numeros, guion medio y guion bajo.";
   return undefined;
 };
@@ -168,6 +264,7 @@ export const validateSku = (value: string, options: { required?: boolean } = {})
 export const validateBarcode = (value: string, options: { required?: boolean } = {}) => {
   const raw = value.trim();
   if (!raw) return options.required ? "El codigo de barras es obligatorio." : undefined;
+  if (raw.length < 8 || raw.length > 14) return "El codigo de barras debe tener entre 8 y 14 caracteres.";
   if (hasEmoji(raw) || !BARCODE_PATTERN.test(raw)) return "El codigo de barras solo puede contener numeros.";
   return undefined;
 };
