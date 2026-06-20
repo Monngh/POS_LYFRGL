@@ -103,20 +103,6 @@ const USOS_CFDI = [
   { code: "S01", label: "S01 - Sin efectos fiscales" }
 ];
 
-function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(
-    () => typeof window !== "undefined" && window.matchMedia(query).matches
-  );
-  useEffect(() => {
-    const m = window.matchMedia(query);
-    const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
-    setMatches(m.matches);
-    m.addEventListener("change", handler);
-    return () => m.removeEventListener("change", handler);
-  }, [query]);
-  return matches;
-}
-
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 const EMAIL_FORMAT_ERROR = "El correo electrónico no tiene un formato válido.";
 
@@ -132,7 +118,6 @@ const validateAutofactEmail = (value: string, options: { required?: boolean } = 
 };
 
 const Autofacturacion: React.FC = () => {
-  const isMobile = useMediaQuery("(max-width: 768px)");
   const [activeTab, setActiveTab] = useState<"facturar" | "facturas" | "datos">("facturar");
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [invoiceNumber, setInvoiceNumber] = useState("");
