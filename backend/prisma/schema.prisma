@@ -23,6 +23,7 @@ model Branch {
   users           User[]
   purchaseOrders  PurchaseOrder[]  @relation("purchaseOrdersBranch")
   reportAuditLogs ReportAuditLog[]
+  authAuditLogs   AuthAuditLog[]
 }
 
 model User {
@@ -58,6 +59,7 @@ model User {
   purchaseOrdersCreated  PurchaseOrder[]   @relation("purchaseCreatedBy")
   purchaseOrdersReceived PurchaseOrder[]   @relation("purchaseReceivedBy")
   reportAuditLogs        ReportAuditLog[]
+  authAuditLogs          AuthAuditLog[]
 }
 
 model Product {
@@ -468,4 +470,23 @@ model ReportAuditLog {
 
   user   User    @relation(fields: [userId], references: [id], onUpdate: NoAction)
   branch Branch? @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+}
+
+// Bitácora de inicios de sesión (accesos) — tanto de cajeros como de admin/gerente.
+model AuthAuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  branchId  Int?
+  email     String   @db.NVarChar(255)
+  name      String   @db.NVarChar(255)
+  role      String   @db.NVarChar(50)
+  method    String   @db.NVarChar(50) // "PIN", "Contraseña + WebAuthn", "Contraseña + OTP", etc.
+  ipAddress String?  @db.NVarChar(45)
+  deviceId  String?  @db.NVarChar(64)
+  createdAt DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onUpdate: NoAction)
+  branch Branch? @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+
+  @@index([role, createdAt])
 }
