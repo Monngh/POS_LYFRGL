@@ -42,6 +42,12 @@ const styles: { [key: string]: React.CSSProperties } = {
   fieldError: { color: "#b91c1c", fontSize: "12px", fontWeight: "600", marginTop: "5px", marginBottom: 0 },
 };
 
+const maskPhone = (value: string | null | undefined): string => {
+  const digits = (value || "").replace(/\D/g, "");
+  if (!digits) return "";
+  return `${"•".repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}`;
+};
+
 export function ProductSearchPanel({ searchData, customerData, cartData, onToast }: ProductSearchPanelProps) {
   const {
     barcodeSearch, setBarcodeSearch, handleProductBarcodeSearch, barcodeSearchError,
@@ -88,7 +94,7 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
             }} className="pos-cashier-customer-selected">
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <span style={{ fontWeight: "700", color: "#166534" }}>👤 {selectedCustomer.name}</span>
-                <span style={{ color: "#475569" }}>({selectedCustomer.phone})</span>
+                <span style={{ color: "#475569" }}>(Tel: {maskPhone(selectedCustomer.phone)})</span>
                 <span style={{ backgroundColor: "#dcfce7", color: "#15803d", padding: "2px 6px", borderRadius: "4px", fontWeight: "700" }}>
                   ⭐ {selectedCustomer.points} pts
                 </span>
@@ -156,7 +162,7 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
                 >
                   <div style={{ display: "flex", flexDirection: "column" }}>
                     <span style={{ fontWeight: "700", color: "#1e293b" }}>{c.name}</span>
-                    <span style={{ fontSize: "12px", color: "#64748b" }}>📞 {c.phone}</span>
+                    <span style={{ fontSize: "12px", color: "#64748b" }}>📞 {maskPhone(c.phone)}</span>
                   </div>
                   <span style={{ backgroundColor: "#f1f5f9", color: "#334155", padding: "2px 6px", borderRadius: "4px", fontWeight: "700", fontSize: "12px" }}>
                     ⭐ {c.points} pts
