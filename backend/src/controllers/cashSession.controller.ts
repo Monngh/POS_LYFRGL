@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { AppError } from "../utils/AppError";
 import { getRequestDeviceId } from "../middlewares/device.middleware";
+import { comparePassword } from "../utils/auth";
+import { prisma } from "../app";
 import {
   getSessionStatus as getSessionStatusService,
   openCashSession,
@@ -34,11 +36,42 @@ export const openSession = async (req: Request, res: Response): Promise<void> =>
     return;
   }
 
-  const { initialAmount } = req.body;
+  const { initialAmount, pinCode } = req.body;
   if (initialAmount === undefined || initialAmount === null || isNaN(Number(initialAmount))) {
     res.status(400).json({ message: "El monto del fondo inicial es requerido y debe ser numérico." });
     return;
   }
+
+  // ── Autorización con PIN de gerente/admin ──
+  if (!pinCode || typeof pinCode !== "string" || !pinCode.trim()) {
+    res.status(400).json({
+      code: "PIN_REQUERIDO",
+      message: "Ingrese el PIN de autorización para abrir la caja.",
+    });
+    return;
+  }
+
+  const staff = await prisma.user.findMany({
+    where: { role: { in: ["ADMIN", "GERENTE"] }, active: true },
+    select: { name: true, pinCode: true },
+  });
+
+  let authorized = false;
+  for (const s of staff) {
+    if (s.pinCode && (await comparePassword(pinCode.trim(), s.pinCode))) {
+      authorized = true;
+      break;
+    }
+  }
+
+  if (!authorized) {
+    res.status(403).json({
+      code: "PIN_INVALIDO",
+      message: "PIN de autorización incorrecto.",
+    });
+    return;
+  }
+  // ── Fin autorización ──
 
   try {
     const newSession = await openCashSession(
@@ -70,11 +103,42 @@ export const closeSession = async (req: Request, res: Response): Promise<void> =
     return;
   }
 
-  const { declaredAmount } = req.body;
+  const { declaredAmount, pinCode } = req.body;
   if (declaredAmount === undefined || declaredAmount === null || isNaN(Number(declaredAmount))) {
     res.status(400).json({ message: "El monto de efectivo declarado/contado es requerido y debe ser numérico." });
     return;
   }
+
+  // ── Autorización con PIN de gerente/admin ──
+  if (!pinCode || typeof pinCode !== "string" || !pinCode.trim()) {
+    res.status(400).json({
+      code: "PIN_REQUERIDO",
+      message: "Ingrese el PIN de autorización para cerrar la caja.",
+    });
+    return;
+  }
+
+  const staff = await prisma.user.findMany({
+    where: { role: { in: ["ADMIN", "GERENTE"] }, active: true },
+    select: { name: true, pinCode: true },
+  });
+
+  let authorized = false;
+  for (const s of staff) {
+    if (s.pinCode && (await comparePassword(pinCode.trim(), s.pinCode))) {
+      authorized = true;
+      break;
+    }
+  }
+
+  if (!authorized) {
+    res.status(403).json({
+      code: "PIN_INVALIDO",
+      message: "PIN de autorización incorrecto.",
+    });
+    return;
+  }
+  // ── Fin autorización ──
 
   try {
     const result = await closeCashSession(req.user.userId, req.user.branchId, Number(declaredAmount));
