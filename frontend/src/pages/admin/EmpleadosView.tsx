@@ -171,7 +171,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     const emailError = validateEmail(candidate.email, { required: true });
     if (emailError) errors.email = emailError;
 
-    const phoneError = validatePhone(candidate.phone, { required: false, minDigits: 10, maxDigits: 15 });
+    const phoneError = validatePhone(candidate.phone, { required: false });
     if (phoneError) errors.phone = phoneError;
 
     if (editingId === null) {
