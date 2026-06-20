@@ -8,6 +8,7 @@ import {
 } from "../utils/authSecurity";
 import { AppError } from "../utils/AppError";
 import { buildLoginSecondFactor } from "./webauthn.controller";
+import { recordLoginEvent } from "../utils/authAudit";
 import {
   findUserForAdminLogin,
   findUserForCashierLogin,
@@ -84,6 +85,7 @@ export const cashierLogin = async (req: Request, res: Response): Promise<void> =
   try {
     const user = await findUserForCashierLogin(email, pinCode);
     clearFailedAttempts(key);
+    recordLoginEvent(req, user, "PIN");
     const token = generateToken({
       userId: user.id,
       email: user.email,
@@ -218,6 +220,7 @@ export const verifyOtp = async (req: Request, res: Response) => {
       return res.status(401).json({ message: "Token inválido o expirado" });
     }
     const user = await validateOtpCode(decoded.userId, otpCode);
+    recordLoginEvent(req, user, "Contraseña + OTP correo");
     const token = generateToken({
       userId: user.id,
       email: user.email,
