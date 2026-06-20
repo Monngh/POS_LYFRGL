@@ -334,8 +334,8 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             {(data?.ventasPorSucursal ?? []).map((b) => (
               <div key={b.id}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{b.name}</span>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: "#1e3a8a" }}>{money(b.total)}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>{b.name}</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)" }}>{money(b.total)}</span>
                 </div>
                 <div style={s.track}>
                   <div style={{ ...s.trackFill, width: `${(b.total / maxBranch) * 100}%` }} />
@@ -353,9 +353,9 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               <div key={p.id} style={s.productRow}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={s.rankBadge}>{i + 1}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{p.name}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>{p.name}</span>
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#0f172a" }}>{p.unidades} u</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text)" }}>{p.unidades} u</span>
               </div>
             ))}
             {!loading && (data?.productosMasVendidos ?? []).length === 0 && <EmptyState />}
@@ -367,21 +367,21 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 };
 
 const EmptyState: React.FC = () => (
-  <p style={{ fontSize: 13, color: "#94a3b8", padding: "24px 4px", textAlign: "center" }}>
+  <p style={{ fontSize: 13, color: "var(--text-faint)", padding: "24px 4px", textAlign: "center" }}>
     Aún no hay datos registrados para este periodo.
   </p>
 );
 
 const s: { [k: string]: React.CSSProperties } = {
   metricCard: {
-    backgroundColor: "#ffffff",
-    border: "1px solid #e2e8f0",
+    backgroundColor: "var(--surface)",
+    border: "1px solid var(--border)",
     borderRadius: 12,
     padding: "18px 20px",
     boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
   },
   metricHead: { display: "flex", alignItems: "center", justifyContent: "space-between" },
-  metricLabel: { fontSize: 13, fontWeight: 600, color: "#64748b" },
+  metricLabel: { fontSize: 13, fontWeight: 600, color: "var(--text-muted)" },
   metricIcon: {
     width: 30,
     height: 30,
@@ -391,8 +391,8 @@ const s: { [k: string]: React.CSSProperties } = {
     justifyContent: "center",
   },
   metricValue: { fontSize: 26, fontWeight: 800, marginTop: 12, letterSpacing: "-0.5px" },
-  metricSecondary: { fontSize: 12, color: "#94a3b8", marginTop: 4, fontWeight: 500 },
-  panelTitle: { fontSize: 15, fontWeight: 800, color: "#0f172a" },
+  metricSecondary: { fontSize: 12, color: "var(--text-faint)", marginTop: 4, fontWeight: 500 },
+  panelTitle: { fontSize: 15, fontWeight: 800, color: "var(--text)" },
   chart: {
     display: "flex",
     alignItems: "flex-end",
@@ -412,9 +412,9 @@ const s: { [k: string]: React.CSSProperties } = {
     gap: 8,
     height: "100%",
   },
-  chartValue: { fontSize: 11, fontWeight: 700, color: "#64748b", height: 13 },
+  chartValue: { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", height: 13 },
   bar: { width: "60%", maxWidth: 46, borderRadius: "6px 6px 0 0", transition: "height 0.3s ease" },
-  chartLabel: { fontSize: 12, fontWeight: 600, color: "#94a3b8" },
+  chartLabel: { fontSize: 12, fontWeight: 600, color: "var(--text-faint)" },
   track: { height: 9, backgroundColor: "#eef2f7", borderRadius: 999, overflow: "hidden" },
   trackFill: { height: "100%", backgroundColor: "#3b82f6", borderRadius: 999, transition: "width 0.3s ease" },
   productRow: {
@@ -429,7 +429,7 @@ const s: { [k: string]: React.CSSProperties } = {
     height: 22,
     borderRadius: 6,
     backgroundColor: "#eff6ff",
-    color: "#2563eb",
+    color: "var(--accent)",
     fontSize: 11,
     fontWeight: 800,
     display: "flex",
