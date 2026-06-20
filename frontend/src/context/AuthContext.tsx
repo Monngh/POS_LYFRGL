@@ -32,7 +32,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [token, setToken] = useState<string | null>(localStorage.getItem("fmb_pos_token"));
+  const [token, setToken] = useState<string | null>(sessionStorage.getItem("fmb_pos_token"));
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [webAuthnFailed, setWebAuthnFailed] = useState(false);
@@ -71,8 +71,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [token]);
 
   const persistSession = (receivedToken: string, receivedUser: User) => {
-    localStorage.setItem("fmb_pos_token", receivedToken);
-    localStorage.setItem("fmb_pos_user", JSON.stringify(receivedUser));
+    sessionStorage.setItem("fmb_pos_token", receivedToken);
+    sessionStorage.setItem("fmb_pos_user", JSON.stringify(receivedUser));
     setToken(receivedToken);
     setUser(receivedUser);
   };
@@ -147,8 +147,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await api.post("/api/auth/cashier-login", { email, pinCode });
       const { token: receivedToken, user: receivedUser } = response.data;
 
-      localStorage.setItem("fmb_pos_token", receivedToken);
-      localStorage.setItem("fmb_pos_user", JSON.stringify(receivedUser));
+      sessionStorage.setItem("fmb_pos_token", receivedToken);
+      sessionStorage.setItem("fmb_pos_user", JSON.stringify(receivedUser));
 
       setToken(receivedToken);
       setUser(receivedUser);
@@ -175,6 +175,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    sessionStorage.removeItem("fmb_pos_token");
+    sessionStorage.removeItem("fmb_pos_user");
     localStorage.removeItem("fmb_pos_token");
     localStorage.removeItem("fmb_pos_user");
     setToken(null);
