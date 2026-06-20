@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { DECIMAL_INPUT_REGEX, handleDecimalInputChange } from "../../../utils/decimalInput";
 
 interface CloseCashModalProps {
@@ -12,7 +12,7 @@ interface CloseCashModalProps {
   onDeclaredCashChange: (val: string) => void;
   onDeclaredCashErrorChange: (err: string) => void;
   onClose: () => void;
-  onConfirmClose: () => void;
+  onConfirmClose: (pinCode: string) => Promise<void>;
 }
 
 const modalOverlay: React.CSSProperties = {
@@ -97,6 +97,31 @@ export default function CloseCashModal({
   onClose,
   onConfirmClose,
 }: CloseCashModalProps) {
+  const [closePin, setClosePin] = useState("");
+  const [closePinError, setClosePinError] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) {
+      setClosePin("");
+      setClosePinError("");
+    }
+  }, [isOpen]);
+
+  const handleConfirm = async () => {
+    try {
+      await onConfirmClose(closePin.trim());
+      setClosePin("");
+      setClosePinError("");
+    } catch (err: any) {
+      const code = err.response?.data?.code;
+      const msg = err.response?.data?.message || "PIN incorrecto.";
+      if (code === "PIN_INVALIDO" || code === "PIN_REQUERIDO") {
+        setClosePinError(msg);
+        setClosePin("");
+      }
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -177,6 +202,23 @@ export default function CloseCashModal({
             {declaredCashError && <p style={fieldError}>{declaredCashError}</p>}
           </div>
 
+          <div style={inputGroup}>
+            <label style={labelStyle}>PIN de autorización (Gerente/Admin):</label>
+            <input
+              type="password"
+              maxLength={4}
+              placeholder="••••"
+              value={closePin}
+              onChange={e => {
+                setClosePin(e.target.value.replace(/\D/g, ""));
+                setClosePinError("");
+              }}
+              className="input-corporate"
+              style={{ fontSize: "16px", fontWeight: "700", textAlign: "center" }}
+            />
+            {closePinError && <p style={fieldError}>{closePinError}</p>}
+          </div>
+
           <div style={summaryRow}>
             <span>Diferencia (Sobrante/Faltante):</span>
             <span style={{ fontWeight: "800", color: calculatedDifference < 0 ? "#dc2626" : "#059669" }}>
@@ -190,7 +232,7 @@ export default function CloseCashModal({
             </button>
             <button
               disabled={closingLoading}
-              onClick={onConfirmClose}
+              onClick={handleConfirm}
               style={{ ...modalBtn, backgroundColor: "#059669", color: "white" }}
             >
               {closingLoading ? "Cerrando..." : "CERRAR TURNO"}

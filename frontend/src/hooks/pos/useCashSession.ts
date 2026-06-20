@@ -145,7 +145,7 @@ export function useCashSession({
     }
   };
 
-  const handleCloseShift = async () => {
+  const handleCloseShift = async (pinCode?: string) => {
     const declaredCashValidation = validateDecimalField(declaredCash, "El efectivo contado", {
       invalidMessage: "El efectivo contado debe ser un monto valido con maximo 3 decimales.",
     });
@@ -163,6 +163,7 @@ export function useCashSession({
       }
       const res = await api.post("/api/cash-session/close", {
         declaredAmount: declaredCashValue.value,
+        pinCode: pinCode,
       });
       onToast("Turno cerrado con éxito. Generando reporte de arqueo...", "success");
       setLastClosedStats(res.data.stats);
@@ -171,6 +172,10 @@ export function useCashSession({
       setDeclaredCash("");
       setDeclaredCashError("");
     } catch (err: any) {
+      const code = err.response?.data?.code;
+      if (code === "PIN_INVALIDO" || code === "PIN_REQUERIDO") {
+        throw err; // CloseCashModal maneja estos errores directamente
+      }
       onToast(err.response?.data?.message || "Error al cerrar turno.");
     } finally {
       setClosingLoading(false);
