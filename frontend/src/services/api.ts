@@ -38,7 +38,7 @@ export const getDeviceId = (): string => {
 // Inyecta el token de autenticación JWT y el identificador del dispositivo
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem("fmb_pos_token");
+    const token = sessionStorage.getItem("fmb_pos_token");
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -71,8 +71,16 @@ api.interceptors.response.use(
         url.endsWith("/cashier-login") ||
         url.includes("/webauthn/");
 
-      if (status === 401 && !isPinVerification && !isLoginAttempt) {
+      // Estos endpoints usan 401 para "contraseña incorrecta" o "sesión de auditoría
+      // expirada" (reconfirmación de contraseña), NO para sesión expirada del usuario:
+      // no deben cerrar la sesión. (cashier-access sí debe cerrarla si el JWT expiró.)
+      const isSecurityAudit =
+        url.endsWith("/security/audit-unlock") || url.endsWith("/security/admin-access");
+
+      if (status === 401 && !isPinVerification && !isLoginAttempt && !isSecurityAudit) {
         console.warn("Sesión expirada o no autorizada. Redirigiendo a inicio de sesión...");
+        sessionStorage.removeItem("fmb_pos_token");
+        sessionStorage.removeItem("fmb_pos_user");
         localStorage.removeItem("fmb_pos_token");
         localStorage.removeItem("fmb_pos_user");
         
