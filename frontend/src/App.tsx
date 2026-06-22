@@ -1,10 +1,9 @@
-import React, { lazy, Suspense } from "react";
+import React, { Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "./context/AuthContext";
-
-const Login = lazy(() => import("./pages/Login"));
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const Autofacturacion = lazy(() => import("./pages/Autofacturacion"));
+import { AuthProvider, useAuth } from "./shared/context/AuthContext";
+import Login from "./pages/Login";
+import Autofacturacion from "./pages/Autofacturacion";
+import AppRouter from "./router";
 
 const PageLoader = () => (
   <div style={{
@@ -40,13 +39,9 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token, loading } = useAuth();
 
-  // Solo esperar (sin renderizar) cuando hay un token que se está validando al
-  // cargar la app. Durante un intento de login NO hay token, por lo que NO se
-  // debe desmontar el Login: si lo hiciéramos, se perderían sus avisos
-  // (PIN incorrecto, intentos restantes, bloqueo) al re-montarse al fallar.
   if (loading && token) return null;
 
-  return !token ? <>{children}</> : <Navigate to="/dashboard" replace />;
+  return !token ? <>{children}</> : <Navigate to="/cajero" replace />;
 };
 
 const AppContent: React.FC = () => {
@@ -67,16 +62,13 @@ const AppContent: React.FC = () => {
 
         {/* Rutas Privadas Protegidas por JWT */}
         <Route
-          path="/dashboard"
+          path="/*"
           element={
             <PrivateRoute>
-              <Dashboard />
+              <AppRouter />
             </PrivateRoute>
           }
         />
-
-        {/* Redirección por defecto */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Suspense>
   );
