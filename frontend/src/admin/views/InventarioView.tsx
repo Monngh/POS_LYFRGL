@@ -120,6 +120,9 @@ const SKU_REGEX = /^[A-Za-z0-9_-]+$/;
 const BARCODE_REGEX = /^[0-9]+$/;
 const SAT_PRODUCT_KEY_REGEX = /^[0-9]{8}$/;
 const SAT_UNIT_KEY_REGEX = /^[A-Za-z0-9]+$/;
+const PRODUCT_NAME_MAX_LENGTH = 50;
+const PRODUCT_DESCRIPTION_MAX_LENGTH = 100;
+const BARCODE_MAX_LENGTH = 13;
 
 type ValidationSuccess<T> = {
   ok: true;
@@ -184,11 +187,17 @@ const validateProductForm = (form: typeof emptyForm, requireSku: boolean): Valid
   if (!name) {
     return { ok: false, error: "El nombre del producto es requerido." };
   }
+  if (name.length > PRODUCT_NAME_MAX_LENGTH) {
+    return { ok: false, error: "El nombre del producto no puede tener más de 20 caracteres." };
+  }
   if (!PRODUCT_TEXT_REGEX.test(name)) {
     return { ok: false, error: "El nombre contiene caracteres no permitidos." };
   }
-  if (barcode && !BARCODE_REGEX.test(barcode)) {
-    return { ok: false, error: "El código de barras solo puede contener números." };
+  if (barcode && (!BARCODE_REGEX.test(barcode) || barcode.length > BARCODE_MAX_LENGTH)) {
+    return { ok: false, error: "El código de barras solo puede contener números y no debe exceder 13 dígitos." };
+  }
+  if (description.length > PRODUCT_DESCRIPTION_MAX_LENGTH) {
+    return { ok: false, error: "La descripción no puede tener más de 50 caracteres." };
   }
   if (description && !PRODUCT_TEXT_REGEX.test(description)) {
     return { ok: false, error: "La descripción contiene caracteres no permitidos." };
@@ -249,10 +258,14 @@ const validateProductFormFields = (form: typeof emptyForm, requireSku: boolean):
   else if (sku && !SKU_REGEX.test(sku)) errors.sku = "El SKU solo puede contener letras, numeros, guion medio y guion bajo.";
 
   if (!name) errors.name = "El nombre del producto es requerido.";
+  else if (name.length > PRODUCT_NAME_MAX_LENGTH) errors.name = "El nombre del producto no puede tener más de 20 caracteres.";
   else if (!PRODUCT_TEXT_REGEX.test(name)) errors.name = "El nombre contiene caracteres no permitidos.";
 
-  if (barcode && !BARCODE_REGEX.test(barcode)) errors.barcode = "El codigo de barras solo puede contener numeros.";
-  if (description && !PRODUCT_TEXT_REGEX.test(description)) errors.description = "La descripcion contiene caracteres no permitidos.";
+  if (barcode && (!BARCODE_REGEX.test(barcode) || barcode.length > BARCODE_MAX_LENGTH)) {
+    errors.barcode = "El código de barras solo puede contener números y no debe exceder 13 dígitos.";
+  }
+  if (description.length > PRODUCT_DESCRIPTION_MAX_LENGTH) errors.description = "La descripción no puede tener más de 50 caracteres.";
+  else if (description && !PRODUCT_TEXT_REGEX.test(description)) errors.description = "La descripcion contiene caracteres no permitidos.";
   if (!SAT_PRODUCT_KEY_REGEX.test(satProductKey)) errors.satProductKey = "La clave SAT debe contener 8 numeros.";
   if (!SAT_UNIT_KEY_REGEX.test(satUnitKey)) errors.satUnitKey = "La clave de unidad SAT solo puede contener letras y numeros.";
 
@@ -365,9 +378,15 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [taxLoading, setTaxLoading] = useState(false);
   const [taxError, setTaxError] = useState<string | null>(null);
   const taxRequestId = useRef(0);
+  const [skuLoading, setSkuLoading] = useState(false);
+  const skuRequestId = useRef(0);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const value = k === "barcode" || k === "satProductKey" ? e.target.value.replace(/\D/g, "") : e.target.value;
+    const value = k === "barcode"
+      ? e.target.value.replace(/\D/g, "").slice(0, BARCODE_MAX_LENGTH)
+      : k === "satProductKey"
+        ? e.target.value.replace(/\D/g, "")
+        : e.target.value;
     const nextForm = { ...form, [k]: value };
     const validation = validateProductFormFields(nextForm, editingId === null);
     setForm(nextForm);
@@ -466,6 +485,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const closeForm = () => {
     if (saving) return;
     taxRequestId.current += 1;
+    skuRequestId.current += 1;
+    setSkuLoading(false);
     setShowForm(false);
     setEditingId(null);
     setFieldErrors({});
@@ -534,8 +555,36 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     );
   };
 
+  const loadNextSku = async () => {
+    const requestId = skuRequestId.current + 1;
+    skuRequestId.current = requestId;
+    setSkuLoading(true);
+    setFormError(null);
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next.sku;
+      return next;
+    });
+
+    try {
+      const response = await api.get<{ sku: string }>("/api/admin/products/next-sku");
+      if (skuRequestId.current !== requestId) return;
+      setForm((current) => ({ ...current, sku: response.data.sku }));
+    } catch (err: unknown) {
+      if (skuRequestId.current !== requestId) return;
+      const message = getErrorMessage(err, "No se pudo generar el siguiente SKU.");
+      setFieldErrors((current) => ({ ...current, sku: message }));
+      setFormError(message);
+    } finally {
+      if (skuRequestId.current === requestId) {
+        setSkuLoading(false);
+      }
+    }
+  };
+
   const handleOpenCreate = () => {
     taxRequestId.current += 1;
+    skuRequestId.current += 1;
     setForm({ ...emptyForm, satProductKey: "01010101", satUnitKey: "H87" });
     setEditingId(null);
     setFieldErrors({});
@@ -544,9 +593,12 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setSelectedTaxIds([]);
     setShowForm(true);
     void loadTaxList();
+    void loadNextSku();
   };
 
   const handleEdit = (p: ProductRow | ProductDetail) => {
+    skuRequestId.current += 1;
+    setSkuLoading(false);
     closeDetail();
     setForm({
       sku: p.sku,
@@ -642,7 +694,6 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       } else {
         // Modo Creación
         const createRes = await api.post("/api/admin/products", {
-          sku: validatedProduct.sku,
           barcode: validatedProduct.barcode,
           name: validatedProduct.name,
           description: validatedProduct.description,
@@ -1801,17 +1852,17 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 style={
                   isMobile
                     ? {
-                        display: "grid",
-                        gridTemplateColumns: selectedProduct ? "1fr 1fr" : "1fr",
-                        gap: 8,
-                        padding: "12px 16px",
-                      }
+                      display: "grid",
+                      gridTemplateColumns: selectedProduct ? "1fr 1fr" : "1fr",
+                      gap: 8,
+                      padding: "12px 16px",
+                    }
                     : {
-                        display: "flex",
-                        gap: 10,
-                        padding: "14px 22px",
-                        alignItems: "center",
-                      }
+                      display: "flex",
+                      gap: 10,
+                      padding: "14px 22px",
+                      alignItems: "center",
+                    }
                 }
               >
                 {selectedProduct && (
@@ -1827,12 +1878,12 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         whiteSpace: "nowrap",
                         ...(isMobile
                           ? {
-                              width: "100%",
-                              justifyContent: "center",
-                              fontSize: 12,
-                              padding: "8px 10px",
-                              order: 3,
-                            }
+                            width: "100%",
+                            justifyContent: "center",
+                            fontSize: 12,
+                            padding: "8px 10px",
+                            order: 3,
+                          }
                           : {}),
                       }}
                     >
@@ -1840,27 +1891,27 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     </button>
                     {!isMobile && <span style={{ flex: 1 }} />}
                     {user?.role !== "GERENTE" && (
-                    <button
-                      onClick={() => handleEdit(selectedProduct)}
-                      style={{
-                        ...ui.ghostBtn,
-                        color: "var(--accent)",
-                        borderColor: "#93c5fd",
-                        whiteSpace: "nowrap",
-                        ...(isMobile
-                          ? {
+                      <button
+                        onClick={() => handleEdit(selectedProduct)}
+                        style={{
+                          ...ui.ghostBtn,
+                          color: "var(--accent)",
+                          borderColor: "#93c5fd",
+                          whiteSpace: "nowrap",
+                          ...(isMobile
+                            ? {
                               width: "100%",
                               justifyContent: "center",
                               fontSize: 12,
                               padding: "8px 10px",
                               order: 1,
                             }
-                          : {}),
-                      }}
-                    >
-                      Editar producto
-                    </button>
-                  )}
+                            : {}),
+                        }}
+                      >
+                        Editar producto
+                      </button>
+                    )}
                     <button
                       onClick={printProduct}
                       style={{
@@ -1869,12 +1920,12 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         whiteSpace: "nowrap",
                         ...(isMobile
                           ? {
-                              width: "100%",
-                              justifyContent: "center",
-                              fontSize: 12,
-                              padding: "8px 10px",
-                              order: 2,
-                            }
+                            width: "100%",
+                            justifyContent: "center",
+                            fontSize: 12,
+                            padding: "8px 10px",
+                            order: 2,
+                          }
                           : {}),
                       }}
                     >
@@ -1889,12 +1940,12 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     whiteSpace: "nowrap",
                     ...(isMobile
                       ? {
-                          width: "100%",
-                          justifyContent: "center",
-                          fontSize: 12,
-                          padding: "8px 10px",
-                          order: 4,
-                        }
+                        width: "100%",
+                        justifyContent: "center",
+                        fontSize: 12,
+                        padding: "8px 10px",
+                        order: 4,
+                      }
                       : {}),
                   }}
                 >
@@ -2210,26 +2261,45 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <div style={{ minWidth: 0 }}>
                   <label style={ui.fieldLabel}>SKU *</label>
                   <input
-                    style={{ ...ui.input, backgroundColor: editingId !== null ? "var(--surface-3)" : "var(--input-bg)" }}
+                    style={{ ...ui.input, backgroundColor: "var(--surface-3)", cursor: "default", fontFamily: "monospace" }}
                     value={form.sku}
-                    onChange={set("sku")}
-                    placeholder="SKU-XXX"
-                    autoFocus={editingId === null}
-                    readOnly={editingId !== null}
+                    placeholder={skuLoading ? "Generando..." : "PROD-001"}
+                    readOnly
+                    aria-readonly="true"
                   />
-                  {fieldErrors.sku && <p style={styles.fieldError}>{fieldErrors.sku}</p>}
+                  {skuLoading && <p style={styles.fieldHint}>Generando SKU automático...</p>}
+                  {!skuLoading && fieldErrors.sku && (
+                    <div style={styles.skuErrorRow}>
+                      <p style={{ ...styles.fieldError, marginTop: 0 }}>{fieldErrors.sku}</p>
+                      {editingId === null && (
+                        <button type="button" style={ui.linkBtn} onClick={() => void loadNextSku()}>
+                          Reintentar
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div style={{ minWidth: 0 }}>
                   <label style={ui.fieldLabel}>Código de barras</label>
-                  <input style={{ ...ui.input, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }} value={form.barcode} onChange={set("barcode")} placeholder="7501000000000" />
+                  <input style={ui.input} value={form.barcode} onChange={set("barcode")} placeholder="7501000000000" />
                   {fieldErrors.barcode && <p style={styles.fieldError}>{fieldErrors.barcode}</p>}
                 </div>
               </div>
 
               <div style={{ marginBottom: 14 }}>
                 <label style={ui.fieldLabel}>Nombre *</label>
-                <input style={ui.input} value={form.name} onChange={set("name")} placeholder="Nombre del producto" />
-                {fieldErrors.name && <p style={styles.fieldError}>{fieldErrors.name}</p>}
+                <input
+                  style={ui.input}
+                  value={form.name}
+                  onChange={set("name")}
+                  placeholder="Nombre del producto"
+                  maxLength={PRODUCT_NAME_MAX_LENGTH}
+                  autoFocus={editingId === null}
+                />
+                <div style={styles.fieldFeedbackRow}>
+                  {fieldErrors.name ? <p style={{ ...styles.fieldError, marginTop: 0 }}>{fieldErrors.name}</p> : <span />}
+                  <span style={styles.characterCounter}>{form.name.length}/{PRODUCT_NAME_MAX_LENGTH}</span>
+                </div>
               </div>
 
               <div style={{ marginBottom: 14 }}>
@@ -2239,8 +2309,12 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   value={form.description}
                   onChange={set("description")}
                   placeholder="Detalle o descripción opcional"
+                  maxLength={PRODUCT_DESCRIPTION_MAX_LENGTH}
                 />
-                {fieldErrors.description && <p style={styles.fieldError}>{fieldErrors.description}</p>}
+                <div style={styles.fieldFeedbackRow}>
+                  {fieldErrors.description ? <p style={{ ...styles.fieldError, marginTop: 0 }}>{fieldErrors.description}</p> : <span />}
+                  <span style={styles.characterCounter}>{form.description.length}/{PRODUCT_DESCRIPTION_MAX_LENGTH}</span>
+                </div>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
@@ -2359,7 +2433,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <button type="button" disabled={saving} style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center", width: isMobile ? "100%" : "auto" }} onClick={closeForm}>
                   Cancelar
                 </button>
-                <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center", width: isMobile ? "100%" : "auto" }}>
+                <button type="submit" disabled={saving || (editingId === null && skuLoading)} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center", width: isMobile ? "100%" : "auto" }}>
                   {saving ? (editingId !== null ? "Actualizando..." : "Guardando...") : editingId !== null ? "Actualizar producto" : "Guardar producto"}
                 </button>
               </div>
@@ -2376,6 +2450,34 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "var(--color-danger)",
     fontSize: 12,
     fontWeight: 600,
+    marginTop: 5,
+  },
+  fieldHint: {
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 600,
+    marginTop: 5,
+  },
+  fieldFeedbackRow: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    minHeight: 20,
+    marginTop: 5,
+  },
+  characterCounter: {
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 700,
+    marginLeft: "auto",
+    whiteSpace: "nowrap",
+  },
+  skuErrorRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
     marginTop: 5,
   },
   taxSection: {
