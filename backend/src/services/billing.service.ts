@@ -101,12 +101,15 @@ export class BillingService {
         const unitPrice = Number(detail.unitPrice);
         const applicableTaxes = detail.product.productTaxes.filter((pt) => pt.taxType.active);
 
-        let totalTaxRate = 0;
+        let ivaRate = 0;
+        let iepsRate = 0;
         for (const pt of applicableTaxes) {
-          totalTaxRate += Number(pt.taxType.rate);
+          const nameUpper = pt.taxType.name.toUpperCase();
+          if (nameUpper.includes("IVA") && !nameUpper.includes("EXENTO")) ivaRate += Number(pt.taxType.rate);
+          if (nameUpper.includes("IEPS") && !nameUpper.includes("EXENTO")) iepsRate += Number(pt.taxType.rate);
         }
 
-        const basePrice = totalTaxRate > 0 ? (unitPrice / (1 + totalTaxRate)) : unitPrice;
+        const basePrice = unitPrice / ((1 + iepsRate) * (1 + ivaRate));
 
         const mappedTaxes = applicableTaxes.map((pt) => {
           const rateVal = Number(pt.taxType.rate);
@@ -293,12 +296,15 @@ export class BillingService {
 
         const applicableTaxes = detail.product.productTaxes.filter((pt) => pt.taxType.active);
 
-        let totalTaxRate = 0;
+        let ivaRate = 0;
+        let iepsRate = 0;
         for (const pt of applicableTaxes) {
-          totalTaxRate += Number(pt.taxType.rate);
+          const nameUpper = pt.taxType.name.toUpperCase();
+          if (nameUpper.includes("IVA") && !nameUpper.includes("EXENTO")) ivaRate += Number(pt.taxType.rate);
+          if (nameUpper.includes("IEPS") && !nameUpper.includes("EXENTO")) iepsRate += Number(pt.taxType.rate);
         }
 
-        const basePrice = totalTaxRate > 0 ? (netUnitPrice / (1 + totalTaxRate)) : netUnitPrice;
+        const basePrice = netUnitPrice / ((1 + iepsRate) * (1 + ivaRate));
 
         const mappedTaxes = applicableTaxes.map((pt) => {
           const rateVal = Number(pt.taxType.rate);
@@ -528,12 +534,15 @@ export class BillingService {
 
           const applicableTaxes = detail.product.productTaxes.filter((pt) => pt.taxType.active);
 
-          let totalTaxRate = 0;
+          let ivaRate = 0;
+          let iepsRate = 0;
           for (const pt of applicableTaxes) {
-            totalTaxRate += Number(pt.taxType.rate);
+            const nameUpper = pt.taxType.name.toUpperCase();
+            if (nameUpper.includes("IVA") && !nameUpper.includes("EXENTO")) ivaRate += Number(pt.taxType.rate);
+            if (nameUpper.includes("IEPS") && !nameUpper.includes("EXENTO")) iepsRate += Number(pt.taxType.rate);
           }
 
-          const basePrice = totalTaxRate > 0 ? (netUnitPrice / (1 + totalTaxRate)) : netUnitPrice;
+          const basePrice = netUnitPrice / ((1 + iepsRate) * (1 + ivaRate));
 
           const mappedTaxes = applicableTaxes.map((pt) => {
             const rateVal = Number(pt.taxType.rate);

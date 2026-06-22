@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Calendar, CheckCircle2, ChevronDown, ChevronUp, Package, Plus, Trash2 } from "lucide-react";
+import { Ban, Calendar, CheckCircle2, ChevronDown, ChevronUp, Package, Plus, Trash2 } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
 import { DataTable } from "../../shared/ui";
@@ -327,6 +327,16 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
     }
   };
 
+  const cancelPurchase = async (purchaseId: number) => {
+    if (!window.confirm("¿Seguro que deseas cancelar esta orden de compra?")) return;
+    try {
+      await api.put(`/api/admin/purchases/${purchaseId}/cancel`);
+      await refetchPurchases();
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Error al cancelar la compra.");
+    }
+  };
+
   const filteredPurchases = purchases.filter((p) => {
     if (filterStatus !== "all" && p.status !== filterStatus) return false;
     if (filterSupplierId !== "all" && String(p.supplier.id) !== filterSupplierId) return false;
@@ -383,19 +393,34 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
       header: "Acciones",
       render: (p) =>
         p.status === "PENDIENTE" ? (
-          <button
-            style={{
-              ...ui.primaryBtn,
-              fontSize: 12,
-              padding: "6px 12px",
-              height: 30,
-              backgroundColor: "#15803d",
-            }}
-            onClick={() => receive(p.id)}
-            disabled={receiving === p.id}
-          >
-            {receiving === p.id ? "Recibiendo..." : "✓ Recibir"}
-          </button>
+          <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+            <button
+              style={{
+                ...ui.primaryBtn,
+                fontSize: 12,
+                padding: "6px 12px",
+                height: 30,
+                backgroundColor: "#15803d",
+              }}
+              onClick={() => receive(p.id)}
+              disabled={receiving === p.id}
+            >
+              {receiving === p.id ? "Recibiendo..." : "✓ Recibir"}
+            </button>
+            <button
+              style={{
+                ...ui.primaryBtn,
+                fontSize: 12,
+                padding: "6px 12px",
+                height: 30,
+                backgroundColor: "#dc2626",
+                color: "#ffffff",
+              }}
+              onClick={() => cancelPurchase(p.id)}
+            >
+              <Ban size={14} /> Cancelar
+            </button>
+          </div>
         ) : (
           <span style={{ color: "var(--text-faint)", fontSize: 12 }}>—</span>
         ),
@@ -778,20 +803,36 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                           <Badge tone={statusTone(p.status)}>{p.status}</Badge>
                           {p.status === "PENDIENTE" && (
-                            <button
-                              style={{
-                                ...ui.primaryBtn,
-                                fontSize: 12,
-                                padding: "6px 12px",
-                                height: 30,
-                                backgroundColor: "#15803d",
-                              }}
-                              onClick={() => receive(p.id)}
-                              disabled={receiving === p.id}
-                              className="active-tap"
-                            >
-                              {receiving === p.id ? "Recibiendo..." : "✓ Recibir mercancía"}
-                            </button>
+                            <div style={{ display: "flex", gap: 6 }}>
+                              <button
+                                style={{
+                                  ...ui.primaryBtn,
+                                  fontSize: 12,
+                                  padding: "6px 12px",
+                                  height: 30,
+                                  backgroundColor: "#15803d",
+                                }}
+                                onClick={() => receive(p.id)}
+                                disabled={receiving === p.id}
+                                className="active-tap"
+                              >
+                                {receiving === p.id ? "Recibiendo..." : "✓ Recibir"}
+                              </button>
+                              <button
+                                style={{
+                                  ...ui.primaryBtn,
+                                  fontSize: 12,
+                                  padding: "6px 12px",
+                                  height: 30,
+                                  backgroundColor: "#dc2626",
+                                  color: "#ffffff",
+                                }}
+                                onClick={() => cancelPurchase(p.id)}
+                                className="active-tap"
+                              >
+                                <Ban size={14} /> Cancelar
+                              </button>
+                            </div>
                           )}
                         </div>
 
