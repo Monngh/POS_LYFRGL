@@ -215,7 +215,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       key: "accountMasked",
       header: "Cuenta Destino",
       render: (d) => (
-        <span style={{ fontFamily: "monospace", color: "#475569" }}>{d.accountMasked}</span>
+        <span style={{ fontFamily: "monospace", color: "var(--text-secondary)" }}>{d.accountMasked}</span>
       ),
     },
     {
@@ -374,7 +374,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   key={d.id}
                   style={{
                     backgroundColor: "var(--surface)",
-                    border: "1px solid #f1f5f9",
+                    border: "1px solid var(--border-soft)",
                     borderRadius: 16,
                     marginBottom: 12,
                     boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
@@ -389,7 +389,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     fontSize: 11,
                     fontWeight: 700,
                     color: "var(--text-muted)",
-                    borderBottom: "1px solid #f1f5f9",
+                    borderBottom: "1px solid var(--border-soft)",
                     backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px"
                   }}>
@@ -430,13 +430,13 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         </div>
 
                         {/* Fecha */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569", marginBottom: 6 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", marginBottom: 6 }}>
                           <Calendar size={14} color="#2563eb" />
                           <span>{fmtDate(d.createdAt)} {fmtTime(d.createdAt)}</span>
                         </div>
 
                         {/* Cuenta Destino */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
                           <CreditCard size={14} color="#2563eb" />
                           <span>Cuenta: <span style={{ fontFamily: "monospace" }}>{d.accountMasked}</span></span>
                         </div>
@@ -468,7 +468,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                     {/* Detalle expandible */}
                     {isExpanded && (
-                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
                         {/* Botón Ver Detalle */}
                         <div style={{ marginBottom: 12 }}>
                           <button
