@@ -3,7 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from '../pages/Login';
 
 // Lazy load por dominio para code splitting
-const CajeroPage = lazy(() => import('../cajero/CajeroPage'));
+const PosPage = lazy(() => import('../pos/PosPage'));
 const AdminPage = lazy(() => import('../admin/AdminPage'));
 const StorePage = lazy(() => import('../ecommerce/StorePage'));
 
@@ -12,10 +12,10 @@ const AppRouter = () => (
     <Route path="/login" element={<Login />} />
 
     <Route
-      path="/cajero/*"
+      path="/pos/*"
       element={
-        <Suspense fallback={<div style={{ padding: '2rem' }}>Cargando módulo cajero...</div>}>
-          <CajeroPage />
+        <Suspense fallback={<div style={{ padding: '2rem' }}>Cargando módulo POS...</div>}>
+          <PosPage />
         </Suspense>
       }
     />
@@ -38,7 +38,7 @@ const AppRouter = () => (
       }
     />
 
-    <Route path="/" element={<Navigate to="/cajero" />} />
+    <Route path="/" element={<Navigate to="/pos" />} />
   </Routes>
 );
 
