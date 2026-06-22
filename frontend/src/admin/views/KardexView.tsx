@@ -59,12 +59,21 @@ const MOVEMENT_CHIPS: { value: string; label: string }[] = [
   { value: "TRASPASO_SALIDA", label: "Traspaso sal." },
 ];
 
+const formatMotivo = (texto: string): string => {
+  if (!texto) return "";
+  return texto
+    .replace(/:\s+(V-|DEV-|FACT-)/g, ":\n$1")
+    .replace(/(\d+)\.\s+/g, "$1.\n")
+    .replace(/\s+(Autorizó:)/g, "\n$1")
+    .trim();
+};
+
 const chipStyle = (active: boolean): React.CSSProperties => ({
   padding: "7px 14px",
   borderRadius: 999,
   border: active ? "1px solid var(--accent-strong)" : "1px solid var(--border)",
   backgroundColor: active ? "var(--accent-strong)" : "var(--surface)",
-  color: active ? "#ffffff" : "var(--text-secondary)",
+  color: active ? "#ffffff" : "var(--text-muted)",
   fontSize: 13,
   fontWeight: active ? 700 : 600,
   cursor: "pointer",
@@ -199,7 +208,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           {/* Header row mirroring the fields */}
           <div style={{
             display: "grid",
-            gridTemplateColumns: "3fr 1.3fr 1fr 1.5fr",
+            gridTemplateColumns: "3fr 1.3fr 1.5fr",
             padding: "12px 16px",
             fontWeight: 700,
             fontSize: 11,
@@ -209,7 +218,6 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           }}>
             <div>Producto</div>
             <div>Cambio</div>
-            <div style={{ textAlign: "center" }}>Saldo</div>
             <div style={{ textAlign: "right", paddingRight: 8 }}>Acción</div>
           </div>
 
@@ -269,31 +277,21 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   {/* Fila principal */}
                   <div style={{
                     display: "grid",
-                    gridTemplateColumns: "3fr 1.3fr 1fr 1.5fr",
+                    gridTemplateColumns: "3fr 1.3fr 1.5fr",
                     padding: "12px 16px",
                     alignItems: "center",
                   }}>
                     {/* Producto */}
-                    <div style={{ fontSize: 13, color: "var(--text)", fontWeight: 600, paddingRight: 8, whiteSpace: "normal" }}>
+                    <div style={{ fontSize: 13, color: "var(--text)", fontWeight: 600, paddingRight: 8, overflow: "hidden", display: "-webkit-box" as React.CSSProperties["display"], WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as React.CSSProperties["WebkitBoxOrient"] }}>
                       {k.product}
                     </div>
 
                     {/* Cambio */}
-                    <div style={{ fontSize: 13, fontWeight: 800, color: k.quantityChange >= 0 ? "#15803d" : "#b91c1c" }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: k.quantityChange >= 0 ? "var(--color-success)" : "var(--color-danger)" }}>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
                         {k.quantityChange >= 0 ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
                         {Math.abs(k.quantityChange)}
                       </span>
-                    </div>
-
-                    {/* Saldo después */}
-                    <div style={{
-                      fontSize: 13,
-                      fontWeight: 800,
-                      textAlign: "center",
-                      color: "var(--text)",
-                    }}>
-                      {k.balanceAfter}
                     </div>
 
                     {/* Botones de Acción */}
@@ -305,8 +303,8 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#eff6ff",
-                          border: "1px solid #bfdbfe",
+                          backgroundColor: "var(--accent-soft)",
+                          border: "1px solid var(--border)",
                           borderRadius: 8,
                           width: 34,
                           height: 34,
@@ -383,7 +381,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         </div>
                         <div style={kardexDetailRow}>
                           <span style={kardexDetailLabel}>Cambio:</span>
-                          <span style={{ ...kardexDetailValue, color: k.quantityChange >= 0 ? "#15803d" : "#b91c1c" }}>
+                          <span style={{ ...kardexDetailValue, color: k.quantityChange >= 0 ? "var(--color-success)" : "var(--color-danger)" }}>
                             {k.quantityChange >= 0 ? `+${k.quantityChange}` : k.quantityChange}
                           </span>
                         </div>
@@ -429,7 +427,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <th style={{ ...ui.th, textAlign: "center" }}>Antes</th>
                 <th style={{ ...ui.th, textAlign: "center" }}>Después</th>
                 <th style={ui.th}>Usuario</th>
-                <th style={ui.th}>Motivo</th>
+                <th style={{ ...ui.th, maxWidth: 200 }}>Motivo</th>
                 <th style={{ ...ui.th, textAlign: "center" }}>Imprimir</th>
               </tr>
             </thead>
@@ -454,7 +452,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           {movementLabel[k.movementType] ?? k.movementType.replace(/_/g, " ")}
                         </Badge>
                       </td>
-                      <td style={{ ...ui.td, textAlign: "center", fontWeight: 800, color: k.quantityChange >= 0 ? "#15803d" : "#b91c1c" }}>
+                      <td style={{ ...ui.td, textAlign: "center", fontWeight: 800, color: k.quantityChange >= 0 ? "var(--color-success)" : "var(--color-danger)" }}>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
                           {k.quantityChange >= 0 ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
                           {Math.abs(k.quantityChange)}
@@ -463,7 +461,13 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       <td style={{ ...ui.td, textAlign: "center", color: "var(--text-muted)" }}>{balanceBefore}</td>
                       <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{k.balanceAfter}</td>
                       <td style={ui.td}>{k.user}</td>
-                      <td style={{ ...ui.td, whiteSpace: "normal", color: "var(--text-muted)", fontSize: 12, maxWidth: 240 }}>{k.reason || "—"}</td>
+                      <td style={{ ...ui.td, maxWidth: 220, padding: 0, verticalAlign: "top" }}>
+                        <div
+                          style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", color: "var(--text-muted)", fontSize: 12, lineHeight: "1.5", padding: "10px 12px" }}
+                        >
+                          {formatMotivo(k.reason || "—")}
+                        </div>
+                      </td>
                       <td style={{ ...ui.td, textAlign: "center" }}>
                         <button
                           onClick={() => printMovement(k)}
