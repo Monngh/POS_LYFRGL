@@ -24,9 +24,11 @@ export const comparePassword = async (password: string, hash: string): Promise<b
 /**
  * Genera un token JWT firmado.
  */
-export const generateToken = (payload: { userId?: number; customerId?: number; email?: string | null; role: string; branchId?: number }): string => {
-  return jwt.sign(payload, JWT_SECRET, {
+export const generateToken = (payload: { userId?: number; customerId?: number; email?: string | null; role: string; branchId?: number; jti?: string }): string => {
+  const { jti, ...claims } = payload;
+  return jwt.sign(claims, JWT_SECRET, {
     expiresIn: JWT_EXPIRE as any,
+    ...(jti ? { jwtid: jti } : {}),
   });
 };
 

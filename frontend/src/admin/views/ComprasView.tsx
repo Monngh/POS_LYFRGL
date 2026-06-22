@@ -732,7 +732,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                   key={p.id}
                   style={{
                     backgroundColor: "var(--surface)",
-                    border: "1px solid #f1f5f9",
+                    border: "1px solid var(--border-soft)",
                     borderRadius: 16,
                     padding: 16,
                     marginBottom: 12,
@@ -757,7 +757,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                       </div>
 
                       {/* Fecha */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
                         <Calendar size={14} color="#2563eb" />
                         <span>{fmtDate(p.purchaseDate)} {fmtTime(p.purchaseDate)}</span>
                       </div>
@@ -789,7 +789,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
 
                   {/* Expanded Content */}
                   {isExpanded && (
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
                       {/* Details container */}
                       <div style={{
                         backgroundColor: "var(--surface-2)",
@@ -843,8 +843,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                                 <span style={{ fontWeight: 700, color: "var(--text-secondary)" }}>{d.product.name}</span>
                                 <div style={{ fontSize: 11, color: "var(--text-faint)" }}>SKU: {d.product.sku}</div>
                               </div>
-                              <div style={{ textAlign: "right" }}>
-                                <span style={{ fontWeight: 600, color: "#475569" }}>
+                                <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>
                                   {d.quantity} {d.unit ? d.unit.toLowerCase() : "pieza(s)"}
                                 </span>
                                 <span style={{ color: "var(--text-faint)", margin: "0 4px" }}>x</span>
@@ -856,7 +855,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
 
                         {/* Notas si existen */}
                         {p.notes && (
-                          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e2e8f0" }}>
+                          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
                             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Notas:</div>
                             <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>{p.notes}</div>
                           </div>

@@ -207,13 +207,14 @@ const validateCustomerForm = (form: FormState): {
 const cliDetailRow: React.CSSProperties = {
   display: "flex",
   justifyContent: "flex-start",
-  alignItems: "center",
+  alignItems: "flex-start",
   gap: "8px",
   fontSize: 13,
   marginBottom: 6,
 };
 
 const cliDetailLabel: React.CSSProperties = {
+  flexShrink: 0,
   fontWeight: 700,
   color: "var(--text-muted)",
   minWidth: "95px",
@@ -221,6 +222,9 @@ const cliDetailLabel: React.CSSProperties = {
 };
 
 const cliDetailValue: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  overflowWrap: "anywhere",
   fontWeight: 600,
   color: "var(--text-secondary)",
 };
@@ -393,7 +397,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
       header: "CP · Régimen · Uso CFDI",
       render: (c) => (
         c.zipCode || c.taxRegime || c.cfdiUse ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 1, color: "#475569", fontSize: 12, whiteSpace: "normal" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 1, color: "var(--text-secondary)", fontSize: 12, whiteSpace: "normal" }}>
             {c.zipCode && <span>CP: {c.zipCode}</span>}
             {c.taxRegime && <span>Rég: {c.taxRegime}</span>}
             {c.cfdiUse && <span>CFDI: {c.cfdiUse}</span>}
@@ -424,7 +428,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
       header: "Saldo",
       align: "right",
       render: (c) => (
-        <span style={{ fontWeight: 700, color: c.balance > 0 ? "#b91c1c" : "#334155" }}>
+        <span style={{ fontWeight: 700, color: c.balance > 0 ? "#b91c1c" : "var(--text-secondary)" }}>
           {money(c.balance)}
         </span>
       ),
@@ -530,7 +534,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     fontSize: 11,
                     fontWeight: 700,
                     color: "var(--text-muted)",
-                    borderBottom: "1px solid #f1f5f9",
+                    borderBottom: "1px solid var(--border-soft)",
                     backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
@@ -546,7 +550,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     alignItems: "center",
                   }}>
                     {/* Saldo */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: c.balance > 0 ? "#b91c1c" : "#334155" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: c.balance > 0 ? "#b91c1c" : "var(--text-secondary)" }}>
                       {money(c.balance)}
                     </div>
 
@@ -556,7 +560,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     </div>
 
                     {/* Contacto */}
-                    <div style={{ fontSize: 12, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {c.phone || c.email || "—"}
                     </div>
 
@@ -671,7 +675,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                         </div>
                         <div style={cliDetailRow}>
                           <span style={cliDetailLabel}>Saldo Actual:</span>
-                          <span style={{ ...cliDetailValue, color: c.balance > 0 ? "#b91c1c" : "#334155" }}>{money(c.balance)}</span>
+                          <span style={{ ...cliDetailValue, color: c.balance > 0 ? "#b91c1c" : "var(--text-secondary)" }}>{money(c.balance)}</span>
                         </div>
                         <div style={cliDetailRow}>
                           <span style={cliDetailLabel}>Compras:</span>
