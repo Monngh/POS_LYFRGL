@@ -61,25 +61,8 @@ export const createPurchase = async (body: Record<string, unknown>, userId: numb
     0
   );
 
-  let taxNum = 0;
-  for (const detail of validDetails) {
-    const detailSubtotal = Number(detail.quantity) * Number(detail.unitCost || 0);
-    const productTaxes = await prisma.productTax.findMany({
-      where: { productId: Number(detail.productId) },
-      include: { taxType: true },
-    });
-
-    if (productTaxes.length > 0) {
-      for (const pt of productTaxes) {
-        taxNum += Math.round(detailSubtotal * Number((pt as any).taxType.rate) * 100) / 100;
-      }
-    } else {
-      taxNum += Math.round(detailSubtotal * 0.16 * 100) / 100;
-      console.warn(`⚠️ Producto ${detail.productId} sin impuestos en BD, usando 16% default`);
-    }
-  }
-  taxNum = Math.round(taxNum * 100) / 100;
-  const totalNum = Math.round((subtotalNum + taxNum) * 100) / 100;
+  const taxNum = 0;
+  const totalNum = subtotalNum;
 
   return prisma.purchaseOrder.create({
     data: {
@@ -98,6 +81,7 @@ export const createPurchase = async (body: Record<string, unknown>, userId: numb
             quantity: Number(d.quantity),
             unitCost: Number(d.unitCost || 0),
             subtotal: Math.round(Number(d.quantity) * Number(d.unitCost || 0) * 100) / 100,
+            unit: d.unit ? String(d.unit).trim().toUpperCase() : "PIEZA",
           })),
         },
       },
@@ -164,6 +148,25 @@ export const receivePurchase = async (purchaseId: number, userId: number) => {
         details: { include: { product: { select: { id: true, sku: true, name: true } } } },
       },
     });
+  });
+};
+
+export const cancelPurchase = async (purchaseId: number) => {
+  const purchase = await prisma.purchaseOrder.findUnique({
+    where: { id: purchaseId },
+  });
+
+  if (!purchase) throw new AppError("Orden de compra no encontrada.", 404);
+  if (purchase.status !== "PENDIENTE") throw new AppError(`No se puede cancelar una orden que ya está en estado ${purchase.status}.`, 400);
+
+  return prisma.purchaseOrder.update({
+    where: { id: purchase.id },
+    data: { status: "CANCELADA" },
+    include: {
+      supplier: { select: { id: true, name: true } },
+      branch: { select: { id: true, name: true } },
+      details: { include: { product: { select: { id: true, sku: true, name: true } } } },
+    },
   });
 };
 

@@ -150,11 +150,33 @@ export const simulateSale = async (req: Request, res: Response): Promise<void> =
 
       const applicableTaxes = (product.productTaxes as any[]).filter((pt) => pt.taxType.active);
 
+      let ivaRate = 0;
+      let iepsRate = 0;
+      for (const pt of applicableTaxes) {
+        const nameUpper = pt.taxType.name.toUpperCase();
+        if (nameUpper.includes("IVA") && !nameUpper.includes("EXENTO")) ivaRate += Number(pt.taxType.rate);
+        if (nameUpper.includes("IEPS") && !nameUpper.includes("EXENTO")) iepsRate += Number(pt.taxType.rate);
+      }
+
+      const basePrice = subtotalNet / ((1 + iepsRate) * (1 + ivaRate));
+      const baseIeps = basePrice * iepsRate;
+
+      const baseOriginalPrice = subtotalItem / ((1 + iepsRate) * (1 + ivaRate));
+      const baseDiscount = baseOriginalPrice - basePrice;
+
       let taxTotal = 0;
       const taxesBreakdown: Record<string, number> = {};
 
       for (const pt of applicableTaxes) {
-        const taxAmount = Math.round(subtotalNet * Number(pt.taxType.rate) * 100) / 100;
+        const nameUpper = pt.taxType.name.toUpperCase();
+        let taxAmount = 0;
+        if (nameUpper.includes("IEPS") && !nameUpper.includes("EXENTO")) {
+          taxAmount = Number((basePrice * Number(pt.taxType.rate)).toFixed(2));
+        } else if (nameUpper.includes("IVA") && !nameUpper.includes("EXENTO")) {
+          taxAmount = Number(((basePrice + baseIeps) * Number(pt.taxType.rate)).toFixed(2));
+        } else if (!nameUpper.includes("EXENTO")) {
+          taxAmount = Number((basePrice * Number(pt.taxType.rate)).toFixed(2));
+        }
         taxTotal += taxAmount;
         taxesBreakdown[pt.taxType.name] = (taxesBreakdown[pt.taxType.name] || 0) + taxAmount;
       }
@@ -170,11 +192,11 @@ export const simulateSale = async (req: Request, res: Response): Promise<void> =
         subtotalNet,
         taxes: taxesBreakdown,
         taxTotal,
-        total: subtotalNet + taxTotal,
+        total: subtotalNet,
       });
 
-      simulation.subtotal += subtotalItem;
-      simulation.totalDiscount += discount;
+      simulation.subtotal += baseOriginalPrice;
+      simulation.totalDiscount += baseDiscount;
       simulation.totalTax += taxTotal;
 
       for (const [taxName, taxAmount] of Object.entries(taxesBreakdown)) {
@@ -182,8 +204,11 @@ export const simulateSale = async (req: Request, res: Response): Promise<void> =
       }
     }
 
-    const exactTotal = simulation.subtotal - simulation.totalDiscount + simulation.totalTax;
+    const exactTotal = promoCalc.totalFinal;
     simulation.total = Math.round(exactTotal * 2) / 2;
+    simulation.subtotal = Number(simulation.subtotal.toFixed(2));
+    simulation.totalDiscount = Number(simulation.totalDiscount.toFixed(2));
+    simulation.totalTax = Number(simulation.totalTax.toFixed(2));
 
     res.json(simulation);
   } catch (err: any) {

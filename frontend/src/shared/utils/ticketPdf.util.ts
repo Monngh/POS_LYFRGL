@@ -5,6 +5,7 @@ import {
   TICKET_WIDTH_PX,
   unmountTicketRender,
 } from "./ticketEmailDocument.util";
+// html2canvas y jspdf se cargan dinámicamente en la función para evitar problemas de ESM/CJS y optimizar el bundle.
 
 const waitForImages = async (root: HTMLElement): Promise<void> => {
   const images = Array.from(root.querySelectorAll("img"));
@@ -50,7 +51,9 @@ const inlineExternalImages = async (root: HTMLElement): Promise<void> => {
 };
 
 const renderTicketElementToPdfBase64 = async (ticket: HTMLElement): Promise<string> => {
-  const { default: html2canvas } = await import("html2canvas");
+  // Cargar módulos dinámicamente para resolver el problema de interop ESM/CJS en Vite
+  const html2canvasModule = await import("html2canvas");
+  const html2canvas = html2canvasModule.default || html2canvasModule;
   const { jsPDF } = await import("jspdf");
 
   await waitForImages(ticket);

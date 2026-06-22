@@ -73,16 +73,34 @@ export const calculateSaleCart = async (params: {
     const { product, inventoryId, currentStock, quantity } = dbProducts[i];
     const calcLine = promoCalc.lines[i];
 
-    const lineNetPrice = (Number(product.sellPrice) * quantity) - calcLine.discountAmount;
+    const finalPriceWithTaxesAndDiscount = (Number(product.sellPrice) * quantity) - calcLine.discountAmount;
 
-    let lineTaxAmount = 0;
     const applicableTaxes = product.productTaxes
       ? product.productTaxes.map((pt: any) => pt.taxType).filter((t: any) => t.active)
       : [];
 
+    let ivaRate = 0;
+    let iepsRate = 0;
+    for (const tax of applicableTaxes) {
+      const nameUpper = tax.name.toUpperCase();
+      if (nameUpper.includes("IVA") && !nameUpper.includes("EXENTO")) ivaRate += Number(tax.rate);
+      if (nameUpper.includes("IEPS") && !nameUpper.includes("EXENTO")) iepsRate += Number(tax.rate);
+    }
+
+    const basePrice = finalPriceWithTaxesAndDiscount / ((1 + iepsRate) * (1 + ivaRate));
+    const baseIeps = basePrice * iepsRate;
+
+    let lineTaxAmount = 0;
     const lineTaxes = applicableTaxes.map((tax: any) => {
-      const rate = Number(tax.rate);
-      const amount = Number((lineNetPrice * rate).toFixed(2));
+      const nameUpper = tax.name.toUpperCase();
+      let amount = 0;
+      if (nameUpper.includes("IEPS") && !nameUpper.includes("EXENTO")) {
+        amount = Number((basePrice * Number(tax.rate)).toFixed(2));
+      } else if (nameUpper.includes("IVA") && !nameUpper.includes("EXENTO")) {
+        amount = Number(((basePrice + baseIeps) * Number(tax.rate)).toFixed(2));
+      } else if (!nameUpper.includes("EXENTO")) {
+        amount = Number((basePrice * Number(tax.rate)).toFixed(2));
+      }
       lineTaxAmount += amount;
       return { taxTypeId: tax.id, taxName: tax.name, taxRate: tax.rate, taxAmount: amount };
     });
@@ -105,9 +123,9 @@ export const calculateSaleCart = async (params: {
   }
 
   const discount = promoCalc.totalDiscount;
-  const finalSubtotal = promoCalc.totalFinal;
+  const exactTotal = promoCalc.totalFinal;
   const finalTax = Number(totalTaxAmount.toFixed(2));
-  const exactTotal = finalSubtotal + finalTax;
+  const finalSubtotal = Number((exactTotal - finalTax).toFixed(2));
   const finalTotal = Math.round(exactTotal * 2) / 2;
 
   let pointsDiscount = 0;

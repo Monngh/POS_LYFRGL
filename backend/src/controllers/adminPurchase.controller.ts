@@ -6,6 +6,7 @@ import {
   createPurchase as createPurchaseService,
   receivePurchase as receivePurchaseService,
   registerPurchase as registerPurchaseService,
+  cancelPurchase as cancelPurchaseService,
 } from "../services/adminPurchase.service";
 
 export const listPurchases = async (req: Request, res: Response): Promise<void> => {
@@ -50,6 +51,19 @@ export const receivePurchase = async (req: Request, res: Response): Promise<void
     if (error instanceof AppError) { res.status(error.statusCode).json({ message: error.message }); return; }
     console.error(error);
     res.status(500).json({ message: "Error al recibir la orden de compra." });
+  }
+};
+
+export const cancelPurchase = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) { res.status(401).json({ message: "No autenticado." }); return; }
+  try {
+    const id = Number(req.params.id);
+    const updated = await cancelPurchaseService(id);
+    res.json(updated);
+  } catch (error: any) {
+    if (error instanceof AppError) { res.status(error.statusCode).json({ message: error.message }); return; }
+    console.error(error);
+    res.status(500).json({ message: "Error al cancelar la orden de compra." });
   }
 };
 
