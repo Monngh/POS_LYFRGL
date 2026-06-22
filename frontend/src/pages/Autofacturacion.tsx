@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
-import { API_BASE_URL } from '../shared/services/api';
 import {
   Search,
   FileText,
@@ -32,38 +30,18 @@ import {
   validateRfc,
   validateSafeText,
 } from "../shared/utils/formValidation";
-
-interface TicketItem {
-  name: string;
-  sku: string;
-  quantity: number;
-  unitPrice: number;
-  total: number;
-}
-
-interface TicketData {
-  id: number;
-  invoiceNumber: string;
-  createdAt: string;
-  invoiceDeadline?: string;
-  totalAmount: number;
-  taxAmount: number;
-  branchName: string;
-  items: TicketItem[];
-}
-
-interface InvoiceHistoryItem {
-  id: number;
-  invoiceNumber: string;
-  createdAt: string;
-  totalAmount: number;
-  taxAmount: number;
-  status: string;
-  branchName: string;
-  cfdiUuid: string | null;
-  pdfUrl: string | null;
-  xmlUrl: string | null;
-}
+import {
+  getCustomerProfile,
+  getCustomerInvoices,
+  loginCustomer,
+  registerCustomer,
+  updateCustomerProfile,
+  getPublicTicket,
+  createPublicInvoice,
+  type TicketData,
+  type InvoiceHistoryItem,
+} from "../facturacion";
+import { API_BASE_URL } from "../shared/services/api";
 
 type InvoiceFormField = "rfc" | "legalName" | "zip" | "email" | "taxSystem" | "cfdiUse";
 type ProfileFormField = "profileRfc" | "profileLegalName" | "profileZip" | "profileEmail" | "profileAddress" | "profileTaxSystem" | "profileCfdiUse";
@@ -259,10 +237,8 @@ const Autofacturacion: React.FC = () => {
   // Obtener perfil del cliente
   const fetchProfile = async (token: string) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/customers/profile`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const c = response.data.customer;
+      const response = await getCustomerProfile(token);
+      const c = (response.data as any).customer;
       setCustomerInfo({
         id: c.id,
         name: c.name,
@@ -298,10 +274,8 @@ const Autofacturacion: React.FC = () => {
     setLoading(true);
     setError("");
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/customers/invoices`, {
-        headers: { Authorization: `Bearer ${customerToken}` }
-      });
-      setInvoicesList(response.data.invoices);
+      const response = await getCustomerInvoices(customerToken);
+      setInvoicesList((response.data as any).invoices);
     } catch (err: any) {
       setError(err.response?.data?.message || "Error al cargar el historial de facturas.");
     } finally {
@@ -322,12 +296,12 @@ const Autofacturacion: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/customers/login`, {
+      const response = await loginCustomer({
         phone: normalizeIntegerInput(loginPhone).slice(0, 10),
         password: loginPassword
       });
 
-      const { token, customer } = response.data;
+      const { token, customer } = response.data as any;
       localStorage.setItem("customer_token", token);
       localStorage.setItem("customer", JSON.stringify(customer));
 
@@ -361,11 +335,12 @@ const Autofacturacion: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/customers/register`, {
+      await registerCustomer({
         phone: normalizeIntegerInput(registerPhone).slice(0, 10),
         email: cleanEmailInput(registerEmail),
         invoiceNumber: registerInvoiceNumber.trim().toUpperCase(),
-        password: registerPassword
+        password: registerPassword,
+        passwordConfirmation: registerPassword
       });
 
       setShowRegisterModal(false);
@@ -378,7 +353,7 @@ const Autofacturacion: React.FC = () => {
       setRegisterConfirmPassword("");
       setRegisterFieldErrors({});
 
-      alert(response.data.message);
+      alert("Cuenta registrada exitosamente. Por favor inicie sesión.");
     } catch (err: any) {
       setError(err.response?.data?.message || "Error al registrar cuenta. Verifique sus datos e intente de nuevo.");
     } finally {
@@ -425,7 +400,7 @@ const Autofacturacion: React.FC = () => {
     setLoading(true);
 
     try {
-      await axios.put(`${API_BASE_URL}/api/customers/profile`, {
+      await updateCustomerProfile(customerToken!, {
         taxId: normalizeRfcInput(profileRfc),
         name: normalizeSpaces(profileLegalName).toUpperCase(),
         taxRegime: profileTaxSystem,
@@ -433,9 +408,7 @@ const Autofacturacion: React.FC = () => {
         email: cleanEmailInput(profileEmail),
         cfdiUse: profileCfdiUse,
         address: normalizeSpaces(profileAddress)
-      }, {
-        headers: { Authorization: `Bearer ${customerToken}` }
-      });
+      } as any);
 
       setSuccessMessage("¡Datos fiscales actualizados con éxito!");
       if (customerToken) {
@@ -461,7 +434,7 @@ const Autofacturacion: React.FC = () => {
     setError("");
 
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/public/sales/ticket/${invoiceNumber.trim().toUpperCase()}`);
+      const response = await getPublicTicket(invoiceNumber);
       setTicket(response.data);
 
       // Si el cliente está logueado, pre-rellenar con sus datos actuales del perfil
@@ -494,8 +467,8 @@ const Autofacturacion: React.FC = () => {
     setError("");
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/public/sales/invoice`, {
-        saleId: ticket?.id,
+      const response = await createPublicInvoice({
+        invoiceId: ticket?.id!,
         rfc: normalizeRfcInput(rfc),
         legalName: normalizeSpaces(legalName).toUpperCase(),
         taxSystem,
@@ -1072,7 +1045,7 @@ const Autofacturacion: React.FC = () => {
                                   items: [] // se cargará al buscar
                                 });
                                 // Buscar ticket completo
-                                axios.get(`${API_BASE_URL}/api/public/sales/ticket/${inv.invoiceNumber}`).then(res => {
+                                getPublicTicket(inv.invoiceNumber).then(res => {
                                   setTicket(res.data);
                                   setRfc(profileRfc);
                                   setLegalName(profileLegalName);
