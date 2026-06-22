@@ -85,6 +85,25 @@ const Login: React.FC = () => {
   const [otpEmail, setOtpEmail] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
 
+  // Sesión única (admin): aviso de "sesión abierta" (informativo) y aviso de
+  // "sesión desplazada" si te cerraron por iniciar en otro dispositivo.
+  const [sessionConflict, setSessionConflict] = useState<{ message: string; since?: number; ip?: string | null } | null>(null);
+  const [logoutReason, setLogoutReason] = useState<string | null>(null);
+
+  // Detección de autocompletado del navegador en el formulario de admin: si el
+  // correo y/o la contraseña fueron autollenados, se exige Windows Hello (2FA).
+  const [emailAutofilled, setEmailAutofilled] = useState(false);
+  const [passwordAutofilled, setPasswordAutofilled] = useState(false);
+  // "Tecleado" pegajoso: si el usuario escribe/pega en correo o contraseña, el
+  // ingreso se considera MANUAL definitivamente (Chrome re-dispara la animación
+  // de autocompletado, así que esto debe ganar sobre esa señal).
+  const [credentialsTyped, setCredentialsTyped] = useState(false);
+  const markTyped = (e: React.KeyboardEvent) => {
+    if (e.key.length === 1 || e.key === "Backspace" || e.key === "Delete") {
+      setCredentialsTyped(true);
+    }
+  };
+
   // Formulario Cajero (PIN)
   const [cashierEmail, setCashierEmail] = useState("");
   const [pinCode, setPinCode] = useState("");
@@ -207,12 +226,23 @@ const Login: React.FC = () => {
     return () => clearTimeout(t);
   }, [lockRemaining]);
 
-  // Enfocar el input oculto de captura al entrar en modo cajero (solo desktop)
+  // Mantener el campo del PIN SIEMPRE listo en desktop: al entrar a caja rápida y
+  // en cuanto se elige un cajero, el foco va al capturador oculto, de modo que se
+  // puede teclear el NIP sin tener que hacer clic. (En táctil se usa el teclado en pantalla.)
   useEffect(() => {
-    if (!isTouch && activeTab === "cashier" && pinInputRef.current) {
-      pinInputRef.current.focus();
+    if (!isTouch && activeTab === "cashier" && !isLocked) {
+      pinInputRef.current?.focus();
     }
-  }, [isTouch, activeTab]);
+  }, [isTouch, activeTab, cashierEmail, isLocked]);
+
+  // Mostrar el aviso si la sesión se cerró por iniciar en otro dispositivo.
+  useEffect(() => {
+    const reason = sessionStorage.getItem("fmb_pos_logout_reason");
+    if (reason) {
+      setLogoutReason(reason);
+      sessionStorage.removeItem("fmb_pos_logout_reason");
+    }
+  }, []);
 
   // Escuchar teclado físico para el ingreso del PIN de cajero
   useEffect(() => {
@@ -290,6 +320,8 @@ const Login: React.FC = () => {
   const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSessionConflict(null);
+    setLogoutReason(null);
     setOtpRequested(false);
     setOtpCode("");
 
@@ -299,9 +331,21 @@ const Login: React.FC = () => {
 
     setLoading(true);
     try {
-      await loginAsAdmin(normalizeEmailInput(adminEmail), adminPassword);
+      // Windows Hello (2FA) solo si el navegador autocompletó las credenciales y
+      // el usuario NO tecleó nada. Cualquier tecleo/pegado las marca como manual.
+      const autofilled = (emailAutofilled || passwordAutofilled) && !credentialsTyped;
+      await loginAsAdmin(normalizeEmailInput(adminEmail), adminPassword, autofilled);
     } catch (err: any) {
-      setError(err.message || "Credenciales inválidas.");
+      const info = (err && err.info) || {};
+      if (info.code === "SESION_ABIERTA") {
+        setSessionConflict({
+          message: err.message || "Ya hay una sesión activa con este usuario.",
+          since: info.session?.since,
+          ip: info.session?.ip ?? null,
+        });
+      } else {
+        setError(err.message || "Credenciales inválidas.");
+      }
     } finally {
       setLoading(false);
     }
@@ -350,6 +394,7 @@ const Login: React.FC = () => {
       }
       setPinCode(""); // Limpiar PIN al fallar
       setShuffledDigits(shuffleDigits()); // Re-barajar el teclado tras cada fallo
+      if (!isTouch) pinInputRef.current?.focus(); // dejar el PIN listo para reintentar
     } finally {
       setLoading(false);
     }
@@ -443,6 +488,14 @@ const Login: React.FC = () => {
         </div>
       )}
 
+      {/* Aviso: tu sesión se cerró por iniciar en otro dispositivo */}
+      {logoutReason && (
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-start", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "12px 14px", marginBottom: 14 }}>
+          <ShieldCheck size={18} color="#1e3a8a" style={{ flexShrink: 0, marginTop: 1 }} />
+          <span style={{ fontSize: 13, color: "#1e3a8a", fontWeight: 600 }}>{logoutReason}</span>
+        </div>
+      )}
+
       {/* Formulario Administradores */}
       {activeTab === "admin" && (
         <form onSubmit={handleAdminSubmit} style={formStyle} noValidate>
@@ -455,6 +508,9 @@ const Login: React.FC = () => {
               placeholder="correo@ejemplo.com"
               value={adminEmail}
               onChange={(e) => setAdminField("email", e.target.value)}
+              onKeyDown={markTyped}
+              onPaste={() => setCredentialsTyped(true)}
+              onAnimationStart={(e) => { if (e.animationName === "fmbAutofill") setEmailAutofilled(true); }}
               onBlur={() => setAdminFieldErrors((prev) => ({ ...prev, email: validateEmail(adminEmail, { required: true }) }))}
               style={adminFieldErrors.email ? styles.inputInvalid : undefined}
             />
@@ -469,6 +525,9 @@ const Login: React.FC = () => {
               placeholder="••••••••"
               value={adminPassword}
               onChange={(e) => setAdminField("password", e.target.value)}
+              onKeyDown={markTyped}
+              onPaste={() => setCredentialsTyped(true)}
+              onAnimationStart={(e) => { if (e.animationName === "fmbAutofill") setPasswordAutofilled(true); }}
               onBlur={() => setAdminFieldErrors((prev) => ({ ...prev, password: normalizeSpaces(adminPassword) ? undefined : "La contrasena es obligatoria." }))}
               style={adminFieldErrors.password ? styles.inputInvalid : undefined}
             />
@@ -486,6 +545,33 @@ const Login: React.FC = () => {
           >
             {loading ? "Verificando..." : "ACEPTAR ➜"}
           </button>
+
+          {/* Aviso de sesión única: ya hay una sesión activa con este correo */}
+          {sessionConflict && (
+            <div style={{ marginTop: 16, background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "12px 14px" }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <AlertCircle size={18} color="#b45309" style={{ flexShrink: 0, marginTop: 1 }} />
+                <div style={{ fontSize: 13, color: "#92400e", lineHeight: 1.4 }}>
+                  <strong>Sesión ya abierta.</strong> {sessionConflict.message}
+                  {sessionConflict.since && (
+                    <div style={{ marginTop: 4, fontSize: 12, color: "#a16207" }}>
+                      Activa desde {new Date(sessionConflict.since).toLocaleString("es-MX")}
+                      {sessionConflict.ip ? ` · IP ${sessionConflict.ip}` : ""}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => setSessionConflict(null)}
+                  style={{ background: "#ffffff", color: "#374151", border: "1px solid #cbd5e1", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Entendido
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ── Fallback OTP: aparece solo cuando WebAuthn falla ── */}
           {webAuthnFailed && !otpRequested && (

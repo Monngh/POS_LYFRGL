@@ -1117,7 +1117,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <div
                       key={p.id}
                       style={{
-                        backgroundColor: p.low ? "#fffbeb" : "#ffffff",
+                        backgroundColor: p.low ? "var(--icon-bg-amber)" : "var(--surface)",
                         border: "1px solid var(--border)",
                         borderRadius: 12,
                         marginBottom: 10,
@@ -1134,7 +1134,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         fontSize: 11,
                         fontWeight: 700,
                         color: "var(--text-muted)",
-                        borderBottom: "1px solid #f1f5f9",
+                        borderBottom: "1px solid var(--border-soft)",
                         backgroundColor: "var(--surface-2)",
                         letterSpacing: "0.2px",
                       }}>
@@ -1334,7 +1334,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             ...ui.td,
                             textAlign: "center",
                             fontWeight: 800,
-                            color: p.low ? "#b45309" : "#0f172a",
+                            color: p.low ? "#b45309" : "var(--text)",
                           }}
                         >
                           {p.stock}
@@ -1498,7 +1498,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         )}
                         {selectedProduct.inventories.map((inv) => (
                           <div key={inv.id} style={{
-                            backgroundColor: inv.quantity <= inv.minStock ? "#fffbeb" : "#ffffff",
+                            backgroundColor: inv.quantity <= inv.minStock ? "var(--icon-bg-amber)" : "var(--surface)",
                             border: "1px solid var(--border)",
                             borderRadius: 10,
                             marginBottom: 8,
@@ -1515,7 +1515,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
                               <div style={{ textAlign: "center" }}>
                                 <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Stock</div>
-                                <div style={{ fontSize: 15, fontWeight: 800, color: inv.quantity <= inv.minStock ? "#b45309" : "#0f172a" }}>{inv.quantity}</div>
+                                <div style={{ fontSize: 15, fontWeight: 800, color: inv.quantity <= inv.minStock ? "#b45309" : "var(--text)" }}>{inv.quantity}</div>
                               </div>
                               <div style={{ textAlign: "center" }}>
                                 <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Mín</div>
@@ -1553,7 +1553,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             {selectedProduct.inventories.map((inv) => (
                               <tr key={inv.id}>
                                 <td style={ui.td}>{inv.branch}</td>
-                                <td style={{ ...ui.td, textAlign: "center", fontWeight: 800, color: inv.quantity <= inv.minStock ? "#b45309" : "#0f172a" }}>
+                                <td style={{ ...ui.td, textAlign: "center", fontWeight: 800, color: inv.quantity <= inv.minStock ? "#b45309" : "var(--text)" }}>
                                   {inv.quantity}
                                 </td>
                                 <td style={{ ...ui.td, textAlign: "center", color: "var(--text-muted)" }}>{inv.minStock}</td>
@@ -1708,7 +1708,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               justifyContent: "space-between",
                               alignItems: "center",
                               padding: "8px 14px 6px 14px",
-                              borderBottom: "1px solid #f1f5f9",
+                              borderBottom: "1px solid var(--border-soft)",
                               backgroundColor: "var(--surface-2)",
                             }}>
                               <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>
@@ -2475,13 +2475,14 @@ const styles: { [key: string]: React.CSSProperties } = {
 const invDetailRow: React.CSSProperties = {
   display: "flex",
   justifyContent: "flex-start",
-  alignItems: "center",
+  alignItems: "flex-start",
   gap: "8px",
   fontSize: 13,
   marginBottom: 6,
 };
 
 const invDetailLabel: React.CSSProperties = {
+  flexShrink: 0,
   fontWeight: 700,
   color: "var(--text-muted)",
   minWidth: "105px",
@@ -2489,6 +2490,9 @@ const invDetailLabel: React.CSSProperties = {
 };
 
 const invDetailValue: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  overflowWrap: "anywhere",
   fontWeight: 600,
   color: "var(--text-secondary)",
 };

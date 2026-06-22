@@ -138,13 +138,14 @@ const validateZip = (value: string): string | undefined => {
 const supDetailRow: React.CSSProperties = {
   display: "flex",
   justifyContent: "flex-start",
-  alignItems: "center",
+  alignItems: "flex-start",
   gap: "8px",
   fontSize: 13,
   marginBottom: 6,
 };
 
 const supDetailLabel: React.CSSProperties = {
+  flexShrink: 0,
   fontWeight: 700,
   color: "var(--text-muted)",
   minWidth: "95px",
@@ -152,6 +153,9 @@ const supDetailLabel: React.CSSProperties = {
 };
 
 const supDetailValue: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  overflowWrap: "anywhere",
   fontWeight: 600,
   color: "var(--text-secondary)",
 };
@@ -422,7 +426,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
     {
       key: "rfc",
       header: "RFC",
-      render: (s) => <span style={{ color: "#475569" }}>{s.rfc || "—"}</span>,
+      render: (s) => <span style={{ color: "var(--text-secondary)" }}>{s.rfc || "—"}</span>,
     },
     {
       key: "contactName",
@@ -542,7 +546,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                     fontSize: 11,
                     fontWeight: 700,
                     color: "var(--text-muted)",
-                    borderBottom: "1px solid #f1f5f9",
+                    borderBottom: "1px solid var(--border-soft)",
                     backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
@@ -560,17 +564,17 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                     alignItems: "center",
                   }}>
                     {/* Contacto */}
-                    <div style={{ fontSize: 12, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {s.contactName || "—"}
                     </div>
 
                     {/* Teléfono */}
-                    <div style={{ fontSize: 12, color: "#475569" }}>
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
                       {s.phone || "—"}
                     </div>
 
                     {/* Email */}
-                    <div style={{ fontSize: 12, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {s.email || "—"}
                     </div>
 

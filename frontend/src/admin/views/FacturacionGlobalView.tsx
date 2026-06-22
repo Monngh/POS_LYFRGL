@@ -277,7 +277,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                     href={`${api.defaults.baseURL}/api/public/sales/invoice/${stampResult.cfdiUuid}/xml`}
                     target="_blank"
                     rel="noreferrer"
-                    style={{ ...downloadBtn, backgroundColor: "#0f172a" }}
+                    style={{ ...downloadBtn, backgroundColor: "var(--text)" }}
                   >
                     Descargar XML
                   </a>
@@ -315,7 +315,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
               </div>
             </div>
 
-            <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: 16, marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+            <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
               <button
                 onClick={handleStampGlobal}
                 disabled={tickets.length === 0 || stamping}
@@ -333,7 +333,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
 
           {/* LISTADO DE TICKETS A INCLUIR */}
           <div style={ui.tableWrap}>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", backgroundColor: "var(--surface-2)" }}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", backgroundColor: "var(--surface-2)" }}>
               <strong style={{ fontSize: 13, color: "var(--text-secondary)" }}>Ventas completadas en el rango de fechas</strong>
             </div>
 
@@ -397,7 +397,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                           fontSize: 11,
                           fontWeight: 700,
                           color: "var(--text-muted)",
-                          borderBottom: "1px solid #f1f5f9",
+                          borderBottom: "1px solid var(--border-soft)",
                           backgroundColor: "var(--surface-2)",
                           letterSpacing: "0.2px",
                         }}>
@@ -568,7 +568,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
 const fieldLabel: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
-  color: "#475569",
+  color: "var(--text-secondary)",
   textTransform: "uppercase",
   letterSpacing: "0.4px",
   marginBottom: 6,
@@ -579,7 +579,7 @@ const kpiWrap: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   padding: "4px 8px",
-  borderRight: "1px solid #e2e8f0",
+  borderRight: "1px solid var(--border)",
 };
 
 const kpiLabel: React.CSSProperties = {
@@ -637,13 +637,14 @@ const downloadBtn: React.CSSProperties = {
 const facDetailRow: React.CSSProperties = {
   display: "flex",
   justifyContent: "flex-start",
-  alignItems: "center",
+  alignItems: "flex-start",
   gap: "8px",
   fontSize: 13,
   marginBottom: 6,
 };
 
 const facDetailLabel: React.CSSProperties = {
+  flexShrink: 0,
   fontWeight: 700,
   color: "var(--text-muted)",
   minWidth: "85px",
@@ -651,6 +652,9 @@ const facDetailLabel: React.CSSProperties = {
 };
 
 const facDetailValue: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  overflowWrap: "anywhere",
   fontWeight: 600,
   color: "var(--text-secondary)",
 };
