@@ -417,9 +417,13 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
     res.status(400).json({ message: "El folio de la venta, el código PIN del autorizador y el motivo son requeridos." });
     return;
   }
+  if (reason && String(reason).length > 100) {
+    res.status(400).json({ message: "El motivo de la cancelación no puede exceder los 100 caracteres." });
+    return;
+  }
 
   try {
-    const managers = await prisma.user.findMany({ where: { role: { in: ["ADMIN", "GERENTE"] }, active: true } });
+    const managers = await prisma.user.findMany({ where: { role: { in: ["ADMIN", "GERENTE"] }, active: true, branchId: req.user.branchId } });
     let approver = null;
     for (const m of managers) {
       if (m.pinCode) {

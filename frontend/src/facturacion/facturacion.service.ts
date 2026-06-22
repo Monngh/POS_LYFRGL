@@ -39,6 +39,12 @@ export const loginCustomer = (loginData: {
   api.post<{ token: string; customerId: number }>('/api/customers/login', loginData);
 
 /**
+ * Send customer OTP verification code
+ */
+export const sendCustomerOtp = (phone: string) =>
+  api.post<{ message: string; otp?: string }>('/api/customers/otp/send', { phone });
+
+/**
  * Register new customer
  */
 export const registerCustomer = (registerData: {
@@ -47,11 +53,28 @@ export const registerCustomer = (registerData: {
   invoiceNumber: string;
   password: string;
   passwordConfirmation: string;
+  otp: string;
 }) =>
-  api.post<{ token: string; customerId: number }>(
+  api.post<{ token?: string; customerId?: number; customer?: any; autoLogin?: boolean; message?: string }>(
     '/api/customers/register',
     registerData
   );
+
+/**
+ * Send OTP to verify for password reset
+ */
+export const sendPasswordResetOtp = (phone: string) =>
+  api.post<{ message: string; otp?: string }>('/api/customers/password/reset-otp', { phone });
+
+/**
+ * Reset customer password using verified OTP
+ */
+export const resetCustomerPassword = (resetData: {
+  phone: string;
+  otp: string;
+  newPassword: string;
+}) =>
+  api.post<{ message: string }>('/api/customers/password/reset', resetData);
 
 /**
  * Update customer profile
