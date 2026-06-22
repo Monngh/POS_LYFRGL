@@ -562,7 +562,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     onClick={() => openDetail(s.id)}
                     onMouseEnter={() => setHoveredRow(s.id)}
                     onMouseLeave={() => setHoveredRow(null)}
-                    style={{ cursor: "pointer", backgroundColor: hoveredRow === s.id ? "#f8fafc" : "transparent" }}
+                    style={{ cursor: "pointer", backgroundColor: hoveredRow === s.id ? "var(--surface-3)" : "transparent" }}
                   >
                     <td style={{ ...ui.td, fontWeight: 700, color: "var(--accent-strong)" }}>{s.id}</td>
                     <td style={ui.td}>{s.branch}</td>
@@ -727,7 +727,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               <td style={{ ...ui.td, fontSize: 12, textAlign: "right", fontWeight: 700, color: m.amount >= 0 ? "#15803d" : "#b91c1c" }}>
                                 {m.amount >= 0 ? "+" : ""}{money(m.amount)}
                               </td>
-                              <td style={{ ...ui.td, fontSize: 12, textAlign: "right", color: "#475569" }}>
+                              <td style={{ ...ui.td, fontSize: 12, textAlign: "right", color: "var(--text-secondary)" }}>
                                 {money(m.balance)}
                               </td>
                             </tr>

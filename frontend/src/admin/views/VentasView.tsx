@@ -286,7 +286,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       key: "customer",
       header: "Cliente",
       render: (s) => (
-        <span style={{ color: s.customer === "Público General" ? "#94a3b8" : "#334155" }}>
+        <span style={{ color: s.customer === "Público General" ? "var(--text-faint)" : "var(--text-secondary)" }}>
           {s.customer}
         </span>
       ),
