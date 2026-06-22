@@ -18,15 +18,36 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
     const rawWords = qStr ? qStr.split(/\s+/).filter((w) => w.length > 0) : [];
     const searchWords = qStr ? parseSearchWords(qStr) : [];
 
-    // Si la búsqueda es vacía, retornar listado de prueba rápido (ej. top 10 productos)
+    let matchingProductIds: number[] = [];
+    if (qStr) {
+      const searchPattern = `%${qStr}%`;
+      if (rawWords.length > 0) {
+        const firstWordPattern = `%${rawWords[0]}%`;
+        const matchingNames = await prisma.$queryRaw<any[]>`
+          SELECT id FROM [Product] 
+          WHERE [active] = 1 AND (
+            [sku] COLLATE Latin1_General_CI_AI LIKE ${searchPattern}
+            OR [barcode] COLLATE Latin1_General_CI_AI LIKE ${searchPattern}
+            OR [name] COLLATE Latin1_General_CI_AI LIKE ${firstWordPattern}
+          )
+        `;
+        matchingProductIds = matchingNames.map((p) => p.id);
+      } else {
+        const matching = await prisma.$queryRaw<any[]>`
+          SELECT id FROM [Product] 
+          WHERE [active] = 1 AND (
+            [sku] COLLATE Latin1_General_CI_AI LIKE ${searchPattern}
+            OR [barcode] COLLATE Latin1_General_CI_AI LIKE ${searchPattern}
+          )
+        `;
+        matchingProductIds = matching.map((p) => p.id);
+      }
+    }
+
     const whereCondition = qStr
       ? {
           active: true,
-          OR: [
-            { sku: { contains: qStr } },
-            { barcode: { contains: qStr } },
-            ...(rawWords.length > 0 ? [{ name: { contains: rawWords[0] } }] : []),
-          ],
+          id: { in: matchingProductIds },
         }
       : { active: true };
 

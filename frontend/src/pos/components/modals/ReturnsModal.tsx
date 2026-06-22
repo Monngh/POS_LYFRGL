@@ -139,7 +139,8 @@ export default function ReturnsModal({
     setReturnLoading(true);
     try {
       const res = await getEligibleReturn(folio);
-      setReturnSaleData((res.data as any).sale);
+      const sale = (res.data as any).sale;
+      setReturnSaleData(sale);
       setReturnItems(
         (res.data as any).items.map((item: any) => ({
           ...item,
@@ -150,6 +151,15 @@ export default function ReturnsModal({
           batchNumberInput: "",
         }))
       );
+      let defaultMethod = "EFECTIVO";
+      if (sale.paymentMethod === "TARJETA") {
+        defaultMethod = "TARJETA";
+      } else if (sale.paymentMethod === "QR_MERCADOPAGO") {
+        defaultMethod = "QR_MERCADOPAGO";
+      } else if (sale.paymentMethod === "MIXTO") {
+        defaultMethod = "EFECTIVO";
+      }
+      setReturnPaymentMethod(defaultMethod);
       setReturnStep("select");
     } catch (err: any) {
       onToast(err.response?.data?.message || "Error al buscar la venta.", "error");
@@ -197,14 +207,18 @@ export default function ReturnsModal({
     );
   };
 
+  const getItemRefundAmount = (item: any, qty: number) => {
+    if (qty <= 0) return 0;
+    const lineNet = item.netUnitPrice * qty;
+    const unitTax = item.unitTax !== undefined ? item.unitTax : item.netUnitPrice * 0.16;
+    const lineTax = Number((unitTax * qty).toFixed(2));
+    return lineNet + lineTax;
+  };
+
   const getReturnRefundTotal = () => {
     return returnItems
       .filter((it) => it.selected && it.qtyToReturn > 0)
-      .reduce((acc, it) => {
-        const net = it.netUnitPrice * it.qtyToReturn;
-        const tax = net * 0.16;
-        return acc + net + tax;
-      }, 0);
+      .reduce((acc, it) => acc + getItemRefundAmount(it, it.qtyToReturn), 0);
   };
 
   const handleReturnProceed = () => {
@@ -213,7 +227,7 @@ export default function ReturnsModal({
       onToast("Seleccione al menos un producto para devolver.", "error");
       return;
     }
-    const reasonError = validateReference(returnReason, "El motivo", { required: true, max: 180 });
+    const reasonError = validateReference(returnReason, "El motivo", { required: true, max: 100 });
     if (reasonError) {
       setReturnFieldErrors((prev) => ({ ...prev, reason: reasonError }));
       return;
@@ -332,7 +346,7 @@ export default function ReturnsModal({
             <td style="width:12%;text-align:left;padding:3px 2px 3px 0;">${Number(item.qtyToReturn)}</td>
             <td style="width:48%;padding:3px 4px 3px 0;">${safe(item.name)}</td>
             <td style="width:18%;text-align:right;padding:3px 4px 3px 0;">$${Number(item.netUnitPrice).toFixed(2)}</td>
-            <td style="width:22%;text-align:right;padding:3px 0;">$${Number(item.netUnitPrice * item.qtyToReturn * 1.16).toFixed(2)}</td>
+            <td style="width:22%;text-align:right;padding:3px 0;">$${Number(getItemRefundAmount(item, item.qtyToReturn)).toFixed(2)}</td>
           </tr>`
       )
       .join("");
@@ -601,7 +615,7 @@ export default function ReturnsModal({
                         />
                       )}
                       <span style={{ fontSize: "11px", color: "#1e3a8a", fontWeight: "700", marginLeft: "auto" }}>
-                        Reembolso: ${(item.netUnitPrice * item.qtyToReturn * 1.16).toFixed(2)}
+                        Reembolso: ${getItemRefundAmount(item, item.qtyToReturn).toFixed(2)}
                       </span>
                     </div>
                   )}
@@ -615,15 +629,16 @@ export default function ReturnsModal({
                 <label style={label}>Motivo de devolución:</label>
                 <input
                   type="text"
+                  maxLength={100}
                   className="input-corporate"
                   placeholder="Ej: Producto defectuoso, talla incorrecta..."
                   value={returnReason}
                   onChange={(e) => {
-                    const value = validateMotivoDevoluccion(e.target.value);
+                    const value = validateMotivoDevoluccion(e.target.value).slice(0, 100);
                     setReturnReason(value);
                     setReturnFieldErrors((prev) => {
                       const next = { ...prev };
-                      const error = validateReference(value, "El motivo", { required: true, max: 180 });
+                      const error = validateReference(value, "El motivo", { required: true, max: 100 });
                       if (error) next.reason = error;
                       else delete next.reason;
                       return next;
@@ -637,12 +652,21 @@ export default function ReturnsModal({
                 <select
                   className="input-corporate"
                   value={returnPaymentMethod}
+                  disabled={returnSaleData?.paymentMethod !== "MIXTO"}
                   onChange={(e) => setReturnPaymentMethod(e.target.value)}
                 >
-                  <option value="EFECTIVO">Efectivo</option>
-                  <option value="TARJETA">Tarjeta</option>
-                  <option value="QR_MERCADOPAGO">Mercado Pago</option>
-                  <option value="VALE_DEVOLUCION">Vale de Devolución</option>
+                  {returnSaleData?.paymentMethod === "MIXTO" ? (
+                    <>
+                      <option value="EFECTIVO">Efectivo</option>
+                      <option value="TARJETA">Tarjeta</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="EFECTIVO">Efectivo</option>
+                      <option value="TARJETA">Tarjeta</option>
+                      <option value="QR_MERCADOPAGO">Mercado Pago</option>
+                    </>
+                  )}
                 </select>
               </div>
             </div>
@@ -693,7 +717,7 @@ export default function ReturnsModal({
                     <span style={{ color: "#64748b" }}> × {item.qtyToReturn}</span>
                     <span style={{ color: "#94a3b8", marginLeft: "8px", fontSize: "10px" }}>→ {item.destination.replace("_", " ")}</span>
                   </div>
-                  <span style={{ fontWeight: "700" }}>${(item.netUnitPrice * item.qtyToReturn * 1.16).toFixed(2)}</span>
+                  <span style={{ fontWeight: "700" }}>${getItemRefundAmount(item, item.qtyToReturn).toFixed(2)}</span>
                 </div>
               ))}
               <div style={{ padding: "10px 12px", backgroundColor: "#f0fdf4", display: "flex", justifyContent: "space-between", fontWeight: "800", fontSize: "14px", color: "#166534" }}>

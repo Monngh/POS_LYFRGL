@@ -118,9 +118,13 @@ export const getCashiersByBranch = async (branchId: number) => {
   });
 };
 
-export const verifyManagerPin = async (pinCode: string) => {
+export const verifyManagerPin = async (pinCode: string, branchId?: number) => {
   const managers = await prisma.user.findMany({
-    where: { role: { in: ["ADMIN", "GERENTE"] }, active: true },
+    where: {
+      role: { in: ["ADMIN", "GERENTE"] },
+      active: true,
+      ...(branchId !== undefined && { branchId }),
+    },
   });
 
   let approver = null;
