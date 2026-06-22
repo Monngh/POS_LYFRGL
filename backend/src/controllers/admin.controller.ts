@@ -48,6 +48,7 @@ export { listCustomers, createCustomer, updateCustomer } from "./adminCustomer.c
 
 export {
   createProduct,
+  getNextProductSku,
   listProducts,
   getProductDetail,
   updateProduct,
