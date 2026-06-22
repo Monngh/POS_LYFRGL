@@ -5,6 +5,28 @@ import {
   TICKET_WIDTH_PX,
   unmountTicketRender,
 } from "./ticketEmailDocument.util";
+let cachedHtml2canvas: any = null;
+let cachedJsPDF: any = null;
+
+const loadLibraries = async () => {
+  if (cachedHtml2canvas && cachedJsPDF) {
+    return { html2canvas: cachedHtml2canvas, jsPDF: cachedJsPDF };
+  }
+  try {
+    const [html2canvasModule, jspdfModule] = await Promise.all([
+      import("html2canvas"),
+      import("jspdf"),
+    ]);
+    cachedHtml2canvas = html2canvasModule.default || html2canvasModule;
+    cachedJsPDF = jspdfModule.jsPDF || jspdfModule.default || jspdfModule;
+    return { html2canvas: cachedHtml2canvas, jsPDF: cachedJsPDF };
+  } catch (error) {
+    console.error("Error loading PDF libraries (html2canvas/jspdf). Reloading page...", error);
+    window.location.reload();
+    return new Promise<{ html2canvas: any; jsPDF: any }>(() => {}); // Hold execution
+  }
+};
+
 
 const waitForImages = async (root: HTMLElement): Promise<void> => {
   const images = Array.from(root.querySelectorAll("img"));
@@ -50,8 +72,7 @@ const inlineExternalImages = async (root: HTMLElement): Promise<void> => {
 };
 
 const renderTicketElementToPdfBase64 = async (ticket: HTMLElement): Promise<string> => {
-  const { default: html2canvas } = await import("html2canvas");
-  const { jsPDF } = await import("jspdf");
+  const { html2canvas, jsPDF } = await loadLibraries();
 
   await waitForImages(ticket);
   await inlineExternalImages(ticket);
