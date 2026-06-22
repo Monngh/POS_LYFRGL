@@ -1117,7 +1117,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <div
                       key={p.id}
                       style={{
-                        backgroundColor: p.low ? "#fffbeb" : "#ffffff",
+                        backgroundColor: p.low ? "var(--icon-bg-amber, rgba(251,191,36,0.12))" : "var(--surface)",
                         border: "1px solid var(--border)",
                         borderRadius: 12,
                         marginBottom: 10,
@@ -1170,7 +1170,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           fontSize: 13,
                           fontWeight: 800,
                           textAlign: "center",
-                          color: p.low ? "#b45309" : "#15803d",
+                          color: p.low ? "var(--color-warning)" : "var(--color-success)",
                         }}>
                           {p.stock}
                         </div>
