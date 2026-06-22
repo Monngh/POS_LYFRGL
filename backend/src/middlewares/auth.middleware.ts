@@ -1,6 +1,7 @@
 /// <reference path="../types/express.d.ts" />
 import { Request, Response, NextFunction } from "express";
 import { verifyToken } from "../utils/auth";
+import { isCurrentSession } from "../utils/sessionRegistry";
 
 /**
  * Middleware para validar que la petición incluye un token JWT válido.
@@ -18,6 +19,17 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
 
   if (!decoded) {
     res.status(401).json({ message: "Acceso no autorizado. Token expirado o inválido." });
+    return;
+  }
+
+  // Sesión única para administradores/gerentes: si el jti del token ya no es el
+  // vigente, significa que se inició sesión en otro dispositivo (desplazamiento).
+  if ((decoded.role === "ADMIN" || decoded.role === "GERENTE") &&
+      !isCurrentSession(decoded.userId as number, decoded.jti)) {
+    res.status(401).json({
+      code: "SESION_DESPLAZADA",
+      message: "Tu sesión se cerró porque se inició sesión con este usuario en otro dispositivo.",
+    });
     return;
   }
 
