@@ -192,11 +192,11 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             <div key={card.label} style={s.metricCard}>
               <div style={s.metricHead}>
                 <span style={s.metricLabel}>{card.label}</span>
-                <div style={{ ...s.metricIcon, backgroundColor: card.warning ? "#fef3c7" : "#eff6ff" }}>
+                <div style={{ ...s.metricIcon, backgroundColor: card.warning ? "var(--icon-bg-amber)" : "var(--icon-bg-blue)" }}>
                   <Icon size={16} color={card.warning ? "#d97706" : "#2563eb"} />
                 </div>
               </div>
-              <h2 style={{ ...s.metricValue, color: card.warning ? "#b45309" : "#0f172a" }}>
+              <h2 style={{ ...s.metricValue, color: card.warning ? "var(--color-warning)" : "var(--text)" }}>
                 {loading && !data ? "…" : card.value}
               </h2>
             </div>
@@ -210,7 +210,7 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         <div style={s.metricCard}>
           <div style={s.metricHead}>
             <span style={s.metricLabel}>Estado de cajas</span>
-            <div style={{ ...s.metricIcon, backgroundColor: "#eff6ff" }}>
+            <div style={{ ...s.metricIcon, backgroundColor: "var(--icon-bg-blue)" }}>
               <Wallet size={16} color="#2563eb" />
             </div>
           </div>
@@ -230,11 +230,11 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         <div style={s.metricCard}>
           <div style={s.metricHead}>
             <span style={s.metricLabel}>Cobranza pendiente</span>
-            <div style={{ ...s.metricIcon, backgroundColor: creditosConSaldo > 0 ? "#fef3c7" : "#eff6ff" }}>
+            <div style={{ ...s.metricIcon, backgroundColor: creditosConSaldo > 0 ? "var(--icon-bg-amber)" : "var(--icon-bg-blue)" }}>
               <CreditCard size={16} color={creditosConSaldo > 0 ? "#d97706" : "#2563eb"} />
             </div>
           </div>
-          <h2 style={{ ...s.metricValue, color: creditosConSaldo > 0 ? "#b45309" : "#0f172a" }}>
+          <h2 style={{ ...s.metricValue, color: creditosConSaldo > 0 ? "var(--color-warning)" : "var(--text)" }}>
             {loadingCash ? "…" : money(cobranzaTotal)}
           </h2>
           <p style={s.metricSecondary}>
@@ -246,11 +246,11 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         <div style={s.metricCard}>
           <div style={s.metricHead}>
             <span style={s.metricLabel}>Depósitos hoy</span>
-            <div style={{ ...s.metricIcon, backgroundColor: "#dcfce7" }}>
+            <div style={{ ...s.metricIcon, backgroundColor: "var(--icon-bg-green)" }}>
               <Landmark size={16} color="#16a34a" />
             </div>
           </div>
-          <h2 style={{ ...s.metricValue, color: "#15803d" }}>
+          <h2 style={{ ...s.metricValue, color: "var(--color-success)" }}>
             {loadingCash ? "…" : money(totalDepositosHoy)}
           </h2>
           <p style={s.metricSecondary}>
@@ -262,11 +262,11 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         <div style={s.metricCard}>
           <div style={s.metricHead}>
             <span style={s.metricLabel}>Diferencia de caja</span>
-            <div style={{ ...s.metricIcon, backgroundColor: hasDiferencias ? "#fee2e2" : "#dcfce7" }}>
+            <div style={{ ...s.metricIcon, backgroundColor: hasDiferencias ? "var(--icon-bg-red)" : "var(--icon-bg-green)" }}>
               <Scale size={16} color={hasDiferencias ? "#dc2626" : "#16a34a"} />
             </div>
           </div>
-          <h2 style={{ ...s.metricValue, color: hasDiferencias ? "#b91c1c" : "#15803d" }}>
+          <h2 style={{ ...s.metricValue, color: hasDiferencias ? "var(--color-danger)" : "var(--color-success)" }}>
             {loadingCash
               ? "…"
               : totalSesionesHoy > 0
@@ -286,7 +286,7 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   <span style={{ ...s.metricSecondary, marginTop: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "65%" }}>
                     {sess.branch}
                   </span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "#dc2626", flexShrink: 0 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--color-danger)", flexShrink: 0 }}>
                     {sess.difference! >= 0
                       ? `+${money(sess.difference!)}`
                       : `-${money(Math.abs(sess.difference!))}`}

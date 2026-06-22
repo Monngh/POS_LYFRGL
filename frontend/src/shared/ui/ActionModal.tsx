@@ -40,7 +40,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
     >
       <div
         style={{
-          background: "white",
+          background: "var(--surface)",
           borderRadius: "8px",
           padding: "24px",
           maxWidth: widthMap[size],
@@ -59,7 +59,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
             marginBottom: "16px",
           }}
         >
-          <h2 style={{ margin: 0, fontSize: "18px", color: "#1e3a8a" }}>{title}</h2>
+          <h2 style={{ margin: 0, fontSize: "18px", color: "var(--text)" }}>{title}</h2>
           <button
             onClick={onClose}
             style={{
@@ -69,7 +69,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
               display: "flex",
               alignItems: "center",
               padding: 4,
-              color: "#64748b",
+              color: "var(--text-muted)",
             }}
           >
             <X size={20} />
