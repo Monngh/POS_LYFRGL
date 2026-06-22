@@ -1145,7 +1145,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
             <div style={ui.modalHeader}>
               <span style={ui.modalTitle}>{editing === "create" ? "Nueva promocion" : "Editar promocion"}</span>
               <button type="button" style={ui.linkBtn} onClick={closeForm} aria-label="Cerrar">
-                <X size={18} color="#64748b" />
+                <X size={18} />
               </button>
             </div>
             <div style={ui.modalBody}>
@@ -1268,7 +1268,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
             <div style={ui.modalHeader}>
               <span style={ui.modalTitle}>{detail.name}</span>
               <button type="button" style={ui.linkBtn} onClick={() => setDetail(null)} aria-label="Cerrar">
-                <X size={18} color="#64748b" />
+                <X size={18} />
               </button>
             </div>
             <div style={ui.modalBody}>
@@ -1318,7 +1318,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
             <div style={ui.modalHeader}>
               <span style={ui.modalTitle}>Gestionar productos</span>
               <button type="button" style={ui.linkBtn} onClick={() => setProductEditor(null)} aria-label="Cerrar">
-                <X size={18} color="#64748b" />
+                <X size={18} />
               </button>
             </div>
             <div style={ui.modalBody}>
@@ -1472,6 +1472,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "grid",
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: 14,
+    color: "var(--text)",
   },
   detailLabel: {
     display: "block",
@@ -1483,7 +1484,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     textTransform: "uppercase",
   },
   detailDescription: {
-    color: "#475569",
+    color: "var(--text-secondary)",
     fontSize: 13,
     fontWeight: 600,
     lineHeight: 1.55,
@@ -1498,13 +1499,13 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     alignItems: "center",
     gap: 10,
-    borderBottom: "1px solid #f1f5f9",
+    borderBottom: "1px solid var(--border-soft)",
     color: "var(--text-secondary)",
     fontSize: 13,
     padding: "10px 12px",
   },
   sku: {
-    backgroundColor: "#eff6ff",
+    backgroundColor: "var(--accent-soft)",
     borderRadius: 6,
     color: "var(--accent-strong)",
     fontSize: 11,
