@@ -25,7 +25,7 @@ export function useMediaQuery(query: string): boolean {
 // Helpers de formato (es-MX)
 // ---------------------------------------------------------------------------
 export const money = (n: number) =>
-  `$${Math.round(n).toLocaleString("es-MX", { maximumFractionDigits: 0 })}`;
+  `$${Number(n).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export const moneyExact = (n: number) =>
   n.toLocaleString("es-MX", { style: "currency", currency: "MXN" });
@@ -61,13 +61,13 @@ export const printHtml = (title: string, bodyHtml: string) => {
       h3 { font-size: 14px; color: #1e3a8a; margin: 22px 0 10px; }
       table { width: 100%; border-collapse: collapse; margin-top: 6px; }
       th { background: #f1f5f9; text-align: left; font-size: 11px; text-transform: uppercase;
-        letter-spacing: .4px; color: #475569; padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
-      td { font-size: 12px; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+        letter-spacing: .4px; color: #475569; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+      td { font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--border-soft); color: #334155; }
       .r { text-align: right; } .c { text-align: center; }
       .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-      .kpi { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; }
+      .kpi { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
       .kpi .l { font-size: 11px; color: #64748b; } .kpi .v { font-size: 18px; font-weight: 800; margin-top: 4px; }
-      .foot { margin-top: 28px; border-top: 1px solid #e2e8f0; padding-top: 10px; font-size: 10px; color: #94a3b8; text-align: center; }
+      .foot { margin-top: 28px; border-top: 1px solid var(--border); padding-top: 10px; font-size: 10px; color: #94a3b8; text-align: center; }
       @media print { body { padding: 0; } .kpi, th, td { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
     </style></head><body>${bodyHtml}
     <div class="foot">LYFRGL Solutions POS • Documento generado el ${new Date().toLocaleString("es-MX")}</div>
@@ -396,9 +396,10 @@ export const ui: { [k: string]: React.CSSProperties } = {
     borderRadius: 12,
     padding: "16px 18px",
     boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+    minWidth: 0,
   },
-  kpiLabel: { fontSize: 12, fontWeight: 600, color: "var(--text-muted)" },
-  kpiValue: { fontSize: 23, fontWeight: 800, color: "var(--text)", marginTop: 8, letterSpacing: "-0.4px" },
+  kpiLabel: { fontSize: 12, fontWeight: 600, color: "var(--text-muted)", overflowWrap: "anywhere" },
+  kpiValue: { fontSize: "clamp(18px, 5vw, 23px)", fontWeight: 800, color: "var(--text)", marginTop: 8, letterSpacing: "-0.4px", overflowWrap: "break-word", minWidth: 0 },
 
   // Modal
   overlay: {

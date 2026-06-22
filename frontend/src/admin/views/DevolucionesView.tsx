@@ -97,7 +97,7 @@ const InfoRow: React.FC<{
       style={{
         fontSize: 13,
         fontWeight: highlight ? 700 : 500,
-        color: highlight ? "#1e3a8a" : "#334155",
+        color: highlight ? "#1e3a8a" : "var(--text-secondary)",
       }}
     >
       {children ?? (value != null ? String(value) : "—")}
@@ -242,7 +242,7 @@ const ReturnDetailSubView: React.FC<{
               textTransform: "uppercase",
               letterSpacing: "0.5px",
               padding: "0 0 10px 0",
-              borderBottom: "1px solid #e2e8f0",
+              borderBottom: "1px solid var(--border)",
               marginBottom: 0,
             }}>
               DETALLE DE PRODUCTOS
@@ -252,7 +252,7 @@ const ReturnDetailSubView: React.FC<{
                 key={d.id}
                 style={{
                   padding: "14px 0",
-                  borderBottom: i < current.details.length - 1 ? "1px solid #f1f5f9" : "none",
+                  borderBottom: i < current.details.length - 1 ? "1px solid var(--border-soft)" : "none",
                 }}
               >
                 {/* Row 1: Product name + Cantidad badge */}
@@ -358,7 +358,7 @@ const ReturnDetailSubView: React.FC<{
           <div
             style={{
               ...sumRow,
-              borderTop: "2px solid #e2e8f0",
+              borderTop: "2px solid var(--border)",
               paddingTop: 10,
               marginTop: 4,
             }}
@@ -655,7 +655,7 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   key={r.id}
                   style={{
                     backgroundColor: "var(--surface)",
-                    border: "1px solid #f1f5f9",
+                    border: "1px solid var(--border-soft)",
                     borderRadius: 16,
                     padding: 16,
                     marginBottom: 12,
@@ -693,13 +693,13 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       </div>
 
                       {/* Fecha */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569", marginBottom: 6 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", marginBottom: 6 }}>
                         <Calendar size={14} color="#2563eb" />
                         <span>{fmtDateTime(r.date)}</span>
                       </div>
 
                       {/* Cliente */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
                         <User size={14} color="#2563eb" />
                         <span>Cliente: {r.clientName}</span>
                       </div>
@@ -731,7 +731,7 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                   {/* Expanded Content */}
                   {isExpanded && (
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
                       {/* Venta box */}
                       <div style={{
                         display: "flex",
