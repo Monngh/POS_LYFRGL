@@ -54,15 +54,17 @@ const fmtDateTime = (iso: string) =>
     timeStyle: "short",
   }).format(new Date(iso));
 
-const typeBadgeColor: Record<string, { bg: string; color: string }> = {
-  VENTAS:     { bg: "#dbeafe", color: "#1d4ed8" },
-  INVENTARIO: { bg: "#d1fae5", color: "#065f46" },
-  COMPRAS:    { bg: "#fef9c3", color: "#92400e" },
-  PERSONAL:   { bg: "#ede9fe", color: "#5b21b6" },
-};
+type TypeKey = "VENTAS" | "INVENTARIO" | "COMPRAS" | "PERSONAL";
 
 const TypeBadge: React.FC<{ type: string }> = ({ type }) => {
-  const c = typeBadgeColor[type] ?? { bg: "#f1f5f9", color: "var(--text-secondary)" };
+  const isDark = document.documentElement.classList.contains("theme-dark");
+  const map: Record<TypeKey, { bg: string; color: string }> = {
+    VENTAS:     { bg: isDark ? "rgba(96,165,250,0.15)"  : "#dbeafe", color: isDark ? "#60a5fa" : "#1d4ed8" },
+    INVENTARIO: { bg: isDark ? "rgba(34,197,94,0.15)"   : "#d1fae5", color: isDark ? "#22c55e" : "#065f46" },
+    COMPRAS:    { bg: isDark ? "rgba(245,158,11,0.15)"  : "#fef9c3", color: isDark ? "#f59e0b" : "#92400e" },
+    PERSONAL:   { bg: isDark ? "rgba(167,139,250,0.15)" : "#ede9fe", color: isDark ? "#a78bfa" : "#5b21b6" },
+  };
+  const c = map[type as TypeKey] ?? { bg: "var(--surface-3)", color: "var(--text-secondary)" };
   return (
     <span
       style={{
@@ -170,13 +172,13 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
             onClick={clearFilters}
             style={{
               padding: "8px 14px",
-              background: "#f3f4f6",
-              border: "1px solid #d1d5db",
+              background: "var(--surface-2)",
+              border: "1px solid var(--border)",
               borderRadius: 6,
               cursor: "pointer",
               fontSize: 13,
               fontWeight: 600,
-              color: "#374151",
+              color: "var(--text-secondary)",
             }}
           >
             Limpiar filtros
@@ -215,7 +217,7 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
               !error &&
               visible.map((row) => (
                 <tr key={row.id}>
-                  <td style={{ ...ui.td, whiteSpace: "nowrap", color: "#475569" }}>
+                  <td style={{ ...ui.td, whiteSpace: "nowrap", color: "var(--text-secondary)" }}>
                     {fmtDateTime(row.createdAt)}
                   </td>
                   <td style={ui.td}>
@@ -225,13 +227,13 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
                   <td style={{ ...ui.td, color: "var(--text-muted)" }}>
                     {row.branch?.name ?? <span style={{ color: "#cbd5e1" }}>—</span>}
                   </td>
-                  <td style={{ ...ui.td, fontWeight: 600, color: "#1e293b" }}>
+                  <td style={{ ...ui.td, fontWeight: 600, color: "var(--text)" }}>
                     {row.reportName}
                   </td>
                   <td style={{ ...ui.td, textAlign: "center" }}>
                     <TypeBadge type={row.reportType} />
                   </td>
-                  <td style={{ ...ui.td, fontSize: 12, color: "#475569", maxWidth: 240 }}>
+                  <td style={{ ...ui.td, fontSize: 12, color: "var(--text-secondary)", maxWidth: 240 }}>
                     {parseFiltros(row.filters)}
                   </td>
                   <td
