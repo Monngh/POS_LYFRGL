@@ -397,7 +397,7 @@ const Autofacturacion: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await registerCustomer({
+      await registerCustomer({
         phone: normalizeIntegerInput(registerPhone).slice(0, 10),
         email: cleanEmailInput(registerEmail),
         invoiceNumber: registerInvoiceNumber.trim().toUpperCase(),
@@ -803,7 +803,6 @@ const Autofacturacion: React.FC = () => {
       setResetConfirmPassword("");
       setResetFieldErrors({});
       setResetOtpSent(false);
-      setResetReceivedOtp("");
       setResetOtpError("");
       setResetError("");
 
@@ -822,9 +821,7 @@ const Autofacturacion: React.FC = () => {
     setLoading(true);
     try {
       const cleanPhone = normalizeIntegerInput(resetPhone).slice(0, 10);
-      const response = await sendPasswordResetOtp(cleanPhone);
-      const code = response.data?.otp || "";
-      setResetReceivedOtp(code);
+      await sendPasswordResetOtp(cleanPhone);
       setResetOtpError("");
       showToast("Se ha reenviado el código de seguridad.", "success");
     } catch (err: any) {
@@ -837,7 +834,6 @@ const Autofacturacion: React.FC = () => {
   const handleBackToResetForm = () => {
     setResetOtpSent(false);
     setResetOtp("");
-    setResetReceivedOtp("");
     setResetOtpError("");
   };
 
