@@ -151,6 +151,25 @@ export const receivePurchase = async (purchaseId: number, userId: number) => {
   });
 };
 
+export const cancelPurchase = async (purchaseId: number) => {
+  const purchase = await prisma.purchaseOrder.findUnique({
+    where: { id: purchaseId },
+  });
+
+  if (!purchase) throw new AppError("Orden de compra no encontrada.", 404);
+  if (purchase.status !== "PENDIENTE") throw new AppError(`No se puede cancelar una orden que ya está en estado ${purchase.status}.`, 400);
+
+  return prisma.purchaseOrder.update({
+    where: { id: purchase.id },
+    data: { status: "CANCELADA" },
+    include: {
+      supplier: { select: { id: true, name: true } },
+      branch: { select: { id: true, name: true } },
+      details: { include: { product: { select: { id: true, sku: true, name: true } } } },
+    },
+  });
+};
+
 export const registerPurchase = async (body: Record<string, unknown>, userId: number) => {
   const { branchId, items, supplier, reference } = body as any;
   const bId = Number(branchId);
