@@ -12,20 +12,36 @@ export interface UpdateEmployeeInput {
   branchId?: number;
   active?: boolean;
   newPin?: string;
+  currentPin?: string;
+  password?: string;
+  currentPassword?: string;
 }
 
 export const listEmployees = async (branchId?: number, role?: string, search?: string) => {
   const where: any = {};
   if (branchId) where.branchId = branchId;
   if (role && role !== "all") where.role = role;
-  if (search) where.OR = [{ name: { contains: search } }, { email: { contains: search } }];
+  if (search) {
+    where.OR = [
+      { name: { contains: search } },
+      { email: { contains: search } }
+    ];
+  }
 
   const users = await prisma.user.findMany({
     where,
     orderBy: [{ role: "asc" }, { name: "asc" }],
     select: {
-      id: true, name: true, email: true, role: true, active: true, phone: true,
-      baseSalary: true, commissionRate: true, createdAt: true, branchId: true,
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      active: true,
+      phone: true,
+      baseSalary: true,
+      commissionRate: true,
+      createdAt: true,
+      branchId: true,
       branch: { select: { name: true } },
     },
   });
@@ -48,10 +64,10 @@ export const listEmployees = async (branchId?: number, role?: string, search?: s
 export const createEmployee = async (data: {
   name: string;
   email: string;
-  password: string;
+  password: string | null;
   role: string;
   branchId: number;
-  pinCode?: string | null;
+  pinCode: string;
   phone?: string | null;
   baseSalary?: number | null;
   commissionRate?: number | null;
@@ -59,23 +75,21 @@ export const createEmployee = async (data: {
   const branch = await prisma.branch.findUnique({ where: { id: data.branchId } });
   if (!branch) throw new AppError("La sucursal seleccionada no existe.", 404);
 
-  const passwordHash = await bcrypt.hash(String(data.password), 10);
-  const pinHash = data.pinCode ? await bcrypt.hash(String(data.pinCode), 10) : null;
+  const pinHash = await bcrypt.hash(String(data.pinCode), 10);
+  const createData: any = {
+    name: data.name.trim().toUpperCase(),
+    email: data.email.trim().toLowerCase(),
+    pinCode: pinHash,
+    role: data.role.toUpperCase(),
+    active: true,
+    branchId: data.branchId,
+    phone: data.phone ? String(data.phone).trim() : null,
+    baseSalary: data.baseSalary ?? null,
+    commissionRate: data.commissionRate ?? null,
+    passwordHash: data.password ? await bcrypt.hash(String(data.password), 10) : '',
+  };
 
-  const user = await prisma.user.create({
-    data: {
-      name: data.name.trim().toUpperCase(),
-      email: data.email.trim().toLowerCase(),
-      passwordHash,
-      pinCode: pinHash,
-      role: data.role.toUpperCase(),
-      active: true,
-      branchId: data.branchId,
-      phone: data.phone ? String(data.phone).trim() : null,
-      baseSalary: data.baseSalary ?? null,
-      commissionRate: data.commissionRate ?? null,
-    },
-  });
+  const user = await prisma.user.create({ data: createData });
 
   return {
     id: user.id,
@@ -110,24 +124,42 @@ export const updateEmployee = async (
     if (emailExists) throw new AppError("El correo ya está registrado en otro empleado.", 409);
   }
 
-  let pinHash: string | undefined;
   if (data.newPin) {
-    pinHash = await bcrypt.hash(String(data.newPin), 10);
+    if (!data.currentPin) throw new AppError("Debe proporcionar el PIN actual para cambiarlo.", 400);
+    if (!/^\d{4}$/.test(String(data.currentPin))) throw new AppError("El PIN actual debe ser exactamente 4 dígitos numéricos.", 400);
+    if (!existing.pinCode) throw new AppError("El empleado no tiene PIN registrado.", 400);
+    const pinMatch = await bcrypt.compare(String(data.currentPin), existing.pinCode);
+    if (!pinMatch) throw new AppError("PIN actual incorrecto.", 400);
+  }
+
+  if (data.password) {
+    if (!data.currentPassword) throw new AppError("Debe proporcionar la contraseña actual para cambiarla.", 400);
+    if (!existing.passwordHash) throw new AppError("El empleado no tiene contraseña registrada.", 400);
+    const passMatch = await bcrypt.compare(String(data.currentPassword), existing.passwordHash);
+    if (!passMatch) throw new AppError("Contraseña actual incorrecta.", 400);
+  }
+
+  const updateData: any = {
+    ...(data.name !== undefined && { name: data.name }),
+    ...(data.email !== undefined && { email: data.email }),
+    ...(data.phone !== undefined && { phone: data.phone }),
+    ...(data.baseSalary !== undefined && { baseSalary: data.baseSalary }),
+    ...(data.commissionRate !== undefined && { commissionRate: data.commissionRate }),
+    ...(data.role !== undefined && { role: data.role }),
+    ...(data.branchId !== undefined && { branchId: data.branchId }),
+    ...(data.active !== undefined && { active: data.active }),
+  };
+
+  if (data.newPin) {
+    updateData.pinCode = await bcrypt.hash(String(data.newPin), 10);
+  }
+  if (data.password) {
+    updateData.passwordHash = await bcrypt.hash(String(data.password), 10);
   }
 
   return prisma.user.update({
     where: { id: userId },
-    data: {
-      ...(data.name !== undefined && { name: data.name }),
-      ...(data.email !== undefined && { email: data.email }),
-      ...(data.phone !== undefined && { phone: data.phone }),
-      ...(data.baseSalary !== undefined && { baseSalary: data.baseSalary }),
-      ...(data.commissionRate !== undefined && { commissionRate: data.commissionRate }),
-      ...(data.role !== undefined && { role: data.role }),
-      ...(data.branchId !== undefined && { branchId: data.branchId }),
-      ...(data.active !== undefined && { active: data.active }),
-      ...(pinHash !== undefined && { pinCode: pinHash }),
-    },
+    data: updateData,
     include: { branch: { select: { name: true } } },
   });
 };
@@ -139,8 +171,14 @@ export const getEmployeeOperations = async (
   const user = await prisma.user.findUnique({
     where: { id: employeeId },
     select: {
-      id: true, name: true, email: true, role: true, active: true,
-      commissionRate: true, branchId: true, branch: { select: { name: true } },
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      active: true,
+      commissionRate: true,
+      branchId: true,
+      branch: { select: { name: true } },
     },
   });
   if (!user) return null;
@@ -150,25 +188,51 @@ export const getEmployeeOperations = async (
   }
 
   const [salesAgg, cancelledCount, recentSales, sessions] = await Promise.all([
-    prisma.sale.aggregate({ where: { userId: employeeId, status: "COMPLETADA" }, _sum: { totalAmount: true }, _count: { _all: true } }),
+    prisma.sale.aggregate({
+      where: { userId: employeeId, status: "COMPLETADA" },
+      _sum: { totalAmount: true },
+      _count: { _all: true },
+    }),
     prisma.sale.count({ where: { userId: employeeId, status: "CANCELADA" } }),
     prisma.sale.findMany({
       where: { userId: employeeId },
       take: 10,
       orderBy: { createdAt: "desc" },
-      select: { id: true, invoiceNumber: true, createdAt: true, totalAmount: true, paymentMethod: true, status: true },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        createdAt: true,
+        totalAmount: true,
+        paymentMethod: true,
+        status: true,
+      },
     }),
     prisma.cashSession.findMany({
       where: { userId: employeeId },
       take: 10,
       orderBy: { openedAt: "desc" },
-      select: { id: true, openedAt: true, closedAt: true, initialAmount: true, difference: true, status: true },
+      select: {
+        id: true,
+        openedAt: true,
+        closedAt: true,
+        initialAmount: true,
+        difference: true,
+        status: true,
+      },
     }),
   ]);
 
-  const sessionIds = (await prisma.cashSession.findMany({ where: { userId: employeeId }, select: { id: true } })).map((s) => s.id);
+  const sessionIds = (await prisma.cashSession.findMany({
+    where: { userId: employeeId },
+    select: { id: true },
+  })).map((s) => s.id);
+
   const depositsAgg = sessionIds.length > 0
-    ? await prisma.bankDeposit.aggregate({ where: { cashSessionId: { in: sessionIds } }, _sum: { amount: true }, _count: { _all: true } })
+    ? await prisma.bankDeposit.aggregate({
+      where: { cashSessionId: { in: sessionIds } },
+      _sum: { amount: true },
+      _count: { _all: true },
+    })
     : { _sum: { amount: null }, _count: { _all: 0 } };
 
   const openSessions = sessions.filter((s) => s.status === "ABIERTA").length;
@@ -180,7 +244,14 @@ export const getEmployeeOperations = async (
     : 0;
 
   return {
-    employee: { id: user.id, name: user.name, email: user.email, role: user.role, active: user.active, branch: user.branch.name },
+    employee: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      active: user.active,
+      branch: user.branch.name,
+    },
     summary: {
       salesCount: totalSales,
       salesTotal: totalSalesAmount,
