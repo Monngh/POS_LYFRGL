@@ -843,6 +843,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                                 <span style={{ fontWeight: 700, color: "var(--text-secondary)" }}>{d.product.name}</span>
                                 <div style={{ fontSize: 11, color: "var(--text-faint)" }}>SKU: {d.product.sku}</div>
                               </div>
+                              <div style={{ textAlign: "right" }}>
                                 <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>
                                   {d.quantity} {d.unit ? d.unit.toLowerCase() : "pieza(s)"}
                                 </span>
