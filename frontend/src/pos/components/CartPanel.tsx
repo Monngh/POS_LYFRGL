@@ -83,12 +83,12 @@ interface CartPanelProps {
 
 const styles: { [key: string]: React.CSSProperties } = {
   table: { width: "100%", borderCollapse: "collapse" as const, textAlign: "left" as const },
-  tableHeaderRow: { borderBottom: "2px solid #e2e8f0" },
-  th: { padding: "10px 12px", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase" as const },
-  tableRow: { borderBottom: "1px solid #f1f5f9" },
-  td: { padding: "12px", fontSize: "13px", color: "#334155" },
-  qtyContainer: { display: "flex", alignItems: "center", border: "1px solid #cbd5e1", borderRadius: "4px", width: "fit-content", overflow: "hidden" },
-  qtyBtn: { width: "28px", height: "28px", border: "none", backgroundColor: "#f1f5f9", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center" },
+  tableHeaderRow: { borderBottom: "2px solid var(--border)" },
+  th: { padding: "10px 12px", fontSize: "11px", fontWeight: "700", color: "var(--text-secondary)", textTransform: "uppercase" as const },
+  tableRow: { borderBottom: "1px solid var(--surface-3)" },
+  td: { padding: "12px", fontSize: "13px", color: "var(--text-secondary)" },
+  qtyContainer: { display: "flex", alignItems: "center", border: "1px solid var(--border-strong)", borderRadius: "4px", width: "fit-content", overflow: "hidden" },
+  qtyBtn: { width: "28px", height: "28px", border: "none", backgroundColor: "var(--surface-3)", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center" },
   qtyInput: { padding: "0 12px", fontSize: "13px", fontWeight: "700", width: "40px", textAlign: "center" as const, border: "none", outline: "none", backgroundColor: "transparent" },
 };
 
@@ -124,7 +124,7 @@ export function CartPanel({ cartData, onToast }: CartPanelProps) {
                     </span>
                   )}
                   {item.product.activePromotion && !promoApplied && (
-                    <span style={{ fontSize: "9px", backgroundColor: "#f1f5f9", color: "#94a3b8", padding: "2px 6px", borderRadius: "4px", fontWeight: "600", marginTop: "4px", display: "inline-block" }}>
+                    <span style={{ fontSize: "9px", backgroundColor: "var(--surface-3)", color: "var(--text-faint)", padding: "2px 6px", borderRadius: "4px", fontWeight: "600", marginTop: "4px", display: "inline-block" }}>
                       🏷️ {item.product.activePromotion.name} (mín. {item.product.activePromotion.minQuantity || 1})
                     </span>
                   )}
@@ -189,7 +189,7 @@ export function CartPanel({ cartData, onToast }: CartPanelProps) {
                 <td style={styles.td}>
                   {hasDiscount ? (
                     <>
-                      <span style={{ textDecoration: "line-through", color: "#94a3b8", marginRight: "6px", fontSize: "12px" }}>
+                      <span style={{ textDecoration: "line-through", color: "var(--text-faint)", marginRight: "6px", fontSize: "12px" }}>
                         ${item.product.sellPrice.toFixed(2)}
                       </span>
                       <span style={{ color: "#059669", fontWeight: "700" }}>
@@ -203,7 +203,7 @@ export function CartPanel({ cartData, onToast }: CartPanelProps) {
                 <td style={{ ...styles.td, fontWeight: "700" }}>
                   {hasDiscount ? (
                     <>
-                      <div style={{ textDecoration: "line-through", color: "#94a3b8", fontSize: "11px", fontWeight: "400" }}>
+                      <div style={{ textDecoration: "line-through", color: "var(--text-faint)", fontSize: "11px", fontWeight: "400" }}>
                         ${(item.product.sellPrice * item.quantity).toFixed(2)}
                       </div>
                       <div style={{ color: "#059669" }}>

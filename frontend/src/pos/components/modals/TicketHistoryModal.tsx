@@ -42,7 +42,7 @@ const modalOverlay: React.CSSProperties = {
 const historyModal: React.CSSProperties = {
   width: "520px",
   maxWidth: "95vw",
-  backgroundColor: "#ffffff",
+  backgroundColor: "var(--surface)",
   borderRadius: "12px",
   padding: "24px",
   boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
@@ -51,8 +51,8 @@ const historyModal: React.CSSProperties = {
 const modalTitle: React.CSSProperties = {
   fontSize: "16px",
   fontWeight: "800",
-  color: "#0f172a",
-  borderBottom: "1px solid #e2e8f0",
+  color: "var(--text)",
+  borderBottom: "1px solid var(--border)",
   paddingBottom: "8px",
 };
 
@@ -66,7 +66,7 @@ const inputGroup: React.CSSProperties = {
 const label: React.CSSProperties = {
   fontSize: "11px",
   fontWeight: "700",
-  color: "#475569",
+  color: "var(--text-secondary)",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
 };
@@ -78,25 +78,25 @@ const table: React.CSSProperties = {
 };
 
 const tableHeaderRow: React.CSSProperties = {
-  borderBottom: "2px solid #e2e8f0",
+  borderBottom: "2px solid var(--border)",
 };
 
 const th: React.CSSProperties = {
   padding: "10px 12px",
   fontSize: "11px",
   fontWeight: "700",
-  color: "#475569",
+  color: "var(--text-secondary)",
   textTransform: "uppercase",
 };
 
 const tableRow: React.CSSProperties = {
-  borderBottom: "1px solid #f1f5f9",
+  borderBottom: "1px solid var(--surface-3)",
 };
 
 const td: React.CSSProperties = {
   padding: "12px",
   fontSize: "13px",
-  color: "#334155",
+  color: "var(--text-secondary)",
 };
 
 const submitBtn: React.CSSProperties = {
@@ -160,7 +160,7 @@ export default function TicketHistoryModal({
     <div style={modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
       <div style={historyModal} className="pos-cashier-modal">
         <h3 style={modalTitle}>Reimprimir Ticket de Venta:</h3>
-        <p style={{ fontSize: "12px", color: "#64748b", marginBottom: "14px" }}>Seleccione la venta de la sucursal para reimprimir su comprobante.</p>
+        <p style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "14px" }}>Seleccione la venta de la sucursal para reimprimir su comprobante.</p>
 
         {localError && (
           <p style={{ fontSize: "12px", color: "#dc2626", fontWeight: "600", marginBottom: "10px" }}>
@@ -220,14 +220,14 @@ export default function TicketHistoryModal({
           </div>
         </div>
 
-        <div style={{ maxHeight: "240px", overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: "6px" }} className="pos-cashier-table-scroll pos-cashier-table-scroll--history">
+        <div style={{ maxHeight: "240px", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "6px" }} className="pos-cashier-table-scroll pos-cashier-table-scroll--history">
           <style>{`
             @media (max-width: 1024px) {
               .pos-cashier-table-scroll--history { overflow-x: hidden; max-height: 60vh; padding: 4px 6px; }
               .pos-cashier-table-scroll--history table { width: 100%; border-collapse: collapse; min-width: 0; }
               .pos-cashier-table-scroll--history thead { display: none; }
               .pos-cashier-table-scroll--history tbody { display: block; }
-              .pos-cashier-table-scroll--history tr { display: grid; grid-template-columns: 1fr 110px; grid-template-rows: auto auto; gap: 6px; align-items: center; padding: 10px 8px; border-bottom: 1px solid #f1f5f9; margin: 0; }
+              .pos-cashier-table-scroll--history tr { display: grid; grid-template-columns: 1fr 110px; grid-template-rows: auto auto; gap: 6px; align-items: center; padding: 10px 8px; border-bottom: 1px solid var(--surface-3); margin: 0; }
               .pos-cashier-table-scroll--history td { display: block; padding: 0; vertical-align: top; box-sizing: border-box; min-width: 0; word-break: break-word; white-space: normal; }
               .pos-cashier-table-scroll--history td:nth-child(1) { grid-column: 1 / 2; grid-row: 1 / 2; font-weight: 600; color: #0f172a; }
               .pos-cashier-table-scroll--history td:nth-child(2) { grid-column: 1 / 2; grid-row: 2 / 3; color: #64748b; font-size: 12px; }
@@ -249,7 +249,7 @@ export default function TicketHistoryModal({
             <tbody>
               {filteredSales.length === 0 ? (
                 <tr>
-                  <td colSpan={4} style={{ textAlign: "center", padding: "16px", color: "#64748b", fontSize: "12px" }}>
+                  <td colSpan={4} style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "12px" }}>
                     No se encontraron ventas.
                   </td>
                 </tr>
@@ -257,17 +257,17 @@ export default function TicketHistoryModal({
                 filteredSales.map((sale) => (
                   <tr key={sale.id} style={tableRow}>
                     <td style={td}>
-                      <div style={{ fontWeight: "600", color: "#0f172a" }}>{sale.invoiceNumber}</div>
-                      <div style={{ fontSize: "10px", color: "#64748b" }}>{new Date(sale.createdAt).toLocaleDateString()}</div>
+                      <div style={{ fontWeight: "600", color: "var(--text)" }}>{sale.invoiceNumber}</div>
+                      <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>{new Date(sale.createdAt).toLocaleDateString()}</div>
                     </td>
                     <td style={{ ...td, fontSize: "11px" }}>
                       {sale.customerName ? (
                         <>
-                          <div style={{ fontWeight: "600", color: "#334155" }}>Cliente registrado</div>
-                          {sale.customerPhone && <div style={{ fontSize: "10px", color: "#64748b" }}>Tel: {maskPhone(sale.customerPhone)}</div>}
+                          <div style={{ fontWeight: "600", color: "var(--text-secondary)" }}>Cliente registrado</div>
+                          {sale.customerPhone && <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Tel: {maskPhone(sale.customerPhone)}</div>}
                         </>
                       ) : (
-                        <span style={{ color: "#94a3b8", fontStyle: "italic" }}>General</span>
+                        <span style={{ color: "var(--text-faint)", fontStyle: "italic" }}>General</span>
                       )}
                     </td>
                     <td style={{ ...td, textAlign: "right", fontWeight: "700" }}>
@@ -300,7 +300,7 @@ export default function TicketHistoryModal({
             </tbody>
           </table>
         </div>
-        <button onClick={onClose} style={{ ...submitBtn, backgroundColor: "#64748b", marginTop: "14px", width: "100%" }}>
+        <button onClick={onClose} style={{ ...submitBtn, backgroundColor: "var(--text-muted)", marginTop: "14px", width: "100%" }}>
           Cerrar
         </button>
       </div>
