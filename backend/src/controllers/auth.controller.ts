@@ -9,6 +9,8 @@ import {
 import { AppError } from "../utils/AppError";
 import { buildLoginSecondFactor } from "./webauthn.controller";
 import { recordLoginEvent } from "../utils/authAudit";
+import { getActiveSession, openSession, closeSession } from "../utils/sessionRegistry";
+import { getRequestDeviceId } from "../middlewares/device.middleware";
 import {
   findUserForAdminLogin,
   findUserForCashierLogin,
@@ -43,20 +45,76 @@ const handleAppError = (error: unknown, res: Response, fallbackMessage: string):
 };
 
 export const adminLogin = async (req: Request, res: Response): Promise<void> => {
-  const { email, password } = req.body;
+  const { email, password, autofilled } = req.body;
   if (!email || !password) {
     res.status(400).json({ message: "El correo y la contraseña son requeridos." });
     return;
   }
   try {
     const user = await findUserForAdminLogin(email, password, clientIp(req));
-    const secondFactor = await buildLoginSecondFactor(user as any);
+
+    // ── Sesión única por correo (admin/gerente) ──
+    // La contraseña ya fue validada arriba. Solo se bloquea si ya hay una sesión
+    // activa en OTRO dispositivo. Si la sesión activa es de ESTE mismo equipo
+    // (mismo deviceId), se permite reingresar reemplazándola: así, aunque el
+    // logout no haya alcanzado a liberar la sesión, la misma persona/máquina no
+    // queda bloqueada.
+    const currentDevice = getRequestDeviceId(req);
+    const active = getActiveSession(user.id);
+    if (active && active.device && currentDevice && active.device !== currentDevice) {
+      res.status(409).json({
+        code: "SESION_ABIERTA",
+        message:
+          "Ya hay una sesión activa con este usuario en otro dispositivo. Cierre esa sesión para poder ingresar.",
+        session: {
+          ip: active.ip || null,
+          device: active.device || null,
+          since: active.since,
+        },
+      });
+      return;
+    }
+
+    // Segundo factor (Windows Hello) SOLO cuando el navegador autocompletó los
+    // campos de correo y contraseña: protege contra el uso de credenciales
+    // guardadas por terceros. Si se capturan a mano, el acceso es directo.
+    if (autofilled) {
+      const secondFactor = await buildLoginSecondFactor(user as any);
+      res.status(200).json({
+        message:
+          secondFactor.mode === "register"
+            ? "Contraseña correcta. Registre su dispositivo de seguridad (Windows Hello) para continuar."
+            : "Contraseña correcta. Confirme su identidad con Windows Hello.",
+        ...secondFactor,
+      });
+      return;
+    }
+
+    // Captura manual: acceso directo abriendo la sesión única del usuario.
+    recordLoginEvent(req, user, "Contraseña");
+    const jti = openSession(user.id, { ip: clientIp(req), device: getRequestDeviceId(req) || undefined });
+    const token = generateToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      branchId: user.branchId,
+      jti,
+    });
     res.status(200).json({
-      message:
-        secondFactor.mode === "register"
-          ? "Contraseña correcta. Registre su dispositivo de seguridad (Windows Hello) para continuar."
-          : "Contraseña correcta. Confirme su identidad con Windows Hello.",
-      ...secondFactor,
+      message: "Acceso autorizado.",
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        branch: {
+          id: user.branch!.id,
+          name: user.branch!.name,
+          phone: user.branch!.phone,
+          address: user.branch!.address,
+        },
+      },
     });
   } catch (error) {
     handleAppError(error, res, "Error interno del servidor.");
@@ -133,6 +191,18 @@ export const cashierLogin = async (req: Request, res: Response): Promise<void> =
     }
     handleAppError(error, res, "Error interno del servidor.");
   }
+};
+
+/**
+ * Cierra la sesión activa del usuario en el registro en memoria, liberando el
+ * correo para un nuevo inicio de sesión. El middleware garantiza que solo el
+ * titular de la sesión vigente llega aquí.
+ */
+export const logout = async (req: Request, res: Response): Promise<void> => {
+  if (req.user?.userId) {
+    closeSession(req.user.userId);
+  }
+  res.status(200).json({ message: "Sesión cerrada." });
 };
 
 export const getProfile = async (req: Request, res: Response): Promise<void> => {
@@ -221,11 +291,14 @@ export const verifyOtp = async (req: Request, res: Response) => {
     }
     const user = await validateOtpCode(decoded.userId, otpCode);
     recordLoginEvent(req, user, "Contraseña + OTP correo");
+    // Abre (o reemplaza) la sesión única del usuario y firma el token con su jti.
+    const jti = openSession(user.id, { ip: clientIp(req), device: getRequestDeviceId(req) || undefined });
     const token = generateToken({
       userId: user.id,
       email: user.email,
       role: user.role,
       branchId: user.branchId,
+      jti,
     });
     return res.json({
       token,

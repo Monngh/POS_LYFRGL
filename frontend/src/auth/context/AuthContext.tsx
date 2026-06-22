@@ -22,7 +22,7 @@ interface AuthContextType {
   webAuthnFailed: boolean;
   setWebAuthnFailed: (v: boolean) => void;
   pendingToken: string | null;
-  loginAsAdmin: (email: string, password: string) => Promise<void>;
+  loginAsAdmin: (email: string, password: string, autofilled?: boolean) => Promise<void>;
   loginAsCashier: (email: string, pinCode: string) => Promise<void>;
   requestOtp: () => Promise<{ email: string }>;
   verifyOtp: (otpCode: string) => Promise<void>;
@@ -84,11 +84,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
    *      dispositivo registrado, se enrola en este momento.
    * Aunque el navegador autocomplete la contraseña, sin el paso 2 no hay acceso.
    */
-  const loginAsAdmin = async (email: string, password: string) => {
+  const loginAsAdmin = async (email: string, password: string, autofilled = false) => {
     setLoading(true);
     setWebAuthnFailed(false);
     try {
-      const { data } = await api.post("/api/auth/admin-login", { email, password });
+      const { data } = await api.post("/api/auth/admin-login", { email, password, autofilled });
 
       // Compatibilidad: si el backend devolviera una sesión directa.
       if (data.token && data.user) {
@@ -137,7 +137,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
       // Si ya es un Error con mensaje propio (ceremonial WebAuthn), respétalo.
       if (error instanceof Error && !(error as any).response) throw error;
-      throw new Error(error.response?.data?.message || "Error al iniciar sesión.");
+      // Propagar datos estructurados (p.ej. code: "SESION_ABIERTA" con detalles)
+      // para que el formulario muestre el aviso y la opción de forzar ingreso.
+      const err = new Error(error.response?.data?.message || "Error al iniciar sesión.");
+      (err as any).info = error.response?.data || {};
+      throw err;
     }
   };
 
@@ -175,6 +179,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    // Liberar la sesión única en el backend. IMPORTANTE: el token se envía con
+    // header explícito porque el interceptor lo lee de sessionStorage de forma
+    // asíncrona y aquí lo borramos enseguida; sin esto la petición saldría sin
+    // Authorization (401) y la sesión quedaría marcada como "abierta".
+    const existingToken = sessionStorage.getItem("fmb_pos_token");
+    if (existingToken) {
+      api
+        .post("/api/auth/logout", {}, { headers: { Authorization: `Bearer ${existingToken}` } })
+        .catch(() => {});
+    }
     sessionStorage.removeItem("fmb_pos_token");
     sessionStorage.removeItem("fmb_pos_user");
     localStorage.removeItem("fmb_pos_token");

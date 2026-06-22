@@ -432,7 +432,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       fontSize: 11,
                       fontWeight: 700,
                       color: "var(--text-muted)",
-                      borderBottom: "1px solid #f1f5f9",
+                      borderBottom: "1px solid var(--border-soft)",
                       backgroundColor: "var(--surface-2)",
                       letterSpacing: "0.2px"
                     }}>
@@ -721,7 +721,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               <Row label="Subtotal" value={moneyExact(detail.subtotal)} />
               {detail.discountAmount > 0 && <Row label="Descuento" value={`- ${moneyExact(detail.discountAmount)}`} />}
               <Row label="IVA (16%)" value={moneyExact(detail.taxAmount)} />
-              <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 4, paddingTop: 8 }}>
+              <div style={{ borderTop: "1px solid var(--border)", marginTop: 4, paddingTop: 8 }}>
                 <Row label="Total" value={moneyExact(detail.totalAmount)} strong />
               </div>
             </div>
@@ -779,8 +779,8 @@ const Info: React.FC<{ label: string; value: React.ReactNode }> = ({ label, valu
 
 const Row: React.FC<{ label: string; value: string; strong?: boolean }> = ({ label, value, strong }) => (
   <div style={{ display: "flex", justifyContent: "space-between", fontSize: strong ? 16 : 13 }}>
-    <span style={{ color: strong ? "#0f172a" : "#64748b", fontWeight: strong ? 800 : 500 }}>{label}</span>
-    <span style={{ color: strong ? "#1e3a8a" : "#334155", fontWeight: strong ? 800 : 700 }}>{value}</span>
+    <span style={{ color: strong ? "var(--text)" : "#64748b", fontWeight: strong ? 800 : 500 }}>{label}</span>
+    <span style={{ color: strong ? "#1e3a8a" : "var(--text-secondary)", fontWeight: strong ? 800 : 700 }}>{value}</span>
   </div>
 );
 
