@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../shared/context/AuthContext";
 import { ShieldCheck, UserCheck, Delete, KeyRound, AlertCircle, RefreshCw, Lock } from "lucide-react";
-import api from "../services/api";
+import api from "../shared/services/api";
 import {
   type FieldErrors,
   normalizeEmailInput,
@@ -9,7 +9,7 @@ import {
   validateEmail,
   validateInteger,
   validateSearchText,
-} from "../utils/formValidation";
+} from "../shared/utils/formValidation";
 
 interface Branch {
   id: number;

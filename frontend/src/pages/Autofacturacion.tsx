@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { API_BASE_URL } from '../services/api';
+import { API_BASE_URL } from '../shared/services/api';
 import {
   Search,
   FileText,
@@ -31,7 +31,7 @@ import {
   validateReference,
   validateRfc,
   validateSafeText,
-} from "../utils/formValidation";
+} from "../shared/utils/formValidation";
 
 interface TicketItem {
   name: string;
