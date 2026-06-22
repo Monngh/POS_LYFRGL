@@ -59,6 +59,7 @@ interface PurchaseRow {
     unitCost: number;
     subtotal: number;
     product: { id: number; sku: string; name: string };
+    unit?: string;
   }>;
   createdByUser: { id: number; name: string };
 }
@@ -67,21 +68,28 @@ interface Line {
   productId: string;
   quantity: string;
   unitCost: string;
+  unit: string;
 }
 
 type TopFieldErrors = Partial<Record<"branchId" | "supplierId" | "reference" | "notes", string>>;
 type LineFieldErrors = Record<number, Partial<Record<keyof Line, string>>>;
 
-interface ProductTaxEntry {
-  id: number;
-  name: string;
-  rate: number;
-}
-
-const newLine = (): Line => ({ productId: "", quantity: "", unitCost: "" });
+const generateReferenceCode = () => {
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const randomStr = Math.floor(1000 + Math.random() * 9000);
+  return `OC-${dateStr}-${randomStr}`;
+};
 
 const statusTone = (s: string) =>
   s === "RECIBIDA" ? "green" : s === "CANCELADA" ? "red" : "amber";
+
+const UNIT_OPTIONS = [
+  { value: "PIEZA", label: "Pieza" },
+  { value: "LOTE", label: "Lote" },
+  { value: "CAJA", label: "Caja" },
+  { value: "KILO", label: "Kilo" },
+  { value: "LITRO", label: "Litro" },
+];
 
 const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
   const isMobile = useMediaQuery("(max-width: 1024px)");
@@ -101,13 +109,17 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
   // Formulario nueva orden
   const [branchId, setBranchId] = useState("");
   const [supplierId, setSupplierId] = useState("");
-  const [reference, setReference] = useState("");
+  const [reference, setReference] = useState(() => generateReferenceCode());
   const [notes, setNotes] = useState("");
-  const [lines, setLines] = useState<Line[]>([newLine()]);
+  const [lines, setLines] = useState<Line[]>([]);
   const [fieldErrors, setFieldErrors] = useState<TopFieldErrors>({});
   const [lineErrors, setLineErrors] = useState<LineFieldErrors>({});
-  // Caché de impuestos por productId (se carga al seleccionar)
-  const [productTaxes, setProductTaxes] = useState<Record<string, ProductTaxEntry[]>>({});
+
+  // Modales y buscadores
+  const [supplierModalOpen, setSupplierModalOpen] = useState(false);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [productModalOpen, setProductModalOpen] = useState(false);
+  const [productSearch, setProductSearch] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -191,66 +203,17 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
     handleDecimalInputChange(rawValue, (nextValue) => setLine(i, k, nextValue));
   };
 
-  const onPickProduct = (i: number, productId: string) => {
-    const pool = supplierId && supplierProducts.length > 0 ? supplierProducts : products;
-    const prod = pool.find((p) => String(p.id) === productId);
-    setLines((ls) =>
-      ls.map((l, idx) =>
-        idx === i
-          ? { ...l, productId, unitCost: l.unitCost || (prod ? String(prod.costPrice) : "") }
-          : l
-      )
-    );
-    setLineErrors((prev) => {
-      const next = { ...prev };
-      if (next[i]) {
-        next[i] = { ...next[i] };
-        delete next[i].productId;
-      }
-      return next;
-    });
-    // Cargar impuestos del producto si no están en caché
-    if (productId && productTaxes[productId] === undefined) {
-      api
-        .get<{ data: { taxes: Array<{ id: number; name: string; rate: number | string; active: boolean }> } }>(
-          `/api/admin-tax/products/${productId}/taxes`
-        )
-        .then((r) => {
-          const activeTaxes: ProductTaxEntry[] = r.data.data.taxes
-            .filter((t) => t.active)
-            .map((t) => ({ id: t.id, name: t.name, rate: Number(t.rate) }));
-          setProductTaxes((prev) => ({ ...prev, [productId]: activeTaxes }));
-        })
-        .catch(() => {
-          setProductTaxes((prev) => ({ ...prev, [productId]: [] }));
-        });
-    }
-  };
-
-  const addLine = () => setLines((ls) => [...ls, newLine()]);
   const removeLine = (i: number) => {
-    setLines((ls) => (ls.length === 1 ? ls : ls.filter((_, idx) => idx !== i)));
+    setLines((ls) => ls.filter((_, idx) => idx !== i));
     setLineErrors({});
   };
 
   const computedTotals = (() => {
     let subtotal = 0;
-    const taxMap: Record<string, { name: string; amount: number }> = {};
-
     for (const l of lines) {
-      const lineSubtotal = (Number(l.quantity) || 0) * (Number(l.unitCost) || 0);
-      subtotal += lineSubtotal;
-      const taxes = l.productId ? (productTaxes[l.productId] ?? []) : [];
-      for (const tax of taxes) {
-        const taxAmount = lineSubtotal * tax.rate;
-        if (!taxMap[tax.name]) taxMap[tax.name] = { name: tax.name, amount: 0 };
-        taxMap[tax.name].amount += taxAmount;
-      }
+      subtotal += (Number(l.quantity) || 0) * (Number(l.unitCost) || 0);
     }
-
-    const taxEntries = Object.values(taxMap);
-    const totalTax = taxEntries.reduce((s, t) => s + t.amount, 0);
-    return { subtotal, taxEntries, totalTax, total: subtotal + totalTax };
+    return { total: subtotal };
   })();
 
   const submit = async () => {
@@ -274,9 +237,10 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
     }
     const selectedLines = lines.filter((l) => l.productId);
     if (selectedLines.length === 0) {
-      nextLineErrors[0] = { productId: "Agregue al menos un producto." };
+      setFormError("Debe agregar al menos un producto a la compra.");
+      return;
     }
-    const details: Array<{ productId: number; quantity: number; unitCost: number }> = [];
+    const details: Array<{ productId: number; quantity: number; unitCost: number; unit: string }> = [];
     const roundedValues: Array<DecimalFieldValue | null> = [];
     for (const [index, line] of selectedLines.entries()) {
       const originalIndex = lines.indexOf(line);
@@ -284,19 +248,19 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
       const quantity = Number(line.quantity);
       const quantityError = validateInteger(line.quantity, `La cantidad del renglon ${index + 1}`, { min: 1 });
       if (quantityError || !Number.isInteger(quantity) || quantity <= 0) {
-        rowErrors.quantity = `La cantidad del renglon ${index + 1} debe ser un entero mayor a 0.`;
+        rowErrors.quantity = `La cantidad debe ser un entero mayor a 0.`;
       }
 
       const unitCostValidation = line.unitCost.trim()
         ? validateDecimalField(line.unitCost, `El costo unitario del renglon ${index + 1}`, {
-            invalidMessage: `El costo unitario del renglon ${index + 1} debe ser un numero valido con maximo 3 decimales.`,
+            invalidMessage: `El costo unitario debe ser un numero valido con maximo 3 decimales.`,
           })
         : null;
       if (unitCostValidation && !unitCostValidation.ok) {
         rowErrors.unitCost = unitCostValidation.error;
       }
       if (!line.unitCost.trim()) {
-        rowErrors.unitCost = `El costo unitario del renglon ${index + 1} es obligatorio.`;
+        rowErrors.unitCost = `El costo unitario es obligatorio.`;
       }
       if (Object.keys(rowErrors).length > 0) {
         nextLineErrors[originalIndex] = rowErrors;
@@ -308,6 +272,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
         productId: Number(line.productId),
         quantity,
         unitCost: unitCostValue?.value ?? 0,
+        unit: line.unit,
       });
     }
     if (Object.keys(nextFieldErrors).length > 0 || Object.keys(nextLineErrors).length > 0) {
@@ -336,13 +301,12 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
       setSuccess(
         `Orden #${res.data.id} creada (${res.data.reference}) — Proveedor: ${res.data.supplier.name}. Total: ${money(Number(res.data.total))}. Estado: PENDIENTE.`
       );
-      setLines([newLine()]);
+      setLines([]);
       setSupplierId("");
-      setReference("");
+      setReference(generateReferenceCode());
       setNotes("");
       setFieldErrors({});
       setLineErrors({});
-      setProductTaxes({});
       await refetchPurchases();
     } catch (err: any) {
       setFormError(err.response?.data?.message || "No se pudo registrar la compra.");
@@ -438,8 +402,23 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
     },
   ];
 
+  const selectedSupplier = suppliers.find((s) => String(s.id) === supplierId);
+
   return (
     <div>
+      <style>{`
+        .hover-bg:hover {
+          background-color: var(--surface-2) !important;
+        }
+        .modal-item {
+          transition: all 0.2s ease;
+        }
+        .modal-item:hover {
+          border-color: var(--accent) !important;
+          background-color: var(--surface-2) !important;
+        }
+      `}</style>
+
       <SectionHeader
         title="Compras"
         subtitle="Órdenes de compra — el inventario se actualiza al recibir la mercancía"
@@ -471,34 +450,36 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
           </div>
           <div>
             <label style={ui.fieldLabel}>Proveedor *</label>
-            <select
-              style={ui.input}
-              value={supplierId}
-              onChange={(e) => {
-                setSupplierId(e.target.value);
-                setLines([newLine()]);
-                setLineErrors({});
-                setFieldErrors((prev) => ({ ...prev, supplierId: undefined }));
+            <button
+              type="button"
+              style={{
+                ...ui.input,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                textAlign: "left",
+                backgroundColor: "var(--surface)",
+                cursor: "pointer",
+                height: 38,
+              }}
+              onClick={() => {
+                setSupplierSearch("");
+                setSupplierModalOpen(true);
               }}
             >
-              <option value="">Seleccione proveedor...</option>
-              {suppliers.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+              <span style={{ color: selectedSupplier ? "var(--text)" : "var(--text-muted)", fontSize: 14 }}>
+                {selectedSupplier ? selectedSupplier.name : "Seleccione proveedor..."}
+              </span>
+              <ChevronDown size={16} color="var(--text-muted)" />
+            </button>
             {fieldErrors.supplierId && <p style={styles.fieldError}>{fieldErrors.supplierId}</p>}
           </div>
           <div>
             <label style={ui.fieldLabel}>Referencia / Factura *</label>
             <input
-              style={ui.input}
+              style={{ ...ui.input, backgroundColor: "var(--surface-2)", cursor: "not-allowed" }}
               value={reference}
-              onChange={(e) => {
-                setReference(e.target.value);
-                setFieldErrors((prev) => ({ ...prev, reference: validateReference(e.target.value, "La referencia", { required: true, max: 80 }) }));
-              }}
+              readOnly
               placeholder="Folio o nota"
             />
             {fieldErrors.reference && <p style={styles.fieldError}>{fieldErrors.reference}</p>}
@@ -506,13 +487,19 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <label style={ui.fieldLabel}>Notas (opcional)</label>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <label style={{ ...ui.fieldLabel, marginBottom: 0 }}>Notas (opcional)</label>
+            <span style={{ fontSize: 11, color: notes.length >= 200 ? "var(--color-danger)" : "var(--text-muted)", fontWeight: 600 }}>
+              {notes.length} / 200
+            </span>
+          </div>
           <textarea
             style={{ ...ui.input, resize: "vertical", minHeight: 52, fontSize: 13 }}
             value={notes}
+            maxLength={200}
             onChange={(e) => {
               setNotes(e.target.value);
-              setFieldErrors((prev) => ({ ...prev, notes: validateReference(e.target.value, "Las notas", { required: false, max: 200 }) }));
+              setFieldErrors((prev) => ({ ...prev, notes: undefined }));
             }}
             placeholder="Observaciones sobre la compra..."
           />
@@ -525,80 +512,79 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
             <tr style={ui.theadRow}>
               <th style={ui.th}>Producto</th>
               <th style={{ ...ui.th, width: 120, textAlign: "center" }}>Cantidad</th>
+              <th style={{ ...ui.th, width: 140, textAlign: "center" }}>Unidad</th>
               <th style={{ ...ui.th, width: 150, textAlign: "center" }}>Costo unitario</th>
               <th style={{ ...ui.th, width: 130, textAlign: "right" }}>Importe</th>
               <th style={{ ...ui.th, width: 50 }}></th>
             </tr>
           </thead>
           <tbody>
-            {lines.map((l, i) => (
-              <tr key={i}>
-                <td style={ui.td}>
-                  <select
-                    style={{ ...ui.input, padding: "8px 10px" }}
-                    value={l.productId}
-                    onChange={(e) => onPickProduct(i, e.target.value)}
-                    disabled={!supplierId || loadingProducts}
-                  >
-                    <option value="">
-                      {loadingProducts
-                        ? "Cargando productos..."
-                        : supplierId && supplierProducts.length === 0
-                        ? "Sin productos asignados a este proveedor"
-                        : "Seleccione producto..."}
-                    </option>
-                    {(supplierId ? supplierProducts : products).map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.sku}) — ${p.costPrice}
-                      </option>
-                    ))}
-                  </select>
-                  {l.productId && productTaxes[l.productId] !== undefined && (
-                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>
-                      {productTaxes[l.productId].length > 0
-                        ? productTaxes[l.productId].map((t) => {
-                            const pct = `${(t.rate * 100).toFixed(0)}%`;
-                            return t.name.includes(pct) ? t.name : `${t.name} ${pct}`;
-                          }).join(" · ")
-                        : "Sin impuestos"}
-                    </div>
-                  )}
-                  {lineErrors[i]?.productId && <p style={styles.fieldError}>{lineErrors[i]?.productId}</p>}
-                </td>
-                <td style={ui.td}>
-                  <input
-                    style={{ ...ui.input, padding: "8px 10px", textAlign: "center" }}
-                    value={l.quantity}
-                    onChange={(e) => setLine(i, "quantity", e.target.value)}
-                    placeholder="0"
-                  />
-                  {lineErrors[i]?.quantity && <p style={styles.fieldError}>{lineErrors[i]?.quantity}</p>}
-                </td>
-                <td style={ui.td}>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    style={{ ...ui.input, padding: "8px 10px", textAlign: "center" }}
-                    value={l.unitCost}
-                    onChange={(e) => setDecimalLine(i, "unitCost", e.target.value)}
-                    placeholder="0.00"
-                  />
-                  {lineErrors[i]?.unitCost && <p style={styles.fieldError}>{lineErrors[i]?.unitCost}</p>}
-                </td>
-                <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>
-                  {money((Number(l.quantity) || 0) * (Number(l.unitCost) || 0))}
-                </td>
-                <td style={{ ...ui.td, textAlign: "center" }}>
-                  <button
-                    onClick={() => removeLine(i)}
-                    style={{ background: "none", border: "none", cursor: "pointer" }}
-                    title="Quitar renglón"
-                  >
-                    <Trash2 size={16} color="#b91c1c" />
-                  </button>
+            {lines.length === 0 ? (
+              <tr>
+                <td colSpan={6} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px 12px", fontSize: 13 }}>
+                  No hay productos seleccionados. Use "Agregar producto" para añadir elementos a esta compra.
                 </td>
               </tr>
-            ))}
+            ) : (
+              lines.map((l, i) => {
+                const pool = supplierProducts.length > 0 ? supplierProducts : products;
+                const prod = pool.find((p) => String(p.id) === l.productId);
+                return (
+                  <tr key={i}>
+                    <td style={ui.td}>
+                      <div style={{ fontWeight: 600, color: "var(--text)" }}>{prod?.name || "Desconocido"}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-faint)" }}>SKU: {prod?.sku || "—"}</div>
+                      {lineErrors[i]?.productId && <p style={styles.fieldError}>{lineErrors[i]?.productId}</p>}
+                    </td>
+                    <td style={ui.td}>
+                      <input
+                        style={{ ...ui.input, padding: "8px 10px", textAlign: "center" }}
+                        value={l.quantity}
+                        onChange={(e) => setLine(i, "quantity", e.target.value)}
+                        placeholder="0"
+                      />
+                      {lineErrors[i]?.quantity && <p style={styles.fieldError}>{lineErrors[i]?.quantity}</p>}
+                    </td>
+                    <td style={ui.td}>
+                      <select
+                        style={{ ...ui.input, padding: "8px 10px", textAlign: "center" }}
+                        value={l.unit}
+                        onChange={(e) => setLine(i, "unit", e.target.value)}
+                      >
+                        {UNIT_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td style={ui.td}>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        style={{ ...ui.input, padding: "8px 10px", textAlign: "center" }}
+                        value={l.unitCost}
+                        onChange={(e) => setDecimalLine(i, "unitCost", e.target.value)}
+                        placeholder="0.00"
+                      />
+                      {lineErrors[i]?.unitCost && <p style={styles.fieldError}>{lineErrors[i]?.unitCost}</p>}
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>
+                      {money((Number(l.quantity) || 0) * (Number(l.unitCost) || 0))}
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <button
+                        onClick={() => removeLine(i)}
+                        style={{ background: "none", border: "none", cursor: "pointer" }}
+                        title="Quitar renglón"
+                      >
+                        <Trash2 size={16} color="#b91c1c" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
         </div>
@@ -611,24 +597,22 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
             marginTop: 14,
           }}
         >
-          <button style={ui.ghostBtn} className="active-tap" onClick={addLine}>
+          <button
+            style={ui.ghostBtn}
+            className="active-tap"
+            onClick={() => {
+              if (!supplierId) {
+                setFormError("Por favor, seleccione un proveedor primero.");
+                return;
+              }
+              setProductSearch("");
+              setProductModalOpen(true);
+            }}
+          >
             <Plus size={15} /> Agregar producto
           </button>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-            <div style={{ fontSize: 13, color: "#475569" }}>
-              Subtotal: <strong style={{ color: "var(--text)" }}>{money(computedTotals.subtotal)}</strong>
-            </div>
-            {computedTotals.taxEntries.map((t) => (
-              <div key={t.name} style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                {t.name}: <span>{money(t.amount)}</span>
-              </div>
-            ))}
-            {computedTotals.taxEntries.length === 0 && computedTotals.subtotal > 0 && (
-              <div style={{ fontSize: 12, color: "var(--text-faint)", fontStyle: "italic" }}>
-                Sin impuestos asignados
-              </div>
-            )}
-            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--accent-strong)", borderTop: "1px solid #e2e8f0", paddingTop: 4, marginTop: 2 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--accent-strong)", paddingTop: 4 }}>
               Total estimado: {money(computedTotals.total)}
             </div>
           </div>
@@ -821,7 +805,9 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                                 <div style={{ fontSize: 11, color: "var(--text-faint)" }}>SKU: {d.product.sku}</div>
                               </div>
                               <div style={{ textAlign: "right" }}>
-                                <span style={{ fontWeight: 600, color: "#475569" }}>{d.quantity} u.</span>
+                                <span style={{ fontWeight: 600, color: "#475569" }}>
+                                  {d.quantity} {d.unit ? d.unit.toLowerCase() : "pieza(s)"}
+                                </span>
                                 <span style={{ color: "var(--text-faint)", margin: "0 4px" }}>x</span>
                                 <span style={{ fontWeight: 600, color: "var(--text-muted)" }}>{money(d.unitCost)}</span>
                               </div>
@@ -851,6 +837,174 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
           emptyMessage="No hay órdenes de compra con los filtros seleccionados."
           keyExtractor={(p) => p.id}
         />
+      )}
+
+      {/* MODAL SELECCION PROVEEDOR */}
+      {supplierModalOpen && (
+        <div style={ui.overlay} onClick={() => setSupplierModalOpen(false)}>
+          <div style={{ ...ui.modal, maxWidth: 500 }} onClick={(e) => e.stopPropagation()}>
+            <div style={ui.modalHeader}>
+              <h3 style={ui.modalTitle}>Seleccionar Proveedor</h3>
+              <button
+                onClick={() => setSupplierModalOpen(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-muted)", fontWeight: 700 }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={ui.modalBody}>
+              <input
+                style={{ ...ui.input, marginBottom: 12 }}
+                value={supplierSearch}
+                onChange={(e) => setSupplierSearch(e.target.value)}
+                placeholder="Buscar proveedor..."
+                autoFocus
+              />
+              <div style={{ maxHeight: 300, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+                {suppliers
+                  .filter((s) => s.name.toLowerCase().includes(supplierSearch.toLowerCase()))
+                  .map((s) => (
+                    <button
+                      key={s.id}
+                      style={{
+                        textAlign: "left",
+                        padding: "10px 14px",
+                        borderRadius: 8,
+                        border: "none",
+                        backgroundColor: String(s.id) === supplierId ? "var(--surface-2)" : "transparent",
+                        color: "var(--text)",
+                        cursor: "pointer",
+                        fontSize: 13,
+                        fontWeight: String(s.id) === supplierId ? 700 : 500,
+                        transition: "background-color 0.15s ease",
+                      }}
+                      className="active-tap hover-bg"
+                      onClick={() => {
+                        setSupplierId(String(s.id));
+                        setLines([]);
+                        setLineErrors({});
+                        setFieldErrors((prev) => ({ ...prev, supplierId: undefined }));
+                        setSupplierModalOpen(false);
+                      }}
+                    >
+                      {s.name}
+                    </button>
+                  ))}
+                {suppliers.filter((s) => s.name.toLowerCase().includes(supplierSearch.toLowerCase())).length === 0 && (
+                  <div style={{ textAlign: "center", color: "var(--text-muted)", padding: 12, fontSize: 13 }}>
+                    No se encontraron proveedores.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL SELECCION PRODUCTOS */}
+      {productModalOpen && (
+        <div style={ui.overlay} onClick={() => setProductModalOpen(false)}>
+          <div style={{ ...ui.modal, maxWidth: 600 }} onClick={(e) => e.stopPropagation()}>
+            <div style={ui.modalHeader}>
+              <h3 style={ui.modalTitle}>Agregar Productos</h3>
+              <button
+                onClick={() => setProductModalOpen(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-muted)", fontWeight: 700 }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={ui.modalBody}>
+              <input
+                style={{ ...ui.input, marginBottom: 12 }}
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                placeholder="Buscar por nombre o SKU..."
+                autoFocus
+              />
+              <div style={{ maxHeight: 350, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+                {loadingProducts ? (
+                  <div style={{ textAlign: "center", color: "var(--text-muted)", padding: 12, fontSize: 13 }}>
+                    Cargando productos del proveedor...
+                  </div>
+                ) : (() => {
+                  const pool = supplierProducts.length > 0 ? supplierProducts : products;
+                  const filtered = pool.filter(
+                    (p) =>
+                      p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+                      p.sku.toLowerCase().includes(productSearch.toLowerCase())
+                  );
+                  if (filtered.length === 0) {
+                    return (
+                      <div style={{ textAlign: "center", color: "var(--text-muted)", padding: 12, fontSize: 13 }}>
+                        No se encontraron productos.
+                      </div>
+                    );
+                  }
+                  return filtered.map((p) => {
+                    const isAdded = lines.some((l) => l.productId === String(p.id));
+                    return (
+                      <div
+                        key={p.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "10px 14px",
+                          borderRadius: 8,
+                          border: "1px solid var(--border-soft)",
+                          backgroundColor: "var(--surface)",
+                        }}
+                        className="modal-item"
+                      >
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{p.name}</div>
+                          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                            SKU: {p.sku} | Costo base: {money(p.costPrice)}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          style={{
+                            ...ui.primaryBtn,
+                            padding: "6px 12px",
+                            height: 30,
+                            fontSize: 12,
+                            backgroundColor: isAdded ? "#475569" : "#1e3a8a",
+                          }}
+                          className="active-tap"
+                          onClick={() => {
+                            setLines((prevLines) => {
+                              const existingIndex = prevLines.findIndex((l) => l.productId === String(p.id));
+                              if (existingIndex > -1) {
+                                return prevLines.map((l, idx) =>
+                                  idx === existingIndex
+                                    ? { ...l, quantity: String((Number(l.quantity) || 0) + 1) }
+                                    : l
+                                );
+                              } else {
+                                const newLineItem: Line = {
+                                  productId: String(p.id),
+                                  quantity: "1",
+                                  unitCost: String(p.costPrice),
+                                  unit: "PIEZA",
+                                };
+                                return [...prevLines, newLineItem];
+                              }
+                            });
+                            setFormError(null);
+                          }}
+                        >
+                          {isAdded ? "Agregar +1" : "Agregar"}
+                        </button>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
