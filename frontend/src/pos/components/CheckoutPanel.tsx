@@ -115,12 +115,14 @@ export function CheckoutPanel({
           <span style={{ fontWeight: "600" }}>${cartSubtotal.toFixed(2)}</span>
         </div>
         {Object.keys(taxBreakdown).length > 0 ? (
-          Object.entries(taxBreakdown).map(([taxName, taxAmount]) => (
-            <div key={taxName} style={styles.summaryRow}>
-              <span>{taxName}:</span>
-              <span style={{ fontWeight: "600" }}>${(taxAmount as number).toFixed(2)}</span>
-            </div>
-          ))
+          Object.entries(taxBreakdown)
+            .filter(([_, taxAmount]) => (taxAmount as number) > 0)
+            .map(([taxName, taxAmount]) => (
+              <div key={taxName} style={styles.summaryRow}>
+                <span>{taxName}:</span>
+                <span style={{ fontWeight: "600" }}>${(taxAmount as number).toFixed(2)}</span>
+              </div>
+            ))
         ) : (
           <div style={styles.summaryRow}>
             <span>Impuestos:</span>

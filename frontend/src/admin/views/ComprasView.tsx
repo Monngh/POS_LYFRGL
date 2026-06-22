@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Ban, Calendar, CheckCircle2, ChevronDown, ChevronUp, Package, Plus, Trash2 } from "lucide-react";
+import { Calendar, CheckCircle2, ChevronDown, ChevronUp, Package, Plus, Trash2 } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
 import { DataTable } from "../../shared/ui";
@@ -414,11 +414,10 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                 padding: "6px 12px",
                 height: 30,
                 backgroundColor: "#dc2626",
-                color: "#ffffff",
               }}
               onClick={() => cancelPurchase(p.id)}
             >
-              <Ban size={14} /> Cancelar
+              Cancelar
             </button>
           </div>
         ) : (
@@ -825,12 +824,11 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                                   padding: "6px 12px",
                                   height: 30,
                                   backgroundColor: "#dc2626",
-                                  color: "#ffffff",
                                 }}
                                 onClick={() => cancelPurchase(p.id)}
                                 className="active-tap"
                               >
-                                <Ban size={14} /> Cancelar
+                                Cancelar
                               </button>
                             </div>
                           )}
