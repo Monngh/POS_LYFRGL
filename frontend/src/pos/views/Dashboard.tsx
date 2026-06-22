@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Navigate } from "react-router-dom";
 import "../../pos-cashier-responsive.css";
 import { useAuth } from "../../auth";
 import {
@@ -25,7 +26,6 @@ import { usePosCart } from "../hooks/usePosCart";
 import { usePosSearch } from "../hooks/usePosSearch";
 import { printTicketElementById, ticketPdfFilename } from "../../shared/utils/ticketEmailDocument.util";
 import { generateTicketPdfBase64 } from "../../shared/utils/ticketPdf.util";
-import AdminDashboard from "../../admin/views/AdminDashboard";
 import {
   normalizeIntegerInput,
   validateInteger,
@@ -1106,7 +1106,7 @@ const Dashboard: React.FC = () => {
   // RENDER A: PANEL ADMINISTRATIVO CENTRAL (Dashboard de métricas)
   // ===========================================================================
   if (user && (user.role === "ADMIN" || user.role === "GERENTE")) {
-    return <AdminDashboard />;
+    return <Navigate to="/admin" replace />;
   }
 
   // ===========================================================================
