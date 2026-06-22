@@ -57,6 +57,8 @@ export const ActionModal: React.FC<ActionModalProps> = ({
             justifyContent: "space-between",
             alignItems: "center",
             marginBottom: "16px",
+            paddingBottom: "12px",
+            borderBottom: "1px solid var(--border)",
           }}
         >
           <h2 style={{ margin: 0, fontSize: "18px", color: "var(--text)" }}>{title}</h2>
