@@ -28,6 +28,7 @@ export const getReturnEligibility = async (req: Request, res: Response): Promise
         customer: true,
         saleDetails: {
           include: {
+            saleDetailTaxes: true,
             product: {
               include: {
                 inventories: {
@@ -52,6 +53,11 @@ export const getReturnEligibility = async (req: Request, res: Response): Promise
 
     if (sale.branchId !== req.user.branchId) {
       res.status(400).json({ message: "La venta no pertenece a esta sucursal." });
+      return;
+    }
+
+    if (sale.status === "PENDIENTE") {
+      res.status(400).json({ message: "No se pueden realizar devoluciones sobre tickets con pago pendiente." });
       return;
     }
 
@@ -93,6 +99,16 @@ export const getReturnEligibility = async (req: Request, res: Response): Promise
       const unitDiscount = Number(detail.discountAmount) / detail.quantity;
       const netUnitPrice = Number(detail.unitPrice) - unitDiscount;
 
+      // Calcular impuestos históricos por unidad
+      let unitTax = 0;
+      if (detail.saleDetailTaxes && detail.saleDetailTaxes.length > 0) {
+        for (const sdt of detail.saleDetailTaxes) {
+          unitTax += Number(sdt.taxAmount) / detail.quantity;
+        }
+      } else {
+        unitTax = netUnitPrice * 0.16;
+      }
+
       return {
         saleDetailId: detail.id,
         productId: product.id,
@@ -105,6 +121,7 @@ export const getReturnEligibility = async (req: Request, res: Response): Promise
         unitPrice: Number(detail.unitPrice),
         unitDiscount,
         netUnitPrice,
+        unitTax,
         isReturnable,
         returnWindowDays,
         daysSinceSale: diffDays,
@@ -166,7 +183,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
     return;
   }
 
-  const VALID_RETURN_METHODS = ['EFECTIVO', 'TARJETA', 'QR_MERCADOPAGO', 'VALE_DEVOLUCION', 'CAMBIO_PRODUCTO'];
+  const VALID_RETURN_METHODS = ['EFECTIVO', 'TARJETA', 'QR_MERCADOPAGO', 'CAMBIO_PRODUCTO'];
   if (!VALID_RETURN_METHODS.includes(paymentMethod)) {
     res.status(400).json({ message: "El método de reembolso seleccionado no es válido." });
     return;
@@ -178,6 +195,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       where: {
         role: { in: ["ADMIN", "GERENTE"] },
         active: true,
+        branchId: req.user.branchId,
       },
     });
 
@@ -236,9 +254,33 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    if (sale.status === "PENDIENTE") {
+      res.status(400).json({ message: "No se pueden realizar devoluciones sobre tickets con pago pendiente." });
+      return;
+    }
+
     if (sale.status === "CANCELADA") {
       res.status(400).json({ message: "Esta venta ya está cancelada." });
       return;
+    }
+
+    if (paymentMethod !== "CAMBIO_PRODUCTO") {
+      if (sale.paymentMethod === "EFECTIVO" && paymentMethod !== "EFECTIVO") {
+        res.status(400).json({ message: "El método de devolución debe coincidir con el método de pago original (Efectivo)." });
+        return;
+      }
+      if (sale.paymentMethod === "TARJETA" && paymentMethod !== "TARJETA") {
+        res.status(400).json({ message: "El método de devolución debe coincidir con el método de pago original (Tarjeta)." });
+        return;
+      }
+      if (sale.paymentMethod === "QR_MERCADOPAGO" && paymentMethod !== "QR_MERCADOPAGO") {
+        res.status(400).json({ message: "El método de devolución debe coincidir con el método de pago original (Mercado Pago)." });
+        return;
+      }
+      if (sale.paymentMethod === "MIXTO" && !["EFECTIVO", "TARJETA"].includes(paymentMethod)) {
+        res.status(400).json({ message: "El método de devolución debe ser Efectivo o Tarjeta para un pago original mixto." });
+        return;
+      }
     }
 
     // 4. Validar reglas de negocio para cada ítem devuelto y calcular montos de reembolso

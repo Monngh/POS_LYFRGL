@@ -366,9 +366,18 @@ export const getRecentSales = async (
       where.invoiceNumber = { contains: filters.search.trim() };
     }
     if ((filters.customer && filters.customer.trim()) || (filters.phone && filters.phone.trim())) {
-      where.customer = {};
-      if (filters.customer && filters.customer.trim()) where.customer.name = { contains: filters.customer.trim() };
-      if (filters.phone && filters.phone.trim()) where.customer.phone = { contains: filters.phone.trim() };
+      if (filters.customer && filters.customer.trim()) {
+        const searchPattern = `%${filters.customer.trim()}%`;
+        const matchingCustomers = await prisma.$queryRaw<any[]>`
+          SELECT id FROM [Customer] WHERE [name] COLLATE Latin1_General_CI_AI LIKE ${searchPattern}
+        `;
+        const customerIds = matchingCustomers.map(c => c.id);
+        where.customerId = { in: customerIds };
+      }
+      if (filters.phone && filters.phone.trim()) {
+        where.customer = where.customer || {};
+        where.customer.phone = { contains: filters.phone.trim() };
+      }
     }
     if (filters.dateFrom || filters.dateTo) {
       where.createdAt = {};
@@ -424,9 +433,18 @@ export const getMyRecentSales = async (
       where.invoiceNumber = { contains: filters.search.trim() };
     }
     if ((filters.customer && filters.customer.trim()) || (filters.phone && filters.phone.trim())) {
-      where.customer = {};
-      if (filters.customer && filters.customer.trim()) where.customer.name = { contains: filters.customer.trim() };
-      if (filters.phone && filters.phone.trim()) where.customer.phone = { contains: filters.phone.trim() };
+      if (filters.customer && filters.customer.trim()) {
+        const searchPattern = `%${filters.customer.trim()}%`;
+        const matchingCustomers = await prisma.$queryRaw<any[]>`
+          SELECT id FROM [Customer] WHERE [name] COLLATE Latin1_General_CI_AI LIKE ${searchPattern}
+        `;
+        const customerIds = matchingCustomers.map(c => c.id);
+        where.customerId = { in: customerIds };
+      }
+      if (filters.phone && filters.phone.trim()) {
+        where.customer = where.customer || {};
+        where.customer.phone = { contains: filters.phone.trim() };
+      }
     }
     if (filters.dateFrom || filters.dateTo) {
       where.createdAt = {};

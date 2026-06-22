@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { validateLuhn } from "../utils/luhn";
 import {
   createBankDeposit as createBankDepositService,
   getRecentDeposits as getRecentDepositsService,
@@ -18,6 +19,18 @@ export const createBankDeposit = async (req: Request, res: Response): Promise<vo
   const isMercadoPago = String(paymentType).startsWith("MERCADOPAGO_");
   if (!isMercadoPago && (!accountNumber || !targetName)) {
     res.status(400).json({ message: "La cuenta de destino y el beneficiario son obligatorios para depósitos manuales." }); return;
+  }
+  if (!isMercadoPago && !validateLuhn(String(accountNumber))) {
+    res.status(400).json({ message: "El número de tarjeta no es válido (Luhn / longitud 15-16)." });
+    return;
+  }
+  if (!isMercadoPago && targetName && String(targetName).length > 100) {
+    res.status(400).json({ message: "El nombre del beneficiario no puede exceder los 100 caracteres." });
+    return;
+  }
+  if (comments && String(comments).length > 100) {
+    res.status(400).json({ message: "El campo de referencia o comentarios no puede exceder los 100 caracteres." });
+    return;
   }
   try {
     const deposit = await createBankDepositService({
@@ -108,6 +121,10 @@ export const cancelDeposit = async (req: Request, res: Response): Promise<void> 
   }
   const depositId = parseInt(id, 10);
   if (isNaN(depositId)) { res.status(400).json({ message: "ID de depósito inválido." }); return; }
+  if (reason && String(reason).length > 100) {
+    res.status(400).json({ message: "El motivo de cancelación no puede exceder los 100 caracteres." });
+    return;
+  }
   try {
     const updatedDeposit = await cancelDepositService(depositId, String(pinCode), String(reason));
     res.status(200).json({

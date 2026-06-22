@@ -61,7 +61,11 @@ api.interceptors.response.use(
       const { status, config } = error.response;
       
       // Evitar desloguear si es una verificación de PIN fallida (el supervisor ingresó PIN incorrecto)
-      const isPinVerification = config.url?.endsWith("/verify-pin") || config.url?.endsWith("/authorize-cancel");
+      const isPinVerification =
+        config.url?.endsWith("/verify-pin") ||
+        config.url?.endsWith("/authorize-cancel") ||
+        config.url?.endsWith("/returns") ||
+        config.url?.includes("/cancel");
 
       // Un 4xx en los endpoints de LOGIN es un fallo de credenciales normal, NO una
       // sesión expirada: no se debe disparar logout ni borrar el almacenamiento.
