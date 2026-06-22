@@ -1085,7 +1085,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               {/* Header row mirroring the fields */}
               <div style={{
                 display: "grid",
-                gridTemplateColumns: "3fr 1.3fr 1fr 1.5fr",
+                gridTemplateColumns: "1fr 72px 44px 80px",
                 padding: "12px 16px",
                 fontWeight: 700,
                 fontSize: 11,
@@ -1094,9 +1094,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 letterSpacing: "0.4px",
               }}>
                 <div>Producto</div>
-                <div>Precio</div>
+                <div style={{ textAlign: "right" }}>Precio</div>
                 <div style={{ textAlign: "center" }}>Stock</div>
-                <div style={{ textAlign: "right", paddingRight: 8 }}>Acción</div>
+                <div style={{ textAlign: "right", paddingRight: 4 }}>Acción</div>
               </div>
 
               {loading && (
@@ -1151,17 +1151,17 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       {/* Fila principal */}
                       <div style={{
                         display: "grid",
-                        gridTemplateColumns: "3fr 1.3fr 1fr 1.5fr",
+                        gridTemplateColumns: "1fr 72px 44px 80px",
                         padding: "12px 16px",
                         alignItems: "center",
                       }}>
                         {/* Producto */}
-                        <div style={{ fontSize: 13, color: "var(--text)", fontWeight: 600, paddingRight: 8, whiteSpace: "normal" }}>
+                        <div style={{ fontSize: 13, color: "var(--text)", fontWeight: 600, paddingRight: 8, minWidth: 0, overflow: "hidden", display: "-webkit-box" as React.CSSProperties["display"], WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as React.CSSProperties["WebkitBoxOrient"] }}>
                           {p.name}
                         </div>
 
                         {/* Precio */}
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "right" }}>
                           {money(p.sellPrice)}
                         </div>
 
@@ -1184,8 +1184,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               display: "inline-flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              backgroundColor: "#eff6ff",
-                              border: "1px solid #bfdbfe",
+                              backgroundColor: "var(--accent-soft)",
+                              border: "1px solid var(--border)",
                               borderRadius: 8,
                               width: 34,
                               height: 34,
@@ -1260,7 +1260,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             </div>
                             <div style={invDetailRow}>
                               <span style={invDetailLabel}>Margen:</span>
-                              <span style={{ ...invDetailValue, color: "#15803d" }}>
+                              <span style={{ ...invDetailValue, color: "var(--color-success)" }}>
                                 {p.sellPrice > 0
                                   ? `${(((p.sellPrice - p.costPrice) / p.sellPrice) * 100).toFixed(1)}%`
                                   : "—"}
@@ -1273,7 +1273,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Stock y Sucursales</h4>
                             <div style={invDetailRow}>
                               <span style={invDetailLabel}>Stock Actual:</span>
-                              <span style={{ ...invDetailValue, color: p.low ? "#b45309" : "#15803d" }}>{p.stock}</span>
+                              <span style={{ ...invDetailValue, color: p.low ? "var(--color-warning)" : "var(--color-success)" }}>{p.stock}</span>
                             </div>
                             <div style={invDetailRow}>
                               <span style={invDetailLabel}>Stock Mínimo:</span>
@@ -2206,8 +2206,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               </button>
             </div>
             <div style={{ ...ui.modalBody, maxHeight: "90vh", overflowY: "auto", padding: isMobile ? "16px" : "24px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-                <div>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 14 }}>
+                <div style={{ minWidth: 0 }}>
                   <label style={ui.fieldLabel}>SKU *</label>
                   <input
                     style={{ ...ui.input, backgroundColor: editingId !== null ? "var(--surface-3)" : "var(--input-bg)" }}
@@ -2219,9 +2219,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   />
                   {fieldErrors.sku && <p style={styles.fieldError}>{fieldErrors.sku}</p>}
                 </div>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <label style={ui.fieldLabel}>Código de barras</label>
-                  <input style={ui.input} value={form.barcode} onChange={set("barcode")} placeholder="7501000000000" />
+                  <input style={{ ...ui.input, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }} value={form.barcode} onChange={set("barcode")} placeholder="7501000000000" />
                   {fieldErrors.barcode && <p style={styles.fieldError}>{fieldErrors.barcode}</p>}
                 </div>
               </div>
@@ -2474,23 +2474,25 @@ const styles: { [key: string]: React.CSSProperties } = {
 
 const invDetailRow: React.CSSProperties = {
   display: "flex",
-  justifyContent: "flex-start",
-  alignItems: "center",
-  gap: "8px",
-  fontSize: 13,
-  marginBottom: 6,
+  flexDirection: "column",
+  gap: "2px",
+  marginBottom: 8,
 };
 
 const invDetailLabel: React.CSSProperties = {
-  fontWeight: 700,
+  fontWeight: 500,
   color: "var(--text-muted)",
-  minWidth: "105px",
-  display: "inline-block",
+  fontSize: 11,
+  textTransform: "uppercase",
+  letterSpacing: "0.3px",
 };
 
 const invDetailValue: React.CSSProperties = {
   fontWeight: 600,
-  color: "var(--text-secondary)",
+  color: "var(--text)",
+  fontSize: 13,
+  wordBreak: "break-word",
+  overflowWrap: "break-word",
 };
 
 export default InventarioView;
