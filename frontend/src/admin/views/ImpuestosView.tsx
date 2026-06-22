@@ -335,7 +335,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
       key: "description",
       header: "Descripcion",
       render: (tax) => (
-        <span style={{ color: "#475569", whiteSpace: "normal" }}>{tax.description || "Sin descripcion"}</span>
+        <span style={{ color: "var(--text-secondary)", whiteSpace: "normal" }}>{tax.description || "Sin descripcion"}</span>
       ),
     },
     {
@@ -585,20 +585,20 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                       </div>
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Tasa decimal</div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "#475569" }}>{formatDecimal(tax.rate)}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)" }}>{formatDecimal(tax.rate)}</div>
                       </div>
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Descripción</div>
-                        <div style={{ fontSize: 13, color: "#475569" }}>{tax.description || "Sin descripción"}</div>
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{tax.description || "Sin descripción"}</div>
                       </div>
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Fecha de creación</div>
-                        <div style={{ fontSize: 13, color: "#475569" }}>{fmtDate(tax.createdAt)}</div>
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmtDate(tax.createdAt)}</div>
                       </div>
                       {tax.updatedAt && (
                         <div>
                           <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Última actualización</div>
-                          <div style={{ fontSize: 13, color: "#475569" }}>{fmtDate(tax.updatedAt)}</div>
+                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmtDate(tax.updatedAt)}</div>
                         </div>
                       )}
                     </div>
