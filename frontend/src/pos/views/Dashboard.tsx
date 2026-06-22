@@ -733,7 +733,7 @@ const Dashboard: React.FC = () => {
     if (invoiceError) errors.invoice = invoiceError;
     const pinError = validateInteger(cancelPin, "El PIN", { min: 0 });
     if (pinError || cancelPin.length !== 4) errors.pin = "El PIN debe contener 4 digitos.";
-    const reasonError = validateReference(cancelReason, "El motivo", { required: true, max: 180 });
+    const reasonError = validateReference(cancelReason, "El motivo", { required: true, max: 100 });
     if (reasonError) errors.reason = reasonError;
     return errors;
   };
@@ -742,7 +742,7 @@ const Dashboard: React.FC = () => {
     const nextValue =
       field === "pin" ? normalizeIntegerInput(value).slice(0, 4) :
       field === "invoice" ? validateFolioInput(value) :
-      field === "reason" ? validateReasonInput(value) :
+      field === "reason" ? validateReasonInput(value).slice(0, 100) :
       value;
     if (field === "invoice") setCancelInvoice(nextValue);
     if (field === "pin") setCancelPin(nextValue);
@@ -754,7 +754,7 @@ const Dashboard: React.FC = () => {
           ? validateReference(nextValue, "El folio de venta", { required: true, max: 40 })
           : field === "pin"
             ? (validateInteger(nextValue, "El PIN", { min: 0 }) || nextValue.length !== 4 ? "El PIN debe contener 4 digitos." : undefined)
-            : validateReference(nextValue, "El motivo", { required: true, max: 180 });
+            : validateReference(nextValue, "El motivo", { required: true, max: 100 });
       if (error) next[field] = error;
       else delete next[field];
       return next;

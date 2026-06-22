@@ -178,7 +178,7 @@ export const verifyManagerPin = async (req: Request, res: Response): Promise<voi
     return;
   }
   try {
-    const result = await verifyManagerPinService(pinCode);
+    const result = await verifyManagerPinService(pinCode, req.user!.branchId);
     res.status(200).json(result);
   } catch (error) {
     handleAppError(error, res, "Error al validar el PIN.");

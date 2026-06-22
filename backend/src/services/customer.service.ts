@@ -9,44 +9,128 @@ export const registerCustomer = async (
   invoiceNumber: string,
   password: string,
   email: string
-): Promise<void> => {
+): Promise<{ autoLogin: boolean; customer: { id: number; name: string; phone: string | null; email: string | null } }> => {
   const sale = await prisma.sale.findUnique({
     where: { invoiceNumber },
     include: { customer: true },
   });
 
   if (!sale) {
-    throw new AppError("No se encontró ningún ticket de venta con el folio proporcionado.", 404);
-  }
-
-  if (!sale.customerId || !sale.customer) {
-    throw new AppError("Este ticket no está asociado a ningún cliente registrado.", 400);
+    throw new AppError("El folio del ticket no es válido.", 404);
   }
 
   const inputPhoneNormalized = phone.replace(/[^0-9]/g, "");
-  const dbPhoneNormalized = (sale.customer.phone || "").replace(/[^0-9]/g, "");
 
-  if (!dbPhoneNormalized || inputPhoneNormalized !== dbPhoneNormalized) {
-    throw new AppError("El número de teléfono no coincide con el cliente asociado a este ticket.", 400);
-  }
+  // Buscar si ya existe un cliente con este teléfono
+  let customer = await prisma.customer.findFirst({
+    where: {
+      OR: [
+        { phone: inputPhoneNormalized },
+        { phone: phone }
+      ]
+    }
+  });
 
-  if (sale.customer.passwordHash) {
-    throw new AppError(
-      "Esta cuenta ya está registrada y tiene una contraseña establecida. Por favor, inicia sesión.",
-      400
-    );
+  if (!customer) {
+    const allCustomers = await prisma.customer.findMany({
+      where: { phone: { not: null } }
+    });
+    customer = allCustomers.find(c => (c.phone || "").replace(/[^0-9]/g, "") === inputPhoneNormalized) || null;
   }
 
   const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+
+  if (customer && customer.passwordHash) {
+    throw new AppError("El número de teléfono ya está registrado con otra cuenta.", 400);
+  }
+
   if (!cleanEmail || !CUSTOMER_ACCOUNT_EMAIL_REGEX.test(cleanEmail)) {
     throw new AppError("El correo electrónico no tiene un formato válido.", 400);
   }
 
   const hashedPassword = await hashPassword(password);
 
+  if (customer) {
+    // Actualizar cliente existente
+    customer = await prisma.customer.update({
+      where: { id: customer.id },
+      data: { passwordHash: hashedPassword, email: cleanEmail },
+    });
+  } else {
+    // Crear nuevo cliente
+    customer = await prisma.customer.create({
+      data: {
+        name: "Cliente registrado",
+        phone: inputPhoneNormalized,
+        email: cleanEmail,
+        passwordHash: hashedPassword,
+      },
+    });
+  }
+
+  // Vincular la venta al cliente
+  await prisma.sale.update({
+    where: { id: sale.id },
+    data: { customerId: customer.id },
+  });
+
+  return {
+    autoLogin: false,
+    customer: {
+      id: customer.id,
+      name: customer.name,
+      phone: customer.phone,
+      email: customer.email,
+    }
+  };
+};
+
+export const verifyCustomerExists = async (phone: string): Promise<boolean> => {
+  const phoneNormalized = phone.replace(/[^0-9]/g, "");
+  let customer = await prisma.customer.findFirst({
+    where: {
+      OR: [
+        { phone: phoneNormalized },
+        { phone: phone }
+      ]
+    }
+  });
+
+  if (!customer) {
+    const allCustomers = await prisma.customer.findMany({
+      where: { phone: { not: null } }
+    });
+    customer = allCustomers.find(c => (c.phone || "").replace(/[^0-9]/g, "") === phoneNormalized) || null;
+  }
+  return !!customer;
+};
+
+export const resetCustomerPassword = async (phone: string, password: string): Promise<void> => {
+  const phoneNormalized = phone.replace(/[^0-9]/g, "");
+  let customer = await prisma.customer.findFirst({
+    where: {
+      OR: [
+        { phone: phoneNormalized },
+        { phone: phone }
+      ]
+    }
+  });
+
+  if (!customer) {
+    const allCustomers = await prisma.customer.findMany({
+      where: { phone: { not: null } }
+    });
+    customer = allCustomers.find(c => (c.phone || "").replace(/[^0-9]/g, "") === phoneNormalized) || null;
+  }
+
+  if (!customer) {
+    throw new AppError("No se encontró el cliente para actualizar la contraseña.", 404);
+  }
+
+  const hashedPassword = await hashPassword(password);
   await prisma.customer.update({
-    where: { id: sale.customer.id },
-    data: { passwordHash: hashedPassword, email: cleanEmail },
+    where: { id: customer.id },
+    data: { passwordHash: hashedPassword },
   });
 };
 
