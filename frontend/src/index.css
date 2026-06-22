@@ -278,7 +278,7 @@ button:disabled {
 .table-sticky-head thead th {
   position: sticky;
   top: 0;
-  background: #f8fafc;
+  background: var(--surface-2);
   z-index: 2;
 }
 
