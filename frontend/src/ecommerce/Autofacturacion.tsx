@@ -38,6 +38,9 @@ import {
   updateCustomerProfile,
   getPublicTicket,
   createPublicInvoice,
+  sendCustomerOtp,
+  sendPasswordResetOtp,
+  resetCustomerPassword,
   type TicketData,
   type InvoiceHistoryItem,
 } from "../facturacion";
@@ -101,7 +104,14 @@ const Autofacturacion: React.FC = () => {
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" | "info" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 4500);
+  };
   const [ticket, setTicket] = useState<TicketData | null>(null);
 
   // Formulario Fiscal Temporal (para facturar)
@@ -142,6 +152,24 @@ const Autofacturacion: React.FC = () => {
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
   const [registerFieldErrors, setRegisterFieldErrors] = useState<FieldErrors<RegisterFormField>>({});
+
+  // OTP Verification States
+  const [otpSent, setOtpSent] = useState(false);
+  const [registerOtp, setRegisterOtp] = useState("");
+  const [receivedOtp, setReceivedOtp] = useState("");
+  const [otpError, setOtpError] = useState("");
+
+  // Reset Password Modal States
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
+  const [resetPhone, setResetPhone] = useState("");
+  const [resetOtp, setResetOtp] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("");
+  const [resetOtpSent, setResetOtpSent] = useState(false);
+  const [resetReceivedOtp, setResetReceivedOtp] = useState("");
+  const [resetError, setResetError] = useState("");
+  const [resetOtpError, setResetOtpError] = useState("");
+  const [resetFieldErrors, setResetFieldErrors] = useState<Partial<Record<"resetPhone" | "resetPassword" | "resetConfirmPassword", string>>>({});
 
   // Historial de Facturas
   const [invoicesList, setInvoicesList] = useState<InvoiceHistoryItem[]>([]);
@@ -313,8 +341,7 @@ const Autofacturacion: React.FC = () => {
       setLoginFieldErrors({});
 
       await fetchProfile(token);
-      setSuccessMessage("¡Bienvenido de nuevo!");
-      setTimeout(() => setSuccessMessage(""), 4000);
+      showToast("¡Bienvenido de nuevo!", "success");
     } catch (err: any) {
       setError(err.response?.data?.message || "Teléfono o contraseña incorrectos.");
     } finally {
@@ -322,7 +349,7 @@ const Autofacturacion: React.FC = () => {
     }
   };
 
-  // Registro (Reclamo)
+  // Registro (Reclamo) - Paso 1: Enviar OTP y validar ticket
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
@@ -335,30 +362,105 @@ const Autofacturacion: React.FC = () => {
     setLoading(true);
 
     try {
-      await registerCustomer({
+      // 1. Validar existencia del folio en DB
+      await getPublicTicket(registerInvoiceNumber);
+    } catch (err: any) {
+      setError("El folio del ticket no es válido.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // 2. Enviar OTP
+      const cleanPhone = normalizeIntegerInput(registerPhone).slice(0, 10);
+      const response = await sendCustomerOtp(cleanPhone);
+      const code = response.data?.otp || "";
+      setReceivedOtp(code);
+      setOtpSent(true);
+      setOtpError("");
+      setError("");
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Error al enviar el código de verificación.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Registro - Paso 2: Verificar OTP y crear cuenta
+  const handleVerifyAndRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loading) return;
+    setOtpError("");
+    setError("");
+
+    if (!registerOtp || registerOtp.trim().length !== 6) {
+      setOtpError("El código de verificación debe tener exactamente 6 dígitos.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await registerCustomer({
         phone: normalizeIntegerInput(registerPhone).slice(0, 10),
         email: cleanEmailInput(registerEmail),
         invoiceNumber: registerInvoiceNumber.trim().toUpperCase(),
         password: registerPassword,
-        passwordConfirmation: registerPassword
+        passwordConfirmation: registerPassword,
+        otp: registerOtp.trim()
       });
 
-      setShowRegisterModal(false);
-      setShowLoginModal(true);
-      setLoginPhone(registerPhone);
+      const data = response.data;
+      const phoneTemp = registerPhone;
+
+      // Limpiar estados
       setRegisterPhone("");
       setRegisterEmail("");
       setRegisterInvoiceNumber("");
       setRegisterPassword("");
       setRegisterConfirmPassword("");
       setRegisterFieldErrors({});
+      setOtpSent(false);
+      setRegisterOtp("");
+      setReceivedOtp("");
+      setOtpError("");
 
-      alert("Cuenta registrada exitosamente. Por favor inicie sesión.");
+      setShowRegisterModal(false);
+      setShowLoginModal(true);
+      setLoginPhone(phoneTemp);
+      showToast("Cuenta registrada exitosamente. Por favor inicie sesión con tus credenciales.", "success");
     } catch (err: any) {
-      setError(err.response?.data?.message || "Error al registrar cuenta. Verifique sus datos e intente de nuevo.");
+      setOtpError(err.response?.data?.message || "Error al registrar cuenta. Verifique sus datos.");
     } finally {
       setLoading(false);
     }
+  };
+
+  // Reenviar código OTP
+  const handleResendOtp = async () => {
+    if (loading) return;
+    setOtpError("");
+    setLoading(true);
+    try {
+      const cleanPhone = normalizeIntegerInput(registerPhone).slice(0, 10);
+      const response = await sendCustomerOtp(cleanPhone);
+      const code = response.data?.otp || "";
+      setReceivedOtp(code);
+      setOtpError("");
+      showToast("Se ha reenviado el código de verificación.", "success");
+    } catch (err: any) {
+      setOtpError(err.response?.data?.message || "Error al reenviar el código.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Volver al formulario de registro para corregir datos
+  const handleBackToRegisterForm = () => {
+    setOtpSent(false);
+    setRegisterOtp("");
+    setReceivedOtp("");
+    setOtpError("");
   };
 
   // Logout
@@ -390,9 +492,6 @@ const Autofacturacion: React.FC = () => {
   const handleUpdateFiscalData = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
-    setError("");
-    setSuccessMessage("");
-
     const errors = validateProfileForm();
     setProfileFieldErrors(errors);
     if (hasErrors(errors)) return;
@@ -410,11 +509,10 @@ const Autofacturacion: React.FC = () => {
         address: normalizeSpaces(profileAddress)
       } as any);
 
-      setSuccessMessage("¡Datos fiscales actualizados con éxito!");
+      showToast("¡Datos fiscales actualizados con éxito!", "success");
       if (customerToken) {
         await fetchProfile(customerToken);
       }
-      setTimeout(() => setSuccessMessage(""), 4000);
     } catch (err: any) {
       setError(err.response?.data?.message || "Error al actualizar los datos fiscales.");
     } finally {
@@ -617,6 +715,143 @@ const Autofacturacion: React.FC = () => {
     setRegisterFieldErrors((prev) => ({ ...prev, [field]: error }));
   };
 
+  const setResetField = (field: "resetPhone" | "resetPassword" | "resetConfirmPassword", rawValue: string) => {
+    let next = rawValue;
+    let error: string | undefined;
+    if (field === "resetPhone") {
+      next = normalizeIntegerInput(rawValue).slice(0, 10);
+      if (rawValue !== next) error = "El telefono solo puede contener numeros.";
+      setResetPhone(next);
+      error ||= validateMexicanPhone(next, { required: true });
+    }
+    if (field === "resetPassword") {
+      setResetPassword(next);
+      error = next.length >= 6 ? undefined : "La contrasena debe tener al menos 6 caracteres.";
+      setResetFieldErrors((prev) => ({
+        ...prev,
+        resetPassword: error,
+        resetConfirmPassword:
+          resetConfirmPassword && resetConfirmPassword === next
+            ? undefined
+            : "Las contrasenas no coinciden.",
+      }));
+      return;
+    }
+    if (field === "resetConfirmPassword") {
+      setResetConfirmPassword(next);
+      error = next && next === resetPassword ? undefined : "Las contrasenas no coinciden.";
+    }
+    setResetFieldErrors((prev) => ({ ...prev, [field]: error }));
+  };
+
+  // Solicitar OTP para restablecimiento de contraseña (Paso 1)
+  const handleRequestResetOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loading) return;
+    setResetError("");
+
+    const phoneError = validateMexicanPhone(resetPhone, { required: true });
+    setResetFieldErrors({ resetPhone: phoneError });
+    if (phoneError) return;
+
+    setLoading(true);
+
+    try {
+      const cleanPhone = normalizeIntegerInput(resetPhone).slice(0, 10);
+      const response = await sendPasswordResetOtp(cleanPhone);
+      const code = response.data?.otp || "";
+      setResetReceivedOtp(code);
+      setResetOtpSent(true);
+      setResetOtpError("");
+      setResetError("");
+    } catch (err: any) {
+      setResetError(err.response?.data?.message || "Error al enviar el código de seguridad.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Restablecer contraseña verificando OTP (Paso 2)
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loading) return;
+    setResetOtpError("");
+    setResetError("");
+
+    const passError = resetPassword.length >= 6 ? undefined : "La contraseña debe tener al menos 6 caracteres.";
+    const confirmError = resetConfirmPassword && resetConfirmPassword === resetPassword ? undefined : "Las contraseñas no coinciden.";
+
+    setResetFieldErrors({
+      resetPassword: passError,
+      resetConfirmPassword: confirmError
+    });
+
+    if (passError || confirmError) return;
+
+    if (!resetOtp || resetOtp.trim().length !== 6) {
+      setResetOtpError("El código de seguridad debe tener exactamente 6 dígitos.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const cleanPhone = normalizeIntegerInput(resetPhone).slice(0, 10);
+      await resetCustomerPassword({
+        phone: cleanPhone,
+        otp: resetOtp.trim(),
+        newPassword: resetPassword
+      });
+
+      setShowResetPasswordModal(false);
+      setShowLoginModal(true);
+      setLoginPhone(resetPhone);
+
+      // Limpiar estados
+      setResetPhone("");
+      setResetOtp("");
+      setResetPassword("");
+      setResetConfirmPassword("");
+      setResetFieldErrors({});
+      setResetOtpSent(false);
+      setResetReceivedOtp("");
+      setResetOtpError("");
+      setResetError("");
+
+      showToast("Contraseña restablecida exitosamente. Por favor inicia sesión con tu nueva contraseña.", "success");
+    } catch (err: any) {
+      setResetOtpError(err.response?.data?.message || "Error al restablecer la contraseña. Verifique el código.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Reenviar OTP de restablecimiento
+  const handleResendResetOtp = async () => {
+    if (loading) return;
+    setResetOtpError("");
+    setLoading(true);
+    try {
+      const cleanPhone = normalizeIntegerInput(resetPhone).slice(0, 10);
+      const response = await sendPasswordResetOtp(cleanPhone);
+      const code = response.data?.otp || "";
+      setResetReceivedOtp(code);
+      setResetOtpError("");
+      showToast("Se ha reenviado el código de seguridad.", "success");
+    } catch (err: any) {
+      setResetOtpError(err.response?.data?.message || "Error al reenviar el código.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBackToResetForm = () => {
+    setResetOtpSent(false);
+    setResetOtp("");
+    setResetReceivedOtp("");
+    setResetOtpError("");
+  };
+
   return (
     <div style={styles.pageBackground}>
       {/* Navbar Premium */}
@@ -679,10 +914,15 @@ const Autofacturacion: React.FC = () => {
       )}
 
       {/* Alerta de Éxito Global (Toast-like) */}
-      {successMessage && (
-        <div style={styles.successToast}>
-          <Check size={18} />
-          <span>{successMessage}</span>
+      {toast && (
+        <div style={{
+          ...styles.successToast,
+          backgroundColor: toast.type === "success" ? "#065f46" : toast.type === "error" ? "#991b1b" : "#1e3a8a",
+        }}>
+          {toast.type === "success" && <Check size={18} />}
+          {toast.type === "error" && <AlertTriangle size={18} />}
+          {toast.type === "info" && <Sparkles size={18} />}
+          <span>{toast.message}</span>
         </div>
       )}
 
@@ -1275,13 +1515,24 @@ const Autofacturacion: React.FC = () => {
             </form>
 
             <div style={styles.modalFooter}>
-              ¿Aún no tienes contraseña?{" "}
-              <button
-                onClick={() => { setShowLoginModal(false); setShowRegisterModal(true); }}
-                style={styles.footerLink}
-              >
-                Crea tu cuenta aquí
-              </button>
+              <div>
+                ¿Aún no tienes contraseña?{" "}
+                <button
+                  onClick={() => { setShowLoginModal(false); setShowRegisterModal(true); }}
+                  style={styles.footerLink}
+                >
+                  Crea tu cuenta aquí
+                </button>
+              </div>
+              <div style={{ marginTop: "8px" }}>
+                ¿Olvidaste tu contraseña?{" "}
+                <button
+                  onClick={() => { setShowLoginModal(false); setShowResetPasswordModal(true); }}
+                  style={styles.footerLink}
+                >
+                  Restablécela aquí
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1291,104 +1542,314 @@ const Autofacturacion: React.FC = () => {
       {showRegisterModal && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
-            <button onClick={() => setShowRegisterModal(false)} style={styles.closeModalButton}>&times;</button>
-            <h2 style={styles.modalTitle}>Crear Cuenta / Contraseña</h2>
+            <button onClick={() => { setShowRegisterModal(false); handleBackToRegisterForm(); }} style={styles.closeModalButton}>&times;</button>
+            <h2 style={styles.modalTitle}>{otpSent ? "Verificar Teléfono" : "Crear Cuenta / Contraseña"}</h2>
             <p style={styles.modalSubtitle}>
-              Si compraste en caja, asocia tu contraseña ingresando tu teléfono registrado y el folio de tu ticket.
+              {otpSent 
+                ? `Ingresa el código OTP de 6 dígitos enviado a tu teléfono ${registerPhone}.`
+                : "Crea tu cuenta asociando una contraseña y tu correo electrónico con cualquier ticket de compra válido."
+              }
             </p>
 
-            <form onSubmit={handleRegister} style={styles.modalForm} noValidate>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Número de Teléfono Registrado</label>
-                <input
-                  type="text"
-                  required
-                  maxLength={10}
-                  placeholder="Ej: 5551234567"
-                  value={registerPhone}
-                  onChange={(e) => setRegisterField("registerPhone", e.target.value)}
-                  onBlur={() => setRegisterFieldErrors((prev) => ({ ...prev, registerPhone: validateMexicanPhone(registerPhone, { required: true }) }))}
-                  style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerPhone ? styles.inputError : {}) }}
-                />
-                {registerFieldErrors.registerPhone && <p style={styles.fieldError}>{registerFieldErrors.registerPhone}</p>}
-              </div>
-
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Correo Electrónico *</label>
-                <input
-                  type="email"
-                  inputMode="email"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  required
-                  placeholder="Ej: micorreo@gmail.com"
-                  value={registerEmail}
-                  onChange={(e) => setRegisterField("registerEmail", e.target.value)}
-                  onBlur={() => setRegisterFieldErrors((prev) => ({ ...prev, registerEmail: validateAutofactEmail(registerEmail, { required: true }) }))}
-                  style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerEmail ? styles.inputError : {}) }}
-                />
-                {registerFieldErrors.registerEmail && <p style={styles.fieldError}>{registerFieldErrors.registerEmail}</p>}
-              </div>
-
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Folio de Ticket de Compra previo</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ej: V-100200"
-                  value={registerInvoiceNumber}
-                  onChange={(e) => setRegisterField("registerInvoiceNumber", e.target.value)}
-                  onBlur={() => setRegisterFieldErrors((prev) => ({ ...prev, registerInvoiceNumber: validateReference(registerInvoiceNumber, "El folio", { required: true, max: 40 }) }))}
-                  style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerInvoiceNumber ? styles.inputError : {}) }}
-                />
-                {registerFieldErrors.registerInvoiceNumber && <p style={styles.fieldError}>{registerFieldErrors.registerInvoiceNumber}</p>}
-              </div>
-
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Nueva Contraseña</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Mínimo 6 caracteres"
-                  value={registerPassword}
-                  onChange={(e) => setRegisterField("registerPassword", e.target.value)}
-                  onBlur={() => setRegisterField("registerPassword", registerPassword)}
-                  style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerPassword ? styles.inputError : {}) }}
-                />
-                {registerFieldErrors.registerPassword && <p style={styles.fieldError}>{registerFieldErrors.registerPassword}</p>}
-              </div>
-
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Confirmar Contraseña</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Confirme su contraseña"
-                  value={registerConfirmPassword}
-                  onChange={(e) => setRegisterField("registerConfirmPassword", e.target.value)}
-                  onBlur={() => setRegisterField("registerConfirmPassword", registerConfirmPassword)}
-                  style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerConfirmPassword ? styles.inputError : {}) }}
-                />
-                {registerFieldErrors.registerConfirmPassword && <p style={styles.fieldError}>{registerFieldErrors.registerConfirmPassword}</p>}
-              </div>
-
-              {error && (
-                <div style={styles.modalError}>
-                  <AlertTriangle size={16} style={{ marginRight: "6px" }} />
-                  <span>{error}</span>
+            {!otpSent ? (
+              <form onSubmit={handleRegister} style={styles.modalForm} noValidate>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Número de Teléfono *</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={10}
+                    placeholder="Ej: 5551234567"
+                    value={registerPhone}
+                    onChange={(e) => setRegisterField("registerPhone", e.target.value)}
+                    onBlur={() => setRegisterFieldErrors((prev) => ({ ...prev, registerPhone: validateMexicanPhone(registerPhone, { required: true }) }))}
+                    style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerPhone ? styles.inputError : {}) }}
+                  />
+                  {registerFieldErrors.registerPhone && <p style={styles.fieldError}>{registerFieldErrors.registerPhone}</p>}
                 </div>
-              )}
 
-              <button type="submit" disabled={loading} style={styles.primaryButton}>
-                {loading ? "Validando compra..." : "Registrar Cuenta"}
-              </button>
-            </form>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Correo Electrónico *</label>
+                  <input
+                    type="email"
+                    inputMode="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    required
+                    placeholder="Ej: micorreo@gmail.com"
+                    value={registerEmail}
+                    onChange={(e) => setRegisterField("registerEmail", e.target.value)}
+                    onBlur={() => setRegisterFieldErrors((prev) => ({ ...prev, registerEmail: validateAutofactEmail(registerEmail, { required: true }) }))}
+                    style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerEmail ? styles.inputError : {}) }}
+                  />
+                  {registerFieldErrors.registerEmail && <p style={styles.fieldError}>{registerFieldErrors.registerEmail}</p>}
+                </div>
+
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Folio de Ticket de Compra *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej: V-100200"
+                    value={registerInvoiceNumber}
+                    onChange={(e) => setRegisterField("registerInvoiceNumber", e.target.value)}
+                    onBlur={() => setRegisterFieldErrors((prev) => ({ ...prev, registerInvoiceNumber: validateReference(registerInvoiceNumber, "El folio", { required: true, max: 40 }) }))}
+                    style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerInvoiceNumber ? styles.inputError : {}) }}
+                  />
+                  {registerFieldErrors.registerInvoiceNumber && <p style={styles.fieldError}>{registerFieldErrors.registerInvoiceNumber}</p>}
+                </div>
+
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Nueva Contraseña *</label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Mínimo 6 caracteres"
+                    value={registerPassword}
+                    onChange={(e) => setRegisterField("registerPassword", e.target.value)}
+                    onBlur={() => setRegisterField("registerPassword", registerPassword)}
+                    style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerPassword ? styles.inputError : {}) }}
+                  />
+                  {registerFieldErrors.registerPassword && <p style={styles.fieldError}>{registerFieldErrors.registerPassword}</p>}
+                </div>
+
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Confirmar Contraseña *</label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Confirme su contraseña"
+                    value={registerConfirmPassword}
+                    onChange={(e) => setRegisterField("registerConfirmPassword", e.target.value)}
+                    onBlur={() => setRegisterField("registerConfirmPassword", registerConfirmPassword)}
+                    style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerConfirmPassword ? styles.inputError : {}) }}
+                  />
+                  {registerFieldErrors.registerConfirmPassword && <p style={styles.fieldError}>{registerFieldErrors.registerConfirmPassword}</p>}
+                </div>
+
+                {error && (
+                  <div style={styles.modalError}>
+                    <AlertTriangle size={16} style={{ marginRight: "6px" }} />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                <button type="submit" disabled={loading} style={styles.primaryButton}>
+                  {loading ? "Validando compra..." : "Registrar Cuenta"}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyAndRegister} style={styles.modalForm} noValidate>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Código de Verificación (6 dígitos) *</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    placeholder="Ej: 123456"
+                    value={registerOtp}
+                    onChange={(e) => setRegisterOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    style={{
+                      ...styles.modalInputNoIcon,
+                      textAlign: "center",
+                      letterSpacing: "6px",
+                      fontSize: "20px",
+                      fontWeight: "bold",
+                      ...(otpError ? styles.inputError : {})
+                    }}
+                  />
+                  {otpError && <p style={styles.fieldError}>{otpError}</p>}
+                </div>
+
+
+
+                <button type="submit" disabled={loading} style={styles.primaryButton}>
+                  {loading ? "Verificando..." : "Confirmar y Crear Cuenta"}
+                </button>
+
+                <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+                  <button
+                    type="button"
+                    onClick={handleResendOtp}
+                    disabled={loading}
+                    style={{
+                      ...styles.primaryButton,
+                      backgroundColor: "#f1f5f9",
+                      color: "#334155",
+                      border: "1px solid #cbd5e1"
+                    }}
+                  >
+                    Reenviar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleBackToRegisterForm}
+                    disabled={loading}
+                    style={{
+                      ...styles.primaryButton,
+                      backgroundColor: "#ffffff",
+                      color: "#475569",
+                      border: "1px solid #cbd5e1"
+                    }}
+                  >
+                    Atrás
+                  </button>
+                </div>
+              </form>
+            )}
 
             <div style={styles.modalFooter}>
               ¿Ya tienes cuenta?{" "}
               <button
-                onClick={() => { setShowRegisterModal(false); setShowLoginModal(true); }}
+                onClick={() => { setShowRegisterModal(false); setShowLoginModal(true); handleBackToRegisterForm(); }}
+                style={styles.footerLink}
+              >
+                Inicia sesión aquí
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL RESTABLECER CONTRASEÑA */}
+      {showResetPasswordModal && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent}>
+            <button onClick={() => { setShowResetPasswordModal(false); handleBackToResetForm(); }} style={styles.closeModalButton}>&times;</button>
+            <h2 style={styles.modalTitle}>{resetOtpSent ? "Nueva Contraseña" : "Restablecer Contraseña"}</h2>
+            <p style={styles.modalSubtitle}>
+              {resetOtpSent 
+                ? `Ingresa el código de 6 dígitos enviado a tu teléfono ${resetPhone} junto con tu nueva contraseña.`
+                : "Ingresa tu número de teléfono registrado. Te enviaremos un código OTP para validar el cambio."
+              }
+            </p>
+
+            {!resetOtpSent ? (
+              <form onSubmit={handleRequestResetOtp} style={styles.modalForm} noValidate>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Número de Teléfono *</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={10}
+                    placeholder="Ej: 5551234567"
+                    value={resetPhone}
+                    onChange={(e) => setResetField("resetPhone", e.target.value)}
+                    onBlur={() => setResetFieldErrors((prev) => ({ ...prev, resetPhone: validateMexicanPhone(resetPhone, { required: true }) }))}
+                    style={{ ...styles.modalInputNoIcon, ...(resetFieldErrors.resetPhone ? styles.inputError : {}) }}
+                  />
+                  {resetFieldErrors.resetPhone && <p style={styles.fieldError}>{resetFieldErrors.resetPhone}</p>}
+                </div>
+
+                {resetError && (
+                  <div style={styles.modalError}>
+                    <AlertTriangle size={16} style={{ marginRight: "6px" }} />
+                    <span>{resetError}</span>
+                  </div>
+                )}
+
+                <button type="submit" disabled={loading} style={styles.primaryButton}>
+                  {loading ? "Buscando cuenta..." : "Enviar Código de Seguridad"}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleResetPassword} style={styles.modalForm} noValidate>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Código de Seguridad (6 dígitos) *</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    placeholder="Ej: 123456"
+                    value={resetOtp}
+                    onChange={(e) => setResetOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    style={{
+                      ...styles.modalInputNoIcon,
+                      textAlign: "center",
+                      letterSpacing: "6px",
+                      fontSize: "20px",
+                      fontWeight: "bold",
+                      ...(resetOtpError ? styles.inputError : {})
+                    }}
+                  />
+                  {resetOtpError && <p style={styles.fieldError}>{resetOtpError}</p>}
+                </div>
+
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Nueva Contraseña *</label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Mínimo 6 caracteres"
+                    value={resetPassword}
+                    onChange={(e) => setResetField("resetPassword", e.target.value)}
+                    style={{ ...styles.modalInputNoIcon, ...(resetFieldErrors.resetPassword ? styles.inputError : {}) }}
+                  />
+                  {resetFieldErrors.resetPassword && <p style={styles.fieldError}>{resetFieldErrors.resetPassword}</p>}
+                </div>
+
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Confirmar Contraseña *</label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Confirme su contraseña"
+                    value={resetConfirmPassword}
+                    onChange={(e) => setResetField("resetConfirmPassword", e.target.value)}
+                    style={{ ...styles.modalInputNoIcon, ...(resetFieldErrors.resetConfirmPassword ? styles.inputError : {}) }}
+                  />
+                  {resetFieldErrors.resetConfirmPassword && <p style={styles.fieldError}>{resetFieldErrors.resetConfirmPassword}</p>}
+                </div>
+
+
+
+                {resetError && (
+                  <div style={styles.modalError}>
+                    <AlertTriangle size={16} style={{ marginRight: "6px" }} />
+                    <span>{resetError}</span>
+                  </div>
+                )}
+
+                <button type="submit" disabled={loading} style={styles.primaryButton}>
+                  {loading ? "Actualizando..." : "Restablecer Contraseña"}
+                </button>
+
+                <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+                  <button
+                    type="button"
+                    onClick={handleResendResetOtp}
+                    disabled={loading}
+                    style={{
+                      ...styles.primaryButton,
+                      backgroundColor: "#f1f5f9",
+                      color: "#334155",
+                      border: "1px solid #cbd5e1"
+                    }}
+                  >
+                    Reenviar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleBackToResetForm}
+                    disabled={loading}
+                    style={{
+                      ...styles.primaryButton,
+                      backgroundColor: "#ffffff",
+                      color: "#475569",
+                      border: "1px solid #cbd5e1"
+                    }}
+                  >
+                    Atrás
+                  </button>
+                </div>
+              </form>
+            )}
+
+            <div style={styles.modalFooter}>
+              ¿Recordaste tu contraseña?{" "}
+              <button
+                onClick={() => { setShowResetPasswordModal(false); setShowLoginModal(true); handleBackToResetForm(); }}
                 style={styles.footerLink}
               >
                 Inicia sesión aquí
