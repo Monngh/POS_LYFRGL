@@ -156,7 +156,6 @@ const Autofacturacion: React.FC = () => {
   // OTP Verification States
   const [otpSent, setOtpSent] = useState(false);
   const [registerOtp, setRegisterOtp] = useState("");
-  const [receivedOtp, setReceivedOtp] = useState("");
   const [otpError, setOtpError] = useState("");
 
   // Reset Password Modal States
@@ -166,7 +165,6 @@ const Autofacturacion: React.FC = () => {
   const [resetPassword, setResetPassword] = useState("");
   const [resetConfirmPassword, setResetConfirmPassword] = useState("");
   const [resetOtpSent, setResetOtpSent] = useState(false);
-  const [resetReceivedOtp, setResetReceivedOtp] = useState("");
   const [resetError, setResetError] = useState("");
   const [resetOtpError, setResetOtpError] = useState("");
   const [resetFieldErrors, setResetFieldErrors] = useState<Partial<Record<"resetPhone" | "resetPassword" | "resetConfirmPassword", string>>>({});
@@ -373,9 +371,7 @@ const Autofacturacion: React.FC = () => {
     try {
       // 2. Enviar OTP
       const cleanPhone = normalizeIntegerInput(registerPhone).slice(0, 10);
-      const response = await sendCustomerOtp(cleanPhone);
-      const code = response.data?.otp || "";
-      setReceivedOtp(code);
+      await sendCustomerOtp(cleanPhone);
       setOtpSent(true);
       setOtpError("");
       setError("");
@@ -410,7 +406,6 @@ const Autofacturacion: React.FC = () => {
         otp: registerOtp.trim()
       });
 
-      const data = response.data;
       const phoneTemp = registerPhone;
 
       // Limpiar estados
@@ -422,7 +417,6 @@ const Autofacturacion: React.FC = () => {
       setRegisterFieldErrors({});
       setOtpSent(false);
       setRegisterOtp("");
-      setReceivedOtp("");
       setOtpError("");
 
       setShowRegisterModal(false);
@@ -443,9 +437,7 @@ const Autofacturacion: React.FC = () => {
     setLoading(true);
     try {
       const cleanPhone = normalizeIntegerInput(registerPhone).slice(0, 10);
-      const response = await sendCustomerOtp(cleanPhone);
-      const code = response.data?.otp || "";
-      setReceivedOtp(code);
+      await sendCustomerOtp(cleanPhone);
       setOtpError("");
       showToast("Se ha reenviado el código de verificación.", "success");
     } catch (err: any) {
@@ -459,7 +451,6 @@ const Autofacturacion: React.FC = () => {
   const handleBackToRegisterForm = () => {
     setOtpSent(false);
     setRegisterOtp("");
-    setReceivedOtp("");
     setOtpError("");
   };
 
@@ -758,9 +749,7 @@ const Autofacturacion: React.FC = () => {
 
     try {
       const cleanPhone = normalizeIntegerInput(resetPhone).slice(0, 10);
-      const response = await sendPasswordResetOtp(cleanPhone);
-      const code = response.data?.otp || "";
-      setResetReceivedOtp(code);
+      await sendPasswordResetOtp(cleanPhone);
       setResetOtpSent(true);
       setResetOtpError("");
       setResetError("");

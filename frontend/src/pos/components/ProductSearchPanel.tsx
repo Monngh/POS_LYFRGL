@@ -73,12 +73,6 @@ const styles: { [key: string]: React.CSSProperties } = {
   fieldError: { color: "#b91c1c", fontSize: "12px", fontWeight: "600", marginTop: "5px", marginBottom: 0 },
 };
 
-const maskPhone = (value: string | null | undefined): string => {
-  const digits = (value || "").replace(/\D/g, "");
-  if (!digits) return "";
-  return `${"•".repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}`;
-};
-
 export function ProductSearchPanel({ searchData, customerData, cartData, onToast }: ProductSearchPanelProps) {
   const {
     barcodeSearch, setBarcodeSearch, handleProductBarcodeSearch, barcodeSearchError,
