@@ -11,6 +11,14 @@ import {
   handleDecimalInputChange,
   validateDecimalField,
 } from "../../shared/utils/decimalInput";
+import { PhoneField } from "../components/PhoneField";
+import {
+  DEFAULT_PHONE_COUNTRY_ISO,
+  getCountryCodeByIso,
+  normalizeLocalPhone,
+  phoneToAdminFormValue,
+  validateLocalPhone,
+} from "../utils/phone";
 import {
   ui,
   type ViewProps,
@@ -71,6 +79,7 @@ const emptyForm = {
   taxId: "",
   email: "",
   phone: "",
+  phoneCountryIso: DEFAULT_PHONE_COUNTRY_ISO,
   address: "",
   creditLimit: "",
   zipCode: "",
@@ -86,6 +95,7 @@ type CustomerPayload = {
   taxId?: string;
   email?: string;
   phone?: string;
+  phoneCountryCode?: string;
   address?: string;
   creditLimit: number;
   zipCode?: string;
@@ -95,7 +105,6 @@ type CustomerPayload = {
 
 const CUSTOMER_NAME_PATTERN = /^[A-Za-z0-9À-ſ\s.,'&-]+$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_PATTERN = /^[0-9\s()+-]+$/;
 const RFC_PATTERN = /^([A-ZÑ&]{3,4})\d{6}([A-Z0-9]{3})$/;
 const ADDRESS_PATTERN = /^[A-Za-z0-9À-ſ\s.,#\-\/]+$/;
 const ZIP_CODE_PATTERN = /^\d{5}$/;
@@ -138,15 +147,10 @@ const validateCustomerForm = (form: FormState): {
     errors.email = "El correo no tiene un formato valido.";
   }
 
-  const phone = normalizeSpaces(form.phone);
-  if (phone) {
-    const digits = phone.replace(/\D/g, "");
-    if (!PHONE_PATTERN.test(phone)) {
-      errors.phone = "El telefono solo puede contener numeros, espacios, +, - y parentesis.";
-    } else if (digits.length < 10 || digits.length > 15) {
-      errors.phone = "El telefono debe tener entre 10 y 15 digitos.";
-    }
-  }
+  const phoneCountry = getCountryCodeByIso(form.phoneCountryIso);
+  const phone = normalizeLocalPhone(form.phone, phoneCountry.code);
+  const phoneError = validateLocalPhone(phone, phoneCountry.code, { required: false });
+  if (phoneError) errors.phone = phoneError;
 
   const address = normalizeSpaces(form.address);
   if (address) {
@@ -194,6 +198,7 @@ const validateCustomerForm = (form: FormState): {
       taxId: taxId || undefined,
       email: email || undefined,
       phone: phone || undefined,
+      phoneCountryCode: phone ? phoneCountry.code : undefined,
       address: address || undefined,
       creditLimit: creditLimitValue?.value ?? 0,
       zipCode: zipCode || undefined,
@@ -284,7 +289,8 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
       name: c.name,
       taxId: c.taxId || "",
       email: c.email || "",
-      phone: c.phone || "",
+      phone: phoneToAdminFormValue(c.phone),
+      phoneCountryIso: DEFAULT_PHONE_COUNTRY_ISO,
       address: c.address || "",
       creditLimit: String(c.creditLimit),
       zipCode: c.zipCode || "",
@@ -306,7 +312,11 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
   };
 
   const updateFormField = (k: keyof typeof emptyForm, value: string) => {
-    const nextValue = k === "taxId" ? value.toUpperCase().replace(/\s+/g, "") : value;
+    const nextValue = k === "taxId"
+      ? value.toUpperCase().replace(/\s+/g, "")
+      : k === "phone"
+        ? normalizeLocalPhone(value, getCountryCodeByIso(form.phoneCountryIso).code)
+        : value;
     const nextForm = { ...form, [k]: nextValue };
     const validation = validateCustomerForm(nextForm);
     setForm(nextForm);
@@ -716,7 +726,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
           </div>
 
           {/* RFC + Teléfono */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 14 }}>
             <div>
               <label style={ui.fieldLabel}>RFC</label>
               <input
@@ -729,9 +739,29 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
               {fieldErrors.taxId && <p style={fieldErrorStyle}>{fieldErrors.taxId}</p>}
             </div>
             <div>
-              <label style={ui.fieldLabel}>Teléfono</label>
-              <input style={ui.input} value={form.phone} onChange={set("phone")} placeholder="771 000 0000" />
-              {fieldErrors.phone && <p style={fieldErrorStyle}>{fieldErrors.phone}</p>}
+              <PhoneField
+                value={form.phone}
+                onChange={(value) => updateFormField("phone", value)}
+                countryIso={form.phoneCountryIso}
+                onCountryChange={(phoneCountryIso) => {
+                  const phone = normalizeLocalPhone(
+                    form.phone,
+                    getCountryCodeByIso(phoneCountryIso).code,
+                  );
+                  const nextForm = { ...form, phoneCountryIso, phone };
+                  const validation = validateCustomerForm(nextForm);
+                  setForm(nextForm);
+                  setFormError(null);
+                  setFieldErrors((prev) => {
+                    const next = { ...prev };
+                    if (validation.errors.phone) next.phone = validation.errors.phone;
+                    else delete next.phone;
+                    return next;
+                  });
+                }}
+                error={fieldErrors.phone}
+                disabled={saving}
+              />
             </div>
           </div>
 
