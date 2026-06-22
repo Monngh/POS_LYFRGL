@@ -88,13 +88,14 @@ type FieldErrors = Partial<Record<keyof FormState, string>>;
 const empDetailRow: React.CSSProperties = {
   display: "flex",
   justifyContent: "flex-start",
-  alignItems: "center",
+  alignItems: "flex-start",
   gap: "8px",
   fontSize: 13,
   marginBottom: 6,
 };
 
 const empDetailLabel: React.CSSProperties = {
+  flexShrink: 0,
   fontWeight: 700,
   color: "var(--text-muted)",
   minWidth: "95px",
@@ -102,6 +103,9 @@ const empDetailLabel: React.CSSProperties = {
 };
 
 const empDetailValue: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  overflowWrap: "anywhere",
   fontWeight: 600,
   color: "var(--text-secondary)",
 };
@@ -537,7 +541,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     fontSize: 11,
                     fontWeight: 700,
                     color: "var(--text)",
-                    borderBottom: "1px solid #f1f5f9",
+                    borderBottom: "1px solid var(--border-soft)",
                     backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
@@ -863,7 +867,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <tr key={s.id}>
                       <td style={{ ...ui.td, fontWeight: 700, color: "var(--accent-strong)" }}>{s.id}</td>
                       <td style={ui.td}>{fmtDate(s.openedAt)} {fmtTime(s.openedAt)}</td>
-                      <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: s.difference && s.difference < 0 ? "#b91c1c" : "#334155" }}>
+                      <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: s.difference && s.difference < 0 ? "#b91c1c" : "var(--text-secondary)" }}>
                         {s.difference !== null ? money(s.difference) : "—"}
                       </td>
                       <td style={{ ...ui.td, textAlign: "center" }}><Badge tone={statusTone(s.status)}>{s.status}</Badge></td>
@@ -893,7 +897,7 @@ const Mini: React.FC<{ label: string; value: string; accent?: "blue" | "green" }
     blue: { background: "#eff6ff", borderLeft: "4px solid #60a5fa" },
     green: { background: "#f0fdf4", borderLeft: "4px solid #4ade80" },
   };
-  const valueColor = accent === "blue" ? "#2563eb" : accent === "green" ? "#16a34a" : "#0f172a";
+  const valueColor = accent === "blue" ? "#2563eb" : accent === "green" ? "#16a34a" : "var(--text)";
   return (
     <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "10px 12px", ...(accent ? accentStyles[accent] : {}) }}>
       <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>{label}</div>
