@@ -41,7 +41,7 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   if (loading && token) return null;
 
-  return !token ? <>{children}</> : <Navigate to="/cajero" replace />;
+  return !token ? <>{children}</> : <Navigate to="/pos" replace />;
 };
 
 const AppContent: React.FC = () => {
