@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import Login from '../pages/Login';
+import { Login } from '../auth';
 
 // Lazy load por dominio para code splitting
 const PosPage = lazy(() => import('../pos/PosPage'));

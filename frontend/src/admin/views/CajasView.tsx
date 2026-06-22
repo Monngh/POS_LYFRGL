@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { useAuth } from "../../shared/context/AuthContext";
+import { useAuth } from "../../auth";
 import { Calendar, ChevronDown, ChevronUp, DollarSign, Eye } from "lucide-react";
 import api from "../../shared/services/api";
 import { validateReference } from "../../shared/utils/formValidation";
