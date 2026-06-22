@@ -55,6 +55,7 @@ export interface ReportDef {
   params?: (f: ReportFilters, branchId: string) => Record<string, any>;
   clientFilter?: (rows: any[], f: ReportFilters) => any[];
   branchScoped?: boolean;
+  adminOnly?: boolean;
 }
 
 const kardexTone = (t: string): Tone => {
@@ -387,9 +388,20 @@ export const REPORTS: ReportDef[] = [
       ];
     },
   },
+  {
+    key: "historial-facturas",
+    title: "Historial de facturas",
+    description: "Consulta de facturas emitidas, descarga de comprobantes PDF/XML y estado de timbrado.",
+    category: "Facturación",
+    icon: Receipt,
+    available: true,
+    kind: "table",
+    branchScoped: false,
+    adminOnly: true,
+  },
 ];
 
-export const REPORT_CATEGORIES = ["Ventas y operación", "Inventario", "Compras", "Personal"];
+export const REPORT_CATEGORIES = ["Ventas y operación", "Inventario", "Compras", "Personal", "Facturación"];
 
 // Helper de formato para impresión (texto plano según tipo)
 export const formatForPrint = (col: Column, row: any): string => {

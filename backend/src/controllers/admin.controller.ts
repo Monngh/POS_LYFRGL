@@ -61,7 +61,7 @@ export {
   getProductSuppliers,
 } from "./adminProduct.controller";
 
-export { listPurchases, createPurchase, receivePurchase, registerPurchase } from "./adminPurchase.controller";
+export { listPurchases, createPurchase, receivePurchase, registerPurchase, cancelPurchase } from "./adminPurchase.controller";
 
 export { listInventory, listKardex, adjustInventory, transferInventory } from "./adminInventory.controller";
 

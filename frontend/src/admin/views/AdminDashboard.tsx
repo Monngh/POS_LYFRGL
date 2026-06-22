@@ -47,7 +47,6 @@ import ImpuestosView from "./ImpuestosView";
 import PromocionesView from "./PromocionesView";
 import DevolucionesView from "./DevolucionesView";
 import FacturacionGlobalView from "./FacturacionGlobalView";
-import HistorialFacturasView from "./HistorialFacturasView";
 import ReportAuditLogView from "./ReportAuditLogView";
 import CajaAccessLogView from "./CajaAccessLogView";
 import AdminAccessLogView from "./AdminAccessLogView";
@@ -90,7 +89,6 @@ const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<
   { key: "promociones", label: "Promociones", icon: Tags, view: PromocionesView, branchScoped: false },
   { key: "reportes", label: "Reportes", icon: BarChart3, view: ReportesView, branchScoped: true },
   { key: "facturacion-global", label: "Factura Global", icon: BadgePercent, view: FacturacionGlobalView, branchScoped: true },
-  { key: "historial-facturas", label: "Historial Facturas", icon: ClipboardList, view: HistorialFacturasView, branchScoped: false },
   { key: "auditoria-reportes", label: "Auditoría Reportes", icon: ShieldCheck, view: ReportAuditLogView, branchScoped: false, adminOnly: true },
   { key: "caja-access", label: "Accesos de Caja", icon: KeyRound, view: CajaAccessLogView, branchScoped: false, adminOnly: true },
   { key: "admin-access", label: "Accesos Admin", icon: Lock, view: AdminAccessLogView, branchScoped: false, adminOnly: true },
@@ -103,7 +101,6 @@ const RESTRICTED_KEYS_GERENTE = [
   "impuestos",
   "promociones",
   "facturacion-global",
-  "historial-facturas",
   "auditoria-reportes",
   "caja-access",
   "admin-access",
@@ -112,7 +109,7 @@ const RESTRICTED_KEYS_GERENTE = [
 const NAV_SECTIONS: { label: string; items: string[] }[] = [
   { label: "Inicio", items: ["dashboard"] },
   { label: "Operación", items: ["ventas", "devoluciones", "compras"] },
-  { label: "Caja y finanzas", items: ["cajas", "depositos", "facturacion-global", "historial-facturas"] },
+  { label: "Caja y finanzas", items: ["cajas", "depositos", "facturacion-global"] },
   { label: "Inventario", items: ["inventario"] },
   { label: "Catálogos", items: ["clientes", "empleados", "sucursales", "proveedores", "impuestos", "promociones"] },
   { label: "Reportes", items: ["reportes"] },
