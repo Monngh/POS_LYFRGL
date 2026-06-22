@@ -77,13 +77,25 @@ api.interceptors.response.use(
       const isSecurityAudit =
         url.endsWith("/security/audit-unlock") || url.endsWith("/security/admin-access");
 
-      if (status === 401 && !isPinVerification && !isLoginAttempt && !isSecurityAudit) {
+      // El propio logout no debe re-disparar el cierre de sesión global.
+      const isLogout = url.endsWith("/auth/logout");
+
+      if (status === 401 && !isPinVerification && !isLoginAttempt && !isSecurityAudit && !isLogout) {
         console.warn("Sesión expirada o no autorizada. Redirigiendo a inicio de sesión...");
+
+        // Si la sesión fue desplazada por otro inicio, guardar el aviso para el Login.
+        const code = (error.response.data as any)?.code;
+        if (code === "SESION_DESPLAZADA") {
+          const msg = (error.response.data as any)?.message ||
+            "Tu sesión se cerró porque se inició sesión con este usuario en otro dispositivo.";
+          sessionStorage.setItem("fmb_pos_logout_reason", msg);
+        }
+
         sessionStorage.removeItem("fmb_pos_token");
         sessionStorage.removeItem("fmb_pos_user");
         localStorage.removeItem("fmb_pos_token");
         localStorage.removeItem("fmb_pos_user");
-        
+
         // Disparar evento global o redirigir enrutador si es necesario
         // En una SPA, podemos emitir un evento personalizado para que el App.tsx reaccione
         window.dispatchEvent(new Event("auth-expired"));

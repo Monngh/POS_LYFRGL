@@ -135,6 +135,13 @@
   }
 }
 
+/* Detección de autocompletado del navegador (Chrome/Edge/Safari):
+   al autollenar un input, WebKit aplica :-webkit-autofill y dispara esta
+   animación; el Login escucha onAnimationStart === "fmbAutofill" para saber
+   si las credenciales del admin fueron autocompletadas (y exigir Windows Hello). */
+@keyframes fmbAutofill { from { } to { } }
+input:-webkit-autofill { animation-name: fmbAutofill; animation-duration: 1ms; }
+
 /* Reset de Estilos */
 * {
   box-sizing: border-box;

@@ -75,13 +75,14 @@ const validatePhone = (value: string): string | undefined => {
 const branchDetailRow: React.CSSProperties = {
   display: "flex",
   justifyContent: "flex-start",
-  alignItems: "center",
+  alignItems: "flex-start",
   gap: "8px",
   fontSize: 13,
   marginBottom: 6,
 };
 
 const branchDetailLabel: React.CSSProperties = {
+  flexShrink: 0,
   fontWeight: 700,
   color: "var(--text-muted)",
   minWidth: "95px",
@@ -89,6 +90,9 @@ const branchDetailLabel: React.CSSProperties = {
 };
 
 const branchDetailValue: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  overflowWrap: "anywhere",
   fontWeight: 600,
   color: "var(--text-secondary)",
 };
@@ -336,7 +340,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
       key: "address",
       header: "Dirección",
       render: (b) => (
-        <span style={{ color: "#475569", whiteSpace: "normal" }}>{b.address || "—"}</span>
+        <span style={{ color: "var(--text-secondary)", whiteSpace: "normal" }}>{b.address || "—"}</span>
       ),
     },
     {
@@ -476,7 +480,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     fontSize: 11,
                     fontWeight: 700,
                     color: "var(--text-muted)",
-                    borderBottom: "1px solid #f1f5f9",
+                    borderBottom: "1px solid var(--border-soft)",
                     backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
@@ -502,7 +506,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     </div>
 
                     {/* Teléfono */}
-                    <div style={{ fontSize: 12, color: "#475569" }}>
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
                       {b.phone || "—"}
                     </div>
 
