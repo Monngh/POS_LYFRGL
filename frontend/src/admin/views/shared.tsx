@@ -95,15 +95,16 @@ export interface ViewProps {
 // Badge de estado (usa los tokens semánticos ya existentes del POS)
 // ---------------------------------------------------------------------------
 type Tone = "green" | "red" | "amber" | "blue" | "slate";
-const toneMap: Record<Tone, { bg: string; fg: string }> = {
-  green: { bg: "#dcfce7", fg: "#15803d" },
-  red: { bg: "#fee2e2", fg: "#b91c1c" },
-  amber: { bg: "#fef3c7", fg: "#b45309" },
-  blue: { bg: "#eff6ff", fg: "#2563eb" },
-  slate: { bg: "#f1f5f9", fg: "#475569" },
-};
 
 export const Badge: React.FC<{ tone: Tone; children: React.ReactNode }> = ({ tone, children }) => {
+  const isDark = document.documentElement.classList.contains('theme-dark');
+  const toneMap: Record<Tone, { bg: string; fg: string }> = {
+    green: { bg: isDark ? "rgba(34,197,94,0.15)"   : "#dcfce7", fg: isDark ? "#22c55e" : "#15803d" },
+    red:   { bg: isDark ? "rgba(239,68,68,0.15)"   : "#fee2e2", fg: isDark ? "#f87171" : "#b91c1c" },
+    amber: { bg: isDark ? "rgba(245,158,11,0.15)"  : "#fef3c7", fg: isDark ? "#f59e0b" : "#b45309" },
+    blue:  { bg: isDark ? "rgba(96,165,250,0.15)"  : "#eff6ff", fg: isDark ? "#60a5fa" : "#2563eb" },
+    slate: { bg: isDark ? "rgba(148,163,184,0.12)" : "#f1f5f9", fg: isDark ? "#94a3b8" : "#475569" },
+  };
   const c = toneMap[tone];
   return (
     <span
@@ -431,7 +432,7 @@ export const ui: { [k: string]: React.CSSProperties } = {
   fieldLabel: {
     fontSize: 11,
     fontWeight: 700,
-    color: "#475569",
+    color: "var(--text-secondary)",
     textTransform: "uppercase",
     letterSpacing: "0.4px",
     marginBottom: 6,
@@ -446,10 +447,10 @@ export const ui: { [k: string]: React.CSSProperties } = {
     color: "var(--text)",
     outline: "none",
     fontFamily: "inherit",
-    backgroundColor: "var(--surface)",
+    backgroundColor: "var(--input-bg)",
   },
   fieldError: {
-    color: "#b91c1c",
+    color: "var(--color-danger)",
     fontSize: 12,
     fontWeight: 600,
     margin: "4px 0 0",
