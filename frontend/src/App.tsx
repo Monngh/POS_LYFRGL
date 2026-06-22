@@ -1,7 +1,6 @@
 import React, { Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "./shared/context/AuthContext";
-import Login from "./pages/Login";
+import { AuthProvider, useAuth, Login } from "./auth";
 import Autofacturacion from "./pages/Autofacturacion";
 import AppRouter from "./router";
 

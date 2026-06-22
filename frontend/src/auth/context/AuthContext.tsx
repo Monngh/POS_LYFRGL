@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from "react";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
-import api from "../services/api";
+import api from "../../shared/services/api";
 
 interface User {
   id: number;

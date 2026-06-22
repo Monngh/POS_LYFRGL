@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useAuth } from "../../shared/context/AuthContext";
+import { useAuth } from "../../auth";
 import api from "../../shared/services/api";
 import {
   LayoutDashboard,
