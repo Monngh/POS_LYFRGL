@@ -55,7 +55,7 @@ const modalOverlay: React.CSSProperties = {
 const depositModal: React.CSSProperties = {
   width: "700px",
   maxWidth: "95vw",
-  backgroundColor: "#ffffff",
+  backgroundColor: "var(--surface)",
   borderRadius: "12px",
   padding: "28px",
   boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
@@ -71,7 +71,7 @@ const inputGroup: React.CSSProperties = {
 const label: React.CSSProperties = {
   fontSize: "11px",
   fontWeight: "700",
-  color: "#475569",
+  color: "var(--text-secondary)",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
 };
@@ -101,25 +101,25 @@ const table: React.CSSProperties = {
 };
 
 const tableHeaderRow: React.CSSProperties = {
-  borderBottom: "2px solid #e2e8f0",
+  borderBottom: "2px solid var(--border)",
 };
 
 const th: React.CSSProperties = {
   padding: "10px 12px",
   fontSize: "11px",
   fontWeight: "700",
-  color: "#475569",
+  color: "var(--text-secondary)",
   textTransform: "uppercase",
 };
 
 const tableRow: React.CSSProperties = {
-  borderBottom: "1px solid #f1f5f9",
+  borderBottom: "1px solid var(--surface-3)",
 };
 
 const td: React.CSSProperties = {
   padding: "12px",
   fontSize: "13px",
-  color: "#334155",
+  color: "var(--text-secondary)",
 };
 
 const badgeSuccess: React.CSSProperties = {
@@ -153,9 +153,9 @@ const select: React.CSSProperties = {
   width: "100%",
   padding: "10px 14px",
   borderRadius: "6px",
-  border: "1px solid #cbd5e1",
-  backgroundColor: "#ffffff",
-  color: "#0f172a",
+  border: "1px solid var(--border-strong)",
+  backgroundColor: "var(--surface)",
+  color: "var(--text)",
   fontSize: "14px",
   fontWeight: "500",
   outline: "none",
@@ -380,13 +380,13 @@ export default function BankDepositModal({
   return (
     <div style={modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
       <div style={depositModal} className="pos-cashier-modal">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #cbd5e1", paddingBottom: "8px", marginBottom: "14px" }} className="pos-cashier-modal-header-row">
-          <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "#0f172a" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-strong)", paddingBottom: "8px", marginBottom: "14px" }} className="pos-cashier-modal-header-row">
+          <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "var(--text)" }}>
             Resguardo de Efectivo (Cash Deposit)
           </h3>
           <button
             onClick={onClose}
-            style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "20px", cursor: "pointer", fontWeight: "bold" }}
+            style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "20px", cursor: "pointer", fontWeight: "bold" }}
           >
             &times;
           </button>
@@ -462,7 +462,7 @@ export default function BankDepositModal({
                     setDepCancelReason("");
                     setDepCancelFieldErrors({});
                   }}
-                  style={{ ...modalBtn, backgroundColor: "#64748b", color: "white" }}
+                  style={{ ...modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
                 >
                   VOLVER AL HISTORIAL
                 </button>
@@ -479,7 +479,7 @@ export default function BankDepositModal({
         ) : (
           <>
             {/* Selector de pestañas */}
-            <div style={{ display: "flex", borderBottom: "2px solid #e2e8f0", marginBottom: "16px" }} className="pos-cashier-dep-tabs">
+            <div style={{ display: "flex", borderBottom: "2px solid var(--border)", marginBottom: "16px" }} className="pos-cashier-dep-tabs">
               <button
                 type="button"
                 onClick={() => setDepTab("registrar")}
@@ -490,7 +490,7 @@ export default function BankDepositModal({
                   borderBottom: depTab === "registrar" ? "3px solid #2563eb" : "none",
                   backgroundColor: "transparent",
                   fontWeight: "700",
-                  color: depTab === "registrar" ? "#2563eb" : "#64748b",
+                  color: depTab === "registrar" ? "#2563eb" : "var(--text-muted)",
                   cursor: "pointer",
                 }}
               >
@@ -506,7 +506,7 @@ export default function BankDepositModal({
                   borderBottom: depTab === "buscar" ? "3px solid #2563eb" : "none",
                   backgroundColor: "transparent",
                   fontWeight: "700",
-                  color: depTab === "buscar" ? "#2563eb" : "#64748b",
+                  color: depTab === "buscar" ? "#2563eb" : "var(--text-muted)",
                   cursor: "pointer",
                 }}
               >
@@ -517,28 +517,28 @@ export default function BankDepositModal({
             {depTab === "registrar" ? (
               <form onSubmit={handleDepositSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                 {/* Tarjeta de Datos Calculados */}
-                <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px", backgroundColor: "#f8fafc", marginBottom: "4px" }}>
-                  <h4 style={{ fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "8px", borderBottom: "1px solid #e2e8f0", paddingBottom: "4px" }}>
+                <div style={{ border: "1px solid var(--border)", borderRadius: "8px", padding: "12px", backgroundColor: "var(--surface-2)", marginBottom: "4px" }}>
+                  <h4 style={{ fontSize: "11px", fontWeight: "700", color: "var(--text-secondary)", textTransform: "uppercase", marginBottom: "8px", borderBottom: "1px solid var(--border)", paddingBottom: "4px" }}>
                     Información Operativa
                   </h4>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", fontSize: "11px" }} className="pos-cashier-grid-2">
                     <div>
-                      <span style={{ color: "#64748b" }}>Referencia Estimada:</span>
-                      <strong style={{ display: "block", color: "#0f172a", marginTop: "2px" }}>DEP-{new Date().toISOString().slice(0, 10).replace(/-/g, "")}-[SIG]</strong>
+                      <span style={{ color: "var(--text-muted)" }}>Referencia Estimada:</span>
+                      <strong style={{ display: "block", color: "var(--text)", marginTop: "2px" }}>DEP-{new Date().toISOString().slice(0, 10).replace(/-/g, "")}-[SIG]</strong>
                     </div>
                     <div>
-                      <span style={{ color: "#64748b" }}>Estado del Registro:</span>
+                      <span style={{ color: "var(--text-muted)" }}>Estado del Registro:</span>
                       <strong style={{ display: "block", color: depType.startsWith("MERCADOPAGO_") ? "#d97706" : "#059669", marginTop: "2px" }}>
                         {depType.startsWith("MERCADOPAGO_") ? "PENDING (Espera de Pago)" : "COMPLETED (Salida Física)"}
                       </strong>
                     </div>
                     <div>
-                      <span style={{ color: "#64748b" }}>Fecha de Registro:</span>
-                      <strong style={{ display: "block", color: "#0f172a", marginTop: "2px" }}>{new Date().toLocaleDateString()}</strong>
+                      <span style={{ color: "var(--text-muted)" }}>Fecha de Registro:</span>
+                      <strong style={{ display: "block", color: "var(--text)", marginTop: "2px" }}>{new Date().toLocaleDateString()}</strong>
                     </div>
                     <div>
-                      <span style={{ color: "#64748b" }}>Método de Retiro:</span>
-                      <strong style={{ display: "block", color: "#0f172a", marginTop: "2px" }}>
+                      <span style={{ color: "var(--text-muted)" }}>Método de Retiro:</span>
+                      <strong style={{ display: "block", color: "var(--text)", marginTop: "2px" }}>
                         {depType === "EFECTIVO" ? "Efectivo en Caja Chica" : `Mercado Pago (${depType.replace("MERCADOPAGO_", "")})`}
                       </strong>
                     </div>
@@ -757,7 +757,7 @@ export default function BankDepositModal({
                 </div>
 
                 {/* Tabla de Resultados */}
-                <div style={{ maxHeight: "220px", overflowX: "auto", overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: "6px", marginBottom: "14px" }} className="pos-cashier-inline-table-scroll">
+                <div style={{ maxHeight: "220px", overflowX: "auto", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "6px", marginBottom: "14px" }} className="pos-cashier-inline-table-scroll">
                   <table style={table}>
                     <thead>
                       <tr style={tableHeaderRow}>
@@ -772,13 +772,13 @@ export default function BankDepositModal({
                     <tbody>
                       {depSearchLoading ? (
                         <tr>
-                          <td colSpan={6} style={{ textAlign: "center", padding: "16px", color: "#64748b", fontSize: "12px" }}>
+                          <td colSpan={6} style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "12px" }}>
                             Buscando resguardos...
                           </td>
                         </tr>
                       ) : depSearchResults.length === 0 ? (
                         <tr>
-                          <td colSpan={6} style={{ textAlign: "center", padding: "16px", color: "#64748b", fontSize: "12px" }}>
+                          <td colSpan={6} style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "12px" }}>
                             No se encontraron resguardos.
                           </td>
                         </tr>
@@ -787,7 +787,7 @@ export default function BankDepositModal({
                           <tr key={dep.id} style={tableRow}>
                             <td style={{ ...td, padding: "8px", fontSize: "12px" }}>
                               <div style={{ fontWeight: "700" }}>{dep.reference || `#${dep.id}`}</div>
-                              <div style={{ fontSize: "10px", color: "#64748b" }}>{new Date(dep.createdAt).toLocaleDateString()}</div>
+                              <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>{new Date(dep.createdAt).toLocaleDateString()}</div>
                             </td>
                             <td style={{ ...td, padding: "8px", fontSize: "12px" }}>
                               {dep.paymentType?.startsWith("MERCADOPAGO_") ? (
@@ -795,11 +795,11 @@ export default function BankDepositModal({
                               ) : (
                                 <div>Cuenta: ****{dep.accountNumber.slice(-4)}</div>
                               )}
-                              <div style={{ fontSize: "10px", color: "#64748b" }}>
+                              <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>
                                 {dep.targetName ? "Destino registrado" : "Destino no registrado"}
                               </div>
                             </td>
-                            <td style={{ ...td, padding: "8px", fontSize: "12px", fontWeight: "700", color: dep.status === "CANCELLED" ? "#b91c1c" : "#0f172a" }}>
+                            <td style={{ ...td, padding: "8px", fontSize: "12px", fontWeight: "700", color: dep.status === "CANCELLED" ? "#b91c1c" : "var(--text)" }}>
                               {dep.status === "CANCELLED" ? "" : "-"}${Number(dep.amount).toFixed(2)}
                             </td>
                             <td style={{ ...td, padding: "8px", fontSize: "12px" }}>{dep.userName}</td>
@@ -881,7 +881,7 @@ export default function BankDepositModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  style={{ ...modalBtn, backgroundColor: "#64748b", color: "white", width: "100%" }}
+                  style={{ ...modalBtn, backgroundColor: "var(--text-muted)", color: "white", width: "100%" }}
                 >
                   CERRAR HISTORIAL
                 </button>
