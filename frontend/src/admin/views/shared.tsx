@@ -327,7 +327,7 @@ export const ui: { [k: string]: React.CSSProperties } = {
   },
   theadRow: {
     backgroundColor: "var(--surface-2)",
-    borderBottom: "1px solid #e2e8f0",
+    borderBottom: "1px solid var(--border)",
   },
   th: {
     padding: "12px 16px",
@@ -342,7 +342,7 @@ export const ui: { [k: string]: React.CSSProperties } = {
     padding: "13px 16px",
     fontSize: 13,
     color: "var(--text-secondary)",
-    borderBottom: "1px solid #f1f5f9",
+    borderBottom: "1px solid var(--border-soft)",
     whiteSpace: "nowrap",
   },
 
