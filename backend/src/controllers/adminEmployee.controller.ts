@@ -7,6 +7,7 @@ import {
   getEmployeeOperations as getEmployeeOperationsService,
   type UpdateEmployeeInput,
 } from "../services/adminEmployee.service";
+import { validateAdminLocalPhone } from "../utils/adminPhoneValidation";
 
 const parseBranch = (req: Request): number | undefined => {
   if (req.user && req.user.role === "GERENTE") return req.user.branchId;
@@ -36,7 +37,7 @@ export const listEmployees = async (req: Request, res: Response): Promise<void> 
 
 export const createEmployee = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, email, password, role, branchId, pinCode, phone, baseSalary, commissionRate } = req.body;
+    const { name, email, password, role, branchId, pinCode, phone, phoneCountryCode, baseSalary, commissionRate } = req.body;
 
     if (!name?.trim() || !email?.trim() || !password || !role || !branchId) {
       res.status(400).json({ message: "Nombre, correo, contraseña, rol y sucursal son obligatorios." });
@@ -61,6 +62,11 @@ export const createEmployee = async (req: Request, res: Response): Promise<void>
     }
     if (pinCode && !/^\d{4}$/.test(String(pinCode))) {
       res.status(400).json({ message: "El PIN debe ser numérico de 4 dígitos." });
+      return;
+    }
+    const phoneError = validateAdminLocalPhone(phone, phoneCountryCode, { required: false });
+    if (phoneError) {
+      res.status(400).json({ message: phoneError });
       return;
     }
     if (req.user && req.user.role === "GERENTE" && Number(branchId) !== req.user.branchId) {
@@ -93,7 +99,7 @@ export const updateEmployee = async (req: Request, res: Response): Promise<void>
     const userId = Number(req.params.id);
     if (isNaN(userId)) { res.status(400).json({ message: "Identificador de empleado inválido." }); return; }
 
-    const { name, email, phone, baseSalary, commissionRate, role, branchId, active, newPin } = req.body;
+    const { name, email, phone, phoneCountryCode, baseSalary, commissionRate, role, branchId, active, newPin } = req.body;
 
     if (email && String(email).trim() !== "" && !validateEmail(String(email))) {
       res.status(400).json({ message: "Formato de correo electrónico inválido." });
@@ -106,6 +112,13 @@ export const updateEmployee = async (req: Request, res: Response): Promise<void>
     if (newPin && String(newPin).trim() !== "" && !/^\d{4}$/.test(String(newPin))) {
       res.status(400).json({ message: "El PIN debe ser exactamente 4 dígitos numéricos." });
       return;
+    }
+    if (phone !== undefined) {
+      const phoneError = validateAdminLocalPhone(phone, phoneCountryCode, { required: false });
+      if (phoneError) {
+        res.status(400).json({ message: phoneError });
+        return;
+      }
     }
 
     const updateData: UpdateEmployeeInput = {

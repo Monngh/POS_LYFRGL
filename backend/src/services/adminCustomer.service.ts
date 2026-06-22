@@ -1,11 +1,11 @@
 import { prisma } from "../app";
 import { AppError } from "../utils/AppError";
+import { validateAdminLocalPhone } from "../utils/adminPhoneValidation";
 
 // ─── Validation helpers ────────────────────────────────────────────────────────
 
 const CUSTOMER_NAME_PATTERN = /^[A-Za-z0-9À-ſ\s.,'&-]+$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_PATTERN = /^[0-9\s()+-]+$/;
 const ADDRESS_PATTERN = /^[A-Za-z0-9À-ſ\s.,#\-\/]+$/;
 const ZIP_CODE_PATTERN = /^\d{5}$/;
 const TAX_REGIME_PATTERN = /^\d{3}$/;
@@ -71,11 +71,8 @@ const validateCustomerInput = (
 
   if (body.phone !== undefined) {
     const phone = normalizeSpaces(readString(body.phone));
-    if (phone) {
-      const digits = phone.replace(/\D/g, "");
-      if (!PHONE_PATTERN.test(phone)) return { valid: false, message: "El telefono solo puede contener numeros, espacios, +, - y parentesis." };
-      if (digits.length < 10 || digits.length > 15) return { valid: false, message: "El telefono debe tener entre 10 y 15 digitos." };
-    }
+    const phoneError = validateAdminLocalPhone(phone, body.phoneCountryCode, { required: false });
+    if (phoneError) return { valid: false, message: phoneError };
     data.phone = phone || null;
   }
 
