@@ -60,7 +60,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
       />
 
       <Panel>
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", backgroundColor: "var(--surface-2)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", backgroundColor: "var(--surface-2)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <strong style={{ fontSize: 14, color: "var(--text-secondary)" }}>Facturas Emitidas</strong>
           <button onClick={fetchHistory} style={ui.ghostBtn}>
             Actualizar
@@ -129,7 +129,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                       fontSize: 11,
                       fontWeight: 700,
                       color: "var(--text-muted)",
-                      borderBottom: "1px solid #f1f5f9",
+                      borderBottom: "1px solid var(--border-soft)",
                       backgroundColor: "var(--surface-2)",
                       letterSpacing: "0.2px",
                     }}>
@@ -245,7 +245,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                               href={`${api.defaults.baseURL}/api/public/sales/invoice/${item.uuid}/xml`}
                               target="_blank"
                               rel="noreferrer"
-                              style={{ ...downloadBtn, backgroundColor: "#0f172a" }}
+                              style={{ ...downloadBtn, backgroundColor: "var(--text)" }}
                             >
                               <Download size={14} /> XML
                             </a>
@@ -361,13 +361,14 @@ const srOnly: React.CSSProperties = {
 const hisDetailRow: React.CSSProperties = {
   display: "flex",
   justifyContent: "flex-start",
-  alignItems: "center",
+  alignItems: "flex-start",
   gap: "8px",
   fontSize: 13,
   marginBottom: 6,
 };
 
 const hisDetailLabel: React.CSSProperties = {
+  flexShrink: 0,
   fontWeight: 700,
   color: "var(--text-muted)",
   minWidth: "75px",
@@ -375,6 +376,9 @@ const hisDetailLabel: React.CSSProperties = {
 };
 
 const hisDetailValue: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  overflowWrap: "anywhere",
   fontWeight: 600,
   color: "var(--text-secondary)",
 };

@@ -836,7 +836,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     fontSize: 11,
                     fontWeight: 700,
                     color: "var(--text-muted)",
-                    borderBottom: "1px solid #f1f5f9",
+                    borderBottom: "1px solid var(--border-soft)",
                     backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
@@ -883,7 +883,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           width: 34,
                           height: 34,
                           cursor: "pointer",
-                          color: "#475569",
+                          color: "var(--text-secondary)",
                           padding: 0,
                           opacity: busy ? 0.55 : 1,
                         }}
@@ -935,42 +935,42 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                       </div>
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Descripción</div>
-                        <div style={{ fontSize: 13, color: "#475569" }}>{promotion.description || "Sin descripción"}</div>
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{promotion.description || "Sin descripción"}</div>
                       </div>
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Vigencia</div>
-                        <div style={{ fontSize: 13, color: "#475569", fontWeight: 700 }}>{fmtDate(promotion.startDate)} - {fmtDate(promotion.endDate)}</div>
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 700 }}>{fmtDate(promotion.startDate)} - {fmtDate(promotion.endDate)}</div>
                       </div>
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Cantidad de Productos</div>
-                        <div style={{ fontSize: 13, color: "#475569" }}>{promotion.products.length} producto{promotion.products.length === 1 ? "" : "s"}</div>
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{promotion.products.length} producto{promotion.products.length === 1 ? "" : "s"}</div>
                       </div>
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Productos incluidos</div>
-                        <div style={{ fontSize: 13, color: "#475569" }}>{productSummary(promotion)}</div>
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{productSummary(promotion)}</div>
                       </div>
                       {promotion.minQuantity !== null && (
                         <div>
                           <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Cantidad mínima</div>
-                          <div style={{ fontSize: 13, color: "#475569" }}>{promotion.minQuantity}</div>
+                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{promotion.minQuantity}</div>
                         </div>
                       )}
                       {promotion.payQuantity !== null && (
                         <div>
                           <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Cantidad a pagar</div>
-                          <div style={{ fontSize: 13, color: "#475569" }}>{promotion.payQuantity}</div>
+                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{promotion.payQuantity}</div>
                         </div>
                       )}
                       {promotion.createdAt && (
                         <div>
                           <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Fecha de creación</div>
-                          <div style={{ fontSize: 13, color: "#475569" }}>{fmtDate(promotion.createdAt)}</div>
+                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmtDate(promotion.createdAt)}</div>
                         </div>
                       )}
                       {promotion.updatedAt && (
                         <div>
                           <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Última actualización</div>
-                          <div style={{ fontSize: 13, color: "#475569" }}>{fmtDate(promotion.updatedAt)}</div>
+                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmtDate(promotion.updatedAt)}</div>
                         </div>
                       )}
 
@@ -981,7 +981,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                         alignItems: "center",
                         gap: 12,
                         marginTop: 8,
-                        borderTop: "1px solid #e2e8f0",
+                        borderTop: "1px solid var(--border)",
                         paddingTop: 14,
                         flexWrap: "wrap",
                       }}>
@@ -1423,7 +1423,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: "center",
     gap: 10,
     padding: 10,
-    borderBottom: "1px solid #e2e8f0",
+    borderBottom: "1px solid var(--border)",
     backgroundColor: "var(--surface-2)",
     flexWrap: "wrap",
   },
