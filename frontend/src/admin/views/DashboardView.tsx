@@ -185,7 +185,7 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       <SectionHeader title="Dashboard" subtitle="Métricas en tiempo real desde SQL Server" />
 
       {/* Tarjetas de métricas */}
-      <div className="grid grid-mets-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))", gap: 16 }}>
         {cards.map((card) => {
           const Icon = card.icon;
           return (
@@ -205,7 +205,7 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       </div>
 
       {/* ── Fila 3: Operaciones del día ── */}
-      <div className="grid grid-mets-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4" style={{ marginTop: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))", gap: 16, marginTop: 16 }}>
         {/* Widget: Estado de cajas */}
         <div style={s.metricCard}>
           <div style={s.metricHead}>
@@ -379,19 +379,30 @@ const s: { [k: string]: React.CSSProperties } = {
     borderRadius: 12,
     padding: "18px 20px",
     boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+    minWidth: 0,
   },
-  metricHead: { display: "flex", alignItems: "center", justifyContent: "space-between" },
-  metricLabel: { fontSize: 13, fontWeight: 600, color: "var(--text-muted)" },
+  metricHead: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, minHeight: 32 },
+  metricLabel: { fontSize: 12.5, fontWeight: 600, color: "var(--text-muted)", minWidth: 0, lineHeight: 1.3 },
   metricIcon: {
     width: 30,
     height: 30,
     borderRadius: 8,
+    flexShrink: 0,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
   },
-  metricValue: { fontSize: 26, fontWeight: 800, marginTop: 12, letterSpacing: "-0.5px" },
-  metricSecondary: { fontSize: 12, color: "var(--text-faint)", marginTop: 4, fontWeight: 500 },
+  metricValue: {
+    fontSize: "clamp(19px, 4.6vw, 26px)",
+    fontWeight: 800,
+    marginTop: 10,
+    letterSpacing: "-0.4px",
+    lineHeight: 1.15,
+    color: "var(--text)",
+    minWidth: 0,
+    overflowWrap: "break-word",
+  },
+  metricSecondary: { fontSize: 12, color: "var(--text-faint)", marginTop: 6, fontWeight: 500, lineHeight: 1.35 },
   panelTitle: { fontSize: 15, fontWeight: 800, color: "var(--text)" },
   chart: {
     display: "flex",
@@ -401,7 +412,7 @@ const s: { [k: string]: React.CSSProperties } = {
     height: 200,
     marginTop: 18,
     paddingTop: 10,
-    borderBottom: "1px solid #f1f5f9",
+    borderBottom: "1px solid var(--border-soft)",
   },
   chartCol: {
     flex: 1,
@@ -422,7 +433,7 @@ const s: { [k: string]: React.CSSProperties } = {
     alignItems: "center",
     justifyContent: "space-between",
     padding: "11px 0",
-    borderBottom: "1px solid #f1f5f9",
+    borderBottom: "1px solid var(--border-soft)",
   },
   rankBadge: {
     width: 22,
