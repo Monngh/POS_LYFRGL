@@ -631,7 +631,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 </p>
               )}
               {detailError && (
-                <p style={{ color: "#b91c1c", fontSize: 13, padding: "8px 0" }}>{detailError}</p>
+                <p style={{ color: "var(--color-danger)", fontSize: 13, padding: "8px 0" }}>{detailError}</p>
               )}
 
               {!detailLoading && !detailError && selectedDetail && (
@@ -643,7 +643,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       <> &nbsp;·&nbsp; Cierre: {fmtDateTime(selectedDetail.closedAt)}</>
                     )}
                     {selectedDetail.forceCloseReason && (
-                      <span style={{ color: "#b91c1c", marginLeft: 8 }}>
+                      <span style={{ color: "var(--color-danger)", marginLeft: 8 }}>
                         ⚠ Cierre forzado: {selectedDetail.forceCloseReason}
                       </span>
                     )}
@@ -655,9 +655,9 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <FinRow label="Monto inicial (fondo):" value={money(selectedDetail.initialAmount)} />
                     <FinRow label="+ Ventas (efectivo neto):" value={money(selectedDetail.cashIn)} />
                     <FinRow label="– Depósitos (salidas):" value={money(selectedDetail.cashOut)} />
-                    <div style={{ borderTop: "1px solid #e2e8f0", margin: "8px 0" }} />
+                    <div style={{ borderTop: "1px solid var(--border)", margin: "8px 0" }} />
                     <FinRow label="= Esperado (teórico):" value={money(selectedDetail.expectedAmount)} bold />
-                    <div style={{ borderTop: "1px dashed #cbd5e1", margin: "8px 0" }} />
+                    <div style={{ borderTop: "1px dashed var(--border-strong)", margin: "8px 0" }} />
                     <FinRow
                       label="Declarado (contado):"
                       value={selectedDetail.declaredAmount !== null ? money(selectedDetail.declaredAmount) : "—"}
@@ -674,10 +674,10 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       bold
                       color={
                         selectedDetail.difference === null
-                          ? "#94a3b8"
+                          ? "var(--text-faint)"
                           : selectedDetail.difference >= 0
-                            ? "#15803d"
-                            : "#b91c1c"
+                            ? "var(--color-success)"
+                            : "var(--color-danger)"
                       }
                     />
                   </div>
@@ -690,7 +690,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <PayRow label="Tarjeta débito" value={money(selectedDetail.payBreakdown.tarjetaDebito)} />
                     <PayRow label="MercadoPago QR" value={money(selectedDetail.payBreakdown.mercadoPago)} />
                   </div>
-                  <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 13, fontWeight: 700, color: "var(--text)", paddingTop: 6, borderTop: "1px solid #f1f5f9" }}>
+                  <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 13, fontWeight: 700, color: "var(--text)", paddingTop: 6, borderTop: "1px solid var(--border-soft)" }}>
                     Total ventas: {money(selectedDetail.payBreakdown.totalVentas)}
                   </div>
 
@@ -744,7 +744,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             <div
               style={{
                 padding: "14px 22px",
-                borderTop: "1px solid #e2e8f0",
+                borderTop: "1px solid var(--border)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
@@ -918,8 +918,8 @@ const FinRow: React.FC<{ label: string; value: string; bold?: boolean; color?: s
   color,
 }) => (
   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, alignItems: "center" }}>
-    <span style={{ color: "#475569" }}>{label}</span>
-    <span style={{ fontWeight: bold ? 800 : 600, color: color ?? "#0f172a" }}>{value}</span>
+    <span style={{ color: "var(--text-muted)" }}>{label}</span>
+    <span style={{ fontWeight: bold ? 800 : 600, color: color ?? "var(--text)" }}>{value}</span>
   </div>
 );
 

@@ -872,11 +872,12 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
               style={{
                 width: "100%",
                 padding: "8px 12px",
-                border: "1px solid #d1d5db",
+                border: "1px solid var(--border)",
                 borderRadius: "6px",
                 fontSize: "14px",
                 fontFamily: "system-ui",
-                backgroundColor: saving ? "#f3f4f6" : "white"
+                color: "var(--text)",
+                backgroundColor: saving ? "var(--surface-3)" : "var(--input-bg)"
               }}
             >
               <option value="active">Activo</option>
@@ -886,7 +887,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
         </div>
 
         {formError && (
-          <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 14 }}>
+          <p style={{ color: "var(--color-danger)", fontSize: 13, fontWeight: 600, marginTop: 14 }}>
             {formError}
           </p>
         )}
