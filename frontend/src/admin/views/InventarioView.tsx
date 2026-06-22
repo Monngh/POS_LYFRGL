@@ -1319,9 +1319,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           cursor: "pointer",
                           backgroundColor:
                             hoveredRow === p.id
-                              ? "#eff6ff"
+                              ? "var(--accent-soft)"
                               : p.low
-                                ? "#fffbeb"
+                                ? "var(--icon-bg-amber, rgba(251,191,36,0.12))"
                                 : undefined,
                         }}
                       >
@@ -1334,7 +1334,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             ...ui.td,
                             textAlign: "center",
                             fontWeight: 800,
-                            color: p.low ? "#b45309" : "#0f172a",
+                            color: p.low ? "var(--color-warning)" : "var(--text)",
                           }}
                         >
                           {p.stock}
