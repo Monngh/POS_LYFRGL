@@ -52,7 +52,7 @@ export const openSession = async (req: Request, res: Response): Promise<void> =>
   }
 
   const staff = await prisma.user.findMany({
-    where: { role: { in: ["ADMIN", "GERENTE"] }, active: true },
+    where: { role: { in: ["ADMIN", "GERENTE"] }, active: true, branchId: req.user.branchId },
     select: { name: true, pinCode: true },
   });
 
@@ -119,7 +119,7 @@ export const closeSession = async (req: Request, res: Response): Promise<void> =
   }
 
   const staff = await prisma.user.findMany({
-    where: { role: { in: ["ADMIN", "GERENTE"] }, active: true },
+    where: { role: { in: ["ADMIN", "GERENTE"] }, active: true, branchId: req.user.branchId },
     select: { name: true, pinCode: true },
   });
 

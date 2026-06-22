@@ -157,6 +157,7 @@ export default function CancelSaleModal({
               id="cancelReason"
               type="text"
               required
+              maxLength={100}
               className="input-corporate"
               placeholder="Ej. Producto equivocado, error de cobro"
               value={cancelReason}

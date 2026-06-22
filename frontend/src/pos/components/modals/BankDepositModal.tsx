@@ -6,6 +6,7 @@ import {
   validateReference,
   validateSafeText,
   validateInteger,
+  validateLuhn,
 } from '../../../shared/utils/formValidation';
 import {
   DECIMAL_INPUT_REGEX,
@@ -180,6 +181,7 @@ export default function BankDepositModal({
   const [depLoading, setDepLoading] = useState(false);
   // Búsqueda
   const [searchDepRef, setSearchDepRef] = useState("");
+  const [searchDepRefError, setSearchDepRefError] = useState("");
   const [searchDepStatus, setSearchDepStatus] = useState("ALL");
   const [searchDepUser, setSearchDepUser] = useState("");
   const [searchDepDateFrom, setSearchDepDateFrom] = useState("");
@@ -229,7 +231,7 @@ export default function BankDepositModal({
     const errors: Partial<Record<"pin" | "reason", string>> = {};
     const pinError = validateInteger(depCancelPin, "El PIN", { min: 0 });
     if (pinError || depCancelPin.length !== 4) errors.pin = "El PIN debe contener 4 digitos.";
-    const reasonError = validateReference(depCancelReason, "El motivo", { required: true, max: 180 });
+    const reasonError = validateReference(depCancelReason, "El motivo", { required: true, max: 100 });
     if (reasonError) errors.reason = reasonError;
     return errors;
   };
@@ -240,8 +242,8 @@ export default function BankDepositModal({
     const errors: Record<string, string> = {};
 
     if (!isMercadoPago) {
-      if (depAccount.length !== 16 || isNaN(Number(depAccount))) {
-        errors.account = "El numero de cuenta debe tener exactamente 16 digitos.";
+      if (!validateLuhn(depAccount)) {
+        errors.account = "El número de tarjeta no es válido (Luhn / longitud 15-16).";
       }
       const nameError = validateSafeText(depName, "El beneficiario", { required: true, min: 2, max: 100 });
       if (nameError) {
@@ -344,6 +346,7 @@ export default function BankDepositModal({
       setDepCancelPin("");
       setDepCancelReason("");
       setDepCancelFieldErrors({});
+      setSearchDepRefError("");
       fetchCashiers();
       handleSearchDeposits();
     } else {
@@ -354,6 +357,7 @@ export default function BankDepositModal({
       setDepositFieldErrors({});
       setDepType("EFECTIVO");
       setSearchDepRef("");
+      setSearchDepRefError("");
       setSearchDepStatus("ALL");
       setSearchDepUser("");
       setSearchDepDateFrom("");
@@ -434,15 +438,16 @@ export default function BankDepositModal({
                 <input
                   type="text"
                   required
+                  maxLength={100}
                   className="input-corporate"
                   placeholder="Motivo detallado de la cancelación"
                   value={depCancelReason}
                   onChange={(e) => {
-                    const value = validateReasonInput(e.target.value);
+                    const value = validateReasonInput(e.target.value).slice(0, 100);
                     setDepCancelReason(value);
                     setDepCancelFieldErrors((prev) => ({
                       ...prev,
-                      reason: validateReference(value, "El motivo", { required: true, max: 180 }),
+                      reason: validateReference(value, "El motivo", { required: true, max: 100 }),
                     }));
                   }}
                 />
@@ -577,14 +582,19 @@ export default function BankDepositModal({
                           const rawValue = e.target.value;
                           const value = normalizeIntegerInput(rawValue).slice(0, 16);
                           setDepAccount(value);
+                          
+                          let error = "";
+                          if (rawValue.trim() && rawValue !== value) {
+                            error = "La cuenta solo puede contener numeros.";
+                          } else if (value.length > 0 && value.length < 15) {
+                            error = "La cuenta debe tener 15 o 16 digitos.";
+                          } else if (value.length >= 15 && !validateLuhn(value)) {
+                            error = "El numero de tarjeta no es valido (Algoritmo de Luhn).";
+                          }
+                          
                           setDepositFieldErrors((prev) => ({
                             ...prev,
-                            account:
-                              rawValue.trim() && rawValue !== value
-                                ? "La cuenta solo puede contener numeros."
-                                : value.length > 0 && value.length !== 16
-                                  ? "La cuenta debe tener 16 digitos."
-                                  : "",
+                            account: error,
                           }));
                         }}
                       />
@@ -595,12 +605,13 @@ export default function BankDepositModal({
                       <label style={label}>Nombre del Beneficiario:</label>
                       <input
                         type="text"
+                        maxLength={100}
                         required
                         className="input-corporate"
                         placeholder="Nombre de la persona o banco"
                         value={depName}
                         onChange={(e) => {
-                          const value = validateNameInput(e.target.value);
+                          const value = validateNameInput(e.target.value).slice(0, 100);
                           setDepName(value);
                           setDepositFieldErrors((prev) => ({
                             ...prev,
@@ -641,13 +652,14 @@ export default function BankDepositModal({
                   <label style={label}>Comentarios / Referencia:</label>
                   <input
                     type="text"
+                    maxLength={100}
                     className="input-corporate"
-                    placeholder="Ej. Número de sucursal, folio de camión blindado, etc."
+                    placeholder="Ej. Número de sucursal, folio, etc."
                     value={depComments}
                     onChange={(e) => {
-                      const value = validateLongTextInput(e.target.value);
+                      const value = validateLongTextInput(e.target.value).slice(0, 100);
                       setDepComments(value);
-                      setDepositFieldErrors((prev) => ({ ...prev, comments: validateReference(value, "La referencia", { required: false, max: 180 }) || "" }));
+                      setDepositFieldErrors((prev) => ({ ...prev, comments: validateReference(value, "La referencia", { required: false, max: 100 }) || "" }));
                     }}
                   />
                   {depositFieldErrors.comments && <p style={fieldError}>{depositFieldErrors.comments}</p>}
@@ -678,11 +690,22 @@ export default function BankDepositModal({
                     <label style={label}>Referencia:</label>
                     <input
                       type="text"
+                      maxLength={30}
                       className="input-corporate"
                       placeholder="DEP-..."
                       value={searchDepRef}
-                      onChange={(e) => setSearchDepRef(normalizeIntegerInput(e.target.value))}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        const clean = raw.slice(0, 30);
+                        setSearchDepRef(clean);
+                        if (raw.length > 30) {
+                          setSearchDepRefError("La referencia no puede exceder los 30 caracteres.");
+                        } else {
+                          setSearchDepRefError("");
+                        }
+                      }}
                     />
+                    {searchDepRefError && <p style={fieldError}>{searchDepRefError}</p>}
                   </div>
                   <div style={inputGroup}>
                     <label style={label}>Estado:</label>
