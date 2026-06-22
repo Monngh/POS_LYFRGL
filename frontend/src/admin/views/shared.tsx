@@ -425,7 +425,7 @@ export const ui: { [k: string]: React.CSSProperties } = {
     alignItems: "center",
     justifyContent: "space-between",
     padding: "18px 22px",
-    borderBottom: "1px solid #e2e8f0",
+    borderBottom: "1px solid var(--border)",
   },
   modalTitle: { fontSize: 16, fontWeight: 800, color: "var(--text)" },
   modalBody: { padding: 22 },
