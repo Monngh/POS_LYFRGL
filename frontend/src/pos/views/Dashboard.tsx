@@ -129,6 +129,8 @@ const Dashboard: React.FC = () => {
     sessionStats,
     lastClosedStats,
     setLastClosedStats,
+    forcedCloseData,
+    clearForcedClose,
     partialCutLoading,
     partialCutData,
     setPartialCutData,
@@ -1091,14 +1093,108 @@ const Dashboard: React.FC = () => {
   };
 
   // ---------------------------------------------------------------------------
+  // Modal bloqueante de cierre forzado — se muestra en todas las vistas del POS
+  // ---------------------------------------------------------------------------
+  const forcedCloseModal = forcedCloseData ? (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(0, 0, 0, 0.78)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 9999,
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: "#ffffff",
+          borderRadius: "12px",
+          padding: "36px 32px",
+          maxWidth: "420px",
+          width: "90%",
+          boxShadow: "0 20px 40px rgba(0,0,0,0.35)",
+          textAlign: "center",
+        }}
+      >
+        <div style={{ fontSize: "48px", marginBottom: "16px", lineHeight: 1 }}>⚠️</div>
+        <h2
+          style={{
+            fontSize: "20px",
+            fontWeight: "800",
+            color: "#0f172a",
+            marginBottom: "10px",
+          }}
+        >
+          Sesión de caja cerrada
+        </h2>
+        <p style={{ fontSize: "14px", color: "#64748b", marginBottom: "20px" }}>
+          Un administrador ha cerrado tu sesión de caja.
+        </p>
+        <div
+          style={{
+            backgroundColor: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            borderRadius: "8px",
+            padding: "14px 16px",
+            marginBottom: "28px",
+            textAlign: "left",
+          }}
+        >
+          <span style={{ fontSize: "12px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.4px" }}>
+            Motivo
+          </span>
+          <p
+            style={{
+              fontSize: "14px",
+              color: "#0f172a",
+              fontWeight: "600",
+              marginTop: "6px",
+              wordBreak: "break-word",
+            }}
+          >
+            {forcedCloseData.reason}
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            clearForcedClose();
+            logout();
+          }}
+          style={{
+            width: "100%",
+            padding: "12px",
+            backgroundColor: "#1e3a8a",
+            color: "#ffffff",
+            border: "none",
+            borderRadius: "8px",
+            fontSize: "15px",
+            fontWeight: "700",
+            cursor: "pointer",
+          }}
+        >
+          Aceptar
+        </button>
+      </div>
+    </div>
+  ) : null;
+
+  // ---------------------------------------------------------------------------
   // RENDER PANTALLA DE CARGA
   // ---------------------------------------------------------------------------
   if (loading) {
     return (
-      <div style={styles.loadingScreen}>
-        <div style={styles.spinner} />
-        <p style={{ fontWeight: "600", color: "#64748b", marginTop: "12px" }}>Cargando terminal de ventas...</p>
-      </div>
+      <>
+        <div style={styles.loadingScreen}>
+          <div style={styles.spinner} />
+          <p style={{ fontWeight: "600", color: "#64748b", marginTop: "12px" }}>Cargando terminal de ventas...</p>
+        </div>
+        {forcedCloseModal}
+      </>
     );
   }
 
@@ -1114,25 +1210,28 @@ const Dashboard: React.FC = () => {
   // ===========================================================================
   if (cajaLockedByOtherDevice) {
     return (
-      <div id="device-conflict-screen" style={styles.conflictScreen}>
-        <div style={styles.conflictCard}>
-          <div style={styles.conflictIconContainer}>
-            <AlertTriangle size={36} color="#ef4444" />
+      <>
+        <div id="device-conflict-screen" style={styles.conflictScreen}>
+          <div style={styles.conflictCard}>
+            <div style={styles.conflictIconContainer}>
+              <AlertTriangle size={36} color="#ef4444" />
+            </div>
+            <h2 style={styles.conflictTitle}>Caja abierta en otro dispositivo</h2>
+            <p style={styles.conflictText}>
+              El turno/caja ya se encuentra abierto en otra computadora. Cierre el turno en esa caja para poder abrir uno nuevo.
+            </p>
+            <button
+              id="conflict-back-button"
+              onClick={logout}
+              className="btn-primary active-tap"
+              style={styles.conflictButton}
+            >
+              Regresar al Login
+            </button>
           </div>
-          <h2 style={styles.conflictTitle}>Caja abierta en otro dispositivo</h2>
-          <p style={styles.conflictText}>
-            El turno/caja ya se encuentra abierto en otra computadora. Cierre el turno en esa caja para poder abrir uno nuevo.
-          </p>
-          <button
-            id="conflict-back-button"
-            onClick={logout}
-            className="btn-primary active-tap"
-            style={styles.conflictButton}
-          >
-            Regresar al Login
-          </button>
         </div>
-      </div>
+        {forcedCloseModal}
+      </>
     );
   }
 
@@ -1150,6 +1249,7 @@ const Dashboard: React.FC = () => {
         />
         {renderDashboardTicketLoading()}
         {renderToast()}
+        {forcedCloseModal}
       </>
     );
   }
@@ -1597,6 +1697,7 @@ const Dashboard: React.FC = () => {
         {renderTicketEmailModal()}
         {renderDashboardTicketLoading()}
         {renderToast()}
+        {forcedCloseModal}
       </>
     );
   }
@@ -1991,6 +2092,7 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
+      {forcedCloseModal}
       {renderTicketEmailModal()}
       {renderDashboardTicketLoading()}
       {renderToast()}

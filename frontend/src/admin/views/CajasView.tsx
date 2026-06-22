@@ -284,16 +284,16 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         <div class="ticket-section">
           <div style="font-weight:800;margin-bottom:4px;">MOVIMIENTOS (${d.movements.length})</div>
           ${d.movements
-            .map(
-              (m) => `
+        .map(
+          (m) => `
                 <div style="border-top:1px dashed #cbd5e1;padding-top:4px;margin-top:4px;">
                   <div class="ticket-row"><span>${fmtDateTime(m.date)}</span><span class="ticket-value">${m.type}</span></div>
                   <div style="font-size:9px;margin-bottom:3px;">${m.description}</div>
                   <div class="ticket-row"><span>Monto:</span><span class="ticket-value" style="color:${m.amount >= 0 ? "#15803d" : "#b91c1c"}">${m.amount >= 0 ? "+" : ""}$${m.amount.toFixed(2)}</span></div>
                   <div class="ticket-row"><span>Saldo:</span><span class="ticket-value">$${m.balance.toFixed(2)}</span></div>
                 </div>`
-            )
-            .join("")}
+        )
+        .join("")}
         </div>
         <div class="ticket-footer">
           <p>COMPROBANTE DE ARQUEO</p>
@@ -605,7 +605,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       {detailOpen && (
         <div style={ui.overlay} onClick={closeDetail}>
           <div
-            style={{ ...ui.modal, maxWidth: 700, width: "100%" }}
+            style={{ ...ui.modal, maxWidth: 750, width: "100%", maxHeight: "90vh" }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
