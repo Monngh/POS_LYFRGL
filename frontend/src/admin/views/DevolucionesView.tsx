@@ -1,6 +1,13 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Eye, RefreshCw, ChevronDown, ChevronUp, Calendar, User, Tag } from "lucide-react";
-import api from "../../shared/services/api";
+import {
+  getAdminReturns,
+  getAdminReturnDetail,
+  createReturnCfdi,
+  retryReturnRefund,
+  type ReturnRow,
+  type ReturnDetailData,
+} from '../../facturacion';
 import {
   ui,
   type ViewProps,
@@ -17,69 +24,6 @@ import {
   fmtTime,
   useMediaQuery,
 } from "./shared";
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface ReturnRow {
-  id: number;
-  returnNumber: string;
-  saleId: number;
-  saleNumber: string;
-  clientName: string;
-  date: string;
-  totalRefunded: number;
-  paymentMethod: string;
-  branchId: number;
-  branchName: string;
-  authorizedBy: { id: number; name: string } | null;
-  status: string;
-}
-
-interface ReturnDetailItem {
-  id: number;
-  productId: number;
-  productName: string;
-  sku: string;
-  quantity: number;
-  unitPrice: number;
-  taxAmount: number;
-  discountAmount: number;
-  destination: string;
-  serialNumber: string | null;
-  batchNumber: string | null;
-}
-
-interface ExchangeSaleInfo {
-  id: number;
-  saleNumber: string;
-  date: string;
-  total: number;
-  items: { productName: string; quantity: number; unitPrice: number }[];
-}
-
-interface ReturnDetailData {
-  id: number;
-  returnNumber: string;
-  saleId: number;
-  saleNumber: string;
-  date: string;
-  reason: string;
-  type: string;
-  clientId: number | null;
-  clientName: string;
-  clientRFC: string | null;
-  totalRefunded: number;
-  paymentMethod: string;
-  authorizedById: number | null;
-  authorizedByName: string | null;
-  cashSessionId: number | null;
-  cfdiUuid: string | null;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-  details: ReturnDetailItem[];
-  exchangeSale: ExchangeSaleInfo | null;
-}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -180,7 +124,7 @@ const ReturnDetailSubView: React.FC<{
   const handleRetryRefund = async () => {
     setActionLoading(true);
     try {
-      await api.post(`/api/admin/returns/${current.id}/retry-refund`);
+      await retryReturnRefund(current.id);
       showMsg("Reembolso procesado exitosamente.", true);
     } catch (err: any) {
       showMsg(err.response?.data?.message || "Error al reintentar el reembolso.", false);
@@ -192,7 +136,7 @@ const ReturnDetailSubView: React.FC<{
   const handleCreateCfdi = async () => {
     setActionLoading(true);
     try {
-      const res = await api.post(`/api/admin/returns/${current.id}/create-cfdi`);
+      const res = await createReturnCfdi(current.id);
       setCurrent((d) => ({ ...d, cfdiUuid: res.data.cfdiUuid }));
       showMsg("CFDI timbrado exitosamente.", true);
     } catch (err: any) {
@@ -559,19 +503,17 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get("/api/admin/returns", {
-        params: {
-          page,
-          limit: LIMIT,
-          ...(branchId !== "all" ? { branchId } : {}),
-          ...(paymentFilter !== "all" ? { paymentMethod: paymentFilter } : {}),
-          ...(dateFrom ? { startDate: dateFrom } : {}),
-          ...(dateTo ? { endDate: dateTo } : {}),
-        },
-      });
-      setRows(res.data.data);
-      setTotalPages(res.data.pagination.pages);
-      setTotalRows(res.data.pagination.total);
+      const res = await getAdminReturns({
+        page,
+        limit: LIMIT,
+        ...(branchId !== "all" ? { branchId } : {}),
+        ...(paymentFilter !== "all" ? { paymentMethod: paymentFilter } : {}),
+        ...(dateFrom ? { startDate: dateFrom } : {}),
+        ...(dateTo ? { endDate: dateTo } : {}),
+      } as any);
+      setRows((res.data as any).data);
+      setTotalPages((res.data as any).pagination.pages);
+      setTotalRows((res.data as any).pagination.total);
     } catch (err: any) {
       setError(err.response?.data?.message || "No se pudieron cargar las devoluciones.");
     } finally {
@@ -587,8 +529,8 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setDetailLoading(true);
     setDetail(null);
     try {
-      const res = await api.get(`/api/admin/returns/${id}`);
-      setDetail(res.data.data);
+      const res = await getAdminReturnDetail(id);
+      setDetail((res.data as any).data);
     } catch (err: any) {
       setError(err.response?.data?.message || "Error al cargar el detalle.");
     } finally {

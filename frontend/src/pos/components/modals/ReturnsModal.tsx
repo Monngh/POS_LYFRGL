@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { RotateCcw, XCircle, KeyRound, Minus, Plus } from "lucide-react";
-import api from '../../../shared/services/api';
+import { getEligibleReturn, submitReturn } from '../../../facturacion';
 import {
   normalizeIntegerInput,
   validateReference,
@@ -138,10 +138,10 @@ export default function ReturnsModal({
     });
     setReturnLoading(true);
     try {
-      const res = await api.get(`/api/returns/eligible/${encodeURIComponent(folio)}`);
-      setReturnSaleData(res.data.sale);
+      const res = await getEligibleReturn(folio);
+      setReturnSaleData((res.data as any).sale);
       setReturnItems(
-        res.data.items.map((item: any) => ({
+        (res.data as any).items.map((item: any) => ({
           ...item,
           selected: false,
           qtyToReturn: 0,
@@ -270,7 +270,7 @@ export default function ReturnsModal({
           batchNumber: it.batchNumberInput || undefined,
         })),
       };
-      const res = await api.post("/api/returns", payload);
+      const res = await submitReturn(payload as any);
       setReturnPinAttempts(0);
       setReturnReceipt(res.data);
       setReturnStep("receipt");
