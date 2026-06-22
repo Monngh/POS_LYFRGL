@@ -62,9 +62,9 @@ const MOVEMENT_CHIPS: { value: string; label: string }[] = [
 const chipStyle = (active: boolean): React.CSSProperties => ({
   padding: "7px 14px",
   borderRadius: 999,
-  border: active ? "1px solid #1e3a8a" : "1px solid #e2e8f0",
-  backgroundColor: active ? "#1e3a8a" : "#ffffff",
-  color: active ? "#ffffff" : "#475569",
+  border: active ? "1px solid var(--accent-strong)" : "1px solid var(--border)",
+  backgroundColor: active ? "var(--accent-strong)" : "var(--surface)",
+  color: active ? "#ffffff" : "var(--text-secondary)",
   fontSize: 13,
   fontWeight: active ? 700 : 600,
   cursor: "pointer",
@@ -256,7 +256,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     fontSize: 11,
                     fontWeight: 700,
                     color: "var(--text-muted)",
-                    borderBottom: "1px solid #f1f5f9",
+                    borderBottom: "1px solid var(--border-soft)",
                     backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
@@ -402,7 +402,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           border: "1px solid var(--border)",
                           borderRadius: 8,
                           fontSize: 12,
-                          color: "#475569",
+                          color: "var(--text-secondary)",
                           whiteSpace: "normal",
                           lineHeight: 1.5,
                         }}>
@@ -499,13 +499,14 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 const kardexDetailRow: React.CSSProperties = {
   display: "flex",
   justifyContent: "flex-start",
-  alignItems: "center",
+  alignItems: "flex-start",
   gap: "8px",
   fontSize: 13,
   marginBottom: 6,
 };
 
 const kardexDetailLabel: React.CSSProperties = {
+  flexShrink: 0,
   fontWeight: 700,
   color: "var(--text-muted)",
   minWidth: "105px",
@@ -513,6 +514,9 @@ const kardexDetailLabel: React.CSSProperties = {
 };
 
 const kardexDetailValue: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  overflowWrap: "anywhere",
   fontWeight: 600,
   color: "var(--text-secondary)",
 };

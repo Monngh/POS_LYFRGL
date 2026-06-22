@@ -26,6 +26,8 @@ import {
   Lock,
   Sun,
   Moon,
+  Home,
+  Check,
   type LucideIcon,
 } from "lucide-react";
 
@@ -133,10 +135,14 @@ const ADMIN_CSS = `
 .adm-brand-row:hover .adm-brand-logo{ transform: rotate(-6deg) scale(1.05); }
 .adm-spin{ animation: admSpin .6s ease; }
 @keyframes admSpin{ from{transform:rotate(0)} to{transform:rotate(360deg)} }
+.adm-branch-item{ transition: background-color .12s ease; }
+.adm-branch-item:hover{ background-color: var(--surface-2); }
+.adm-branch-menu{ animation: admMenuIn .14s ease; transform-origin: top right; }
+@keyframes admMenuIn{ from{opacity:0; transform:translateY(-4px) scale(.98)} to{opacity:1; transform:none} }
 @media (prefers-reduced-motion: reduce){
   .adm-nav-item, .adm-rail, .adm-icon-btn, .adm-logout, .adm-brand-logo{ transition:none !important; }
   .adm-nav-item:hover, .adm-brand-row:hover .adm-brand-logo{ transform:none !important; }
-  .adm-spin{ animation:none !important; }
+  .adm-spin, .adm-branch-menu{ animation:none !important; }
 }
 `;
 
@@ -159,6 +165,7 @@ const AdminDashboard: React.FC = () => {
   const [refreshToken, setRefreshToken] = useState(0);
   const [navHistory, setNavHistory] = useState<string[]>([]);
   const [spinning, setSpinning] = useState(false);
+  const [branchMenuOpen, setBranchMenuOpen] = useState(false);
 
   // Refrescar datos de la vista activa con feedback (giro del icono)
   const handleRefresh = () => {
@@ -391,36 +398,102 @@ const AdminDashboard: React.FC = () => {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 6 : 10, flexShrink: 0 }}>
-            <div
-              style={{
-                ...styles.selectWrap,
-                opacity: !active.branchScoped ? 0.45 : (user?.role === "GERENTE" ? 0.8 : 1),
-                pointerEvents: active.branchScoped && user?.role !== "GERENTE" ? "auto" : "none",
-                ...(isMobile ? { maxWidth: 150, padding: "0 8px", gap: 5 } : {}),
-              }}
-              title={
-                !active.branchScoped
-                  ? "Esta sección no se filtra por sucursal"
-                  : user?.role === "GERENTE"
-                  ? `Sucursal asignada: ${user.branch?.name}`
-                  : "Filtrar por sucursal"
+            {(() => {
+              const canPickBranch = active.branchScoped && user?.role !== "GERENTE";
+              const branchTitle = !active.branchScoped
+                ? "Esta sección no se filtra por sucursal"
+                : user?.role === "GERENTE"
+                ? `Sucursal asignada: ${user.branch?.name}`
+                : "Filtrar por sucursal";
+
+              // ── Móvil/Tablet: botón de casita que despliega las sucursales ──
+              if (isMobile) {
+                return (
+                  <div style={{ position: "relative" }}>
+                    <button
+                      onClick={() => canPickBranch && setBranchMenuOpen((o) => !o)}
+                      title={branchTitle}
+                      aria-label="Filtrar por sucursal"
+                      aria-haspopup="menu"
+                      aria-expanded={branchMenuOpen}
+                      className="active-tap adm-icon-btn"
+                      style={{
+                        ...styles.iconBtn,
+                        position: "relative",
+                        opacity: canPickBranch ? 1 : 0.45,
+                        cursor: canPickBranch ? "pointer" : "default",
+                      }}
+                    >
+                      <Home size={16} />
+                      {canPickBranch && branchId !== "all" && <span style={styles.branchDot} aria-hidden />}
+                    </button>
+                    {branchMenuOpen && canPickBranch && (
+                      <>
+                        <div onClick={() => setBranchMenuOpen(false)} style={styles.branchBackdrop} />
+                        <div className="adm-branch-menu" style={styles.branchMenu} role="menu">
+                          <div style={styles.branchMenuHead}>Filtrar por sucursal</div>
+                          {[{ id: "all", name: "Todas las sucursales" }, ...branches.map((b) => ({ id: String(b.id), name: b.name }))].map(
+                            (opt) => {
+                              const selected = branchId === opt.id;
+                              return (
+                                <button
+                                  key={opt.id}
+                                  role="menuitemradio"
+                                  aria-checked={selected}
+                                  className="adm-branch-item"
+                                  onClick={() => {
+                                    setBranchId(opt.id);
+                                    setBranchMenuOpen(false);
+                                  }}
+                                  style={{
+                                    ...styles.branchItem,
+                                    backgroundColor: selected ? "var(--accent-soft)" : "transparent",
+                                    color: selected ? "var(--accent-strong)" : "var(--text-secondary)",
+                                    fontWeight: selected ? 700 : 500,
+                                  }}
+                                >
+                                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    {opt.name}
+                                  </span>
+                                  {selected && <Check size={15} style={{ flexShrink: 0 }} />}
+                                </button>
+                              );
+                            }
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
               }
-            >
-              <Store size={15} style={{ flexShrink: 0, color: "var(--text-muted)" }} />
-              <select
-                value={branchId}
-                onChange={(e) => setBranchId(e.target.value)}
-                disabled={user?.role === "GERENTE" || !active.branchScoped}
-                style={{ ...styles.select, ...(isMobile ? { textOverflow: "ellipsis", maxWidth: 110 } : {}) }}
-              >
-                <option value="all">Todas las sucursales</option>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+
+              // ── Escritorio: selector en línea ──
+              return (
+                <div
+                  style={{
+                    ...styles.selectWrap,
+                    opacity: !active.branchScoped ? 0.45 : (user?.role === "GERENTE" ? 0.8 : 1),
+                    pointerEvents: canPickBranch ? "auto" : "none",
+                  }}
+                  title={branchTitle}
+                >
+                  <Store size={15} style={{ flexShrink: 0, color: "var(--text-muted)" }} />
+                  <select
+                    value={branchId}
+                    onChange={(e) => setBranchId(e.target.value)}
+                    disabled={user?.role === "GERENTE" || !active.branchScoped}
+                    style={styles.select}
+                  >
+                    <option value="all">Todas las sucursales</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })()}
             <button
               onClick={toggleTheme}
               title={theme === "dark" ? "Activar modo claro" : "Activar modo oscuro"}
@@ -638,6 +711,62 @@ const styles: { [k: string]: React.CSSProperties } = {
     cursor: "pointer",
     fontFamily: "inherit",
   },
+  // Selector de sucursales en móvil (botón casita + menú desplegable)
+  branchDot: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 7,
+    height: 7,
+    borderRadius: "50%",
+    backgroundColor: "#22c55e",
+    border: "1.5px solid var(--surface)",
+  },
+  branchBackdrop: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 290,
+    background: "transparent",
+  },
+  branchMenu: {
+    position: "fixed",
+    top: 60,
+    right: 12,
+    left: "auto",
+    minWidth: 220,
+    maxWidth: "calc(100vw - 24px)",
+    maxHeight: "70vh",
+    overflowY: "auto",
+    backgroundColor: "var(--surface)",
+    border: "1px solid var(--border)",
+    borderRadius: 12,
+    boxShadow: "var(--shadow-pop)",
+    padding: 6,
+    zIndex: 300,
+  },
+  branchMenuHead: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: "var(--text-muted)",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.7px",
+    padding: "6px 10px 8px",
+  },
+  branchItem: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    width: "100%",
+    textAlign: "left",
+    border: "none",
+    borderRadius: 8,
+    padding: "10px 10px",
+    fontSize: 13,
+    cursor: "pointer",
+    background: "transparent",
+    fontFamily: "inherit",
+  },
   logoutBtn: {
     display: "flex",
     alignItems: "center",
@@ -653,7 +782,7 @@ const styles: { [k: string]: React.CSSProperties } = {
     height: 38,
     boxShadow: "0 4px 12px -5px rgba(37,99,235,0.55)",
   },
-  content: { padding: 24, overflowY: "auto", overflowX: "hidden", minWidth: 0, flex: 1 },
+  content: { padding: 24, overflowY: "auto", overflowX: "hidden", minWidth: 0, flex: 1, color: "var(--text)" },
 };
 
 export default AdminDashboard;

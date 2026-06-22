@@ -10,6 +10,14 @@ import { generateToken, generatePendingToken, verifyToken } from "../utils/auth"
 import { rpName, rpID, expectedOrigins } from "../config/webauthn";
 import { saveChallenge, consumeChallenge } from "../utils/authSecurity";
 import { recordLoginEvent } from "../utils/authAudit";
+import { openSession } from "../utils/sessionRegistry";
+import { getRequestDeviceId } from "../middlewares/device.middleware";
+
+const clientIp = (req: Request): string =>
+  (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
+  req.ip ||
+  req.socket.remoteAddress ||
+  "unknown";
 
 type UserWithBranch = {
   id: number;
@@ -27,8 +35,15 @@ type UserWithBranch = {
 const toTransports = (csv: string | null): any[] | undefined =>
   csv ? (csv.split(",").filter(Boolean) as any[]) : undefined;
 
-const buildSessionResponse = (user: UserWithBranch) => ({
-  token: generateToken({ userId: user.id, email: user.email, role: user.role, branchId: user.branchId }),
+const buildSessionResponse = (user: UserWithBranch, req: Request) => ({
+  token: generateToken({
+    userId: user.id,
+    email: user.email,
+    role: user.role,
+    branchId: user.branchId,
+    // Abre (o reemplaza) la sesión única del usuario y firma el token con su jti.
+    jti: openSession(user.id, { ip: clientIp(req), device: getRequestDeviceId(req) || undefined }),
+  }),
   user: {
     id: user.id,
     email: user.email,
@@ -130,7 +145,7 @@ export const webauthnRegisterVerify = async (req: Request, res: Response): Promi
 
     const user = (await prisma.user.findUnique({ where: { id: userId }, include: { branch: true } })) as unknown as UserWithBranch;
     recordLoginEvent(req, user, "Contraseña + Biometría (registro)");
-    res.status(200).json({ message: "Dispositivo registrado. Acceso autorizado.", ...buildSessionResponse(user) });
+    res.status(200).json({ message: "Dispositivo registrado. Acceso autorizado.", ...buildSessionResponse(user, req) });
   } catch (error: any) {
     console.error("[WEBAUTHN_REGISTER]", error?.message);
     res.status(400).json({ message: "Error al registrar el dispositivo de seguridad." });
@@ -185,7 +200,7 @@ export const webauthnLoginVerify = async (req: Request, res: Response): Promise<
     });
 
     recordLoginEvent(req, user, "Contraseña + Biometría");
-    res.status(200).json({ message: "Acceso autorizado.", ...buildSessionResponse(user) });
+    res.status(200).json({ message: "Acceso autorizado.", ...buildSessionResponse(user, req) });
   } catch (error: any) {
     console.error("[WEBAUTHN_LOGIN]", error?.message);
     res.status(401).json({ message: "Error al verificar el dispositivo de seguridad." });
