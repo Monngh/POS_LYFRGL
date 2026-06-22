@@ -21,6 +21,18 @@ const trimQuery = (v: unknown): string | undefined => {
 
 const validateEmail = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
+const PASSWORD_LENGTH = 14;
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-zñÑ\d@$!%*?&]{14}$/;
+
+const validatePassword = (password: string): boolean => {
+  return typeof password === 'string' &&
+    password.length === PASSWORD_LENGTH &&
+    PASSWORD_REGEX.test(password);
+};
+
+// Roles que requieren contraseña
+const needsPassword = (role: string): boolean => role === "ADMIN" || role === "GERENTE";
+
 export const listEmployees = async (req: Request, res: Response): Promise<void> => {
   try {
     const branchId = parseBranch(req);
@@ -38,43 +50,52 @@ export const createEmployee = async (req: Request, res: Response): Promise<void>
   try {
     const { name, email, password, role, branchId, pinCode, phone, baseSalary, commissionRate } = req.body;
 
-    if (!name?.trim() || !email?.trim() || !password || !role || !branchId) {
-      res.status(400).json({ message: "Nombre, correo, contraseña, rol y sucursal son obligatorios." });
+    // Validaciones básicas
+    if (!name?.trim() || !email?.trim() || !role || !branchId) {
+      res.status(400).json({ message: "Nombre, correo, rol y sucursal son obligatorios." });
       return;
     }
     if (!validateEmail(String(email))) {
       res.status(400).json({ message: "Formato de correo electrónico inválido (ej: usuario@empresa.com)." });
       return;
     }
-    if (String(password).length < 6) {
-      res.status(400).json({ message: "La contraseña debe tener al menos 6 caracteres." });
-      return;
-    }
+
     const validRoles = ["ADMIN", "GERENTE", "CAJERO"];
     if (!validRoles.includes(String(role).toUpperCase())) {
       res.status(400).json({ message: "Rol inválido. Use ADMIN, GERENTE o CAJERO." });
       return;
     }
-    if (String(role).toUpperCase() === "CAJERO" && (!pinCode || !/^\d{4}$/.test(String(pinCode)))) {
-      res.status(400).json({ message: "Los cajeros requieren un PIN numérico de 4 dígitos." });
+
+    // Todos los roles necesitan PIN de 4 dígitos
+    if (!pinCode || !/^\d{4}$/.test(String(pinCode))) {
+      res.status(400).json({ message: "Todos los empleados requieren un PIN numérico de 4 dígitos." });
       return;
     }
-    if (pinCode && !/^\d{4}$/.test(String(pinCode))) {
-      res.status(400).json({ message: "El PIN debe ser numérico de 4 dígitos." });
-      return;
+
+    // ADMIN y GERENTE necesitan contraseña
+    if (needsPassword(String(role).toUpperCase())) {
+      if (!password || !validatePassword(String(password))) {
+        res.status(400).json({
+          message: "La contraseña debe tener exactamente 13 caracteres, incluir mayúscula, minúscula, número y un carácter especial (@$!%*?&)."
+        });
+        return;
+      }
     }
+
+    // Restricción para GERENTE (solo su propia sucursal)
     if (req.user && req.user.role === "GERENTE" && Number(branchId) !== req.user.branchId) {
       res.status(403).json({ message: "Acceso denegado. Solo puede crear empleados para su propia sucursal." });
       return;
     }
 
+    // Construir objeto para el servicio
     const employee = await createEmployeeService({
       name: String(name),
       email: String(email),
-      password: String(password),
+      password: needsPassword(String(role).toUpperCase()) ? String(password) : null,
       role: String(role),
       branchId: Number(branchId),
-      pinCode: pinCode ? String(pinCode) : null,
+      pinCode: String(pinCode),
       phone: phone ? String(phone) : null,
       baseSalary: baseSalary ? parseFloat(String(baseSalary)) : null,
       commissionRate: commissionRate ? parseFloat(String(commissionRate)) : null,
@@ -82,8 +103,14 @@ export const createEmployee = async (req: Request, res: Response): Promise<void>
 
     res.status(201).json({ message: "Empleado registrado exitosamente.", employee });
   } catch (error: any) {
-    if (error instanceof AppError) { res.status(error.statusCode).json({ message: error.message }); return; }
-    if (error.code === "P2002") { res.status(409).json({ message: "Ya existe un usuario registrado con ese correo electrónico." }); return; }
+    if (error instanceof AppError) {
+      res.status(error.statusCode).json({ message: error.message });
+      return;
+    }
+    if (error.code === "P2002") {
+      res.status(409).json({ message: "Ya existe un usuario registrado con ese correo electrónico." });
+      return;
+    }
     res.status(500).json({ message: "Error al registrar el empleado." });
   }
 };
@@ -91,10 +118,27 @@ export const createEmployee = async (req: Request, res: Response): Promise<void>
 export const updateEmployee = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = Number(req.params.id);
-    if (isNaN(userId)) { res.status(400).json({ message: "Identificador de empleado inválido." }); return; }
+    if (isNaN(userId)) {
+      res.status(400).json({ message: "Identificador de empleado inválido." });
+      return;
+    }
 
-    const { name, email, phone, baseSalary, commissionRate, role, branchId, active, newPin } = req.body;
+    const {
+      name,
+      email,
+      phone,
+      baseSalary,
+      commissionRate,
+      role,
+      branchId,
+      active,
+      newPin,
+      currentPin,
+      password,
+      currentPassword,
+    } = req.body;
 
+    // Validaciones de formato
     if (email && String(email).trim() !== "" && !validateEmail(String(email))) {
       res.status(400).json({ message: "Formato de correo electrónico inválido." });
       return;
@@ -104,10 +148,38 @@ export const updateEmployee = async (req: Request, res: Response): Promise<void>
       return;
     }
     if (newPin && String(newPin).trim() !== "" && !/^\d{4}$/.test(String(newPin))) {
-      res.status(400).json({ message: "El PIN debe ser exactamente 4 dígitos numéricos." });
+      res.status(400).json({ message: "El nuevo PIN debe ser exactamente 4 dígitos numéricos." });
       return;
     }
 
+    // validar que cumpla requisitos
+    if (password && String(password).trim() !== "") {
+      if (!validatePassword(String(password))) {
+        res.status(400).json({
+          message: "La nueva contraseña debe tener exactamente 13 caracteres, incluir mayúscula, minúscula, número y un carácter especial (@$!%*?&)."
+        });
+        return;
+      }
+      //  contraseña actual
+      if (!currentPassword || String(currentPassword).trim() === "") {
+        res.status(400).json({ message: "Debe proporcionar la contraseña actual para cambiarla." });
+        return;
+      }
+    }
+
+    // Validación de PIN actual si se está cambiando
+    if (newPin && String(newPin).trim() !== "") {
+      if (!currentPin || String(currentPin).trim() === "") {
+        res.status(400).json({ message: "Debe proporcionar el PIN actual para cambiarlo." });
+        return;
+      }
+      if (!/^\d{4}$/.test(String(currentPin))) {
+        res.status(400).json({ message: "El PIN actual debe ser exactamente 4 dígitos numéricos." });
+        return;
+      }
+    }
+
+    // Construir objeto de actualización
     const updateData: UpdateEmployeeInput = {
       ...(name && String(name).trim() !== "" ? { name: String(name).trim().toUpperCase() } : {}),
       ...(email && String(email).trim() !== "" ? { email: String(email).trim().toLowerCase() } : {}),
@@ -117,12 +189,14 @@ export const updateEmployee = async (req: Request, res: Response): Promise<void>
       ...(role && String(role).trim() !== "" ? { role: String(role).toUpperCase() } : {}),
       ...(branchId ? { branchId: Number(branchId) } : {}),
       ...(active !== undefined ? { active: Boolean(active) } : {}),
-      ...(newPin && String(newPin).trim() !== "" ? { newPin: String(newPin) } : {}),
+      ...(newPin && String(newPin).trim() !== "" ? { newPin: String(newPin), currentPin: String(currentPin) } : {}),
+      ...(password && String(password).trim() !== "" ? { password: String(password), currentPassword: String(currentPassword) } : {}),
     };
 
     const requester = req.user ? { role: req.user.role, branchId: req.user.branchId } : undefined;
     const updated = await updateEmployeeService(userId, updateData, requester);
 
+    // Ocultar campos sensibles
     const { passwordHash, pinCode, ...userSafe } = updated as any;
     res.status(200).json({
       message: "Empleado actualizado exitosamente.",
@@ -140,8 +214,15 @@ export const updateEmployee = async (req: Request, res: Response): Promise<void>
       },
     });
   } catch (error: any) {
-    if (error instanceof AppError) { res.status(error.statusCode).json({ message: error.message }); return; }
-    if (error.code === "P2025") { res.status(404).json({ message: "Empleado no encontrado." }); return; }
+    if (error instanceof AppError) {
+      res.status(error.statusCode).json({ message: error.message });
+      return;
+    }
+    if (error.code === "P2025") {
+      res.status(404).json({ message: "Empleado no encontrado." });
+      return;
+    }
+    console.error(error);
     res.status(500).json({ message: "Error al actualizar el empleado." });
   }
 };
@@ -149,16 +230,25 @@ export const updateEmployee = async (req: Request, res: Response): Promise<void>
 export const getEmployeeOperations = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = Number(req.params.id);
-    if (isNaN(id)) { res.status(400).json({ message: "Identificador de empleado inválido." }); return; }
+    if (isNaN(id)) {
+      res.status(400).json({ message: "Identificador de empleado inválido." });
+      return;
+    }
 
     const requester = req.user ? { role: req.user.role, branchId: req.user.branchId } : undefined;
     const result = await getEmployeeOperationsService(id, requester);
 
-    if (!result) { res.status(404).json({ message: "Empleado no encontrado." }); return; }
+    if (!result) {
+      res.status(404).json({ message: "Empleado no encontrado." });
+      return;
+    }
 
     res.status(200).json(result);
   } catch (error: any) {
-    if (error instanceof AppError) { res.status(error.statusCode).json({ message: error.message }); return; }
+    if (error instanceof AppError) {
+      res.status(error.statusCode).json({ message: error.message });
+      return;
+    }
     console.error(error);
     res.status(500).json({ message: "Error al obtener las operaciones del empleado." });
   }
