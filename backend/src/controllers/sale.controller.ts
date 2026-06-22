@@ -161,6 +161,9 @@ export const simulateSale = async (req: Request, res: Response): Promise<void> =
       const basePrice = subtotalNet / ((1 + iepsRate) * (1 + ivaRate));
       const baseIeps = basePrice * iepsRate;
 
+      const baseOriginalPrice = subtotalItem / ((1 + iepsRate) * (1 + ivaRate));
+      const baseDiscount = baseOriginalPrice - basePrice;
+
       let taxTotal = 0;
       const taxesBreakdown: Record<string, number> = {};
 
@@ -192,8 +195,8 @@ export const simulateSale = async (req: Request, res: Response): Promise<void> =
         total: subtotalNet,
       });
 
-      simulation.subtotal += subtotalItem;
-      simulation.totalDiscount += discount;
+      simulation.subtotal += baseOriginalPrice;
+      simulation.totalDiscount += baseDiscount;
       simulation.totalTax += taxTotal;
 
       for (const [taxName, taxAmount] of Object.entries(taxesBreakdown)) {
@@ -201,8 +204,11 @@ export const simulateSale = async (req: Request, res: Response): Promise<void> =
       }
     }
 
-    const exactTotal = simulation.subtotal - simulation.totalDiscount;
+    const exactTotal = promoCalc.totalFinal;
     simulation.total = Math.round(exactTotal * 2) / 2;
+    simulation.subtotal = Number(simulation.subtotal.toFixed(2));
+    simulation.totalDiscount = Number(simulation.totalDiscount.toFixed(2));
+    simulation.totalTax = Number(simulation.totalTax.toFixed(2));
 
     res.json(simulation);
   } catch (err: any) {
