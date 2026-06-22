@@ -515,7 +515,7 @@ const styles: { [k: string]: React.CSSProperties } = {
   navSectionLabel: {
     fontSize: 10,
     fontWeight: 700,
-    color: "#6f8cc4",
+    color: "var(--text-muted)",
     textTransform: "uppercase" as const,
     letterSpacing: "1px",
     padding: "14px 12px 5px",
