@@ -533,10 +533,7 @@ const Login: React.FC = () => {
             />
             {adminFieldErrors.password && <p style={styles.fieldError}>{adminFieldErrors.password}</p>}
           </div>
-          <div style={styles.twoFactorHint}>
-            <ShieldCheck size={14} color="#1e3a8a" />
-            <span>Verificación en dos pasos: se le pedirá confirmar con <strong>Windows Hello</strong> (huella, rostro o PIN del equipo).</span>
-          </div>
+
           <button
             type="submit"
             disabled={loading}
