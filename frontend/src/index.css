@@ -63,6 +63,9 @@
 
   /* Input background */
   --input-bg: #ffffff;
+
+  /* Superficie alternativa (inputs dentro de cards, checkboxes activos) */
+  --surface-alt: #f1f5f9;
 }
 
 /* Modo oscuro — paleta navy-slate profunda, coherente con la marca
@@ -99,6 +102,16 @@
 
   /* Input elevado sobre --surface para dar profundidad */
   --input-bg: #1e2a45;
+
+  /* Superficie alternativa (checkbox activo, hover de opción) */
+  --surface-alt: #1e2d47;
+}
+
+/* Color-scheme oscuro para controles nativos (select, input[type=date], etc.) */
+.theme-dark input,
+.theme-dark select,
+.theme-dark textarea {
+  color-scheme: dark;
 }
 
 /* Transición suave al alternar tema (respeta reduce-motion abajo) */

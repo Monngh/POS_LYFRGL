@@ -557,7 +557,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                           {/* Comentarios si existen */}
                           {d.comments && (
-                            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e2e8f0" }}>
+                            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
                               <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 4 }}>Comentarios:</div>
                               <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{renderComments(d.comments)}</div>
                             </div>
@@ -593,12 +593,13 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               onClick={closeDetail}
               style={{
                 padding: "10px 16px",
-                background: "#f3f4f6",
-                border: "1px solid #d1d5db",
+                background: "var(--surface-2)",
+                border: "1px solid var(--border)",
                 borderRadius: "6px",
                 cursor: "pointer",
                 fontSize: "14px",
                 fontWeight: "600",
+                color: "var(--text)",
               }}
             >
               Cerrar
