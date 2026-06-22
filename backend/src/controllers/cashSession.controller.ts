@@ -18,12 +18,17 @@ export const getSessionStatus = async (req: Request, res: Response): Promise<voi
     return;
   }
   try {
-    const activeSession = await getSessionStatusService(req.user.userId, req.user.branchId);
+    const { activeSession, lastClosed } = await getSessionStatusService(req.user.userId, req.user.branchId);
     const requestDeviceId = getRequestDeviceId(req);
     const isOwnedByThisDevice = activeSession
       ? !activeSession.deviceId || activeSession.deviceId === requestDeviceId
       : null;
-    res.status(200).json({ isOpen: !!activeSession, session: activeSession, isOwnedByThisDevice });
+    res.status(200).json({
+      isOpen: !!activeSession,
+      session: activeSession,
+      isOwnedByThisDevice,
+      lastClosed: activeSession ? null : lastClosed,
+    });
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ message: "Error al obtener estado de caja." });

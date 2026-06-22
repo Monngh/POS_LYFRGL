@@ -419,7 +419,9 @@ export const ui: { [k: string]: React.CSSProperties } = {
     width: "100%",
     maxWidth: 460,
     maxHeight: "88vh",
-    overflowY: "auto",
+    overflowY: "hidden",
+    display: "flex",
+    flexDirection: "column",
   },
   modalHeader: {
     display: "flex",
@@ -429,7 +431,7 @@ export const ui: { [k: string]: React.CSSProperties } = {
     borderBottom: "1px solid var(--border)",
   },
   modalTitle: { fontSize: 16, fontWeight: 800, color: "var(--text)" },
-  modalBody: { padding: 22 },
+  modalBody: { padding: 22, overflowY: "auto", flex: 1, minHeight: 0 },
   fieldLabel: {
     fontSize: 11,
     fontWeight: 700,
