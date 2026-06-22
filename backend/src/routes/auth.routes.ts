@@ -1,6 +1,6 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
-import { adminLogin, cashierLogin, getProfile, getBranches, getCashiersByBranch, verifyManagerPin, requestOtp, verifyOtp } from "../controllers/auth.controller";
+import { adminLogin, cashierLogin, getProfile, getBranches, getCashiersByBranch, verifyManagerPin, requestOtp, verifyOtp, logout } from "../controllers/auth.controller";
 import { webauthnRegisterVerify, webauthnLoginVerify } from "../controllers/webauthn.controller";
 import { authenticateJWT } from "../middlewares/auth.middleware";
 
@@ -34,6 +34,9 @@ router.post("/webauthn/login-verify", loginLimiter, webauthnLoginVerify);
 
 // Endpoint para obtener el perfil del usuario autenticado (Protegido por JWT)
 router.get("/profile", authenticateJWT, getProfile);
+
+// Cerrar sesión (libera la sesión única en memoria)
+router.post("/logout", authenticateJWT, logout);
 
 // Endpoint para validar PIN de Administrador/Gerente
 router.post("/verify-pin", authenticateJWT, verifyManagerPin);
