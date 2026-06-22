@@ -396,7 +396,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     {
       key: "email",
       header: "Correo",
-      render: (u) => <span style={{ color: "#475569" }}>{u.email}</span>,
+      render: (u) => <span style={{ color: "var(--text-secondary)" }}>{u.email}</span>,
     },
     {
       key: "role",
@@ -536,7 +536,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     padding: "8px 16px 6px 16px",
                     fontSize: 11,
                     fontWeight: 700,
-                    color: "var(--text-muted)",
+                    color: "var(--text)",
                     borderBottom: "1px solid #f1f5f9",
                     backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",

@@ -42,8 +42,8 @@ export function DataTable<T>({
         overflowX: "auto",
         overflowY: "auto",
         maxHeight,
-        backgroundColor: "#ffffff",
-        border: "1px solid #e2e8f0",
+        backgroundColor: "var(--surface)",
+        border: "1px solid var(--border)",
         borderRadius: 12,
         boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
         width: "100%",
@@ -51,7 +51,7 @@ export function DataTable<T>({
     >
       <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
         <thead>
-          <tr style={{ backgroundColor: "#f1f5f9", borderBottom: "1px solid #e2e8f0" }}>
+          <tr style={{ backgroundColor: "var(--surface-3)", borderBottom: "1px solid var(--border)" }}>
             {columns.map((col) => (
               <th
                 key={col.key}
@@ -59,10 +59,10 @@ export function DataTable<T>({
                   padding: "12px 16px",
                   fontSize: 11,
                   fontWeight: 600,
-                  color: "#64748b",
+                  color: "var(--text-muted)",
                   textTransform: "uppercase",
                   letterSpacing: "0.05em",
-                  borderBottom: "1px solid #e2e8f0",
+                  borderBottom: "1px solid var(--border)",
                   textAlign: col.align ?? "left",
                   width: col.width,
                   whiteSpace: "nowrap",
@@ -76,21 +76,21 @@ export function DataTable<T>({
         <tbody>
           {loading && (
             <tr>
-              <td colSpan={colSpan} style={{ ...tdState, color: "#64748b" }}>
+              <td colSpan={colSpan} style={{ ...tdState, color: "var(--text-muted)" }}>
                 Cargando...
               </td>
             </tr>
           )}
           {!loading && error && (
             <tr>
-              <td colSpan={colSpan} style={{ ...tdState, color: "#dc2626" }}>
+              <td colSpan={colSpan} style={{ ...tdState, color: "var(--color-danger)" }}>
                 {error}
               </td>
             </tr>
           )}
           {!loading && !error && data.length === 0 && (
             <tr>
-              <td colSpan={colSpan} style={{ ...tdState, color: "#64748b" }}>
+              <td colSpan={colSpan} style={{ ...tdState, color: "var(--text-muted)" }}>
                 {emptyMessage}
               </td>
             </tr>
@@ -104,9 +104,9 @@ export function DataTable<T>({
                     key={col.key}
                     style={{
                       padding: "12px 16px",
-                      borderBottom: "1px solid #e2e8f0",
+                      borderBottom: "1px solid var(--border)",
                       fontSize: 14,
-                      color: "#0f172a",
+                      color: "var(--text)",
                       textAlign: col.align ?? "left",
                     }}
                   >
