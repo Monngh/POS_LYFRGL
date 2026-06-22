@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { AlertTriangle, Printer, X, Plus, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import api from "../../shared/services/api";
-import { useAuth } from "../../shared/context/AuthContext";
+import { useAuth } from "../../auth";
 import {
   DECIMAL_INPUT_REGEX,
   handleDecimalInputChange,
