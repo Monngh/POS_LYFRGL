@@ -1,0 +1,56 @@
+version: "2"
+type: backend
+tech_stack:
+  - Node.js
+  - Express.js
+  - Prisma
+  - SQL Server
+  - TypeScript
+routes:
+  - path: /api/auth/branches
+    file: src/routes/auth.routes.ts
+    auth_required: false
+    description: Public endpoint to fetch sucursales.
+  - path: /api/auth/admin-login
+    file: src/routes/auth.routes.ts
+    auth_required: false
+    description: Endpoint for admin/gerente authentication.
+  - path: /api/admin/sales
+    file: src/routes/admin.routes.ts
+    auth_required: true
+    description: List sales, with branch filter and role-level overrides.
+  - path: /api/admin/inventory
+    file: src/routes/admin.routes.ts
+    auth_required: true
+    description: Fetch inventory records by branch, audited.
+  - path: /api/admin/products
+    file: src/routes/admin.routes.ts
+    auth_required: true
+    description: Manage products catalog (ADMIN only for mutations, GERENTE allowed GET).
+  - path: /api/admin/reports/audit-logs
+    file: src/routes/admin.routes.ts
+    auth_required: true
+    description: Fetch report query access audit logs (ADMIN only).
+features:
+  - name: Authentication and Authorization
+    description: Handles admin and cashier login and JWT validation.
+    files:
+      - src/routes/auth.routes.ts
+      - src/controllers/auth.controller.ts
+      - src/middlewares/auth.middleware.ts
+    auth_required: false
+  - name: Manager Role Security
+    description: Implements granular overrides to lock managers to their sucursal and block product catalog modifications.
+    files:
+      - src/routes/admin.routes.ts
+      - src/controllers/admin.controller.ts
+      - src/controllers/reports.controller.ts
+      - src/controllers/return.controller.ts
+    auth_required: true
+  - name: Report Access Auditing
+    description: Hooks report endpoints to log access metadata.
+    files:
+      - src/middlewares/audit.middleware.ts
+      - src/routes/admin.routes.ts
+    auth_required: true
+known_limitations: []

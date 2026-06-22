@@ -5,13 +5,16 @@ import { ui, type ViewProps, SectionHeader, Badge } from "./shared";
 import { REPORTS, REPORT_CATEGORIES, type ReportDef } from "./reports/reportConfig";
 import ReportRunner from "./reports/ReportRunner";
 import ResumenReport from "./reports/ResumenReport";
+import HistorialFacturasView from "./HistorialFacturasView";
+import { useAuth } from "../../auth";
 
 interface BranchOption {
   id: number;
   name: string;
 }
 
-const ReportesView: React.FC<ViewProps> = ({ branchId }) => {
+const ReportesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+  const { user } = useAuth();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [branches, setBranches] = useState<BranchOption[]>([]);
 
@@ -42,7 +45,9 @@ const ReportesView: React.FC<ViewProps> = ({ branchId }) => {
             ) : undefined
           }
         />
-        {selected.kind === "summary" ? (
+        {selected.key === "historial-facturas" ? (
+          <HistorialFacturasView branchId={branchId} refreshToken={refreshToken} />
+        ) : selected.kind === "summary" ? (
           <ResumenReport branchId={branchId} branchLabel={branchLabel} />
         ) : (
           <ReportRunner def={selected} branchId={branchId} branchLabel={branchLabel} />
@@ -57,7 +62,7 @@ const ReportesView: React.FC<ViewProps> = ({ branchId }) => {
       <SectionHeader title="Reportes" subtitle="Centro de reportes — seleccione el documento que desea generar" />
 
       {REPORT_CATEGORIES.map((category) => {
-        const items = REPORTS.filter((r) => r.category === category);
+        const items = REPORTS.filter((r) => r.category === category && (!r.adminOnly || user?.role === "ADMIN"));
         if (items.length === 0) return null;
         return (
           <div key={category} style={{ marginBottom: 28 }}>

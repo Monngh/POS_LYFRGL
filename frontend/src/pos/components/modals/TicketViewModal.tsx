@@ -288,12 +288,14 @@ export default function TicketViewModal({
               <span>${selectedSale.subtotal.toFixed(2)}</span>
             </div>
             {selectedSale.taxBreakdown && selectedSale.taxBreakdown.length > 0 ? (
-              selectedSale.taxBreakdown.map((tb: any, i: number) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>{tb.name}:</span>
-                  <span>${Number(tb.amount).toFixed(2)}</span>
-                </div>
-              ))
+              selectedSale.taxBreakdown
+                .filter((tb: any) => Number(tb.amount) > 0)
+                .map((tb: any, i: number) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>{tb.name}:</span>
+                    <span>${Number(tb.amount).toFixed(2)}</span>
+                  </div>
+                ))
             ) : (
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span>IVA (16%):</span>
