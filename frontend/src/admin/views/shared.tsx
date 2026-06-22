@@ -24,8 +24,11 @@ export function useMediaQuery(query: string): boolean {
 // ---------------------------------------------------------------------------
 // Helpers de formato (es-MX)
 // ---------------------------------------------------------------------------
-export const money = (n: number) =>
-  `$${Math.round(n).toLocaleString("es-MX", { maximumFractionDigits: 0 })}`;
+export const money = (n: number) => {
+  const num = Number(n);
+  if (isNaN(num)) return "$0.00";
+  return `$${num.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
 
 export const moneyExact = (n: number) =>
   n.toLocaleString("es-MX", { style: "currency", currency: "MXN" });

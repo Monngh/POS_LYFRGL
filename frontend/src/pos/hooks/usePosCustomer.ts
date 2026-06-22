@@ -15,6 +15,7 @@ interface Customer {
   phone: string;
   email?: string;
   points: number;
+  isNew?: boolean;
 }
 
 type NewCustomerForm = { name: string; phone: string; email: string };
@@ -46,6 +47,7 @@ export function usePosCustomer({ onToast, view }: UsePosCustomerProps) {
   >({});
   const [newCustomerLoading, setNewCustomerLoading] = useState(false);
   const [newCustomerError, setNewCustomerError] = useState<string | null>(null);
+
 
   const validateNewCustomerField = (field: keyof NewCustomerForm, value: string) => {
     if (field === "name") return validateSafeText(value, "El nombre", { required: true, min: 2, max: 100 });
@@ -137,7 +139,7 @@ export function usePosCustomer({ onToast, view }: UsePosCustomerProps) {
   };
 
   useEffect(() => {
-    if (view !== "sales-terminal") return;
+    if (view === "sales-terminal") return;
     const query = customerSearch.trim();
     const searchError = validateSearchText(query, "La busqueda de cliente", { max: 120 });
     setCustomerSearchError(searchError || "");
@@ -165,6 +167,59 @@ export function usePosCustomer({ onToast, view }: UsePosCustomerProps) {
     return () => clearTimeout(timer);
   }, [customerSearch, view]);
 
+  const handleSearchCustomerByPhone = async (phoneToSearch: string) => {
+    const cleanPhone = phoneToSearch.replace(/\D/g, "");
+    setNewCustomerLoading(true);
+    setCustomerSearchError("");
+    try {
+      const res = await api.get(`/api/sales/customers/search?query=${cleanPhone}`);
+      const customers = res.data.customers || [];
+      if (customers.length > 0) {
+        const matchedCustomer = customers[0];
+        setSelectedCustomer({
+          ...matchedCustomer,
+          isNew: false
+        });
+        onToast("Cliente registrado", "success");
+        return { found: true, customer: matchedCustomer };
+      } else {
+        return { found: false };
+      }
+    } catch (err) {
+      console.error("Error al buscar cliente:", err);
+      setCustomerSearchError("Error al buscar el cliente.");
+      onToast("Error al buscar el cliente.", "error");
+      return { found: false, error: err };
+    } finally {
+      setNewCustomerLoading(false);
+    }
+  };
+
+  const handleRegisterMinimalCustomer = async (confirmedPhone: string) => {
+    setNewCustomerLoading(true);
+    setNewCustomerError(null);
+    try {
+      const res = await api.post("/api/sales/customers", {
+        name: "Cliente registrado",
+        phone: confirmedPhone,
+      });
+      const newCust = res.data.customer;
+      setSelectedCustomer({
+        ...newCust,
+        isNew: true
+      });
+      onToast("Cliente registrado para puntos", "success");
+      return { success: true, customer: newCust };
+    } catch (err: any) {
+      const errMsg = err.response?.data?.message || "Error al registrar cliente.";
+      setNewCustomerError(errMsg);
+      onToast(errMsg, "error");
+      return { success: false, error: errMsg };
+    } finally {
+      setNewCustomerLoading(false);
+    }
+  };
+
   return {
     selectedCustomer,
     setSelectedCustomer,
@@ -189,5 +244,7 @@ export function usePosCustomer({ onToast, view }: UsePosCustomerProps) {
     handleSelectCustomer,
     handleClearCustomer,
     handleRegisterCustomerSubmit,
+    handleSearchCustomerByPhone,
+    handleRegisterMinimalCustomer,
   };
 }

@@ -179,8 +179,9 @@ export const getTicketDetails = async (req: Request, res: Response): Promise<voi
  * Procesar la solicitud de autofacturación del cliente
  */
 export const issueTicketInvoice = async (req: Request, res: Response): Promise<void> => {
-  const { saleId, rfc, legalName, taxSystem, zip, email, cfdiUse } = req.body;
-  const numericSaleId = Number(saleId);
+  const { saleId, invoiceId, rfc, legalName, taxSystem, zip, email, cfdiUse } = req.body;
+  const targetId = saleId !== undefined ? saleId : invoiceId;
+  const numericSaleId = Number(targetId);
 
   if (!Number.isInteger(numericSaleId) || numericSaleId <= 0) {
     res.status(404).json({

@@ -203,8 +203,12 @@ export const confirmDeposit = async (depositId: number) => {
 };
 
 export const cancelDeposit = async (depositId: number, pinCode: string, reason: string) => {
+  const deposit = await prisma.bankDeposit.findUnique({ where: { id: depositId } });
+  if (!deposit) throw new AppError("Depósito no encontrado.", 404);
+  if (deposit.status === "CANCELLED") throw new AppError("Este depósito ya fue cancelado anteriormente.", 400);
+
   const managers = await prisma.user.findMany({
-    where: { role: { in: ["ADMIN", "GERENTE"] }, active: true },
+    where: { role: { in: ["ADMIN", "GERENTE"] }, active: true, branchId: deposit.branchId },
   });
 
   let approver = null;
@@ -217,10 +221,6 @@ export const cancelDeposit = async (depositId: number, pinCode: string, reason: 
   if (!approver) {
     throw new AppError("PIN de autorización incorrecto o el usuario no cuenta con privilegios de Administrador/Gerente.", 401);
   }
-
-  const deposit = await prisma.bankDeposit.findUnique({ where: { id: depositId } });
-  if (!deposit) throw new AppError("Depósito no encontrado.", 404);
-  if (deposit.status === "CANCELLED") throw new AppError("Este depósito ya fue cancelado anteriormente.", 400);
 
   const depositSession = await prisma.cashSession.findUnique({ where: { id: deposit.cashSessionId } });
   if (depositSession?.status === "CERRADA") {
