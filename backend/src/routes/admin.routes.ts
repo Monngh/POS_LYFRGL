@@ -37,6 +37,7 @@ import {
   getProductSuppliers,
   deleteProduct,
   getReportAuditLogs,
+  cancelPurchase,
 } from "../controllers/admin.controller";
 import { auditReport } from "../middlewares/audit.middleware";
 import {
@@ -108,6 +109,7 @@ router.post("/suppliers/products/remove", authorizeRoles(["ADMIN"]), removeProdu
 router.get("/purchases", authorizeRoles(["ADMIN"]), auditReport("Compras", "COMPRAS"), listPurchases);
 router.post("/purchases", authorizeRoles(["ADMIN"]), createPurchase);
 router.put("/purchases/:id/receive", authorizeRoles(["ADMIN"]), receivePurchase);
+router.put("/purchases/:id/cancel", authorizeRoles(["ADMIN"]), cancelPurchase);
 
 // Depósitos bancarios
 router.get("/bank-deposits", authorizeRoles(["ADMIN", "GERENTE"]), listBankDeposits);
