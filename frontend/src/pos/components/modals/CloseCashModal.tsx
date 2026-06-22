@@ -30,7 +30,7 @@ const modalOverlay: React.CSSProperties = {
 
 const closeModal: React.CSSProperties = {
   width: "420px",
-  backgroundColor: "#ffffff",
+  backgroundColor: "var(--surface)",
   borderRadius: "12px",
   padding: "28px",
   boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
@@ -39,8 +39,8 @@ const closeModal: React.CSSProperties = {
 const modalTitle: React.CSSProperties = {
   fontSize: "16px",
   fontWeight: "800",
-  color: "#0f172a",
-  borderBottom: "1px solid #e2e8f0",
+  color: "var(--text)",
+  borderBottom: "1px solid var(--border)",
   paddingBottom: "8px",
 };
 
@@ -48,7 +48,7 @@ const summaryRow: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   fontSize: "13px",
-  color: "#475569",
+  color: "var(--text-secondary)",
 };
 
 const inputGroup: React.CSSProperties = {
@@ -61,7 +61,7 @@ const inputGroup: React.CSSProperties = {
 const labelStyle: React.CSSProperties = {
   fontSize: "11px",
   fontWeight: "700",
-  color: "#475569",
+  color: "var(--text-secondary)",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
 };
@@ -167,7 +167,7 @@ export default function CloseCashModal({
           </div>
           <div style={summaryRow}>
             <span>Reembolsos (x{sessionStats?.refundedSalesCount || 0}):</span>
-            <span style={{ fontWeight: "600", color: "#64748b" }}>${sessionStats?.refundedAmount?.toFixed(2) || "0.00"}</span>
+            <span style={{ fontWeight: "600", color: "var(--text-muted)" }}>${sessionStats?.refundedAmount?.toFixed(2) || "0.00"}</span>
           </div>
           <div style={summaryRow}>
             <span>Devoluciones de Producto (-):</span>
@@ -175,7 +175,7 @@ export default function CloseCashModal({
           </div>
           <div style={{ ...summaryRow, borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px" }}>
             <span>Efectivo Esperado en Caja:</span>
-            <span style={{ fontWeight: "800", color: "#1e3a8a" }}>${sessionStats?.expectedAmount.toFixed(2)}</span>
+            <span style={{ fontWeight: "800", color: "var(--accent-strong)" }}>${sessionStats?.expectedAmount.toFixed(2)}</span>
           </div>
 
           <div style={inputGroup}>

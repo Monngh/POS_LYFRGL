@@ -31,7 +31,7 @@ const modalOverlay: React.CSSProperties = {
 
 const lookupModal: React.CSSProperties = {
   width: "480px",
-  backgroundColor: "#ffffff",
+  backgroundColor: "var(--surface)",
   borderRadius: "12px",
   padding: "24px",
   boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
@@ -43,8 +43,8 @@ const lookupModal: React.CSSProperties = {
 const modalTitle: React.CSSProperties = {
   fontSize: "16px",
   fontWeight: "800",
-  color: "#0f172a",
-  borderBottom: "1px solid #e2e8f0",
+  color: "var(--text)",
+  borderBottom: "1px solid var(--border)",
   paddingBottom: "8px",
 };
 
@@ -58,7 +58,7 @@ const inputGroup: React.CSSProperties = {
 const labelStyle: React.CSSProperties = {
   fontSize: "11px",
   fontWeight: "700",
-  color: "#475569",
+  color: "var(--text-secondary)",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
 };
@@ -70,25 +70,25 @@ const tableStyle: React.CSSProperties = {
 };
 
 const tableHeaderRow: React.CSSProperties = {
-  borderBottom: "2px solid #e2e8f0",
+  borderBottom: "2px solid var(--border)",
 };
 
 const th: React.CSSProperties = {
   padding: "10px 12px",
   fontSize: "11px",
   fontWeight: "700",
-  color: "#475569",
+  color: "var(--text-secondary)",
   textTransform: "uppercase",
 };
 
 const tableRow: React.CSSProperties = {
-  borderBottom: "1px solid #f1f5f9",
+  borderBottom: "1px solid var(--surface-3)",
 };
 
 const td: React.CSSProperties = {
   padding: "12px",
   fontSize: "13px",
-  color: "#334155",
+  color: "var(--text-secondary)",
 };
 
 const modalBtn: React.CSSProperties = {
@@ -127,7 +127,7 @@ export default function PriceLookupModal({
           />
         </div>
 
-        <div style={{ maxHeight: "240px", overflowX: "auto", overflowY: "auto", marginTop: "14px", border: "1px solid #e2e8f0", borderRadius: "6px" }} className="pos-cashier-inline-table-scroll">
+        <div style={{ maxHeight: "240px", overflowX: "auto", overflowY: "auto", marginTop: "14px", border: "1px solid var(--border)", borderRadius: "6px" }} className="pos-cashier-inline-table-scroll">
           <table style={tableStyle}>
             <thead>
               <tr style={tableHeaderRow}>

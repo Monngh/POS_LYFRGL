@@ -25,7 +25,7 @@ const modalOverlay: React.CSSProperties = {
 const ticketModal: React.CSSProperties = {
   width: "calc(80mm + 48px)",
   maxWidth: "95vw",
-  backgroundColor: "#ffffff",
+  backgroundColor: "var(--surface)",
   borderRadius: "12px",
   padding: "24px",
   boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
@@ -34,8 +34,8 @@ const ticketModal: React.CSSProperties = {
 const modalTitle: React.CSSProperties = {
   fontSize: "16px",
   fontWeight: "800",
-  color: "#0f172a",
-  borderBottom: "1px solid #e2e8f0",
+  color: "var(--text)",
+  borderBottom: "1px solid var(--border)",
   paddingBottom: "8px",
 };
 
@@ -47,7 +47,7 @@ const ticketContainer: React.CSSProperties = {
   padding: "10px 12px",
   border: "1px solid #d4d4d4",
   borderRadius: "4px",
-  backgroundColor: "#ffffff",
+  backgroundColor: "var(--surface)",
   color: "#111111",
   fontFamily: '"Courier New", monospace',
   fontSize: "10px",
@@ -80,16 +80,16 @@ export default function PartialCutReceiptModal({
     <div style={modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
       <div style={ticketModal} className="pos-cashier-modal">
         <h3 style={modalTitle}>Comprobante de Corte Parcial</h3>
-        <p style={{ fontSize: "11px", color: "#64748b", margin: "4px 0 16px 0", textAlign: "center" }}>
+        <p style={{ fontSize: "11px", color: "var(--text-muted)", margin: "4px 0 16px 0", textAlign: "center" }}>
           Corte parcial registrado exitosamente en base de datos.
         </p>
 
-        <div style={ticketContainer} id="partial-cut-thermal-receipt" className="ticket-print">
+        <div style={ticketContainer} id="partial-cut-thermal-receipt" className="ticket-print pos-paper">
           <div style={{ textAlign: "center", borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px", marginBottom: "10px" }}>
             <strong style={{ fontSize: "14px" }}>LYFRGL POS</strong>
             <p style={{ fontSize: "11px", margin: "2px 0 0 0" }}>SUCURSAL: {user?.branch.name}</p>
             <p style={{ fontSize: "10px", margin: "2px 0 0 0" }}>CORTE PARCIAL #{partialCutData.cutNumber}</p>
-            <p style={{ fontSize: "9px", margin: "2px 0 0 0", color: "#64748b" }}>
+            <p style={{ fontSize: "9px", margin: "2px 0 0 0", color: "var(--text-muted)" }}>
               {new Date(partialCutData.createdAt).toLocaleString()}
             </p>
           </div>
@@ -136,7 +136,7 @@ export default function PartialCutReceiptModal({
             <strong>${Number(partialCutData.netTotal).toFixed(2)} MXN</strong>
           </div>
 
-          <div style={{ textAlign: "center", marginTop: "20px", fontSize: "9px", color: "#64748b", borderTop: "1px dashed #cbd5e1", paddingTop: "8px" }}>
+          <div style={{ textAlign: "center", marginTop: "20px", fontSize: "9px", color: "var(--text-muted)", borderTop: "1px dashed #cbd5e1", paddingTop: "8px" }}>
             <span>*** COMPROBANTE DE CORTE PARCIAL ***</span>
           </div>
         </div>
@@ -144,7 +144,7 @@ export default function PartialCutReceiptModal({
         <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions no-print" data-no-ticket-print="true">
           <button
             onClick={onPrint}
-            style={{ ...modalBtn, backgroundColor: "#1e3a8a", color: "white" }}
+            style={{ ...modalBtn, backgroundColor: "var(--accent-strong)", color: "white" }}
           >
             IMPRIMIR
           </button>
