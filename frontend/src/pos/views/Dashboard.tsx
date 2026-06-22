@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "../../pos-cashier-responsive.css";
-import { useAuth } from "../../shared/context/AuthContext";
+import { useAuth } from "../../auth";
 import {
   AperturaView,
   DashboardHomeView,
