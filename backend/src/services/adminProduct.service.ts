@@ -1,14 +1,20 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../app";
 import { AppError } from "../utils/AppError";
+import { validateAdminLocalPhone } from "../utils/adminPhoneValidation";
+import { buildNextProductSku } from "../utils/productSku";
 
 // ─── Product helpers ───────────────────────────────────────────────────────────
 
 const PRODUCT_TEXT_REGEX = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü0-9\s.,#\-/()]+$/;
-const SKU_REGEX = /^[A-Za-z0-9_-]+$/;
 const BARCODE_REGEX = /^[0-9]+$/;
 const SAT_PRODUCT_KEY_REGEX = /^[0-9]{8}$/;
 const SAT_UNIT_KEY_REGEX = /^[A-Za-z0-9]+$/;
 const MONEY_REGEX = /^\d+(?:\.\d+)?$/;
+const PRODUCT_NAME_MAX_LENGTH = 50;
+const PRODUCT_DESCRIPTION_MAX_LENGTH = 100;
+const BARCODE_MAX_LENGTH = 13;
+const SKU_GENERATION_MAX_ATTEMPTS = 5;
 
 type MoneyValidation = { ok: true; value: number } | { ok: false; message: string };
 
@@ -37,13 +43,28 @@ const parseInteger = (value: unknown): number | null => {
   return Number.isSafeInteger(numeric) ? numeric : null;
 };
 
+const generateNextProductSku = async (client: Prisma.TransactionClient): Promise<string> => {
+  const products = await client.product.findMany({
+    select: { sku: true },
+  });
+
+  return buildNextProductSku(products);
+};
+
+const isRetryableSkuError = (error: unknown): boolean => {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return error.code === "P2002" || error.code === "P2034";
+  }
+
+  return error instanceof Error && /deadlock/i.test(error.message);
+};
+
 // ─── Supplier helpers ──────────────────────────────────────────────────────────
 
 const NAME_REGEX = /^[a-zA-ZÀ-ÿÑñ\s]+$/;
 const COMPANY_NAME_REGEX = /^[a-zA-ZÀ-ÿ0-9\s.-]+$/;
 const RFC_REGEX = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_REGEX = /^\d{10}$/;
 const ZIP_REGEX = /^\d{5}$/;
 const CITY_STATE_REGEX = /^[a-zA-ZÀ-ÿÑñ\s]+$/;
 
@@ -52,6 +73,7 @@ interface SupplierValidationData {
   rfc?: string;
   email?: string;
   phone?: string;
+  phoneCountryCode?: string;
   address?: string;
   city?: string;
   state?: string;
@@ -86,8 +108,8 @@ const validateSupplierData = (data: SupplierValidationData, isUpdate = false): s
 
   if (!isUpdate || data.phone !== undefined) {
     const phone = data.phone?.trim();
-    if (!phone) errors.push("El teléfono es requerido.");
-    else if (!PHONE_REGEX.test(phone)) errors.push("El teléfono debe contener exactamente 10 dígitos.");
+    const phoneError = validateAdminLocalPhone(phone, data.phoneCountryCode, { required: true });
+    if (phoneError) errors.push(phoneError);
   }
 
   if (!isUpdate || data.address !== undefined) {
@@ -129,20 +151,22 @@ const validateSupplierData = (data: SupplierValidationData, isUpdate = false): s
 
 // ─── Product service functions ─────────────────────────────────────────────────
 
-export const createProduct = async (body: Record<string, unknown>) => {
-  const skuClean = cleanBodyText(body.sku);
-  if (!skuClean) throw new AppError("El SKU del producto es obligatorio.", 400);
-  if (!SKU_REGEX.test(skuClean)) throw new AppError("El SKU solo puede contener letras, números, guion medio y guion bajo.", 400);
+export const getNextProductSku = async (): Promise<string> => generateNextProductSku(prisma);
 
+export const createProduct = async (body: Record<string, unknown>) => {
   const nameClean = cleanBodyText(body.name);
   if (!nameClean) throw new AppError("El nombre del producto es requerido.", 400);
+  if (nameClean.length > PRODUCT_NAME_MAX_LENGTH) throw new AppError("El nombre del producto no puede tener más de 20 caracteres.", 400);
   if (!PRODUCT_TEXT_REGEX.test(nameClean)) throw new AppError("El nombre contiene caracteres no permitidos.", 400);
 
   const descriptionClean = cleanOptionalBodyText(body.description);
+  if (descriptionClean && descriptionClean.length > PRODUCT_DESCRIPTION_MAX_LENGTH) throw new AppError("La descripción no puede tener más de 50 caracteres.", 400);
   if (descriptionClean && !PRODUCT_TEXT_REGEX.test(descriptionClean)) throw new AppError("La descripción contiene caracteres no permitidos.", 400);
 
   const barcodeClean = cleanOptionalBodyText(body.barcode);
-  if (barcodeClean && !BARCODE_REGEX.test(barcodeClean)) throw new AppError("El código de barras solo puede contener números.", 400);
+  if (barcodeClean && (!BARCODE_REGEX.test(barcodeClean) || barcodeClean.length > BARCODE_MAX_LENGTH)) {
+    throw new AppError("El código de barras solo puede contener números y no debe exceder 13 dígitos.", 400);
+  }
 
   const cost = parseMoney(body.costPrice, "costo");
   if (!cost.ok) throw new AppError(cost.message, 400);
@@ -158,41 +182,64 @@ export const createProduct = async (body: Record<string, unknown>) => {
 
   const { isReturnable, returnWindowDays, trackingType } = body;
 
-  return prisma.$transaction(async (tx) => {
-    const existingSku = await tx.product.findUnique({ where: { sku: skuClean } });
-    if (existingSku) throw new AppError("El SKU ingresado ya está registrado.", 409);
+  for (let attempt = 1; attempt <= SKU_GENERATION_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          if (barcodeClean) {
+            const existingBarcode = await tx.product.findUnique({ where: { barcode: barcodeClean } });
+            if (existingBarcode) throw new AppError("El código de barras ingresado ya está registrado.", 409);
+          }
 
-    if (barcodeClean) {
-      const existingBarcode = await tx.product.findUnique({ where: { barcode: barcodeClean } });
-      if (existingBarcode) throw new AppError("El código de barras ingresado ya está registrado.", 409);
+          const sku = await generateNextProductSku(tx);
+          const product = await tx.product.create({
+            data: {
+              sku,
+              barcode: barcodeClean,
+              name: nameClean,
+              description: descriptionClean,
+              costPrice: cost.value,
+              sellPrice: sell.value,
+              active: true,
+              isReturnable: isReturnable !== undefined ? Boolean(isReturnable) : true,
+              returnWindowDays: returnWindowDays !== undefined ? Number(returnWindowDays) : 30,
+              trackingType: trackingType && String(trackingType).trim() ? String(trackingType).trim() : "NONE",
+              satProductKey: satProductKeyClean,
+              satUnitKey: satUnitKeyClean,
+            },
+          });
+
+          const branches = await tx.branch.findMany({ select: { id: true } });
+          for (const branch of branches) {
+            await tx.inventory.create({
+              data: { productId: product.id, branchId: branch.id, quantity: 0, minStock: 10, maxStock: 400 },
+            });
+          }
+
+          return product;
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          maxWait: 10000,
+          timeout: 15000,
+        }
+      );
+    } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
+
+      if (barcodeClean && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        const existingBarcode = await prisma.product.findUnique({ where: { barcode: barcodeClean } });
+        if (existingBarcode) throw new AppError("El código de barras ingresado ya está registrado.", 409);
+      }
+
+      if (!isRetryableSkuError(error)) throw error;
+      if (attempt === SKU_GENERATION_MAX_ATTEMPTS) {
+        throw new AppError("No fue posible generar un SKU único. Intenta nuevamente.", 409);
+      }
     }
+  }
 
-    const product = await tx.product.create({
-      data: {
-        sku: skuClean,
-        barcode: barcodeClean,
-        name: nameClean,
-        description: descriptionClean,
-        costPrice: cost.value,
-        sellPrice: sell.value,
-        active: true,
-        isReturnable: isReturnable !== undefined ? Boolean(isReturnable) : true,
-        returnWindowDays: returnWindowDays !== undefined ? Number(returnWindowDays) : 30,
-        trackingType: trackingType && String(trackingType).trim() ? String(trackingType).trim() : "NONE",
-        satProductKey: satProductKeyClean,
-        satUnitKey: satUnitKeyClean,
-      },
-    });
-
-    const branches = await tx.branch.findMany({ select: { id: true } });
-    for (const branch of branches) {
-      await tx.inventory.create({
-        data: { productId: product.id, branchId: branch.id, quantity: 0, minStock: 10, maxStock: 400 },
-      });
-    }
-
-    return product;
-  });
+  throw new AppError("No fue posible generar un SKU único. Intenta nuevamente.", 409);
 };
 
 export const listProducts = async (search?: string, includeInactive = false) => {
@@ -283,13 +330,17 @@ export const updateProduct = async (id: number, body: Record<string, unknown>) =
 
   const nameClean = name !== undefined ? cleanBodyText(name) : existingProduct.name;
   if (name !== undefined && !nameClean) throw new AppError("El nombre del producto es requerido.", 400);
+  if (name !== undefined && nameClean.length > PRODUCT_NAME_MAX_LENGTH) throw new AppError("El nombre del producto no puede tener más de 20 caracteres.", 400);
   if (name !== undefined && !PRODUCT_TEXT_REGEX.test(nameClean)) throw new AppError("El nombre contiene caracteres no permitidos.", 400);
 
   const descriptionClean = description !== undefined ? cleanOptionalBodyText(description) : existingProduct.description;
+  if (description !== undefined && descriptionClean && descriptionClean.length > PRODUCT_DESCRIPTION_MAX_LENGTH) throw new AppError("La descripción no puede tener más de 50 caracteres.", 400);
   if (description !== undefined && descriptionClean && !PRODUCT_TEXT_REGEX.test(descriptionClean)) throw new AppError("La descripción contiene caracteres no permitidos.", 400);
 
   const barcodeClean = barcode !== undefined ? cleanOptionalBodyText(barcode) : existingProduct.barcode;
-  if (barcode !== undefined && barcodeClean && !BARCODE_REGEX.test(barcodeClean)) throw new AppError("El código de barras solo puede contener números.", 400);
+  if (barcode !== undefined && barcodeClean && (!BARCODE_REGEX.test(barcodeClean) || barcodeClean.length > BARCODE_MAX_LENGTH)) {
+    throw new AppError("El código de barras solo puede contener números y no debe exceder 13 dígitos.", 400);
+  }
 
   let cost = Number(existingProduct.costPrice);
   if (costPrice !== undefined) {
@@ -356,9 +407,9 @@ export const listSuppliers = async () =>
   prisma.supplier.findMany({ orderBy: { name: "asc" } });
 
 export const createSupplier = async (body: Record<string, unknown>) => {
-  const { name, rfc, email, phone, address, city, state, zipCode, contactName, active } = body as any;
+  const { name, rfc, email, phone, phoneCountryCode, address, city, state, zipCode, contactName, active } = body as any;
 
-  const validationErrors = validateSupplierData({ name, rfc, email, phone, address, city, state, zipCode, contactName });
+  const validationErrors = validateSupplierData({ name, rfc, email, phone, phoneCountryCode, address, city, state, zipCode, contactName });
   if (validationErrors.length > 0) throw new AppError(validationErrors[0], 400);
 
   const supplierByName = await prisma.supplier.findFirst({ where: { name: String(name).trim() } });
@@ -384,7 +435,7 @@ export const createSupplier = async (body: Record<string, unknown>) => {
 };
 
 export const updateSupplier = async (id: number, body: Record<string, unknown>) => {
-  const { name, rfc, email, phone, address, city, state, zipCode, contactName, active } = body as any;
+  const { name, rfc, email, phone, phoneCountryCode, address, city, state, zipCode, contactName, active } = body as any;
 
   const hasData = [name, rfc, email, phone, address, city, state, zipCode, contactName, active].some((v) => v !== undefined);
   if (!hasData) throw new AppError("No se enviaron datos para actualizar.", 400);
@@ -393,7 +444,10 @@ export const updateSupplier = async (id: number, body: Record<string, unknown>) 
   if (name !== undefined) updateValidation.name = name;
   if (rfc !== undefined) updateValidation.rfc = rfc;
   if (email !== undefined) updateValidation.email = email;
-  if (phone !== undefined) updateValidation.phone = phone;
+  if (phone !== undefined) {
+    updateValidation.phone = phone;
+    updateValidation.phoneCountryCode = phoneCountryCode;
+  }
   if (address !== undefined) updateValidation.address = address;
   if (city !== undefined) updateValidation.city = city;
   if (state !== undefined) updateValidation.state = state;

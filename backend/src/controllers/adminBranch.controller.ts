@@ -5,6 +5,7 @@ import {
   createBranch as createBranchService,
   updateBranch as updateBranchService,
 } from "../services/adminBranch.service";
+import { validateAdminLocalPhone } from "../utils/adminPhoneValidation";
 
 const trimQuery = (v: unknown): string | undefined => {
   const s = typeof v === "string" ? v.trim() : "";
@@ -25,7 +26,7 @@ export const listBranches = async (req: Request, res: Response): Promise<void> =
 
 export const createBranch = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, address, phone, active } = req.body;
+    const { name, address, phone, phoneCountryCode, active } = req.body;
 
     const cleanName = typeof name === "string" ? name.trim() : "";
     if (!cleanName) { res.status(400).json({ message: "El nombre de la sucursal es obligatorio." }); return; }
@@ -41,8 +42,9 @@ export const createBranch = async (req: Request, res: Response): Promise<void> =
     if (cleanAddress.length > 150) { res.status(400).json({ message: "La dirección no puede exceder 150 caracteres." }); return; }
 
     const cleanPhone = typeof phone === "string" ? phone.trim() : "";
-    if (!/^\d{10}$/.test(cleanPhone)) {
-      res.status(400).json({ message: "El teléfono debe contener exactamente 10 dígitos." });
+    const phoneError = validateAdminLocalPhone(cleanPhone, phoneCountryCode, { required: true });
+    if (phoneError) {
+      res.status(400).json({ message: phoneError });
       return;
     }
 
@@ -65,7 +67,7 @@ export const updateBranch = async (req: Request, res: Response): Promise<void> =
     const id = Number(req.params.id);
     if (isNaN(id)) { res.status(400).json({ message: "Identificador de sucursal inválido." }); return; }
 
-    const { name, address, phone, active } = req.body;
+    const { name, address, phone, phoneCountryCode, active } = req.body;
 
     const cleanName = typeof name === "string" ? name.trim() : "";
     if (!cleanName) { res.status(400).json({ message: "El nombre de la sucursal es obligatorio." }); return; }
@@ -81,8 +83,9 @@ export const updateBranch = async (req: Request, res: Response): Promise<void> =
     if (cleanAddress.length > 150) { res.status(400).json({ message: "La dirección no puede exceder 150 caracteres." }); return; }
 
     const cleanPhone = typeof phone === "string" ? phone.trim() : "";
-    if (!/^\d{10}$/.test(cleanPhone)) {
-      res.status(400).json({ message: "El teléfono debe contener exactamente 10 dígitos." });
+    const phoneError = validateAdminLocalPhone(cleanPhone, phoneCountryCode, { required: true });
+    if (phoneError) {
+      res.status(400).json({ message: phoneError });
       return;
     }
 
