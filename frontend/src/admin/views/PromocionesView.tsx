@@ -342,41 +342,41 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const setField =
     (key: keyof Omit<FormState, "isActive" | "productIds">) =>
-    (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-      const value =
-        key === "minQuantity" || key === "payQuantity"
-          ? normalizeIntegerInput(event.target.value)
-          : event.target.value;
-      setForm((current) => ({ ...current, [key]: value }));
-      setFormError(null);
-      setFieldErrors((prev) => {
-        const next = { ...prev };
-        const error = validateField(key, value);
-        if (error) next[key] = error;
-        else delete next[key];
-        return next;
-      });
-    };
+      (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+        const value =
+          key === "minQuantity" || key === "payQuantity"
+            ? normalizeIntegerInput(event.target.value)
+            : event.target.value;
+        setForm((current) => ({ ...current, [key]: value }));
+        setFormError(null);
+        setFieldErrors((prev) => {
+          const next = { ...prev };
+          const error = validateField(key, value);
+          if (error) next[key] = error;
+          else delete next[key];
+          return next;
+        });
+      };
 
   const setDecimalField =
     (key: "value" | "specialPrice") =>
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const rawValue = event.target.value.trim();
-      if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
-        setFieldErrors((prev) => ({
-          ...prev,
-          [key]: key === "value"
-            ? "El valor debe ser un numero valido con maximo 3 decimales."
-            : "El precio especial debe ser un numero valido con maximo 3 decimales.",
-        }));
-        return;
-      }
-      handleDecimalInputChange(rawValue, (nextValue) => {
-        setForm((current) => ({ ...current, [key]: nextValue }));
-        setFormError(null);
-        const validation =
-          key === "value" && selectedRule === "percentage"
-            ? validateDecimalField(nextValue, "El porcentaje", {
+      (event: React.ChangeEvent<HTMLInputElement>) => {
+        const rawValue = event.target.value.trim();
+        if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
+          setFieldErrors((prev) => ({
+            ...prev,
+            [key]: key === "value"
+              ? "El valor debe ser un numero valido con maximo 3 decimales."
+              : "El precio especial debe ser un numero valido con maximo 3 decimales.",
+          }));
+          return;
+        }
+        handleDecimalInputChange(rawValue, (nextValue) => {
+          setForm((current) => ({ ...current, [key]: nextValue }));
+          setFormError(null);
+          const validation =
+            key === "value" && selectedRule === "percentage"
+              ? validateDecimalField(nextValue, "El porcentaje", {
                 min: 0,
                 max: 100,
                 minExclusive: true,
@@ -384,29 +384,29 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                 minMessage: "El porcentaje debe ser mayor a 0.",
                 maxMessage: "El porcentaje debe ser menor o igual a 100.",
               })
-            : key === "value" && selectedRule === "fixedAmount"
-              ? validateDecimalField(nextValue, "El monto fijo", {
+              : key === "value" && selectedRule === "fixedAmount"
+                ? validateDecimalField(nextValue, "El monto fijo", {
                   min: 0,
                   minExclusive: true,
                   invalidMessage: "El monto fijo debe ser un numero valido con maximo 3 decimales.",
                   minMessage: "El monto fijo debe ser mayor a 0.",
                 })
-              : key === "specialPrice" && selectedRule === "specialPrice"
-                ? validateDecimalField(nextValue, "El precio especial", {
+                : key === "specialPrice" && selectedRule === "specialPrice"
+                  ? validateDecimalField(nextValue, "El precio especial", {
                     min: 0,
                     minExclusive: true,
                     invalidMessage: "El precio especial debe ser un numero valido con maximo 3 decimales.",
                     minMessage: "El precio especial debe ser mayor a 0.",
                   })
-                : { ok: true as const };
-        setFieldErrors((prev) => {
-          const next = { ...prev };
-          if (!validation.ok) next[key] = validation.error;
-          else delete next[key];
-          return next;
+                  : { ok: true as const };
+          setFieldErrors((prev) => {
+            const next = { ...prev };
+            if (!validation.ok) next[key] = validation.error;
+            else delete next[key];
+            return next;
+          });
         });
-      });
-    };
+      };
 
   const validatePromotionDecimals = (): { ok: true; value: PromotionDecimalValues } | { ok: false; error: string } => {
     const emptyValues: PromotionDecimalValues = { value: null, specialPrice: null, roundingMessages: [] };
