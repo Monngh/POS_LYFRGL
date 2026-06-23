@@ -46,6 +46,26 @@ const MethodBadge: React.FC<{ method: string }> = ({ method }) => (
   </span>
 );
 
+const formatDevice = (deviceId: string | null): string => {
+  if (!deviceId) return "Desconocido";
+  if (deviceId.startsWith("dev-")) return "Navegador Web";
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}/i.test(deviceId)) return "App Móvil";
+  if (/^[0-9a-f]{8,}/i.test(deviceId)) return "Terminal POS";
+  return deviceId.slice(0, 8).toUpperCase();
+};
+
+const formatDeviceShort = (deviceId: string | null): string => {
+  if (!deviceId) return "";
+  return deviceId.slice(0, 8).toUpperCase() + "...";
+};
+
+const formatIP = (ip: string | null): string => {
+  if (!ip) return "—";
+  if (ip === "::1" || ip === "::ffff:127.0.0.1") return "Local";
+  if (ip.startsWith("::ffff:")) return ip.replace("::ffff:", "");
+  return ip;
+};
+
 const CajaAccessLogView: React.FC<ViewProps> = ({ refreshToken }) => {
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
@@ -409,14 +429,17 @@ const CajaAccessLogView: React.FC<ViewProps> = ({ refreshToken }) => {
                       </div>
                       <div style={detailRowStyle}>
                         <span style={detailLabelStyle}>Dispositivo:</span>
-                        <span style={{ ...detailValueStyle, fontFamily: "monospace", fontSize: 11, wordBreak: "break-all" }}>
-                          {row.deviceId ?? "—"}
+                        <span style={detailValueStyle}>
+                          <div style={{ fontWeight: 600, fontSize: 12 }}>{formatDevice(row.deviceId)}</div>
+                          <div style={{ fontFamily: "monospace", fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>
+                            {formatDeviceShort(row.deviceId)}
+                          </div>
                         </span>
                       </div>
                       <div style={detailRowStyle}>
                         <span style={detailLabelStyle}>Dirección IP:</span>
                         <span style={{ ...detailValueStyle, fontFamily: "monospace", fontSize: 11 }}>
-                          {row.ipAddress ?? "—"}
+                          {formatIP(row.ipAddress)}
                         </span>
                       </div>
                     </div>
@@ -464,11 +487,16 @@ const CajaAccessLogView: React.FC<ViewProps> = ({ refreshToken }) => {
                     <td style={{ ...ui.td, textAlign: "center" }}>
                       <MethodBadge method={row.method} />
                     </td>
-                    <td style={{ ...ui.td, fontFamily: "monospace", fontSize: 11, color: "var(--text-muted)" }}>
-                      {row.deviceId ? `${row.deviceId.slice(0, 12)}…` : "—"}
+                    <td style={ui.td}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)" }}>
+                        {formatDevice(row.deviceId)}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, fontFamily: "monospace" }}>
+                        {formatDeviceShort(row.deviceId)}
+                      </div>
                     </td>
                     <td style={{ ...ui.td, fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-                      {row.ipAddress ?? "—"}
+                      {formatIP(row.ipAddress)}
                     </td>
                   </tr>
                 ))}
