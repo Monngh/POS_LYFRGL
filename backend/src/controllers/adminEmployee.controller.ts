@@ -7,6 +7,7 @@ import {
   getEmployeeOperations as getEmployeeOperationsService,
   type UpdateEmployeeInput,
 } from "../services/adminEmployee.service";
+import { validateAdminLocalPhone } from "../utils/adminPhoneValidation";
 
 const parseBranch = (req: Request): number | undefined => {
   if (req.user && req.user.role === "GERENTE") return req.user.branchId;
@@ -48,7 +49,7 @@ export const listEmployees = async (req: Request, res: Response): Promise<void> 
 
 export const createEmployee = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, email, password, role, branchId, pinCode, phone, baseSalary, commissionRate } = req.body;
+    const { name, email, password, role, branchId, pinCode, phone, phoneCountryCode, baseSalary, commissionRate } = req.body;
 
     // Validaciones básicas
     if (!name?.trim() || !email?.trim() || !role || !branchId) {
@@ -80,6 +81,11 @@ export const createEmployee = async (req: Request, res: Response): Promise<void>
         });
         return;
       }
+    }
+    const phoneError = validateAdminLocalPhone(phone, phoneCountryCode, { required: false });
+    if (phoneError) {
+      res.status(400).json({ message: phoneError });
+      return;
     }
 
     // Restricción para GERENTE (solo su propia sucursal)
@@ -127,6 +133,7 @@ export const updateEmployee = async (req: Request, res: Response): Promise<void>
       name,
       email,
       phone,
+      phoneCountryCode,
       baseSalary,
       commissionRate,
       role,
@@ -150,6 +157,13 @@ export const updateEmployee = async (req: Request, res: Response): Promise<void>
     if (newPin && String(newPin).trim() !== "" && !/^\d{4}$/.test(String(newPin))) {
       res.status(400).json({ message: "El nuevo PIN debe ser exactamente 4 dígitos numéricos." });
       return;
+    }
+    if (phone !== undefined) {
+      const phoneError = validateAdminLocalPhone(phone, phoneCountryCode, { required: false });
+      if (phoneError) {
+        res.status(400).json({ message: phoneError });
+        return;
+      }
     }
 
     // validar que cumpla requisitos

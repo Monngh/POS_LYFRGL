@@ -26,6 +26,7 @@ import {
   createPurchase,
   receivePurchase,
   createProduct,
+  getNextProductSku,
   listProducts,
   getProductDetail,
   updateProduct,
@@ -73,6 +74,7 @@ router.post("/inventory/transfer", authorizeRoles(["ADMIN", "GERENTE"]), transfe
 // Productos
 router.get("/products", authorizeRoles(["ADMIN", "GERENTE"]), listProducts);
 router.post("/products", authorizeRoles(["ADMIN"]), createProduct);
+router.get("/products/next-sku", authorizeRoles(["ADMIN"]), getNextProductSku);
 router.get("/products/:productId/suppliers", authorizeRoles(["ADMIN"]), getProductSuppliers);
 router.get("/products/:id", authorizeRoles(["ADMIN", "GERENTE"]), getProductDetail);
 router.put("/products/:id", authorizeRoles(["ADMIN"]), updateProduct);

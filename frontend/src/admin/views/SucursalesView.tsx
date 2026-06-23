@@ -5,11 +5,17 @@ import { useAdminData } from "../../shared/hooks";
 import { DataTable, ActionModal } from "../../shared/ui";
 import type { Column } from "../../shared/ui";
 import {
-  normalizePhoneInput,
-  validatePhone as validatePhoneFormat,
   validateReference,
   validateSafeText,
 } from "../../shared/utils/formValidation";
+import { PhoneField } from "../components/PhoneField";
+import {
+  DEFAULT_PHONE_COUNTRY_ISO,
+  getCountryCodeByIso,
+  normalizeLocalPhone,
+  phoneToAdminFormValue,
+  validateLocalPhone,
+} from "../utils/phone";
 import {
   ui,
   type ViewProps,
@@ -39,6 +45,7 @@ interface FormState {
   name: string;
   address: string;
   phone: string;
+  phoneCountryIso: string;
   active: boolean;
 }
 
@@ -48,7 +55,13 @@ interface FieldErrors {
   phone?: string;
 }
 
-const emptyForm: FormState = { name: "", address: "", phone: "", active: true };
+const emptyForm: FormState = {
+  name: "",
+  address: "",
+  phone: "",
+  phoneCountryIso: DEFAULT_PHONE_COUNTRY_ISO,
+  active: true,
+};
 const emptyErrors: FieldErrors = {};
 
 // ---------------------------------------------------------------------------
@@ -65,8 +78,8 @@ const validateAddress = (value: string): string | undefined => {
   return validateReference(v, "La direccion", { required: true, max: 150 });
 };
 
-const validatePhone = (value: string): string | undefined => {
-  return validatePhoneFormat(value, { required: true });
+const validatePhone = (value: string, countryIso: string): string | undefined => {
+  return validateLocalPhone(value, getCountryCodeByIso(countryIso).code, { required: true });
 };
 
 // ---------------------------------------------------------------------------
@@ -159,9 +172,9 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
     return (
       !validateName(form.name) &&
       !validateAddress(form.address) &&
-      !validatePhone(form.phone)
+      !validatePhone(form.phone, form.phoneCountryIso)
     );
-  }, [form.name, form.address, form.phone]);
+  }, [form.name, form.address, form.phone, form.phoneCountryIso]);
 
   // ---------------------------------------------------------------------------
   // Apertura de modales
@@ -207,7 +220,8 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
     const loadedForm: FormState = {
       name: b.name,
       address: b.address || "",
-      phone: b.phone || "",
+      phone: phoneToAdminFormValue(b.phone),
+      phoneCountryIso: DEFAULT_PHONE_COUNTRY_ISO,
       active: b.active,
     };
     setForm(loadedForm);
@@ -215,7 +229,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
     setFieldErrors({
       name: validateName(loadedForm.name),
       address: validateAddress(loadedForm.address),
-      phone: validatePhone(loadedForm.phone),
+      phone: validatePhone(loadedForm.phone, loadedForm.phoneCountryIso),
     });
     setFormError(null);
     setEditing(b.id);
@@ -243,10 +257,19 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
     setFieldErrors((fe) => ({ ...fe, address: validateAddress(val) }));
   };
 
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = normalizePhoneInput(e.target.value).slice(0, 20);
+  const handlePhoneChange = (val: string) => {
     setForm((f) => ({ ...f, phone: val }));
-    setFieldErrors((fe) => ({ ...fe, phone: validatePhone(val) }));
+    setFieldErrors((fe) => ({ ...fe, phone: validatePhone(val, form.phoneCountryIso) }));
+  };
+
+  const handlePhoneCountryChange = (phoneCountryIso: string) => {
+    const countryCode = getCountryCodeByIso(phoneCountryIso).code;
+    const phone = normalizeLocalPhone(form.phone, countryCode);
+    setForm((current) => ({ ...current, phoneCountryIso, phone }));
+    setFieldErrors((current) => ({
+      ...current,
+      phone: validatePhone(phone, phoneCountryIso),
+    }));
   };
 
   // ---------------------------------------------------------------------------
@@ -265,6 +288,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
         name: form.name.trim(),
         address: form.address.trim(),
         phone: form.phone,
+        phoneCountryCode: getCountryCodeByIso(form.phoneCountryIso).code,
         active: form.active,
       };
       if (editing === "create") {
@@ -307,7 +331,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   // Estilo inline para mensajes de error de campo (mismo color rojo del sistema)
   const fieldErrStyle: React.CSSProperties = {
-    color: "#b91c1c",
+    color: "var(--color-danger)",
     fontSize: 12,
     fontWeight: 600,
     marginTop: 4,
@@ -317,7 +341,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
   // Borde rojo en input inválido (solo si hay error)
   const inputWithError = (hasError: boolean): React.CSSProperties => ({
     ...ui.input,
-    borderColor: hasError ? "#fca5a5" : undefined,
+    borderColor: hasError ? "var(--color-danger)" : undefined,
   });
 
   // ---------------------------------------------------------------------------
@@ -404,7 +428,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
       <Toolbar>
         <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre o dirección" />
-        <span style={{ fontSize: 13, color: "#15803d", fontWeight: 700 }}>{activeCount} activa(s)</span>
+        <span style={{ fontSize: 13, color: "var(--color-success)", fontWeight: 700 }}>{activeCount} activa(s)</span>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as "all" | "active" | "inactive")}
@@ -445,7 +469,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
             </div>
           )}
           {!loading && error && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--color-danger)", fontSize: 13, fontWeight: 500 }}>
               {error}
             </div>
           )}
@@ -519,8 +543,8 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#eff6ff",
-                          border: "1px solid #bfdbfe",
+                          backgroundColor: "var(--accent-soft)",
+                          border: "1px solid var(--accent-soft)",
                           borderRadius: 8,
                           width: 34,
                           height: 34,
@@ -591,7 +615,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           style={{
                             ...ui.ghostBtn,
                             color: "var(--accent)",
-                            borderColor: "#93c5fd",
+                            borderColor: "var(--accent-soft)",
                             fontSize: 12,
                             padding: "6px 12px",
                             display: "inline-flex",
@@ -662,19 +686,17 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
             )}
           </div>
 
-          {/* Teléfono — solo acepta dígitos */}
+          {/* Teléfono */}
           <div style={{ marginBottom: 14 }}>
-            <label style={ui.fieldLabel}>Teléfono * (10 dígitos)</label>
-            <input
-              style={inputWithError(!!fieldErrors.phone)}
+            <PhoneField
               value={form.phone}
               onChange={handlePhoneChange}
-              placeholder="7710000000"
-              inputMode="numeric"
+              countryIso={form.phoneCountryIso}
+              onCountryChange={handlePhoneCountryChange}
+              error={fieldErrors.phone}
+              required
+              disabled={saving}
             />
-            {fieldErrors.phone && (
-              <span style={fieldErrStyle}>{fieldErrors.phone}</span>
-            )}
           </div>
 
           {/* Sucursal activa */}
@@ -683,14 +705,14 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
               type="checkbox"
               checked={form.active}
               onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
-              style={{ width: 16, height: 16, accentColor: "#1e3a8a", cursor: "pointer" }}
+              style={{ width: 16, height: 16, accentColor: "var(--accent)", cursor: "pointer" }}
             />
             <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Sucursal activa</span>
           </label>
 
           {/* Error general del servidor */}
           {formError && (
-            <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 14 }}>{formError}</p>
+            <p style={{ color: "var(--color-danger)", fontSize: 13, fontWeight: 600, marginTop: 14 }}>{formError}</p>
           )}
 
           {/* Botones */}
@@ -724,7 +746,12 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
         isOpen={showEmployeesModal && !!selectedBranch}
         onClose={() => setShowEmployeesModal(false)}
         title={`Empleados — ${selectedBranch?.name ?? ""}`}
-        size="md"
+        size="lg"
+        contentStyle={{
+          width: "calc(100% - 24px)",
+          maxWidth: 1080,
+          padding: isMobile ? 16 : 24,
+        }}
       >
         {selectedBranch && (() => {
           const branchEmployees = allEmployees.filter(
@@ -736,20 +763,28 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
             </p>
           ) : (
             <>
-              <div style={{ ...ui.tableWrap, boxShadow: "none" }}>
-                <table style={ui.table}>
+              <div
+                style={{
+                  ...ui.tableWrap,
+                  boxShadow: "none",
+                  overflowX: "auto",
+                  maxWidth: "100%",
+                  WebkitOverflowScrolling: "touch",
+                }}
+              >
+                <table style={{ ...ui.table, minWidth: 760, tableLayout: "auto" }}>
                   <thead>
                     <tr style={ui.theadRow}>
-                      <th style={ui.th}>Nombre</th>
-                      <th style={{ ...ui.th, textAlign: "center" }}>Rol</th>
-                      <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-                      <th style={{ ...ui.th, textAlign: "center" }}>Acción</th>
+                      <th style={{ ...ui.th, minWidth: 260 }}>Nombre</th>
+                      <th style={{ ...ui.th, minWidth: 130, textAlign: "center" }}>Rol</th>
+                      <th style={{ ...ui.th, minWidth: 130, textAlign: "center" }}>Estado</th>
+                      <th style={{ ...ui.th, minWidth: 150, textAlign: "center" }}>Acción</th>
                     </tr>
                   </thead>
                   <tbody>
                     {branchEmployees.map((emp: any) => (
                       <tr key={emp.id}>
-                        <td style={ui.td}>{emp.name}</td>
+                        <td style={{ ...ui.td, overflowWrap: "anywhere" }}>{emp.name}</td>
                         <td style={{ ...ui.td, textAlign: "center" }}>
                           <Badge
                             tone={
@@ -791,9 +826,9 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                   style={{
                     marginTop: 18,
                     padding: 16,
-                    background: "#eff6ff",
+                    background: "var(--accent-soft)",
                     borderRadius: 8,
-                    border: "1px solid #bfdbfe",
+                    border: "1px solid var(--accent-soft)",
                   }}
                 >
                   <p style={{ fontWeight: 700, marginBottom: 10, fontSize: 14 }}>
@@ -815,7 +850,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                         </option>
                       ))}
                   </select>
-                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
                     <button
                       style={ui.ghostBtn}
                       onClick={() => { setReassignId(null); setReassignTarget(""); }}
