@@ -369,7 +369,7 @@ const Dashboard: React.FC = () => {
       <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
         <div style={{ ...styles.cancelModal, width: "380px" }} className="pos-cashier-modal">
           <h3 style={styles.modalTitle}>Autorización de Gerente/Admin</h3>
-          <p style={{ fontSize: "12px", color: "#64748b", margin: "8px 0 16px 0", textAlign: "center" }}>
+          <p style={{ fontSize: "12px", color: "var(--text-muted)", margin: "8px 0 16px 0", textAlign: "center" }}>
             Esta operación requiere la autorización de un Administrador o Gerente. Ingrese la contraseña o clave de autorización.
           </p>
 
@@ -407,7 +407,7 @@ const Dashboard: React.FC = () => {
                   setCartPinError("");
                   setActiveModal(null);
                 }}
-                style={{ ...styles.modalBtn, backgroundColor: "#64748b", color: "white" }}
+                style={{ ...styles.modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
               >
                 CANCELAR
               </button>
@@ -416,7 +416,7 @@ const Dashboard: React.FC = () => {
                 disabled={cartPinLoading || !cartPin}
                 style={{
                   ...styles.modalBtn,
-                  backgroundColor: cartPin ? "#1e3a8a" : "#cbd5e1",
+                  backgroundColor: cartPin ? "var(--accent-strong)" : "var(--border-strong)",
                   color: "white",
                   cursor: cartPin ? "pointer" : "default",
                 }}
@@ -582,7 +582,7 @@ const Dashboard: React.FC = () => {
           onClick={(e) => e.stopPropagation()}
         >
           <h3 style={styles.modalTitle}>Enviar ticket por correo</h3>
-          <p style={{ fontSize: "13px", color: "#475569", margin: "12px 0 16px 0", lineHeight: 1.5 }}>
+          <p style={{ fontSize: "13px", color: "var(--text-secondary)", margin: "12px 0 16px 0", lineHeight: 1.5 }}>
             Ingrese o confirme el correo electrónico del destinatario. El ticket se enviará como PDF adjunto con el mismo diseño de impresión.
           </p>
           <div style={styles.inputGroup}>
@@ -613,7 +613,7 @@ const Dashboard: React.FC = () => {
                 setTicketEmailModalOpen(false);
                 setTicketEmailError("");
               }}
-              style={{ ...styles.modalBtn, backgroundColor: "#64748b", color: "white" }}
+              style={{ ...styles.modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
               disabled={ticketEmailLoading}
             >
               Cancelar
@@ -1112,7 +1112,7 @@ const Dashboard: React.FC = () => {
     >
       <div
         style={{
-          backgroundColor: "#ffffff",
+          backgroundColor: "var(--surface)",
           borderRadius: "12px",
           padding: "36px 32px",
           maxWidth: "420px",
@@ -1126,32 +1126,32 @@ const Dashboard: React.FC = () => {
           style={{
             fontSize: "20px",
             fontWeight: "800",
-            color: "#0f172a",
+            color: "var(--text)",
             marginBottom: "10px",
           }}
         >
           Sesión de caja cerrada
         </h2>
-        <p style={{ fontSize: "14px", color: "#64748b", marginBottom: "20px" }}>
+        <p style={{ fontSize: "14px", color: "var(--text-secondary)", marginBottom: "20px" }}>
           Un administrador ha cerrado tu sesión de caja.
         </p>
         <div
           style={{
-            backgroundColor: "#f8fafc",
-            border: "1px solid #e2e8f0",
+            backgroundColor: "var(--surface-2)",
+            border: "1px solid var(--border)",
             borderRadius: "8px",
             padding: "14px 16px",
             marginBottom: "28px",
             textAlign: "left",
           }}
         >
-          <span style={{ fontSize: "12px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.4px" }}>
+          <span style={{ fontSize: "12px", fontWeight: "700", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
             Motivo
           </span>
           <p
             style={{
               fontSize: "14px",
-              color: "#0f172a",
+              color: "var(--text)",
               fontWeight: "600",
               marginTop: "6px",
               wordBreak: "break-word",
@@ -1168,7 +1168,7 @@ const Dashboard: React.FC = () => {
           style={{
             width: "100%",
             padding: "12px",
-            backgroundColor: "#1e3a8a",
+            backgroundColor: "var(--color-primary)",
             color: "#ffffff",
             border: "none",
             borderRadius: "8px",
@@ -1191,7 +1191,7 @@ const Dashboard: React.FC = () => {
       <>
         <div style={styles.loadingScreen}>
           <div style={styles.spinner} />
-          <p style={{ fontWeight: "600", color: "#64748b", marginTop: "12px" }}>Cargando terminal de ventas...</p>
+          <p style={{ fontWeight: "600", color: "var(--text-muted)", marginTop: "12px" }}>Cargando terminal de ventas...</p>
         </div>
         {forcedCloseModal}
       </>
@@ -1280,7 +1280,7 @@ const Dashboard: React.FC = () => {
         {activeModal === "ticket-view" && selectedSale && (
           <div style={{ ...styles.modalOverlay, zIndex: ticketEmailModalOpen ? 9998 : 100 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
             <div style={styles.ticketModal} className="pos-cashier-modal">
-              <div id="print-area" style={styles.ticketContainer} className="ticket-print">
+              <div id="print-area" style={styles.ticketContainer} className="ticket-print pos-paper">
                 {selectedSale.status === "CANCELADA" && (
                   <div style={{
                     textAlign: "center",
@@ -1330,9 +1330,9 @@ const Dashboard: React.FC = () => {
                 )}
                 <div style={{ textAlign: "center", marginBottom: "14px" }}>
                   <h4 style={{ textTransform: "uppercase", fontWeight: "800", margin: "0 0 4px 0", fontSize: "14px" }}>LYFRGL</h4>
-                  <p style={{ fontSize: "11px", color: "#475569" }}>SUCURSAL: {user?.branch.name}</p>
-                  {user?.branch?.phone && <p style={{ fontSize: "10px", color: "#64748b" }}>TEL: {user.branch.phone}</p>}
-                  {user?.branch?.address && <p style={{ fontSize: "10px", color: "#64748b" }}>{user.branch.address}</p>}
+                  <p style={{ fontSize: "11px", color: "var(--text-secondary)" }}>SUCURSAL: {user?.branch.name}</p>
+                  {user?.branch?.phone && <p style={{ fontSize: "10px", color: "var(--text-muted)" }}>TEL: {user.branch.phone}</p>}
+                  {user?.branch?.address && <p style={{ fontSize: "10px", color: "var(--text-muted)" }}>{user.branch.address}</p>}
                 </div>
 
                 <div style={{ borderBottom: "1px dashed #cbd5e1", paddingBottom: "8px", marginBottom: "8px", fontSize: "11px" }}>
@@ -1378,7 +1378,7 @@ const Dashboard: React.FC = () => {
                               </div>
                             )}
                             {(item.taxes || item.taxDetail) && (item.taxes?.length > 0 || item.taxDetail?.length > 0) && (
-                              <div style={{ fontSize: "9px", color: "#64748b", fontStyle: "italic", marginTop: "2px" }}>
+                              <div style={{ fontSize: "9px", color: "var(--text-muted)", fontStyle: "italic", marginTop: "2px" }}>
                                 {(item.taxes || item.taxDetail).map((t: any) => `${t.name}: $${Number(t.amount).toFixed(2)}`).join(" | ")}
                               </div>
                             )}
@@ -1389,7 +1389,7 @@ const Dashboard: React.FC = () => {
                           <td style={{ textAlign: "right", padding: "4px 0", whiteSpace: "nowrap" }}>
                             {hasDiscount ? (
                               <>
-                                <span style={{ textDecoration: "line-through", color: "#94a3b8", marginRight: "4px", fontSize: "10px" }}>
+                                <span style={{ textDecoration: "line-through", color: "var(--text-faint)", marginRight: "4px", fontSize: "10px" }}>
                                   ${(item.product.sellPrice * item.quantity).toFixed(2)}
                                 </span>
                                 <span>
@@ -1445,7 +1445,7 @@ const Dashboard: React.FC = () => {
                     </div>
                   )}
                   {selectedSale.taxBreakdown && selectedSale.taxBreakdown.length > 0 && (
-                    <div style={{ display: "flex", justifyContent: "space-between", fontStyle: "italic", color: "#64748b" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontStyle: "italic", color: "var(--text-muted)" }}>
                       <span>Total Impuestos:</span>
                       <span>${selectedSale.tax.toFixed(2)}</span>
                     </div>
@@ -1456,7 +1456,7 @@ const Dashboard: React.FC = () => {
                         <span>Total Devuelto:</span>
                         <span>-${Number(selectedSale.totalRefunded).toFixed(2)}</span>
                       </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", color: "#0f172a", fontWeight: "800", backgroundColor: "#fef2f2", padding: "4px 6px", borderRadius: "4px", margin: "2px 0" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text)", fontWeight: "800", backgroundColor: "#fef2f2", padding: "4px 6px", borderRadius: "4px", margin: "2px 0" }}>
                         <span>Neto Final:</span>
                         <span>${(Number(selectedSale.total) - Number(selectedSale.totalRefunded)).toFixed(2)}</span>
                       </div>
@@ -1468,7 +1468,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
 
-                <div style={{ borderTop: "1px solid #cbd5e1", marginTop: "8px", paddingTop: "8px", fontSize: "11px" }}>
+                <div style={{ borderTop: "1px solid var(--border-strong)", marginTop: "8px", paddingTop: "8px", fontSize: "11px" }}>
                   <p>
                     <strong>Método de pago:</strong> {selectedSale.paymentMethod}
                     {selectedSale.cardType && ` (${selectedSale.cardType})`}
@@ -1498,7 +1498,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
 
-                <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "12px", paddingTop: "8px", fontSize: "9px", textAlign: "center", color: "#64748b", lineHeight: "1.4", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "12px", paddingTop: "8px", fontSize: "9px", textAlign: "center", color: "var(--text-muted)", lineHeight: "1.4", display: "flex", flexDirection: "column", alignItems: "center" }}>
                   <p>Portal de Autofacturación:</p>
                   <img
                     src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.origin + "/autofacturacion")}`}
@@ -1509,7 +1509,7 @@ const Dashboard: React.FC = () => {
                   <p>Escanea el código QR para facturar tu compra</p>
                 </div>
 
-                <div style={{ textAlign: "center", marginTop: "20px", fontSize: "10px", color: "#64748b" }}>
+                <div style={{ textAlign: "center", marginTop: "20px", fontSize: "10px", color: "var(--text-muted)" }}>
                   <p>¡GRACIAS POR SU COMPRA!</p>
                   <p>REGRESE PRONTO</p>
                   <p style={{ marginTop: "12px", fontSize: "9px", fontWeight: "600", fontStyle: "italic", borderTop: "1px dashed #cbd5e1", paddingTop: "8px" }}>
@@ -1536,10 +1536,10 @@ const Dashboard: React.FC = () => {
         {viewingPendingQrSale && (
           <div style={{ ...styles.modalOverlay, zIndex: 9999 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
             <div style={styles.checkoutModal} className="pos-cashier-modal">
-              <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
+              <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "var(--text-secondary)", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
 
               <div style={{ textAlign: "center", padding: "12px 0" }}>
-                <p style={{ marginBottom: "10px", fontSize: "13px", color: "#475569" }}>
+                <p style={{ marginBottom: "10px", fontSize: "13px", color: "var(--text-secondary)" }}>
                   Escanea el código QR para pagar la venta{" "}
                   <strong>${Number(viewingPendingQrSale.amount).toFixed(2)}</strong>
                 </p>
@@ -1550,7 +1550,7 @@ const Dashboard: React.FC = () => {
                       alt="QR Code"
                       width="180"
                       height="180"
-                      style={{ borderRadius: "8px", border: "1px solid #e2e8f0" }}
+                      style={{ borderRadius: "8px", border: "1px solid var(--border)" }}
                     />
                     <div style={{ marginTop: "10px" }}>
                       <a
@@ -1564,7 +1564,7 @@ const Dashboard: React.FC = () => {
                           fontWeight: "600",
                           display: "inline-block",
                           padding: "6px 12px",
-                          backgroundColor: "#f1f5f9",
+                          backgroundColor: "var(--surface-3)",
                           borderRadius: "6px"
                         }}
                       >
@@ -1573,9 +1573,9 @@ const Dashboard: React.FC = () => {
                     </div>
                   </>
                 ) : (
-                  <p style={{ fontSize: "12px", color: "#64748b" }}>Código QR no disponible.</p>
+                  <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>Código QR no disponible.</p>
                 )}
-                <p style={{ marginTop: "10px", fontSize: "11px", color: "#64748b" }}>Folio: {viewingPendingQrSale.invoiceNumber}</p>
+                <p style={{ marginTop: "10px", fontSize: "11px", color: "var(--text-muted)" }}>Folio: {viewingPendingQrSale.invoiceNumber}</p>
                 <p style={{ marginTop: "4px", fontSize: "12px", fontWeight: "700",
                   color: viewingPendingQrSale.status === "approved" ? "#15803d" : viewingPendingQrSale.status === "rejected" ? "#b91c1c" : "#c2410c"
                 }}>
@@ -1660,7 +1660,7 @@ const Dashboard: React.FC = () => {
                 </div>
               )}
 
-              <div style={{ display: "flex", gap: "10px", marginTop: "14px", borderTop: "1px solid #f1f5f9", paddingTop: "12px" }}>
+              <div style={{ display: "flex", gap: "10px", marginTop: "14px", borderTop: "1px solid var(--surface-3)", paddingTop: "12px" }}>
                 <button
                   onClick={() => {
                     setViewingPendingQrSale(null);
@@ -1668,7 +1668,7 @@ const Dashboard: React.FC = () => {
                     setPendingCancelReason("");
                     setPendingCancelFieldErrors({});
                   }}
-                  style={{ ...styles.modalBtn, backgroundColor: "#64748b", color: "white" }}
+                  style={{ ...styles.modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
                 >
                   CERRAR
                 </button>
@@ -1864,10 +1864,10 @@ const Dashboard: React.FC = () => {
       {viewingPendingQrSale && (
         <div style={{ ...styles.modalOverlay, zIndex: 9999 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
           <div style={styles.checkoutModal} className="pos-cashier-modal">
-            <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
+            <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "var(--text-secondary)", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
             
             <div style={{ textAlign: "center", padding: "12px 0" }}>
-               <p style={{ marginBottom: "10px", fontSize: "13px", color: "#475569" }}>
+               <p style={{ marginBottom: "10px", fontSize: "13px", color: "var(--text-secondary)" }}>
                  Escanea el siguiente código para pagar la venta <strong>${Number(viewingPendingQrSale.amount).toFixed(2)}</strong>
                </p>
                {viewingPendingQrSale.qrUrl ? (
@@ -1891,7 +1891,7 @@ const Dashboard: React.FC = () => {
                          fontWeight: "600", 
                          display: "inline-block", 
                          padding: "6px 12px", 
-                         backgroundColor: "#f1f5f9", 
+                         backgroundColor: "var(--surface-3)", 
                          borderRadius: "6px" 
                        }}
                      >
@@ -1900,9 +1900,9 @@ const Dashboard: React.FC = () => {
                    </div>
                  </>
                ) : (
-                 <p style={{ fontSize: "12px", color: "#64748b" }}>Código QR no disponible.</p>
+                 <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>Código QR no disponible.</p>
                )}
-               <p style={{ marginTop: "10px", fontSize: "11px", color: "#64748b" }}>Folio: {viewingPendingQrSale.invoiceNumber}</p>
+               <p style={{ marginTop: "10px", fontSize: "11px", color: "var(--text-muted)" }}>Folio: {viewingPendingQrSale.invoiceNumber}</p>
             </div>
 
             {/* Formulario de Cancelación con PIN si la venta sigue pendiente */}
@@ -1984,7 +1984,7 @@ const Dashboard: React.FC = () => {
               </div>
             )}
 
-            <div style={{ display: "flex", gap: "10px", marginTop: "14px", borderTop: "1px solid #f1f5f9", paddingTop: "12px" }}>
+            <div style={{ display: "flex", gap: "10px", marginTop: "14px", borderTop: "1px solid var(--surface-3)", paddingTop: "12px" }}>
               <button
                 onClick={() => {
                   setViewingPendingQrSale(null);
@@ -1992,7 +1992,7 @@ const Dashboard: React.FC = () => {
                   setPendingCancelReason("");
                   setPendingCancelFieldErrors({});
                 }}
-                style={{ ...styles.modalBtn, backgroundColor: "#64748b", color: "white" }}
+                style={{ ...styles.modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
               >
                 CERRAR
               </button>
@@ -2059,7 +2059,7 @@ const Dashboard: React.FC = () => {
         <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
           <div style={{ ...styles.cancelModal, width: "400px" }} className="pos-cashier-modal">
             <h3 style={styles.modalTitle}>Venta en borrador encontrada</h3>
-            <p style={{ fontSize: "13px", color: "#475569", margin: "12px 0 20px 0", textAlign: "center", lineHeight: "1.5" }}>
+            <p style={{ fontSize: "13px", color: "var(--text-secondary)", margin: "12px 0 20px 0", textAlign: "center", lineHeight: "1.5" }}>
               Existe una venta en borrador con <strong>{cart.length > 0 ? cart.length : loadDraft().length} producto(s)</strong> en el carrito.
               ¿Desea continuar con la venta guardada o iniciar una nueva?
             </p>
@@ -2110,25 +2110,25 @@ const styles: { [key: string]: React.CSSProperties } = {
     justifyContent: "center",
     alignItems: "center",
     minHeight: "100vh",
-    backgroundColor: "#f8fafc",
+    backgroundColor: "var(--surface-2)",
   },
   spinner: {
     width: "40px",
     height: "40px",
     borderRadius: "50%",
-    border: "3px solid #cbd5e1",
-    borderTop: "3px solid #1e3a8a",
+    border: "3px solid var(--border-strong)",
+    borderTop: "3px solid var(--accent-strong)",
     animation: "spin 1s linear infinite",
   },
   appContainer: {
     minHeight: "100vh",
     display: "flex",
     flexDirection: "column" as const,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "var(--surface-2)",
   },
   navbar: {
     height: "64px",
-    backgroundColor: "#1e3a8a", // Azul corporativo maqueta
+    backgroundColor: "var(--accent-strong)", // Azul corporativo maqueta
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
@@ -2166,8 +2166,8 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   sidebar: {
     width: "250px",
-    backgroundColor: "#ffffff",
-    borderRight: "1px solid #e2e8f0",
+    backgroundColor: "var(--surface)",
+    borderRight: "1px solid var(--border)",
     padding: "24px",
     display: "flex",
     flexDirection: "column" as const,
@@ -2184,7 +2184,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     width: "48px",
     height: "48px",
     borderRadius: "50%",
-    backgroundColor: "#1e3a8a",
+    backgroundColor: "var(--accent-strong)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
@@ -2193,20 +2193,20 @@ const styles: { [key: string]: React.CSSProperties } = {
     width: "48px",
     height: "48px",
     borderRadius: "50%",
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "var(--surface-3)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    border: "1px solid #cbd5e1",
+    border: "1px solid var(--border-strong)",
   },
   profileName: {
     fontSize: "14px",
     fontWeight: "700",
-    color: "#0f172a",
+    color: "var(--text)",
   },
   profileBranch: {
     fontSize: "12px",
-    color: "#64748b",
+    color: "var(--text-muted)",
   },
   contentArea: {
     flex: 1,
@@ -2219,7 +2219,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: "14px",
   },
   statusCard: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "var(--surface)",
     border: "1px solid #3b82f6", // Contorno azul maquetas
     borderRadius: "6px",
     padding: "16px 12px",
@@ -2230,14 +2230,14 @@ const styles: { [key: string]: React.CSSProperties } = {
   cardHeaderLabel: {
     fontSize: "9px",
     fontWeight: "700",
-    color: "#64748b",
+    color: "var(--text-muted)",
     letterSpacing: "0.5px",
     textTransform: "uppercase" as const,
   },
   sectionSubtitle: {
     fontSize: "12px",
     fontWeight: "700",
-    color: "#475569",
+    color: "var(--text-secondary)",
     letterSpacing: "0.5px",
     marginBottom: "10px",
   },
@@ -2247,7 +2247,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: "16px",
   },
   actionBtn: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "var(--surface)",
     border: "1px solid #3b82f6",
     borderRadius: "8px",
     padding: "20px 10px",
@@ -2258,7 +2258,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     cursor: "pointer",
     fontSize: "12px",
     fontWeight: "700",
-    color: "#1e3a8a",
+    color: "var(--accent-strong)",
     boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
     transition: "all 0.15s ease",
   },
@@ -2296,22 +2296,22 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginBottom: 0,
   },
   tableHeaderRow: {
-    borderBottom: "2px solid #e2e8f0",
+    borderBottom: "2px solid var(--border)",
   },
   th: {
     padding: "10px 12px",
     fontSize: "11px",
     fontWeight: "700",
-    color: "#475569",
+    color: "var(--text-secondary)",
     textTransform: "uppercase" as const,
   },
   tableRow: {
-    borderBottom: "1px solid #f1f5f9",
+    borderBottom: "1px solid var(--surface-3)",
   },
   td: {
     padding: "12px",
     fontSize: "13px",
-    color: "#334155",
+    color: "var(--text-secondary)",
   },
   actionLink: {
     background: "none",
@@ -2348,7 +2348,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   aperturaCard: {
     maxWidth: "400px",
     margin: "80px auto",
-    backgroundColor: "#ffffff",
+    backgroundColor: "var(--surface)",
     border: "1px solid #3b82f6",
     borderRadius: "12px",
     padding: "36px",
@@ -2358,7 +2358,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   cardMainTitle: {
     fontSize: "20px",
     fontWeight: "800",
-    color: "#1e3a8a",
+    color: "var(--accent-strong)",
     letterSpacing: "-0.5px",
     marginBottom: "8px",
   },
@@ -2371,7 +2371,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   label: {
     fontSize: "11px",
     fontWeight: "700",
-    color: "#475569",
+    color: "var(--text-secondary)",
     textTransform: "uppercase" as const,
     letterSpacing: "0.5px",
   },
@@ -2389,7 +2389,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   // Estilos de la Terminal de Ventas
   terminalHeader: {
     height: "56px",
-    backgroundColor: "#ffffff",
+    backgroundColor: "var(--surface)",
     borderBottom: "2px solid #3b82f6",
     display: "flex",
     justifyContent: "space-between",
@@ -2400,9 +2400,9 @@ const styles: { [key: string]: React.CSSProperties } = {
     width: "38px",
     height: "38px",
     borderRadius: "6px",
-    border: "1px solid #cbd5e1",
-    backgroundColor: "#ffffff",
-    color: "#1e3a8a",
+    border: "1px solid var(--border-strong)",
+    backgroundColor: "var(--surface)",
+    color: "var(--accent-strong)",
     cursor: "pointer",
     display: "inline-flex",
     alignItems: "center",
@@ -2425,8 +2425,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     top: "100%",
     left: "16px",
     right: "16px",
-    backgroundColor: "#ffffff",
-    border: "1px solid #cbd5e1",
+    backgroundColor: "var(--surface)",
+    border: "1px solid var(--border-strong)",
     borderRadius: "6px",
     boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)",
     zIndex: 50,
@@ -2438,13 +2438,13 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     justifyContent: "space-between",
     cursor: "pointer",
-    borderBottom: "1px solid #f1f5f9",
+    borderBottom: "1px solid var(--surface-3)",
     fontSize: "14px",
   },
   qtyContainer: {
     display: "flex",
     alignItems: "center",
-    border: "1px solid #cbd5e1",
+    border: "1px solid var(--border-strong)",
     borderRadius: "4px",
     width: "fit-content",
     overflow: "hidden",
@@ -2453,7 +2453,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     width: "28px",
     height: "28px",
     border: "none",
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "var(--surface-3)",
     cursor: "pointer",
     display: "flex",
     justifyContent: "center",
@@ -2475,7 +2475,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundColor: "transparent",
   },
   terminalSummary: {
-    borderTop: "2px solid #e2e8f0",
+    borderTop: "2px solid var(--border)",
     paddingTop: "16px",
     marginTop: "auto",
   },
@@ -2483,14 +2483,14 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     justifyContent: "space-between",
     fontSize: "13px",
-    color: "#475569",
+    color: "var(--text-secondary)",
   },
   summaryTotal: {
-    borderTop: "1px solid #cbd5e1",
+    borderTop: "1px solid var(--border-strong)",
     paddingTop: "8px",
     fontSize: "18px",
     fontWeight: "800",
-    color: "#0f172a",
+    color: "var(--text)",
   },
   terminalBtn: {
     padding: "12px 24px",
@@ -2516,7 +2516,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   checkoutModal: {
     width: "420px",
-    backgroundColor: "#ffffff",
+    backgroundColor: "var(--surface)",
     borderRadius: "12px",
     padding: "28px",
     boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
@@ -2525,8 +2525,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: "16px",
   },
   checkoutTotalBox: {
-    backgroundColor: "#f8fafc",
-    border: "1px solid #e2e8f0",
+    backgroundColor: "var(--surface-2)",
+    border: "1px solid var(--border)",
     borderRadius: "8px",
     padding: "16px",
     fontSize: "36px",
@@ -2542,8 +2542,8 @@ const styles: { [key: string]: React.CSSProperties } = {
   payMethodBtn: {
     padding: "12px 6px",
     borderRadius: "6px",
-    border: "1px solid #cbd5e1",
-    backgroundColor: "#ffffff",
+    border: "1px solid var(--border-strong)",
+    backgroundColor: "var(--surface)",
     fontSize: "11px",
     fontWeight: "700",
     cursor: "pointer",
@@ -2565,7 +2565,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   lookupModal: {
     width: "480px",
-    backgroundColor: "#ffffff",
+    backgroundColor: "var(--surface)",
     borderRadius: "12px",
     padding: "24px",
     boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
@@ -2576,20 +2576,20 @@ const styles: { [key: string]: React.CSSProperties } = {
   modalTitle: {
     fontSize: "16px",
     fontWeight: "800",
-    color: "#0f172a",
-    borderBottom: "1px solid #e2e8f0",
+    color: "var(--text)",
+    borderBottom: "1px solid var(--border)",
     paddingBottom: "8px",
   },
   cancelModal: {
     width: "420px",
-    backgroundColor: "#ffffff",
+    backgroundColor: "var(--surface)",
     borderRadius: "12px",
     padding: "28px",
     boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
   },
   closeModal: {
     width: "420px",
-    backgroundColor: "#ffffff",
+    backgroundColor: "var(--surface)",
     borderRadius: "12px",
     padding: "28px",
     boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
@@ -2597,7 +2597,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   depositModal: {
     width: "700px",
     maxWidth: "95vw",
-    backgroundColor: "#ffffff",
+    backgroundColor: "var(--surface)",
     borderRadius: "12px",
     padding: "28px",
     boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
@@ -2605,7 +2605,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   historyModal: {
     width: "520px",
     maxWidth: "95vw",
-    backgroundColor: "#ffffff",
+    backgroundColor: "var(--surface)",
     borderRadius: "12px",
     padding: "24px",
     boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
@@ -2613,7 +2613,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   ticketModal: {
     width: "calc(80mm + 48px)",
     maxWidth: "95vw",
-    backgroundColor: "#ffffff",
+    backgroundColor: "var(--surface)",
     borderRadius: "12px",
     padding: "24px",
     boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
@@ -2626,7 +2626,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: "10px 12px",
     border: "1px solid #d4d4d4",
     borderRadius: "4px",
-    backgroundColor: "#ffffff",
+    backgroundColor: "var(--surface)",
     color: "#111111",
     fontFamily: '"Courier New", monospace',
     fontSize: "10px",
@@ -2640,7 +2640,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: "center",
     minHeight: "100vh",
     width: "100vw",
-    backgroundColor: "#f8fafc",
+    backgroundColor: "var(--surface-2)",
     padding: "20px",
     boxSizing: "border-box",
     position: "fixed",
@@ -2651,7 +2651,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   conflictCard: {
     width: "440px",
     maxWidth: "100%",
-    backgroundColor: "#ffffff",
+    backgroundColor: "var(--surface)",
     borderRadius: "16px",
     padding: "48px 32px 36px 32px",
     boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
@@ -2659,7 +2659,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    border: "1px solid #f1f5f9",
+    border: "1px solid var(--surface-3)",
   },
   conflictIconContainer: {
     width: "72px",
@@ -2672,7 +2672,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginBottom: "28px",
   },
   conflictTitle: {
-    color: "#0f172a",
+    color: "var(--text)",
     fontSize: "22px",
     fontWeight: "700",
     margin: "0 0 16px 0",
@@ -2680,7 +2680,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     letterSpacing: "-0.5px",
   },
   conflictText: {
-    color: "#475569",
+    color: "var(--text-secondary)",
     fontSize: "14px",
     lineHeight: "1.6",
     margin: "0 0 32px 0",
@@ -2704,9 +2704,9 @@ const styles: { [key: string]: React.CSSProperties } = {
     width: "100%",
     padding: "10px 14px",
     borderRadius: "6px",
-    border: "1px solid #cbd5e1",
-    backgroundColor: "#ffffff",
-    color: "#0f172a",
+    border: "1px solid var(--border-strong)",
+    backgroundColor: "var(--surface)",
+    color: "var(--text)",
     fontSize: "14px",
     fontWeight: "500",
     outline: "none",

@@ -12,10 +12,13 @@ import {
   FileText,
   RotateCcw,
   MoreVertical,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { TICKET_PRINT_MEDIA_STYLES } from "../../shared/utils/ticketEmailDocument.util";
 import api from "../../shared/services/api";
 import { useCashSession } from "../hooks/useCashSession";
+import { usePosTheme, togglePosTheme } from "../../shared/hooks/usePosTheme";
 
 interface Sale {
   id: number;
@@ -54,33 +57,35 @@ interface DashboardHomeViewProps {
 }
 
 const styles: { [key: string]: React.CSSProperties } = {
-  appContainer: { minHeight: "100vh", display: "flex", flexDirection: "column" as const, backgroundColor: "#f8fafc" },
-  navbar: { height: "64px", backgroundColor: "#1e3a8a", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 24px", boxShadow: "0 2px 4px rgba(0,0,0,0.05)" },
+  appContainer: { minHeight: "100vh", display: "flex", flexDirection: "column" as const, backgroundColor: "var(--surface-2)" },
+  navbar: { height: "64px", backgroundColor: "var(--accent-strong)", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 24px", boxShadow: "0 2px 4px rgba(0,0,0,0.05)" },
   navBrand: { display: "flex", alignItems: "center", gap: "10px" },
   brandText: { color: "#ffffff", fontWeight: "800", fontSize: "16px", letterSpacing: "-0.3px" },
   logoutBtn: { backgroundColor: "transparent", border: "1px solid #93c5fd", color: "#ffffff", padding: "6px 12px", borderRadius: "4px", fontSize: "13px", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", transition: "all 0.15s ease" },
+  themeBtn: { backgroundColor: "transparent", border: "1px solid #93c5fd", color: "#ffffff", width: "34px", height: "34px", borderRadius: "4px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s ease" },
+  navActions: { display: "flex", alignItems: "center", gap: "10px" },
   mainLayout: { display: "flex", flex: 1 },
-  sidebar: { width: "250px", backgroundColor: "#ffffff", borderRight: "1px solid #e2e8f0", padding: "24px", display: "flex", flexDirection: "column" as const, alignItems: "center" },
+  sidebar: { width: "250px", backgroundColor: "var(--surface)", borderRight: "1px solid var(--border)", padding: "24px", display: "flex", flexDirection: "column" as const, alignItems: "center" },
   sidebarProfile: { display: "flex", flexDirection: "column" as const, alignItems: "center", textAlign: "center" as const, gap: "8px" },
-  avatarCircle: { width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "#1e3a8a", display: "flex", justifyContent: "center", alignItems: "center" },
-  profileName: { fontSize: "14px", fontWeight: "700", color: "#0f172a" },
-  profileBranch: { fontSize: "12px", color: "#64748b" },
+  avatarCircle: { width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "var(--accent-strong)", display: "flex", justifyContent: "center", alignItems: "center" },
+  profileName: { fontSize: "14px", fontWeight: "700", color: "var(--text)" },
+  profileBranch: { fontSize: "12px", color: "var(--text-muted)" },
   contentArea: { flex: 1, padding: "24px", overflowY: "auto" as const },
   statsGrid: { display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "14px" },
-  statusCard: { backgroundColor: "#ffffff", border: "1px solid #3b82f6", borderRadius: "6px", padding: "16px 12px", boxShadow: "0 1px 2px rgba(0,0,0,0.02)", display: "flex", flexDirection: "column" as const },
-  cardHeaderLabel: { fontSize: "9px", fontWeight: "700", color: "#64748b", letterSpacing: "0.5px", textTransform: "uppercase" as const },
-  sectionSubtitle: { fontSize: "12px", fontWeight: "700", color: "#475569", letterSpacing: "0.5px", marginBottom: "10px" },
+  statusCard: { backgroundColor: "var(--surface)", border: "1px solid #3b82f6", borderRadius: "6px", padding: "16px 12px", boxShadow: "0 1px 2px rgba(0,0,0,0.02)", display: "flex", flexDirection: "column" as const },
+  cardHeaderLabel: { fontSize: "9px", fontWeight: "700", color: "var(--text-muted)", letterSpacing: "0.5px", textTransform: "uppercase" as const },
+  sectionSubtitle: { fontSize: "12px", fontWeight: "700", color: "var(--text-secondary)", letterSpacing: "0.5px", marginBottom: "10px" },
   actionsGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" },
-  actionBtn: { backgroundColor: "#ffffff", border: "1px solid #3b82f6", borderRadius: "8px", padding: "20px 10px", display: "flex", flexDirection: "column" as const, alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "12px", fontWeight: "700", color: "#1e3a8a", boxShadow: "0 1px 3px rgba(0,0,0,0.03)", transition: "all 0.15s ease" },
+  actionBtn: { backgroundColor: "var(--surface)", border: "1px solid #3b82f6", borderRadius: "8px", padding: "20px 10px", display: "flex", flexDirection: "column" as const, alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "12px", fontWeight: "700", color: "var(--accent-strong)", boxShadow: "0 1px 3px rgba(0,0,0,0.03)", transition: "all 0.15s ease" },
   tablesGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginTop: "24px" },
   tableCard: { padding: "20px", height: "360px", display: "flex", flexDirection: "column" as const },
   tableCardTitle: { fontSize: "11px", fontWeight: "800", color: "#ffffff", backgroundColor: "#3b82f6", padding: "8px 12px", borderRadius: "4px", letterSpacing: "0.5px" },
   table: { width: "100%", borderCollapse: "collapse" as const, textAlign: "left" as const },
-  tableHeaderRow: { borderBottom: "2px solid #e2e8f0" },
-  th: { padding: "10px 12px", fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase" as const },
-  tableRow: { borderBottom: "1px solid #f1f5f9" },
-  td: { padding: "12px", fontSize: "13px", color: "#334155" },
-  actionLink: { background: "none", border: "none", color: "#2563eb", fontWeight: "600", fontSize: "12px", cursor: "pointer" },
+  tableHeaderRow: { borderBottom: "2px solid var(--border)" },
+  th: { padding: "10px 12px", fontSize: "11px", fontWeight: "700", color: "var(--text-secondary)", textTransform: "uppercase" as const },
+  tableRow: { borderBottom: "1px solid var(--surface-3)" },
+  td: { padding: "12px", fontSize: "13px", color: "var(--text-secondary)" },
+  actionLink: { background: "none", border: "none", color: "var(--accent)", fontWeight: "600", fontSize: "12px", cursor: "pointer" },
   badgeSuccess: { backgroundColor: "#dcfce7", color: "#15803d", fontSize: "10px", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" },
 };
 
@@ -103,6 +108,7 @@ export function DashboardHomeView({
   onToast,
 }: DashboardHomeViewProps) {
   const { session, sessionStats, recentSales, recentDeposits } = sessionData;
+  const theme = usePosTheme();
 
   return (
     <div style={styles.appContainer} className="pos-cashier-app">
@@ -113,9 +119,20 @@ export function DashboardHomeView({
           <Store size={22} color="#ffffff" />
           <span style={styles.brandText} className="pos-cashier-brand-text">POS - PUNTO DE VENTA</span>
         </div>
-        <button onClick={onLogout} style={styles.logoutBtn} className="active-tap pos-cashier-logout-btn">
-          <LogOut size={16} /> Cerrar Sesión
-        </button>
+        <div style={styles.navActions}>
+          <button
+            onClick={togglePosTheme}
+            style={styles.themeBtn}
+            className="active-tap"
+            title={theme === "dark" ? "Modo claro" : "Modo oscuro"}
+            aria-label={theme === "dark" ? "Activar modo claro" : "Activar modo oscuro"}
+          >
+            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          <button onClick={onLogout} style={styles.logoutBtn} className="active-tap pos-cashier-logout-btn">
+            <LogOut size={16} /> Cerrar Sesión
+          </button>
+        </div>
       </header>
 
       <div style={styles.mainLayout} className="pos-cashier-main-layout">
@@ -128,7 +145,7 @@ export function DashboardHomeView({
             <div style={{ display: "flex", flexDirection: "column" }}>
               <h4 style={styles.profileName}>
                 {user?.name}
-                <span style={{ fontSize: "11px", fontWeight: "normal", color: "#64748b", marginLeft: "8px", display: "inline-block" }}>
+                <span style={{ fontSize: "11px", fontWeight: "normal", color: "var(--text-muted)", marginLeft: "8px", display: "inline-block" }}>
                   {currentTime.toLocaleDateString()} {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </h4>
@@ -188,31 +205,31 @@ export function DashboardHomeView({
             </div>
             <div style={styles.statusCard}>
               <span style={styles.cardHeaderLabel}>TOTAL VENDIDO</span>
-              <h3 style={{ fontSize: "20px", fontWeight: "800", color: "#0f172a", marginTop: "4px" }}>
+              <h3 style={{ fontSize: "20px", fontWeight: "800", color: "var(--text)", marginTop: "4px" }}>
                 ${sessionStats?.totalSalesAmount.toFixed(2) || "0.00"}
               </h3>
             </div>
             <div style={styles.statusCard}>
               <span style={styles.cardHeaderLabel}>VENTAS REALIZADAS</span>
-              <h3 style={{ fontSize: "20px", fontWeight: "800", color: "#0f172a", marginTop: "4px" }}>
+              <h3 style={{ fontSize: "20px", fontWeight: "800", color: "var(--text)", marginTop: "4px" }}>
                 {sessionStats?.salesCount || 0} ventas
               </h3>
             </div>
             <div style={styles.statusCard}>
               <span style={styles.cardHeaderLabel}>FONDO INICIAL</span>
-              <h3 style={{ fontSize: "20px", fontWeight: "800", color: "#475569", marginTop: "4px" }}>
+              <h3 style={{ fontSize: "20px", fontWeight: "800", color: "var(--text-secondary)", marginTop: "4px" }}>
                 ${sessionStats?.initialAmount.toFixed(2) || "0.00"}
               </h3>
             </div>
             <div style={styles.statusCard}>
               <span style={styles.cardHeaderLabel}>EFECTIVO ESPERADO</span>
-              <h3 style={{ fontSize: "20px", fontWeight: "800", color: "#1e3a8a", marginTop: "4px" }}>
+              <h3 style={{ fontSize: "20px", fontWeight: "800", color: "var(--accent-strong)", marginTop: "4px" }}>
                 ${sessionStats?.expectedAmount.toFixed(2) || "0.00"}
               </h3>
             </div>
             <div style={styles.statusCard}>
               <span style={styles.cardHeaderLabel}>TURNO INICIADO</span>
-              <h3 style={{ fontSize: "16px", fontWeight: "800", color: "#475569", marginTop: "6px" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: "800", color: "var(--text-secondary)", marginTop: "6px" }}>
                 {session?.openedAt ? new Date(session.openedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "8:00 am"}
               </h3>
             </div>
@@ -400,7 +417,7 @@ export function DashboardHomeView({
                     })}
                     {recentSales.length === 0 && (
                       <tr>
-                        <td colSpan={7} style={{ textAlign: "center", padding: "24px 12px", color: "#64748b", fontSize: "13px" }}>
+                        <td colSpan={7} style={{ textAlign: "center", padding: "24px 12px", color: "var(--text-muted)", fontSize: "13px" }}>
                           Aún no tienes ventas registradas en este turno.
                         </td>
                       </tr>
@@ -491,7 +508,7 @@ export function DashboardHomeView({
                     })}
                     {recentDeposits.length === 0 && (
                       <tr>
-                        <td colSpan={5} style={{ textAlign: "center", padding: "20px", color: "#64748b" }}>
+                        <td colSpan={5} style={{ textAlign: "center", padding: "20px", color: "var(--text-muted)" }}>
                           No hay depósitos bancarios registrados en este turno.
                         </td>
                       </tr>

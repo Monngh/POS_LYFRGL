@@ -12,9 +12,9 @@ interface CheckoutPanelProps {
 }
 
 const styles: { [key: string]: React.CSSProperties } = {
-  terminalSummary: { borderTop: "2px solid #e2e8f0", paddingTop: "16px", marginTop: "auto" },
-  summaryRow: { display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#475569" },
-  summaryTotal: { borderTop: "1px solid #cbd5e1", paddingTop: "8px", fontSize: "18px", fontWeight: "800", color: "#0f172a" },
+  terminalSummary: { borderTop: "2px solid var(--border)", paddingTop: "16px", marginTop: "auto" },
+  summaryRow: { display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--text-secondary)" },
+  summaryTotal: { borderTop: "1px solid var(--border-strong)", paddingTop: "8px", fontSize: "18px", fontWeight: "800", color: "var(--text)" },
   terminalBtn: { padding: "12px 24px", borderRadius: "6px", border: "none", fontWeight: "700", fontSize: "14px", cursor: "pointer" },
 };
 
@@ -45,7 +45,7 @@ export function CheckoutPanel({
       <div style={{ flex: 1 }} className="pos-cashier-terminal-summary-col">
         {pendingQrSales.length > 0 && (
           <>
-            <div style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
+            <div style={{ fontSize: "11px", fontWeight: "700", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
               📱 Pagos QR Pendientes
             </div>
             <div className="pos-cashier-inline-table-scroll">
@@ -56,11 +56,11 @@ export function CheckoutPanel({
                     const isApproved = sale.status === "approved";
                     const isRejected = sale.status === "rejected";
                     return (
-                      <tr key={sale.id} style={{ borderBottom: "1px solid #f1f5f9", backgroundColor: isApproved ? "#f0fdf4" : isRejected ? "#fef2f2" : "transparent" }}>
-                        <td style={{ padding: "5px 6px", fontWeight: "600", color: "#334155", whiteSpace: "nowrap" }} title={sale.invoiceNumber}>
+                      <tr key={sale.id} style={{ borderBottom: "1px solid var(--surface-3)", backgroundColor: isApproved ? "var(--icon-bg-green)" : isRejected ? "var(--icon-bg-red)" : "transparent" }}>
+                        <td style={{ padding: "5px 6px", fontWeight: "600", color: "var(--text-secondary)", whiteSpace: "nowrap" }} title={sale.invoiceNumber}>
                           ...{sale.invoiceNumber.slice(-6)}
                         </td>
-                        <td style={{ padding: "5px 6px", fontWeight: "700", color: "#0f172a", whiteSpace: "nowrap" }}>
+                        <td style={{ padding: "5px 6px", fontWeight: "700", color: "var(--text)", whiteSpace: "nowrap" }}>
                           ${Number(sale.amount).toFixed(2)}
                         </td>
                         <td style={{ padding: "5px 6px" }}>
@@ -82,7 +82,7 @@ export function CheckoutPanel({
                               onClick={(e) => { e.stopPropagation(); checkPendingQrStatus(sale.invoiceNumber); }}
                               disabled={isChecking}
                               title="Verificar pago — si está aprobado muestra el ticket"
-                              style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: isChecking ? "#6b7280" : "#1e3a8a", color: "white", border: "none", cursor: isChecking ? "default" : "pointer" }}
+                              style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: isChecking ? "#6b7280" : "var(--accent-strong)", color: "white", border: "none", cursor: isChecking ? "default" : "pointer" }}
                             >
                               {isChecking ? "..." : "Verificar"}
                             </button>
