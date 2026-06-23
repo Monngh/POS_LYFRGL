@@ -8,9 +8,10 @@ interface ActionModalProps {
   children: React.ReactNode;
   size?: "sm" | "md" | "lg";
   footer?: React.ReactNode;
+  contentStyle?: React.CSSProperties;
 }
 
-const widthMap = { sm: 400, md: 600, lg: 800 };
+const widthMap = { sm: 400, md: 600, lg: 900 };
 
 export const ActionModal: React.FC<ActionModalProps> = ({
   isOpen,
@@ -19,6 +20,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
   children,
   size = "md",
   footer,
+  contentStyle,
 }) => {
   if (!isOpen) return null;
 
@@ -48,6 +50,7 @@ export const ActionModal: React.FC<ActionModalProps> = ({
           boxShadow: "0 20px 25px rgba(0,0,0,0.15)",
           maxHeight: "90vh",
           overflowY: "auto",
+          ...contentStyle,
         }}
         onClick={(e) => e.stopPropagation()}
       >

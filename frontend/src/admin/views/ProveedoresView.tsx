@@ -7,14 +7,20 @@ import type { Column } from "../../shared/ui";
 import {
   normalizeEmailInput,
   normalizeIntegerInput,
-  normalizePhoneInput,
   normalizeRfcInput,
   validateEmail as validateEmailFormat,
-  validatePhone as validatePhoneFormat,
   validateReference,
   validateRfc,
   validateSafeText,
 } from "../../shared/utils/formValidation";
+import { PhoneField } from "../components/PhoneField";
+import {
+  DEFAULT_PHONE_COUNTRY_ISO,
+  getCountryCodeByIso,
+  normalizeLocalPhone,
+  phoneToAdminFormValue,
+  validateLocalPhone,
+} from "../utils/phone";
 import { ui, type ViewProps, SectionHeader, Badge,
   useMediaQuery,
   fmtDate
@@ -43,6 +49,7 @@ type FormData = {
   rfc: string;
   email: string;
   phone: string;
+  phoneCountryIso: string;
   address: string;
   city: string;
   state: string;
@@ -73,6 +80,7 @@ const emptyForm = (): FormData => ({
   rfc: "",
   email: "",
   phone: "",
+  phoneCountryIso: DEFAULT_PHONE_COUNTRY_ISO,
   address: "",
   city: "",
   state: "",
@@ -101,8 +109,8 @@ const validateEmail = (value: string): string | undefined => {
   return validateEmailFormat(value, { required: true });
 };
 
-const validatePhone = (value: string): string | undefined => {
-  return validatePhoneFormat(value, { required: true });
+const validatePhone = (value: string, countryIso: string): string | undefined => {
+  return validateLocalPhone(value, getCountryCodeByIso(countryIso).code, { required: true });
 };
 
 const validateAddress = (value: string): string | undefined => {
@@ -197,7 +205,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
     !validateContactName(form.contactName) &&
     !validateRFC(form.rfc) &&
     !validateEmail(form.email) &&
-    !validatePhone(form.phone) &&
+    !validatePhone(form.phone, form.phoneCountryIso) &&
     !validateAddress(form.address) &&
     !validateCity(form.city) &&
     !validateState(form.state) &&
@@ -216,18 +224,20 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const openEdit = (s: Supplier) => {
     setEditingId(s.id);
-    setForm({
+    const loadedForm: FormData = {
       name: s.name,
       rfc: s.rfc || "",
       email: s.email || "",
-      phone: s.phone || "",
+      phone: phoneToAdminFormValue(s.phone),
+      phoneCountryIso: DEFAULT_PHONE_COUNTRY_ISO,
       address: s.address || "",
       city: s.city || "",
       state: s.state || "",
       zipCode: s.zipCode || "",
       contactName: s.contactName || "",
       active: s.active,
-    });
+    };
+    setForm(loadedForm);
 
     // Validar campos al abrir edición
     setFieldErrors({
@@ -235,7 +245,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
       contactName: validateContactName(s.contactName || ""),
       rfc: validateRFC(s.rfc || ""),
       email: validateEmail(s.email || ""),
-      phone: validatePhone(s.phone || ""),
+      phone: validatePhone(loadedForm.phone, loadedForm.phoneCountryIso),
       address: validateAddress(s.address || ""),
       city: validateCity(s.city || ""),
       state: validateState(s.state || ""),
@@ -264,7 +274,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
       contactName: validateContactName(form.contactName),
       rfc: validateRFC(form.rfc),
       email: validateEmail(form.email),
-      phone: validatePhone(form.phone),
+      phone: validatePhone(form.phone, form.phoneCountryIso),
       address: validateAddress(form.address),
       city: validateCity(form.city),
       state: validateState(form.state),
@@ -289,6 +299,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
         rfc: form.rfc.trim() || null,
         email: form.email.trim() || null,
         phone: form.phone.trim() || null,
+        phoneCountryCode: getCountryCodeByIso(form.phoneCountryIso).code,
         address: form.address.trim() || null,
         city: form.city.trim() || null,
         state: form.state.trim() || null,
@@ -342,10 +353,18 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
     setFieldErrors(f => ({ ...f, email: validateEmail(value) }));
   };
 
-  const handlePhone = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const phone = normalizePhoneInput(e.target.value).slice(0, 20);
+  const handlePhone = (phone: string) => {
     setForm(f => ({ ...f, phone }));
-    setFieldErrors(f => ({ ...f, phone: validatePhone(phone) }));
+    setFieldErrors(f => ({ ...f, phone: validatePhone(phone, form.phoneCountryIso) }));
+  };
+
+  const handlePhoneCountry = (phoneCountryIso: string) => {
+    const phone = normalizeLocalPhone(form.phone, getCountryCodeByIso(phoneCountryIso).code);
+    setForm((current) => ({ ...current, phoneCountryIso, phone }));
+    setFieldErrors((current) => ({
+      ...current,
+      phone: validatePhone(phone, phoneCountryIso),
+    }));
   };
 
   const handleAddress = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -393,7 +412,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
         fieldError = validateEmail(form.email);
         break;
       case 'phone':
-        fieldError = validatePhone(form.phone);
+        fieldError = validatePhone(form.phone, form.phoneCountryIso);
         break;
       case 'address':
         fieldError = validateAddress(form.address);
@@ -511,7 +530,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
             </div>
           )}
           {!loading && error && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--color-danger)", fontSize: 13, fontWeight: 500 }}>
               {error}
             </div>
           )}
@@ -587,8 +606,8 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          backgroundColor: "#eff6ff",
-                          border: "1px solid #bfdbfe",
+                          backgroundColor: "var(--accent-soft)",
+                          border: "1px solid var(--accent-soft)",
                           borderRadius: 8,
                           width: 34,
                           height: 34,
@@ -699,12 +718,12 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
         title={editingId ? "Editar Proveedor" : "Nuevo Proveedor"}
         size="md"
       >
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
           {/* Nombre */}
           <div style={{ gridColumn: "1 / -1" }}>
             <label style={ui.fieldLabel}>Nombre *</label>
             <input
-              style={{ ...ui.input, borderColor: fieldErrors.name ? "#dc2626" : "#d1d5db" }}
+              style={{ ...ui.input, borderColor: fieldErrors.name ? "var(--color-danger)" : "var(--border)" }}
               value={form.name}
               onChange={handleName}
               onBlur={() => handleBlur('name')}
@@ -713,7 +732,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
               disabled={saving}
             />
             {fieldErrors.name && (
-              <span style={{ color: "#dc2626", fontSize: "12px", marginTop: "4px", display: "block" }}>
+              <span style={{ color: "var(--color-danger)", fontSize: "12px", marginTop: "4px", display: "block" }}>
                 {fieldErrors.name}
               </span>
             )}
@@ -723,7 +742,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
           <div>
             <label style={ui.fieldLabel}>RFC *</label>
             <input
-              style={{ ...ui.input, borderColor: fieldErrors.rfc ? "#dc2626" : "#d1d5db" }}
+              style={{ ...ui.input, borderColor: fieldErrors.rfc ? "var(--color-danger)" : "var(--border)" }}
               value={form.rfc}
               onChange={handleRFC}
               onBlur={() => handleBlur('rfc')}
@@ -731,7 +750,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
               disabled={saving}
             />
             {fieldErrors.rfc && (
-              <span style={{ color: "#dc2626", fontSize: "12px", marginTop: "4px", display: "block" }}>
+              <span style={{ color: "var(--color-danger)", fontSize: "12px", marginTop: "4px", display: "block" }}>
                 {fieldErrors.rfc}
               </span>
             )}
@@ -741,7 +760,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
           <div>
             <label style={ui.fieldLabel}>Persona de contacto *</label>
             <input
-              style={{ ...ui.input, borderColor: fieldErrors.contactName ? "#dc2626" : "#d1d5db" }}
+              style={{ ...ui.input, borderColor: fieldErrors.contactName ? "var(--color-danger)" : "var(--border)" }}
               value={form.contactName}
               onChange={handleContactName}
               onBlur={() => handleBlur('contactName')}
@@ -749,7 +768,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
               disabled={saving}
             />
             {fieldErrors.contactName && (
-              <span style={{ color: "#dc2626", fontSize: "12px", marginTop: "4px", display: "block" }}>
+              <span style={{ color: "var(--color-danger)", fontSize: "12px", marginTop: "4px", display: "block" }}>
                 {fieldErrors.contactName}
               </span>
             )}
@@ -759,7 +778,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
           <div>
             <label style={ui.fieldLabel}>Email *</label>
             <input
-              style={{ ...ui.input, borderColor: fieldErrors.email ? "#dc2626" : "#d1d5db" }}
+              style={{ ...ui.input, borderColor: fieldErrors.email ? "var(--color-danger)" : "var(--border)" }}
               type="email"
               value={form.email}
               onChange={handleEmail}
@@ -768,7 +787,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
               disabled={saving}
             />
             {fieldErrors.email && (
-              <span style={{ color: "#dc2626", fontSize: "12px", marginTop: "4px", display: "block" }}>
+              <span style={{ color: "var(--color-danger)", fontSize: "12px", marginTop: "4px", display: "block" }}>
                 {fieldErrors.email}
               </span>
             )}
@@ -776,27 +795,23 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
 
           {/* Teléfono */}
           <div>
-            <label style={ui.fieldLabel}>Teléfono *</label>
-            <input
-              style={{ ...ui.input, borderColor: fieldErrors.phone ? "#dc2626" : "#d1d5db" }}
+            <PhoneField
               value={form.phone}
               onChange={handlePhone}
+              countryIso={form.phoneCountryIso}
+              onCountryChange={handlePhoneCountry}
               onBlur={() => handleBlur('phone')}
-              placeholder="5512345678"
+              error={fieldErrors.phone}
+              required
               disabled={saving}
             />
-            {fieldErrors.phone && (
-              <span style={{ color: "#dc2626", fontSize: "12px", marginTop: "4px", display: "block" }}>
-                {fieldErrors.phone}
-              </span>
-            )}
           </div>
 
           {/* Dirección */}
           <div style={{ gridColumn: "1 / -1" }}>
             <label style={ui.fieldLabel}>Dirección *</label>
             <input
-              style={{ ...ui.input, borderColor: fieldErrors.address ? "#dc2626" : "#d1d5db" }}
+              style={{ ...ui.input, borderColor: fieldErrors.address ? "var(--color-danger)" : "var(--border)" }}
               value={form.address}
               onChange={handleAddress}
               onBlur={() => handleBlur('address')}
@@ -804,7 +819,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
               disabled={saving}
             />
             {fieldErrors.address && (
-              <span style={{ color: "#dc2626", fontSize: "12px", marginTop: "4px", display: "block" }}>
+              <span style={{ color: "var(--color-danger)", fontSize: "12px", marginTop: "4px", display: "block" }}>
                 {fieldErrors.address}
               </span>
             )}
@@ -814,7 +829,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
           <div>
             <label style={ui.fieldLabel}>Ciudad *</label>
             <input
-              style={{ ...ui.input, borderColor: fieldErrors.city ? "#dc2626" : "#d1d5db" }}
+              style={{ ...ui.input, borderColor: fieldErrors.city ? "var(--color-danger)" : "var(--border)" }}
               value={form.city}
               onChange={handleCity}
               onBlur={() => handleBlur('city')}
@@ -822,7 +837,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
               disabled={saving}
             />
             {fieldErrors.city && (
-              <span style={{ color: "#dc2626", fontSize: "12px", marginTop: "4px", display: "block" }}>
+              <span style={{ color: "var(--color-danger)", fontSize: "12px", marginTop: "4px", display: "block" }}>
                 {fieldErrors.city}
               </span>
             )}
@@ -832,7 +847,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
           <div>
             <label style={ui.fieldLabel}>Estado *</label>
             <input
-              style={{ ...ui.input, borderColor: fieldErrors.state ? "#dc2626" : "#d1d5db" }}
+              style={{ ...ui.input, borderColor: fieldErrors.state ? "var(--color-danger)" : "var(--border)" }}
               value={form.state}
               onChange={handleState}
               onBlur={() => handleBlur('state')}
@@ -840,7 +855,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
               disabled={saving}
             />
             {fieldErrors.state && (
-              <span style={{ color: "#dc2626", fontSize: "12px", marginTop: "4px", display: "block" }}>
+              <span style={{ color: "var(--color-danger)", fontSize: "12px", marginTop: "4px", display: "block" }}>
                 {fieldErrors.state}
               </span>
             )}
@@ -850,7 +865,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
           <div>
             <label style={ui.fieldLabel}>C.P. *</label>
             <input
-              style={{ ...ui.input, borderColor: fieldErrors.zipCode ? "#dc2626" : "#d1d5db" }}
+              style={{ ...ui.input, borderColor: fieldErrors.zipCode ? "var(--color-danger)" : "var(--border)" }}
               value={form.zipCode}
               onChange={handleZip}
               onBlur={() => handleBlur('zipCode')}
@@ -858,7 +873,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
               disabled={saving}
             />
             {fieldErrors.zipCode && (
-              <span style={{ color: "#dc2626", fontSize: "12px", marginTop: "4px", display: "block" }}>
+              <span style={{ color: "var(--color-danger)", fontSize: "12px", marginTop: "4px", display: "block" }}>
                 {fieldErrors.zipCode}
               </span>
             )}
