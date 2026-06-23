@@ -324,6 +324,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   };
   // ACCIONES DEL FORMULARIO
   const openCreate = () => {
+    if (showOps) closeOps(); // 👈 Cierra el modal de ver si está abierto
     setForm({ ...emptyForm, role: "CAJERO" });
     setEditingId(null);
     setEditActive(true);
@@ -335,6 +336,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   };
 
   const openEdit = (u: EmployeeRow) => {
+    if (showOps) closeOps(); // 👈 Cierra el modal de ver si está abierto
     setForm({
       name: u.name,
       email: u.email,
@@ -476,6 +478,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   // VER EMPLEADO (OPERACIONES)
   // ============================================================
   const openViewEmployee = async (employee: EmployeeRow) => {
+    if (showForm) closeForm(); // 👈 Cierra el modal de edición si está abierto
     setSelectedEmployee(employee);
     setOps(null);
     setOpsLoading(true);
@@ -1113,7 +1116,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         title={editingId !== null ? "Editar empleado" : "Registrar nuevo empleado"}
         size="lg"
       >
-        <form onSubmit={submit} style={{ padding: "4px 0" }}>
+        <form onSubmit={submit} style={{ padding: "4px 0", width: "100%" }}>
           {/* Fila 1: Nombre + Correo */}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 10 }}>
             <div>
@@ -1128,10 +1131,9 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </div>
           </div>
 
-          {/* Fila 2: Teléfono + Rol (si es nuevo) o Teléfono + Rol (deshabilitado) */}
+          {/* Fila 2: Teléfono + Rol */}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 10 }}>
             <div>
-              <label style={ui.fieldLabel}>Teléfono</label>
               <PhoneField
                 value={form.phone}
                 onChange={(value) => {
