@@ -54,8 +54,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     top: "100%",
     left: "16px",
     right: "16px",
-    backgroundColor: "#ffffff",
-    border: "1px solid #cbd5e1",
+    backgroundColor: "var(--surface)",
+    border: "1px solid var(--border-strong)",
     borderRadius: "6px",
     boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)",
     zIndex: 50,
@@ -67,7 +67,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     justifyContent: "space-between",
     cursor: "pointer",
-    borderBottom: "1px solid #f1f5f9",
+    borderBottom: "1px solid var(--surface-3)",
     fontSize: "14px",
   },
   fieldError: { color: "#b91c1c", fontSize: "12px", fontWeight: "600", marginTop: "5px", marginBottom: 0 },
@@ -163,7 +163,7 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
                 <span style={{ fontWeight: "700", color: "#166534" }}>
                   👤 {selectedCustomer.isNew ? "Cliente registrado para puntos" : "Cliente registrado"}
                 </span>
-                <span style={{ color: "#475569" }}>(Teléfono: {maskPhoneLast2(selectedCustomer.phone)})</span>
+                <span style={{ color: "var(--text-secondary)" }}>(Teléfono: {maskPhoneLast2(selectedCustomer.phone)})</span>
                 <span style={{ backgroundColor: "#dcfce7", color: "#15803d", padding: "2px 6px", borderRadius: "4px", fontWeight: "700" }}>
                   ⭐ {selectedCustomer.points} pts
                 </span>
@@ -233,7 +233,7 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
                       setConfirmOpen(true);
                     }}
                     className="btn-primary"
-                    style={{ fontSize: "11px", padding: "4px 8px", backgroundColor: "#0f172a", border: "none", borderRadius: "4px", color: "white", cursor: "pointer" }}
+                    style={{ fontSize: "11px", padding: "4px 8px", backgroundColor: "var(--text)", border: "none", borderRadius: "4px", color: "white", cursor: "pointer" }}
                   >
                     + Registrar
                   </button>
@@ -271,11 +271,11 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
           justifyContent: "center", alignItems: "center", zIndex: 110
         }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
           <div style={{
-            width: "400px", backgroundColor: "#ffffff", borderRadius: "12px",
+            width: "400px", backgroundColor: "var(--surface)", borderRadius: "12px",
             padding: "28px", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
             display: "flex", flexDirection: "column", gap: "16px"
           }} className="pos-cashier-modal">
-            <h3 style={{ textAlign: "center", fontSize: "16px", color: "#1e293b", fontWeight: "700", margin: 0 }}>
+            <h3 style={{ textAlign: "center", fontSize: "16px", color: "var(--text)", fontWeight: "700", margin: 0 }}>
               Confirmar teléfono del cliente
             </h3>
             

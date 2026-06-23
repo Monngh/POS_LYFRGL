@@ -105,6 +105,22 @@
 
   /* Superficie alternativa (checkbox activo, hover de opción) */
   --surface-alt: #1e2d47;
+
+  /* ───────────────────────────────────────────────────────────────
+     Tokens LEGADO (--card-bg, --border-color, etc.). Los consumen las
+     clases de utilidad corporativas (.card-premium, .input-corporate,
+     tablas/paneles del POS). Se sobrescriben aquí con los equivalentes
+     oscuros para que las tarjetas y tablas del cajero contrasten bien
+     en modo oscuro (antes quedaban blancas). */
+  --bg-primary: #0d1830;
+  --bg-secondary: #1b2740;
+  --card-bg: #141d31;
+  --text-main: #eef2f9;
+  --text-light: #6f81a4;
+  --border-color: #2c3b5c;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.55), 0 4px 6px -4px rgba(0, 0, 0, 0.55);
 }
 
 /* Color-scheme oscuro para controles nativos (select, input[type=date], etc.) */
@@ -112,6 +128,45 @@
 .theme-dark select,
 .theme-dark textarea {
   color-scheme: dark;
+}
+
+/* "Papel": recibos/tickets impresos del POS se ven SIEMPRE claros (como el
+   ticket físico), incluso en modo oscuro. Re-define los tokens a valores claros
+   dentro del subárbol del recibo, así sus insignias y textos conservan el
+   contraste original sin importar el tema. */
+.pos-paper {
+  --app-bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #f1f5f9;
+  --border: #e2e8f0;
+  --border-soft: #f1f5f9;
+  --border-strong: #cbd5e1;
+  --text: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
+  --accent: #2563eb;
+  --accent-strong: #1e3a8a;
+  --accent-soft: #eff6ff;
+  --icon-bg-blue: #eff6ff;
+  --icon-bg-green: #dcfce7;
+  --icon-bg-amber: #fef3c7;
+  --icon-bg-red: #fee2e2;
+  --surface-alt: #f1f5f9;
+  --input-bg: #ffffff;
+  /* Tokens legado en claro (recibos usan .card-premium/.input-corporate) */
+  --bg-primary: #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --card-bg: #ffffff;
+  --text-main: #0f172a;
+  --text-light: #94a3b8;
+  --border-color: #e2e8f0;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  color-scheme: light;
+  background-color: #ffffff;
+  color: #0f172a;
 }
 
 /* Transición suave al alternar tema (respeta reduce-motion abajo) */
@@ -170,7 +225,7 @@ body {
 
 .card-premium:hover {
   box-shadow: var(--shadow-md);
-  border-color: #cbd5e1; /* Slate 300 */
+  border-color: var(--border-strong);
 }
 
 /* Terminal de Ventas Grid Estructurado */
@@ -225,7 +280,7 @@ body {
   padding: 10px 14px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  background-color: white;
+  background-color: var(--input-bg);
   color: var(--text-main);
   font-family: var(--font-sans);
   font-size: 14px;
