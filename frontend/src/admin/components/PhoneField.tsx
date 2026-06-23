@@ -1,7 +1,6 @@
 import React from "react";
 import { ui } from "../views/shared";
 import {
-  countryFlag,
   getCountryCodeByIso,
   LATAM_COUNTRY_CODES,
   normalizeLocalPhone,
@@ -19,6 +18,10 @@ interface PhoneFieldProps {
   id?: string;
   onBlur?: React.FocusEventHandler<HTMLInputElement>;
 }
+
+const PHONE_COUNTRY_SELECT_WIDTH = "clamp(136px, 38vw, 150px)";
+const formatCountryOption = (country: (typeof LATAM_COUNTRY_CODES)[number]) =>
+  `${country.code} ${country.country}`;
 
 export const PhoneField: React.FC<PhoneFieldProps> = ({
   value,
@@ -48,29 +51,60 @@ export const PhoneField: React.FC<PhoneFieldProps> = ({
           display: "flex",
           alignItems: "stretch",
           gap: 8,
+          flexWrap: "wrap",
           minWidth: 0,
           maxWidth: "100%",
         }}
       >
-        <select
-          aria-label="LADA internacional"
-          value={selectedCountry.iso}
-          onChange={(event) => onCountryChange(event.target.value)}
-          disabled={disabled}
+        <div
           style={{
-            ...ui.input,
-            flex: "0 0 172px",
-            width: 172,
+            position: "relative",
+            flex: `0 0 ${PHONE_COUNTRY_SELECT_WIDTH}`,
+            width: PHONE_COUNTRY_SELECT_WIDTH,
             maxWidth: "100%",
-            cursor: disabled ? "not-allowed" : "pointer",
           }}
         >
-          {LATAM_COUNTRY_CODES.map((country) => (
-            <option key={country.iso} value={country.iso}>
-              {countryFlag(country.iso)} {country.code} {country.country}
-            </option>
-          ))}
-        </select>
+          <select
+            aria-label="LADA internacional"
+            value={selectedCountry.iso}
+            onChange={(event) => onCountryChange(event.target.value)}
+            disabled={disabled}
+            title={formatCountryOption(selectedCountry)}
+            style={{
+              ...ui.input,
+              width: "100%",
+              padding: "10px 26px 10px 10px",
+              appearance: "none",
+              WebkitAppearance: "none",
+              MozAppearance: "none",
+              cursor: disabled ? "not-allowed" : "pointer",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {LATAM_COUNTRY_CODES.map((country) => (
+              <option key={country.iso} value={country.iso}>
+                {formatCountryOption(country)}
+              </option>
+            ))}
+          </select>
+          <span
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              right: 9,
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "var(--text-secondary)",
+              fontSize: 11,
+              lineHeight: 1,
+              pointerEvents: "none",
+            }}
+          >
+            ▼
+          </span>
+        </div>
         <input
           id={inputId}
           type="text"
@@ -88,8 +122,8 @@ export const PhoneField: React.FC<PhoneFieldProps> = ({
           aria-describedby={error ? errorId : undefined}
           style={{
             ...ui.input,
-            flex: "1 1 80px",
-            minWidth: 0,
+            flex: "1 1 96px",
+            minWidth: 96,
             borderColor: error ? "var(--color-danger)" : "var(--border)",
           }}
         />
