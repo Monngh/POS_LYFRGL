@@ -169,6 +169,14 @@
   color: #0f172a;
 }
 
+/* Color de texto base del subárbol con tema. Evita que los textos sin color
+   propio hereden el color oscuro del <body> (que está FUERA del tema) y queden
+   ilegibles en modo oscuro: la herencia transmite el valor ya calculado, no la
+   variable. Los colores explícitos de cada componente siguen prevaleciendo. */
+.theme-aware {
+  color: var(--text);
+}
+
 /* Transición suave al alternar tema (respeta reduce-motion abajo) */
 .theme-aware,
 .theme-aware * {
