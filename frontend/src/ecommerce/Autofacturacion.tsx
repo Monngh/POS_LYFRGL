@@ -48,8 +48,8 @@ import { API_BASE_URL } from "../shared/services/api";
 
 type InvoiceFormField = "rfc" | "legalName" | "zip" | "email" | "taxSystem" | "cfdiUse";
 type ProfileFormField = "profileRfc" | "profileLegalName" | "profileZip" | "profileEmail" | "profileAddress" | "profileTaxSystem" | "profileCfdiUse";
-type LoginFormField = "loginPhone" | "loginPassword";
-type RegisterFormField = "registerPhone" | "registerEmail" | "registerInvoiceNumber" | "registerPassword" | "registerConfirmPassword";
+type LoginFormField = "loginEmail" | "loginPassword";
+type RegisterFormField = "registerEmail" | "registerInvoiceNumber" | "registerPassword" | "registerConfirmPassword";
 
 const REGIMENES_FISCALES = [
   { code: "601", label: "601 - General de Ley Personas Morales" },
@@ -141,12 +141,11 @@ const Autofacturacion: React.FC = () => {
   const [showRegisterModal, setShowRegisterModal] = useState(false);
 
   // Campos Login
-  const [loginPhone, setLoginPhone] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginFieldErrors, setLoginFieldErrors] = useState<FieldErrors<LoginFormField>>({});
 
   // Campos Registro (Reclamar cuenta)
-  const [registerPhone, setRegisterPhone] = useState("");
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerInvoiceNumber, setRegisterInvoiceNumber] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
@@ -160,14 +159,14 @@ const Autofacturacion: React.FC = () => {
 
   // Reset Password Modal States
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
-  const [resetPhone, setResetPhone] = useState("");
+  const [resetEmail, setResetEmail] = useState("");
   const [resetOtp, setResetOtp] = useState("");
   const [resetPassword, setResetPassword] = useState("");
   const [resetConfirmPassword, setResetConfirmPassword] = useState("");
   const [resetOtpSent, setResetOtpSent] = useState(false);
   const [resetError, setResetError] = useState("");
   const [resetOtpError, setResetOtpError] = useState("");
-  const [resetFieldErrors, setResetFieldErrors] = useState<Partial<Record<"resetPhone" | "resetPassword" | "resetConfirmPassword", string>>>({});
+  const [resetFieldErrors, setResetFieldErrors] = useState<Partial<Record<"resetEmail" | "resetPassword" | "resetConfirmPassword", string>>>({});
 
   // Historial de Facturas
   const [invoicesList, setInvoicesList] = useState<InvoiceHistoryItem[]>([]);
@@ -239,12 +238,11 @@ const Autofacturacion: React.FC = () => {
   });
 
   const validateLoginForm = () => ({
-    loginPhone: validateMexicanPhone(loginPhone, { required: true }),
+    loginEmail: validateAutofactEmail(loginEmail, { required: true }),
     loginPassword: normalizeSpaces(loginPassword) ? undefined : "La contrasena es obligatoria.",
   });
 
   const validateRegisterForm = () => ({
-    registerPhone: validateMexicanPhone(registerPhone, { required: true }),
     registerEmail: validateAutofactEmail(registerEmail, { required: true }),
     registerInvoiceNumber: validateReference(registerInvoiceNumber, "El folio", { required: true, max: 40 }),
     registerPassword: validatePassword(registerPassword),
@@ -323,7 +321,7 @@ const Autofacturacion: React.FC = () => {
 
     try {
       const response = await loginCustomer({
-        phone: normalizeIntegerInput(loginPhone).slice(0, 10),
+        email: cleanEmailInput(loginEmail),
         password: loginPassword
       });
 
@@ -334,14 +332,14 @@ const Autofacturacion: React.FC = () => {
       setCustomerToken(token);
       setCustomerInfo(customer);
       setShowLoginModal(false);
-      setLoginPhone("");
+      setLoginEmail("");
       setLoginPassword("");
       setLoginFieldErrors({});
 
       await fetchProfile(token);
       showToast("¡Bienvenido de nuevo!", "success");
     } catch (err: any) {
-      setError(err.response?.data?.message || "Teléfono o contraseña incorrectos.");
+      setError(err.response?.data?.message || "Correo o contraseña incorrectos.");
     } finally {
       setLoading(false);
     }
@@ -370,8 +368,7 @@ const Autofacturacion: React.FC = () => {
 
     try {
       // 2. Enviar OTP
-      const cleanPhone = normalizeIntegerInput(registerPhone).slice(0, 10);
-      await sendCustomerOtp(cleanPhone);
+      await sendCustomerOtp(cleanEmailInput(registerEmail));
       setOtpSent(true);
       setOtpError("");
       setError("");
@@ -398,7 +395,6 @@ const Autofacturacion: React.FC = () => {
 
     try {
       await registerCustomer({
-        phone: normalizeIntegerInput(registerPhone).slice(0, 10),
         email: cleanEmailInput(registerEmail),
         invoiceNumber: registerInvoiceNumber.trim().toUpperCase(),
         password: registerPassword,
@@ -406,10 +402,9 @@ const Autofacturacion: React.FC = () => {
         otp: registerOtp.trim()
       });
 
-      const phoneTemp = registerPhone;
+      const emailTemp = registerEmail;
 
       // Limpiar estados
-      setRegisterPhone("");
       setRegisterEmail("");
       setRegisterInvoiceNumber("");
       setRegisterPassword("");
@@ -421,7 +416,7 @@ const Autofacturacion: React.FC = () => {
 
       setShowRegisterModal(false);
       setShowLoginModal(true);
-      setLoginPhone(phoneTemp);
+      setLoginEmail(emailTemp);
       showToast("Cuenta registrada exitosamente. Por favor inicie sesión con tus credenciales.", "success");
     } catch (err: any) {
       setOtpError(err.response?.data?.message || "Error al registrar cuenta. Verifique sus datos.");
@@ -436,8 +431,7 @@ const Autofacturacion: React.FC = () => {
     setOtpError("");
     setLoading(true);
     try {
-      const cleanPhone = normalizeIntegerInput(registerPhone).slice(0, 10);
-      await sendCustomerOtp(cleanPhone);
+      await sendCustomerOtp(cleanEmailInput(registerEmail));
       setOtpError("");
       showToast("Se ha reenviado el código de verificación.", "success");
     } catch (err: any) {
@@ -656,11 +650,9 @@ const Autofacturacion: React.FC = () => {
   const setLoginField = (field: LoginFormField, rawValue: string) => {
     let next = rawValue;
     let error: string | undefined;
-    if (field === "loginPhone") {
-      next = normalizeIntegerInput(rawValue).slice(0, 10);
-      if (rawValue !== next) error = "El telefono solo puede contener numeros.";
-      setLoginPhone(next);
-      error ||= validateMexicanPhone(next, { required: true });
+    if (field === "loginEmail") {
+      setLoginEmail(next);
+      error = validateAutofactEmail(next, { required: true });
     } else {
       setLoginPassword(next);
       error = normalizeSpaces(next) ? undefined : "La contrasena es obligatoria.";
@@ -671,12 +663,6 @@ const Autofacturacion: React.FC = () => {
   const setRegisterField = (field: RegisterFormField, rawValue: string) => {
     let next = rawValue;
     let error: string | undefined;
-    if (field === "registerPhone") {
-      next = normalizeIntegerInput(rawValue).slice(0, 10);
-      if (rawValue !== next) error = "El telefono solo puede contener numeros.";
-      setRegisterPhone(next);
-      error ||= validateMexicanPhone(next, { required: true });
-    }
     if (field === "registerEmail") {
       setRegisterEmail(next);
       error = validateAutofactEmail(next, { required: true });
@@ -706,14 +692,12 @@ const Autofacturacion: React.FC = () => {
     setRegisterFieldErrors((prev) => ({ ...prev, [field]: error }));
   };
 
-  const setResetField = (field: "resetPhone" | "resetPassword" | "resetConfirmPassword", rawValue: string) => {
+  const setResetField = (field: "resetEmail" | "resetPassword" | "resetConfirmPassword", rawValue: string) => {
     let next = rawValue;
     let error: string | undefined;
-    if (field === "resetPhone") {
-      next = normalizeIntegerInput(rawValue).slice(0, 10);
-      if (rawValue !== next) error = "El telefono solo puede contener numeros.";
-      setResetPhone(next);
-      error ||= validateMexicanPhone(next, { required: true });
+    if (field === "resetEmail") {
+      setResetEmail(next);
+      error = validateAutofactEmail(next, { required: true });
     }
     if (field === "resetPassword") {
       setResetPassword(next);
@@ -741,15 +725,14 @@ const Autofacturacion: React.FC = () => {
     if (loading) return;
     setResetError("");
 
-    const phoneError = validateMexicanPhone(resetPhone, { required: true });
-    setResetFieldErrors({ resetPhone: phoneError });
-    if (phoneError) return;
+    const emailError = validateAutofactEmail(resetEmail, { required: true });
+    setResetFieldErrors({ resetEmail: emailError });
+    if (emailError) return;
 
     setLoading(true);
 
     try {
-      const cleanPhone = normalizeIntegerInput(resetPhone).slice(0, 10);
-      await sendPasswordResetOtp(cleanPhone);
+      await sendPasswordResetOtp(cleanEmailInput(resetEmail));
       setResetOtpSent(true);
       setResetOtpError("");
       setResetError("");
@@ -785,19 +768,18 @@ const Autofacturacion: React.FC = () => {
     setLoading(true);
 
     try {
-      const cleanPhone = normalizeIntegerInput(resetPhone).slice(0, 10);
       await resetCustomerPassword({
-        phone: cleanPhone,
+        email: cleanEmailInput(resetEmail),
         otp: resetOtp.trim(),
         newPassword: resetPassword
       });
 
       setShowResetPasswordModal(false);
       setShowLoginModal(true);
-      setLoginPhone(resetPhone);
+      setLoginEmail(resetEmail);
 
       // Limpiar estados
-      setResetPhone("");
+      setResetEmail("");
       setResetOtp("");
       setResetPassword("");
       setResetConfirmPassword("");
@@ -820,8 +802,7 @@ const Autofacturacion: React.FC = () => {
     setResetOtpError("");
     setLoading(true);
     try {
-      const cleanPhone = normalizeIntegerInput(resetPhone).slice(0, 10);
-      await sendPasswordResetOtp(cleanPhone);
+      await sendPasswordResetOtp(cleanEmailInput(resetEmail));
       setResetOtpError("");
       showToast("Se ha reenviado el código de seguridad.", "success");
     } catch (err: any) {
@@ -1449,25 +1430,24 @@ const Autofacturacion: React.FC = () => {
           <div style={styles.modalContent}>
             <button onClick={() => setShowLoginModal(false)} style={styles.closeModalButton}>&times;</button>
             <h2 style={styles.modalTitle}>Acceso de Clientes</h2>
-            <p style={styles.modalSubtitle}>Ingresa tu teléfono y contraseña para gestionar tus facturas.</p>
+            <p style={styles.modalSubtitle}>Ingresa tu correo electrónico y contraseña para gestionar tus facturas.</p>
 
             <form onSubmit={handleLogin} style={styles.modalForm} noValidate>
               <div style={styles.formGroup}>
-                <label style={styles.label}>Número de Teléfono</label>
+                <label style={styles.label}>Correo Electrónico</label>
                 <div style={styles.modalInputWrapper}>
                   <User size={16} style={styles.modalInputIcon} />
                   <input
-                    type="text"
+                    type="email"
                     required
-                    maxLength={10}
-                    placeholder="Ej: 5551234567"
-                    value={loginPhone}
-                    onChange={(e) => setLoginField("loginPhone", e.target.value)}
-                    onBlur={() => setLoginFieldErrors((prev) => ({ ...prev, loginPhone: validateMexicanPhone(loginPhone, { required: true }) }))}
-                    style={{ ...styles.modalInput, ...(loginFieldErrors.loginPhone ? styles.inputError : {}) }}
+                    placeholder="Ej: cliente@correo.com"
+                    value={loginEmail}
+                    onChange={(e) => setLoginField("loginEmail", e.target.value)}
+                    onBlur={() => setLoginFieldErrors((prev) => ({ ...prev, loginEmail: validateAutofactEmail(loginEmail, { required: true }) }))}
+                    style={{ ...styles.modalInput, ...(loginFieldErrors.loginEmail ? styles.inputError : {}) }}
                   />
                 </div>
-                {loginFieldErrors.loginPhone && <p style={styles.fieldError}>{loginFieldErrors.loginPhone}</p>}
+                {loginFieldErrors.loginEmail && <p style={styles.fieldError}>{loginFieldErrors.loginEmail}</p>}
               </div>
 
               <div style={styles.formGroup}>
@@ -1528,31 +1508,16 @@ const Autofacturacion: React.FC = () => {
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
             <button onClick={() => { setShowRegisterModal(false); handleBackToRegisterForm(); }} style={styles.closeModalButton}>&times;</button>
-            <h2 style={styles.modalTitle}>{otpSent ? "Verificar Teléfono" : "Crear Cuenta / Contraseña"}</h2>
+            <h2 style={styles.modalTitle}>{otpSent ? "Verificar Correo" : "Crear Cuenta / Contraseña"}</h2>
             <p style={styles.modalSubtitle}>
               {otpSent 
-                ? `Ingresa el código OTP de 6 dígitos enviado a tu teléfono ${registerPhone}.`
+                ? `Ingresa el código OTP de 6 dígitos enviado a tu correo ${registerEmail}.`
                 : "Crea tu cuenta asociando una contraseña y tu correo electrónico con cualquier ticket de compra válido."
               }
             </p>
 
             {!otpSent ? (
               <form onSubmit={handleRegister} style={styles.modalForm} noValidate>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Número de Teléfono *</label>
-                  <input
-                    type="text"
-                    required
-                    maxLength={10}
-                    placeholder="Ej: 5551234567"
-                    value={registerPhone}
-                    onChange={(e) => setRegisterField("registerPhone", e.target.value)}
-                    onBlur={() => setRegisterFieldErrors((prev) => ({ ...prev, registerPhone: validateMexicanPhone(registerPhone, { required: true }) }))}
-                    style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerPhone ? styles.inputError : {}) }}
-                  />
-                  {registerFieldErrors.registerPhone && <p style={styles.fieldError}>{registerFieldErrors.registerPhone}</p>}
-                </div>
-
                 <div style={styles.formGroup}>
                   <label style={styles.label}>Correo Electrónico *</label>
                   <input
@@ -1647,8 +1612,6 @@ const Autofacturacion: React.FC = () => {
                   {otpError && <p style={styles.fieldError}>{otpError}</p>}
                 </div>
 
-
-
                 <button type="submit" disabled={loading} style={styles.primaryButton}>
                   {loading ? "Verificando..." : "Confirmar y Crear Cuenta"}
                 </button>
@@ -1705,26 +1668,25 @@ const Autofacturacion: React.FC = () => {
             <h2 style={styles.modalTitle}>{resetOtpSent ? "Nueva Contraseña" : "Restablecer Contraseña"}</h2>
             <p style={styles.modalSubtitle}>
               {resetOtpSent 
-                ? `Ingresa el código de 6 dígitos enviado a tu teléfono ${resetPhone} junto con tu nueva contraseña.`
-                : "Ingresa tu número de teléfono registrado. Te enviaremos un código OTP para validar el cambio."
+                ? `Ingresa el código de 6 dígitos enviado a tu correo ${resetEmail} junto con tu nueva contraseña.`
+                : "Ingresa tu correo electrónico registrado. Te enviaremos un código OTP para validar el cambio."
               }
             </p>
 
             {!resetOtpSent ? (
               <form onSubmit={handleRequestResetOtp} style={styles.modalForm} noValidate>
                 <div style={styles.formGroup}>
-                  <label style={styles.label}>Número de Teléfono *</label>
+                  <label style={styles.label}>Correo Electrónico *</label>
                   <input
-                    type="text"
+                    type="email"
                     required
-                    maxLength={10}
-                    placeholder="Ej: 5551234567"
-                    value={resetPhone}
-                    onChange={(e) => setResetField("resetPhone", e.target.value)}
-                    onBlur={() => setResetFieldErrors((prev) => ({ ...prev, resetPhone: validateMexicanPhone(resetPhone, { required: true }) }))}
-                    style={{ ...styles.modalInputNoIcon, ...(resetFieldErrors.resetPhone ? styles.inputError : {}) }}
+                    placeholder="Ej: cliente@correo.com"
+                    value={resetEmail}
+                    onChange={(e) => setResetField("resetEmail", e.target.value)}
+                    onBlur={() => setResetFieldErrors((prev) => ({ ...prev, resetEmail: validateAutofactEmail(resetEmail, { required: true }) }))}
+                    style={{ ...styles.modalInputNoIcon, ...(resetFieldErrors.resetEmail ? styles.inputError : {}) }}
                   />
-                  {resetFieldErrors.resetPhone && <p style={styles.fieldError}>{resetFieldErrors.resetPhone}</p>}
+                  {resetFieldErrors.resetEmail && <p style={styles.fieldError}>{resetFieldErrors.resetEmail}</p>}
                 </div>
 
                 {resetError && (
@@ -1786,8 +1748,6 @@ const Autofacturacion: React.FC = () => {
                   />
                   {resetFieldErrors.resetConfirmPassword && <p style={styles.fieldError}>{resetFieldErrors.resetConfirmPassword}</p>}
                 </div>
-
-
 
                 {resetError && (
                   <div style={styles.modalError}>
