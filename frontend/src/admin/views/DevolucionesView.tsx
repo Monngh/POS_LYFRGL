@@ -1,10 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Eye, RefreshCw, ChevronDown, ChevronUp, Calendar, User, Tag } from "lucide-react";
+import { ArrowLeft, Eye, ChevronDown, ChevronUp, Calendar, User, Tag } from "lucide-react";
 import {
   getAdminReturns,
   getAdminReturnDetail,
-  createReturnCfdi,
-  retryReturnRefund,
   type ReturnRow,
   type ReturnDetailData,
 } from '../../facturacion';
@@ -112,50 +110,12 @@ const ReturnDetailSubView: React.FC<{
   onBack: () => void;
 }> = ({ detail, onBack }) => {
   const isMobile = useMediaQuery("(max-width: 1024px)");
-  const [current, setCurrent] = useState(detail);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [actionMsg, setActionMsg] = useState<{ text: string; ok: boolean } | null>(null);
-
-  const showMsg = (text: string, ok: boolean) => {
-    setActionMsg({ text, ok });
-    setTimeout(() => setActionMsg(null), 4000);
-  };
-
-  const handleRetryRefund = async () => {
-    setActionLoading(true);
-    try {
-      await retryReturnRefund(current.id);
-      showMsg("Reembolso procesado exitosamente.", true);
-    } catch (err: any) {
-      showMsg(err.response?.data?.message || "Error al reintentar el reembolso.", false);
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleCreateCfdi = async () => {
-    setActionLoading(true);
-    try {
-      const res = await createReturnCfdi(current.id);
-      setCurrent((d) => ({ ...d, cfdiUuid: res.data.cfdiUuid }));
-      showMsg("CFDI timbrado exitosamente.", true);
-    } catch (err: any) {
-      showMsg(err.response?.data?.message || "Error al timbrar el CFDI.", false);
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
+  const [current] = useState(detail);
   const subtotal = current.details.reduce(
     (acc, d) => acc + d.unitPrice * d.quantity - d.discountAmount,
     0
   );
   const totalTax = current.details.reduce((acc, d) => acc + d.taxAmount, 0);
-
-  const showRetryRefund =
-    current.status === "PENDING_REFUND" && current.paymentMethod === "QR_MERCADOPAGO";
-  const showCreateCfdi =
-    !current.cfdiUuid && current.paymentMethod !== "CAMBIO_PRODUCTO";
 
   return (
     <div>
@@ -178,23 +138,6 @@ const ReturnDetailSubView: React.FC<{
           </p>
         </div>
       </div>
-
-      {/* Action message */}
-      {actionMsg && (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: "12px 16px",
-            borderRadius: 8,
-            backgroundColor: actionMsg.ok ? "#dcfce7" : "#fee2e2",
-            color: actionMsg.ok ? "#15803d" : "#b91c1c",
-            fontSize: 13,
-            fontWeight: 600,
-          }}
-        >
-          {actionMsg.text}
-        </div>
-      )}
 
       {/* Sección 1: Info general */}
       <Panel style={{ padding: 20, marginBottom: 20 }}>
@@ -438,35 +381,7 @@ const ReturnDetailSubView: React.FC<{
         </Panel>
       )}
 
-      {/* Sección 6: Acciones admin (condicional) */}
-      {(showRetryRefund || showCreateCfdi) && (
-        <Panel style={{ padding: 20 }}>
-          <h3 style={{ ...secTitle, marginBottom: 14 }}>Acciones Administrativas</h3>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" as const }}>
-            {showRetryRefund && (
-              <button
-                style={{ ...ui.primaryBtn, backgroundColor: "#dc2626" }}
-                onClick={handleRetryRefund}
-                disabled={actionLoading}
-                className="active-tap"
-              >
-                <RefreshCw size={15} />
-                {actionLoading ? "Procesando..." : "Reintentar Reembolso MP"}
-              </button>
-            )}
-            {showCreateCfdi && (
-              <button
-                style={ui.primaryBtn}
-                onClick={handleCreateCfdi}
-                disabled={actionLoading}
-                className="active-tap"
-              >
-                {actionLoading ? "Timbrando..." : "Timbrar Nota de Crédito"}
-              </button>
-            )}
-          </div>
-        </Panel>
-      )}
+
     </div>
   );
 };
@@ -620,11 +535,6 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         )}
       </Toolbar>
 
-      {!isMobile && (
-        <p className="flex items-center gap-1 text-xs text-slate-400 mb-2 sm:hidden">
-          <span>↔</span> Desliza para ver todas las columnas
-        </p>
-      )}
 
       {isMobile ? (
         <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
