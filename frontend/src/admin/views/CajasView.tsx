@@ -83,6 +83,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [detailError, setDetailError] = useState<string | null>(null);
 
   const [forceOpen, setForceOpen] = useState(false);
+  const [forceConfirmOpen, setForceConfirmOpen] = useState(false);
   const [forceReason, setForceReason] = useState("");
   const [forceReasonError, setForceReasonError] = useState("");
   const [forceLoading, setForceLoading] = useState(false);
@@ -125,6 +126,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setDetailLoading(true);
     setDetailError(null);
     setForceOpen(false);
+    setForceConfirmOpen(false);
     setForceReason("");
     setForceError(null);
     try {
@@ -145,6 +147,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setDetailOpen(false);
     setSelectedDetail(null);
     setForceOpen(false);
+    setForceConfirmOpen(false);
     setForceReason("");
     setForceReasonError("");
     setForceError(null);
@@ -281,16 +284,16 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         <div class="ticket-section">
           <div style="font-weight:800;margin-bottom:4px;">MOVIMIENTOS (${d.movements.length})</div>
           ${d.movements
-            .map(
-              (m) => `
+        .map(
+          (m) => `
                 <div style="border-top:1px dashed #cbd5e1;padding-top:4px;margin-top:4px;">
                   <div class="ticket-row"><span>${fmtDateTime(m.date)}</span><span class="ticket-value">${m.type}</span></div>
                   <div style="font-size:9px;margin-bottom:3px;">${m.description}</div>
                   <div class="ticket-row"><span>Monto:</span><span class="ticket-value" style="color:${m.amount >= 0 ? "#15803d" : "#b91c1c"}">${m.amount >= 0 ? "+" : ""}$${m.amount.toFixed(2)}</span></div>
                   <div class="ticket-row"><span>Saldo:</span><span class="ticket-value">$${m.balance.toFixed(2)}</span></div>
                 </div>`
-            )
-            .join("")}
+        )
+        .join("")}
         </div>
         <div class="ticket-footer">
           <p>COMPROBANTE DE ARQUEO</p>
@@ -602,7 +605,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       {detailOpen && (
         <div style={ui.overlay} onClick={closeDetail}>
           <div
-            style={{ ...ui.modal, maxWidth: 700, width: "100%" }}
+            style={{ ...ui.modal, maxWidth: 750, width: "100%", maxHeight: "90vh" }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -836,13 +839,88 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <button
                   style={{
                     ...ui.primaryBtn,
-                    backgroundColor: forceLoading || !forceReason.trim() ? "#94a3b8" : "#b91c1c",
-                    cursor: forceLoading || !forceReason.trim() ? "not-allowed" : "pointer",
+                    backgroundColor: !forceReason.trim() ? "#94a3b8" : "#b91c1c",
+                    cursor: !forceReason.trim() ? "not-allowed" : "pointer",
+                  }}
+                  onClick={() => {
+                    const err = validateReference(forceReason, "El motivo", { required: true, max: 180 });
+                    if (err) { setForceReasonError(err); return; }
+                    setForceReasonError("");
+                    setForceOpen(false);
+                    setForceConfirmOpen(true);
+                  }}
+                  disabled={!forceReason.trim()}
+                >
+                  Continuar →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= SUB-MODAL PASO 2: CONFIRMAR CIERRE FORZADO ================= */}
+      {forceConfirmOpen && selectedDetail && (
+        <div
+          style={{ ...ui.overlay, zIndex: 310 }}
+          onClick={() => { setForceConfirmOpen(false); setForceOpen(true); }}
+        >
+          <div
+            style={{ ...ui.modal, maxWidth: 440, width: "100%" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={ui.modalHeader}>
+              <span style={ui.modalTitle}>Confirmar cierre de caja</span>
+              <button
+                style={ui.ghostBtn}
+                onClick={() => { setForceConfirmOpen(false); setForceOpen(true); }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={ui.modalBody}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20 }}>
+                <div style={detailRowStyle}>
+                  <span style={detailLabelStyle}>Caja:</span>
+                  <span style={detailValueStyle}>Caja #{selectedDetail.id}</span>
+                </div>
+                <div style={detailRowStyle}>
+                  <span style={detailLabelStyle}>Cajero:</span>
+                  <span style={detailValueStyle}>{selectedDetail.cajero}</span>
+                </div>
+                <div style={detailRowStyle}>
+                  <span style={detailLabelStyle}>Sucursal:</span>
+                  <span style={detailValueStyle}>{selectedDetail.branch}</span>
+                </div>
+                <div style={{ ...detailRowStyle, alignItems: "flex-start" }}>
+                  <span style={detailLabelStyle}>Motivo:</span>
+                  <span style={{ ...detailValueStyle, wordBreak: "break-word", flex: 1 }}>{forceReason}</span>
+                </div>
+              </div>
+              <p style={{ fontSize: 13, color: "#b91c1c", fontWeight: 600, marginBottom: 20 }}>
+                ⚠ Esta acción cerrará la caja permanentemente y no se puede deshacer.
+              </p>
+              {forceError && (
+                <p style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>{forceError}</p>
+              )}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button
+                  style={ui.ghostBtn}
+                  onClick={() => { setForceConfirmOpen(false); setForceOpen(true); }}
+                  disabled={forceLoading}
+                >
+                  ← Regresar
+                </button>
+                <button
+                  style={{
+                    ...ui.primaryBtn,
+                    backgroundColor: "#b91c1c",
+                    cursor: forceLoading ? "not-allowed" : "pointer",
                   }}
                   onClick={handleForceClose}
-                  disabled={forceLoading || !forceReason.trim()}
+                  disabled={forceLoading}
                 >
-                  {forceLoading ? "Cerrando..." : "✓ Confirmar"}
+                  {forceLoading ? "Cerrando..." : "Confirmar cierre"}
                 </button>
               </div>
             </div>

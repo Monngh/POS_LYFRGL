@@ -50,8 +50,18 @@ const aggregateSalesByMethod = (sales: any[]) => {
   return { salesCount, netTotal, totalRefunds, cashTotal, creditCardTotal, debitCardTotal, mercadoPagoTotal };
 };
 
-export const getSessionStatus = async (userId: number, branchId: number) =>
-  findActiveSession(userId, branchId);
+export const getSessionStatus = async (userId: number, branchId: number) => {
+  const activeSession = await findActiveSession(userId, branchId);
+  if (activeSession) return { activeSession, lastClosed: null };
+
+  const lastClosed = await prisma.cashSession.findFirst({
+    where: { userId, branchId, status: "CERRADA" },
+    orderBy: { closedAt: "desc" },
+    select: { forceCloseReason: true, closedAt: true },
+  });
+
+  return { activeSession: null, lastClosed };
+};
 
 // Contains the Serializable transaction exactly as in the original controller —
 // no logic changes, only moved here to keep the controller thin.
