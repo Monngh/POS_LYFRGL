@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { AppError } from "../utils/AppError";
 import {
   createProduct as createProductService,
+  getNextProductSku as getNextProductSkuService,
   listProducts as listProductsService,
   getProductDetail as getProductDetailService,
   updateProduct as updateProductService,
@@ -46,6 +47,16 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
   } catch (error: any) {
     if (error instanceof AppError) { res.status(error.statusCode).json({ message: error.message }); return; }
     res.status(500).json({ message: "Error al registrar el producto." });
+  }
+};
+
+export const getNextProductSku = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const sku = await getNextProductSkuService();
+    res.status(200).json({ sku });
+  } catch (error: unknown) {
+    console.error(error);
+    res.status(500).json({ message: "No se pudo generar el siguiente SKU." });
   }
 };
 

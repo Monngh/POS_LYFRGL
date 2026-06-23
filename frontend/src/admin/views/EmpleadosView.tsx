@@ -35,10 +35,17 @@ import {
 import {
   normalizeEmailInput,
   normalizeIntegerInput,
-  normalizePhoneInput,
   validateEmail,
-  validatePhone,
+  normalizePhoneInput,
 } from "../../shared/utils/formValidation";
+import { PhoneField } from "../components/PhoneField";
+import {
+  DEFAULT_PHONE_COUNTRY_ISO,
+  getCountryCodeByIso,
+  normalizeLocalPhone,
+  phoneToAdminFormValue,
+  validateLocalPhone,
+} from "../utils/phone";
 import {
   ui,
   type ViewProps,
@@ -126,6 +133,7 @@ const emptyForm = {
   branchId: "",
   pinCode: "",
   phone: "",
+  phoneCountryIso: DEFAULT_PHONE_COUNTRY_ISO,
   baseSalary: "",
   commissionRate: "",
   newPin: "",
@@ -259,8 +267,12 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     const emailErr = validateEmail(candidate.email, { required: true });
     if (emailErr) errors.email = emailErr;
 
-    const phoneErr = validatePhone(candidate.phone, { required: false });
-    if (phoneErr) errors.phone = phoneErr;
+    const phoneError = validateLocalPhone(
+      candidate.phone,
+      getCountryCodeByIso(candidate.phoneCountryIso).code,
+      { required: false },
+    );
+    if (phoneError) errors.phone = phoneError;
 
     if (editingId === null) {
       if (!candidate.branchId) errors.branchId = "Seleccione una sucursal.";
@@ -330,7 +342,8 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       role: u.role,
       branchId: "",
       pinCode: "",
-      phone: u.phone || "",
+      phone: phoneToAdminFormValue(u.phone),
+      phoneCountryIso: DEFAULT_PHONE_COUNTRY_ISO,
       baseSalary: u.baseSalary != null ? String(u.baseSalary) : "",
       commissionRate: u.commissionRate != null ? String(u.commissionRate) : "",
       newPin: "",
@@ -416,6 +429,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           name: form.name,
           email: form.email,
           phone: form.phone || undefined,
+          phoneCountryCode: getCountryCodeByIso(form.phoneCountryIso).code,
           baseSalary: baseSalaryValue?.value ?? undefined,
           commissionRate: commissionValue?.value ?? undefined,
           active: editActive,
@@ -436,6 +450,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           role: form.role,
           branchId: Number(form.branchId),
           phone: form.phone || undefined,
+          phoneCountryCode: getCountryCodeByIso(form.phoneCountryIso).code,
           baseSalary: baseSalaryValue?.value ?? undefined,
           commissionRate: commissionValue?.value ?? undefined,
           pinCode: form.pinCode,
@@ -1117,8 +1132,42 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 10 }}>
             <div>
               <label style={ui.fieldLabel}>Teléfono</label>
-              <input style={ui.input} value={form.phone} onChange={handleInputChange("phone")} placeholder="771 000 0000" maxLength={15} />
-              {fieldErrors.phone && <p style={styles.fieldError}>{fieldErrors.phone}</p>}
+              <PhoneField
+                value={form.phone}
+                onChange={(value) => {
+                  const nextForm = { ...form, phone: value };
+                  const validation = validateForm(nextForm);
+                  setForm(nextForm);
+                  setHasChanges(true);
+                  setFormError(null);
+                  setFieldErrors((prev) => {
+                    const next = { ...prev };
+                    if (validation.phone) next.phone = validation.phone;
+                    else delete next.phone;
+                    return next;
+                  });
+                }}
+                countryIso={form.phoneCountryIso}
+                onCountryChange={(phoneCountryIso) => {
+                  const phone = normalizeLocalPhone(
+                    form.phone,
+                    getCountryCodeByIso(phoneCountryIso).code,
+                  );
+                  const nextForm = { ...form, phoneCountryIso, phone };
+                  const validation = validateForm(nextForm);
+                  setForm(nextForm);
+                  setHasChanges(true);
+                  setFormError(null);
+                  setFieldErrors((prev) => {
+                    const next = { ...prev };
+                    if (validation.phone) next.phone = validation.phone;
+                    else delete next.phone;
+                    return next;
+                  });
+                }}
+                error={fieldErrors.phone}
+                disabled={saving}
+              />
             </div>
             <div>
               <label style={ui.fieldLabel}>Rol *</label>
