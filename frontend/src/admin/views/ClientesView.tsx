@@ -273,7 +273,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
       return;
     }
     refetch();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshToken]);
 
   const openCreate = () => {
@@ -331,8 +331,8 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const set =
     (k: keyof typeof emptyForm) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-      updateFormField(k, e.target.value);
+      (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+        updateFormField(k, e.target.value);
 
   const setCreditLimit = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.trim();
