@@ -31,20 +31,20 @@ interface SalesTerminalViewProps {
 }
 
 const styles: { [key: string]: React.CSSProperties } = {
-  appContainer: { minHeight: "100vh", display: "flex", flexDirection: "column" as const, backgroundColor: "#f8fafc" },
-  terminalHeader: { height: "56px", backgroundColor: "#ffffff", borderBottom: "2px solid #3b82f6", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 24px" },
-  terminalBackBtn: { width: "38px", height: "38px", borderRadius: "6px", border: "1px solid #cbd5e1", backgroundColor: "#ffffff", color: "#1e3a8a", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 2px rgba(15,23,42,0.06)" },
+  appContainer: { minHeight: "100vh", display: "flex", flexDirection: "column" as const, backgroundColor: "var(--surface-2)" },
+  terminalHeader: { height: "56px", backgroundColor: "var(--surface)", borderBottom: "2px solid #3b82f6", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 24px" },
+  terminalBackBtn: { width: "38px", height: "38px", borderRadius: "6px", border: "1px solid var(--border-strong)", backgroundColor: "var(--surface)", color: "var(--accent-strong)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 2px rgba(15,23,42,0.06)" },
   terminalBody: { flex: 1, padding: "20px", display: "flex", flexDirection: "column" as const, gap: "16px" },
   modalOverlay: { position: "fixed" as const, top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.4)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100 },
-  checkoutModal: { width: "420px", backgroundColor: "#ffffff", borderRadius: "12px", padding: "28px", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)", display: "flex", flexDirection: "column" as const, gap: "16px" },
-  checkoutTotalBox: { backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "16px", fontSize: "36px", fontWeight: "800", color: "#dc2626", textAlign: "center" as const },
+  checkoutModal: { width: "420px", backgroundColor: "var(--surface)", borderRadius: "12px", padding: "28px", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)", display: "flex", flexDirection: "column" as const, gap: "16px" },
+  checkoutTotalBox: { backgroundColor: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "8px", padding: "16px", fontSize: "36px", fontWeight: "800", color: "#dc2626", textAlign: "center" as const },
   payMethodsRow: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" },
-  payMethodBtn: { padding: "12px 6px", borderRadius: "6px", border: "1px solid #cbd5e1", backgroundColor: "#ffffff", fontSize: "11px", fontWeight: "700", cursor: "pointer", textAlign: "center" as const },
+  payMethodBtn: { padding: "12px 6px", borderRadius: "6px", border: "1px solid var(--border-strong)", backgroundColor: "var(--surface)", fontSize: "11px", fontWeight: "700", cursor: "pointer", textAlign: "center" as const },
   payMethodActive: { border: "1px solid #2563eb", backgroundColor: "#eff6ff", color: "#1d4ed8" },
   modalBtn: { flex: 1, padding: "10px", borderRadius: "6px", border: "none", fontWeight: "700", cursor: "pointer", textAlign: "center" as const },
   inputGroup: { display: "flex", flexDirection: "column" as const, gap: "6px", textAlign: "left" as const },
-  label: { fontSize: "11px", fontWeight: "700", color: "#475569", textTransform: "uppercase" as const, letterSpacing: "0.5px" },
-  select: { width: "100%", padding: "10px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "14px", backgroundColor: "#ffffff", cursor: "pointer" },
+  label: { fontSize: "11px", fontWeight: "700", color: "var(--text-secondary)", textTransform: "uppercase" as const, letterSpacing: "0.5px" },
+  select: { width: "100%", padding: "10px 12px", borderRadius: "6px", border: "1px solid var(--border-strong)", fontSize: "14px", backgroundColor: "var(--surface)", cursor: "pointer" },
   fieldError: { color: "#b91c1c", fontSize: "12px", fontWeight: "600", marginTop: "5px", marginBottom: 0 },
 };
 
@@ -108,12 +108,12 @@ export function SalesTerminalView({
             <ArrowLeft size={20} />
           </button>
           <Store size={22} color="#1e3a8a" />
-          <h2 style={{ fontSize: "18px", fontWeight: "800", color: "#0f172a" }}>
+          <h2 style={{ fontSize: "18px", fontWeight: "800", color: "var(--text)" }}>
             Venta - Ticket #{(sessionStats?.salesCount !== undefined) ? sessionStats.salesCount + 1 : 1}
           </h2>
         </div>
-        <div style={{ fontSize: "14px", fontWeight: "600", color: "#475569" }}>
-          Cajero: <span style={{ color: "#1e3a8a" }}>{user?.name.split(" ")[0]}</span>
+        <div style={{ fontSize: "14px", fontWeight: "600", color: "var(--text-secondary)" }}>
+          Cajero: <span style={{ color: "var(--accent-strong)" }}>{user?.name.split(" ")[0]}</span>
         </div>
       </header>
 
@@ -145,7 +145,7 @@ export function SalesTerminalView({
       {checkoutModalOpen && (
         <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
           <div style={styles.checkoutModal} className="pos-cashier-modal">
-            <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>COBRO</h3>
+            <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "var(--text-secondary)", fontWeight: "700" }}>COBRO</h3>
             <div style={styles.checkoutTotalBox} className="pos-cashier-checkout-total">
               $ {(cartTotal - pointsDiscount).toFixed(2)}
             </div>
@@ -198,7 +198,7 @@ export function SalesTerminalView({
                 </div>
                 <div style={styles.inputGroup}>
                   <label style={styles.label}>Su Cambio:</label>
-                  <input type="text" readOnly className="input-corporate" style={{ backgroundColor: "#f1f5f9", fontWeight: "700", color: "#0f172a" }} value={`$ ${calculatedChange.toFixed(2)}`} />
+                  <input type="text" readOnly className="input-corporate" style={{ backgroundColor: "var(--surface-3)", fontWeight: "700", color: "var(--text)" }} value={`$ ${calculatedChange.toFixed(2)}`} />
                 </div>
               </div>
             )}
@@ -212,9 +212,9 @@ export function SalesTerminalView({
                     <option value="CREDITO">Crédito</option>
                   </select>
                 </div>
-                <div style={{ padding: "10px 0", textAlign: "center", color: "#64748b" }}>
+                <div style={{ padding: "10px 0", textAlign: "center", color: "var(--text-muted)" }}>
                   <p>Solicite que inserte la tarjeta en la terminal bancaria.</p>
-                  <p style={{ fontWeight: "600", color: "#1e3a8a", marginTop: "8px" }}>NIP requerido en terminal física.</p>
+                  <p style={{ fontWeight: "600", color: "var(--accent-strong)", marginTop: "8px" }}>NIP requerido en terminal física.</p>
                 </div>
               </div>
             )}
@@ -270,14 +270,14 @@ export function SalesTerminalView({
                 </div>
                 <div style={styles.inputGroup}>
                   <label style={styles.label}>Cambio en Efectivo ($):</label>
-                  <input type="text" readOnly className="input-corporate" style={{ backgroundColor: "#f1f5f9", fontWeight: "700" }} value={`$ ${calculatedChange.toFixed(2)}`} />
+                  <input type="text" readOnly className="input-corporate" style={{ backgroundColor: "var(--surface-3)", fontWeight: "700" }} value={`$ ${calculatedChange.toFixed(2)}`} />
                 </div>
               </div>
             )}
 
             {/* Sección de Puntos de Lealtad */}
             {selectedCustomer && (
-              <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "14px", marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div style={{ borderTop: "1px solid var(--border)", paddingTop: "14px", marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", margin: 0 }}>
                     <input
@@ -287,7 +287,7 @@ export function SalesTerminalView({
                     />
                     <span>¿Usar Puntos?</span>
                   </label>
-                  <span style={{ fontSize: "12px", color: "#64748b", fontWeight: "600" }}>
+                  <span style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: "600" }}>
                     Disponibles: <strong style={{ color: "#166534" }}>{selectedCustomer.points}</strong> pts
                   </span>
                 </div>
@@ -324,13 +324,13 @@ export function SalesTerminalView({
 
             {/* Sección de Facturación CFDI */}
             {selectedCustomer && (
-              <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "14px", marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div style={{ borderTop: "1px solid var(--border)", paddingTop: "14px", marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", margin: 0 }}>
                     <input type="checkbox" checked={invoiceRequested} onChange={(e) => { setInvoiceRequested(e.target.checked); }} />
                     <span>¿Solicitar Factura CFDI?</span>
                   </label>
-                  <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "600" }}>Se enviará al correo registrado</span>
+                  <span style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: "600" }}>Se enviará al correo registrado</span>
                 </div>
               </div>
             )}
@@ -372,14 +372,14 @@ export function SalesTerminalView({
       {qrModalOpen && (
         <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
           <div style={styles.checkoutModal} className="pos-cashier-modal">
-            <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
+            <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "var(--text-secondary)", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
             <div style={{ textAlign: "center", padding: "20px 0" }}>
-              <p style={{ marginBottom: "10px", fontSize: "14px", color: "#475569" }}>Escanea el siguiente código para pagar <strong>${cartTotal.toFixed(2)}</strong></p>
+              <p style={{ marginBottom: "10px", fontSize: "14px", color: "var(--text-secondary)" }}>Escanea el siguiente código para pagar <strong>${cartTotal.toFixed(2)}</strong></p>
               {qrUrl ? (
                 <>
                   <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" width="200" height="200" loading="lazy" />
                   <div style={{ marginTop: "12px" }}>
-                    <a href={qrUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#2563eb", textDecoration: "underline", fontWeight: "600", display: "inline-block", padding: "6px 12px", backgroundColor: "#f1f5f9", borderRadius: "6px" }}>
+                    <a href={qrUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#2563eb", textDecoration: "underline", fontWeight: "600", display: "inline-block", padding: "6px 12px", backgroundColor: "var(--surface-3)", borderRadius: "6px" }}>
                       🔗 Abrir enlace de pago / Sandbox
                     </a>
                   </div>
@@ -387,7 +387,7 @@ export function SalesTerminalView({
               ) : (
                 <p>Generando QR...</p>
               )}
-              <p style={{ marginTop: "12px", fontSize: "12px", color: "#64748b" }}>Ref: {qrReference}</p>
+              <p style={{ marginTop: "12px", fontSize: "12px", color: "var(--text-muted)" }}>Ref: {qrReference}</p>
             </div>
             <div style={{ display: "flex", gap: "10px", marginTop: "24px" }} className="pos-cashier-modal-actions">
               <button disabled={qrChecking} onClick={addPendingQrSale} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
@@ -410,7 +410,7 @@ export function SalesTerminalView({
       {isNewCustomerModalOpen && (
         <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
           <div style={styles.checkoutModal} className="pos-cashier-modal">
-            <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "#475569", fontWeight: "700" }}>
+            <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "var(--text-secondary)", fontWeight: "700" }}>
               REGISTRO RÁPIDO DE CLIENTE
             </h3>
             <form onSubmit={handleRegisterCustomerSubmit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>

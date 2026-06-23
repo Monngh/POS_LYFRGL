@@ -34,7 +34,7 @@ const modalOverlay: React.CSSProperties = {
 
 const cancelModal: React.CSSProperties = {
   width: "420px",
-  backgroundColor: "#ffffff",
+  backgroundColor: "var(--surface)",
   borderRadius: "12px",
   padding: "28px",
   boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
@@ -43,8 +43,8 @@ const cancelModal: React.CSSProperties = {
 const modalTitle: React.CSSProperties = {
   fontSize: "16px",
   fontWeight: "800",
-  color: "#0f172a",
-  borderBottom: "1px solid #e2e8f0",
+  color: "var(--text)",
+  borderBottom: "1px solid var(--border)",
   paddingBottom: "8px",
 };
 
@@ -58,7 +58,7 @@ const inputGroup: React.CSSProperties = {
 const labelStyle: React.CSSProperties = {
   fontSize: "11px",
   fontWeight: "700",
-  color: "#475569",
+  color: "var(--text-secondary)",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
 };
@@ -116,21 +116,21 @@ export default function CancelSaleModal({
 
           {cancelSalePreview && (
             <div style={{
-              backgroundColor: "#f8fafc",
+              backgroundColor: "var(--surface-2)",
               border: "1px dashed #cbd5e1",
               borderRadius: "6px",
               padding: "10px 12px",
               fontSize: "12px",
-              color: "#334155",
+              color: "var(--text-secondary)",
               marginTop: "-4px"
             }}>
-              <div style={{ fontWeight: "700", marginBottom: "4px", color: "#1e3a8a" }}>
+              <div style={{ fontWeight: "700", marginBottom: "4px", color: "var(--accent-strong)" }}>
                 Resumen de Venta Encontrada:
               </div>
               <div><strong>Fecha:</strong> {new Date(cancelSalePreview.createdAt).toLocaleString()}</div>
               <div><strong>Total:</strong> <span style={{ fontWeight: "700", color: "#b91c1c" }}>${cancelSalePreview.total.toFixed(2)}</span></div>
               <div><strong>Artículos:</strong> {cancelSalePreview.items.reduce((sum: number, item) => sum + item.quantity, 0)} pz</div>
-              <div style={{ fontSize: "10px", marginTop: "4px", color: "#64748b", maxHeight: "60px", overflowY: "auto" }}>
+              <div style={{ fontSize: "10px", marginTop: "4px", color: "var(--text-muted)", maxHeight: "60px", overflowY: "auto" }}>
                 {cancelSalePreview.items.map((it) => `${it.product.name} (x${it.quantity})`).join(", ")}
               </div>
             </div>

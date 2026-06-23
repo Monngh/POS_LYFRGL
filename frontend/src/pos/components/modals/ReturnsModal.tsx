@@ -49,7 +49,7 @@ const inputGroup: React.CSSProperties = {
 const label: React.CSSProperties = {
   fontSize: "11px",
   fontWeight: "700",
-  color: "#475569",
+  color: "var(--text-secondary)",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
 };
@@ -399,7 +399,7 @@ export default function ReturnsModal({
       <div
         style={{
           width: returnStep === "receipt" ? "460px" : "640px",
-          backgroundColor: "#ffffff",
+          backgroundColor: "var(--surface)",
           borderRadius: "12px",
           padding: "28px",
           boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
@@ -411,7 +411,7 @@ export default function ReturnsModal({
       >
         {/* HEADER */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
-          <h3 style={{ fontSize: "16px", fontWeight: "800", color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+          <h3 style={{ fontSize: "16px", fontWeight: "800", color: "var(--text)", borderBottom: "1px solid var(--border)", paddingBottom: "8px", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
             <RotateCcw size={20} color="#dc2626" />
             Devoluciones
           </h3>
@@ -431,8 +431,8 @@ export default function ReturnsModal({
                 borderRadius: "2px",
                 backgroundColor:
                   ["search", "select", "confirm", "receipt"].indexOf(returnStep) >= i
-                    ? "#1e3a8a"
-                    : "#e2e8f0",
+                    ? "var(--accent-strong)"
+                    : "var(--border)",
                 transition: "background-color 0.3s",
               }}
             />
@@ -442,7 +442,7 @@ export default function ReturnsModal({
         {/* =========== PASO 1: BÚSQUEDA DE TICKET =========== */}
         {returnStep === "search" && (
           <div>
-            <p style={{ fontSize: "13px", color: "#475569", marginBottom: "14px" }}>
+            <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "14px" }}>
               Ingrese el folio de la venta original para iniciar el proceso de devolución.
             </p>
             <div style={inputGroup}>
@@ -487,8 +487,8 @@ export default function ReturnsModal({
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
               gap: "8px",
-              backgroundColor: "#f8fafc",
-              border: "1px solid #e2e8f0",
+              backgroundColor: "var(--surface-2)",
+              border: "1px solid var(--border)",
               borderRadius: "8px",
               padding: "12px",
               marginBottom: "14px",
@@ -502,23 +502,23 @@ export default function ReturnsModal({
 
             {/* Seleccionar todos */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <span style={{ fontSize: "12px", fontWeight: "700", color: "#334155" }}>Productos del ticket:</span>
+              <span style={{ fontSize: "12px", fontWeight: "700", color: "var(--text-secondary)" }}>Productos del ticket:</span>
               <button
                 onClick={handleReturnSelectAll}
-                style={{ fontSize: "11px", color: "#1e3a8a", background: "none", border: "none", cursor: "pointer", fontWeight: "600", textDecoration: "underline" }}
+                style={{ fontSize: "11px", color: "var(--accent-strong)", background: "none", border: "none", cursor: "pointer", fontWeight: "600", textDecoration: "underline" }}
               >
                 {returnItems.filter((it) => it.isEligible).every((it) => it.selected) ? "Deseleccionar todos" : "Seleccionar todos (Dev. Total)"}
               </button>
             </div>
 
             {/* Lista de productos */}
-            <div style={{ maxHeight: "260px", overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: "8px" }}>
+            <div style={{ maxHeight: "260px", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "8px" }}>
               {returnItems.map((item, idx) => (
                 <div
                   key={item.saleDetailId}
                   style={{
                     padding: "10px 12px",
-                    borderBottom: idx < returnItems.length - 1 ? "1px solid #f1f5f9" : "none",
+                    borderBottom: idx < returnItems.length - 1 ? "1px solid var(--surface-3)" : "none",
                     backgroundColor: item.selected ? "#eff6ff" : "transparent",
                     opacity: item.isEligible ? 1 : 0.5,
                     transition: "background-color 0.2s",
@@ -530,11 +530,11 @@ export default function ReturnsModal({
                       checked={item.selected}
                       disabled={!item.isEligible}
                       onChange={() => handleReturnToggleItem(idx)}
-                      style={{ accentColor: "#1e3a8a", width: "16px", height: "16px" }}
+                      style={{ accentColor: "var(--accent-strong)", width: "16px", height: "16px" }}
                     />
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: "600", fontSize: "13px", color: "#0f172a" }}>{item.name}</div>
-                      <div style={{ fontSize: "10px", color: "#64748b" }}>
+                      <div style={{ fontWeight: "600", fontSize: "13px", color: "var(--text)" }}>{item.name}</div>
+                      <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>
                         SKU: {item.sku} | Comprado: {item.originalQuantity} | Devuelto prev.: {item.alreadyReturnedQty} | Disponible: {item.maxReturnableQty}
                       </div>
                       {!item.isEligible && (
@@ -543,9 +543,9 @@ export default function ReturnsModal({
                         </div>
                       )}
                     </div>
-                    <div style={{ textAlign: "right", fontSize: "12px", fontWeight: "700", color: "#0f172a" }}>
+                    <div style={{ textAlign: "right", fontSize: "12px", fontWeight: "700", color: "var(--text)" }}>
                       ${item.netUnitPrice.toFixed(2)}
-                      <div style={{ fontSize: "9px", color: "#94a3b8", fontWeight: "400" }}>c/u neto</div>
+                      <div style={{ fontSize: "9px", color: "var(--text-faint)", fontWeight: "400" }}>c/u neto</div>
                     </div>
                   </div>
 
@@ -553,10 +553,10 @@ export default function ReturnsModal({
                   {item.selected && (
                     <div style={{ marginTop: "8px", paddingLeft: "26px", display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                        <label style={{ fontSize: "11px", color: "#475569", fontWeight: "600" }}>Cant:</label>
+                        <label style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: "600" }}>Cant:</label>
                         <button
                           onClick={() => handleReturnQtyChange(idx, item.qtyToReturn - 1)}
-                          style={{ width: "24px", height: "24px", border: "1px solid #cbd5e1", borderRadius: "4px", backgroundColor: "#f8fafc", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                          style={{ width: "24px", height: "24px", border: "1px solid var(--border-strong)", borderRadius: "4px", backgroundColor: "var(--surface-2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                         ><Minus size={12} /></button>
                         <input
                           type="number"
@@ -569,19 +569,19 @@ export default function ReturnsModal({
                             const val = Math.min(item.maxReturnableQty, parsed);
                             handleReturnQtyChange(idx, val);
                           }}
-                          style={{ fontSize: "13px", fontWeight: "700", width: "50px", textAlign: "center", border: "1px solid #cbd5e1", borderRadius: "4px", padding: "4px" }}
+                          style={{ fontSize: "13px", fontWeight: "700", width: "50px", textAlign: "center", border: "1px solid var(--border-strong)", borderRadius: "4px", padding: "4px" }}
                         />
                         <button
                           onClick={() => handleReturnQtyChange(idx, item.qtyToReturn + 1)}
-                          style={{ width: "24px", height: "24px", border: "1px solid #cbd5e1", borderRadius: "4px", backgroundColor: "#f8fafc", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                          style={{ width: "24px", height: "24px", border: "1px solid var(--border-strong)", borderRadius: "4px", backgroundColor: "var(--surface-2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                         ><Plus size={12} /></button>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                        <label style={{ fontSize: "11px", color: "#475569", fontWeight: "600" }}>Destino:</label>
+                        <label style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: "600" }}>Destino:</label>
                         <select
                           value={item.destination}
                           onChange={(e) => handleReturnDestinationChange(idx, e.target.value)}
-                          style={{ fontSize: "11px", padding: "3px 6px", borderRadius: "4px", border: "1px solid #cbd5e1", backgroundColor: "#ffffff" }}
+                          style={{ fontSize: "11px", padding: "3px 6px", borderRadius: "4px", border: "1px solid var(--border-strong)", backgroundColor: "var(--surface)" }}
                         >
                           <option value="INVENTARIO_VENDIBLE">Inventario Vendible</option>
                           <option value="MERMA">Merma</option>
@@ -599,7 +599,7 @@ export default function ReturnsModal({
                             const val = e.target.value;
                             setReturnItems((prev) => prev.map((it, i) => i === idx ? { ...it, serialNumberInput: val } : it));
                           }}
-                          style={{ fontSize: "11px", padding: "3px 6px", borderRadius: "4px", border: "1px solid #cbd5e1", width: "110px" }}
+                          style={{ fontSize: "11px", padding: "3px 6px", borderRadius: "4px", border: "1px solid var(--border-strong)", width: "110px" }}
                         />
                       )}
                       {item.trackingType === "LOT" && (
@@ -611,10 +611,10 @@ export default function ReturnsModal({
                             const val = e.target.value;
                             setReturnItems((prev) => prev.map((it, i) => i === idx ? { ...it, batchNumberInput: val } : it));
                           }}
-                          style={{ fontSize: "11px", padding: "3px 6px", borderRadius: "4px", border: "1px solid #cbd5e1", width: "110px" }}
+                          style={{ fontSize: "11px", padding: "3px 6px", borderRadius: "4px", border: "1px solid var(--border-strong)", width: "110px" }}
                         />
                       )}
-                      <span style={{ fontSize: "11px", color: "#1e3a8a", fontWeight: "700", marginLeft: "auto" }}>
+                      <span style={{ fontSize: "11px", color: "var(--accent-strong)", fontWeight: "700", marginLeft: "auto" }}>
                         Reembolso: ${getItemRefundAmount(item, item.qtyToReturn).toFixed(2)}
                       </span>
                     </div>
@@ -687,10 +687,10 @@ export default function ReturnsModal({
                 <div style={{ fontSize: "20px", fontWeight: "800", color: "#166534" }}>${getReturnRefundTotal().toFixed(2)}</div>
               </div>
               <div style={{ display: "flex", gap: "8px" }}>
-                <button onClick={() => { setReturnStep("search"); setReturnSaleData(null); setReturnItems([]); }} style={{ ...modalBtn, backgroundColor: "#64748b", color: "white" }}>
+                <button onClick={() => { setReturnStep("search"); setReturnSaleData(null); setReturnItems([]); }} style={{ ...modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}>
                   ← Atrás
                 </button>
-                <button onClick={handleReturnProceed} className="btn-primary" style={{ ...modalBtn, backgroundColor: "#1e3a8a", color: "white" }}>
+                <button onClick={handleReturnProceed} className="btn-primary" style={{ ...modalBtn, backgroundColor: "var(--accent-strong)", color: "white" }}>
                   Continuar →
                 </button>
               </div>
@@ -701,21 +701,21 @@ export default function ReturnsModal({
         {/* =========== PASO 3: CONFIRMACIÓN Y PIN =========== */}
         {returnStep === "confirm" && (
           <div>
-            <p style={{ fontSize: "13px", color: "#475569", marginBottom: "14px" }}>
+            <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "14px" }}>
               Revise el resumen de la devolución e ingrese el PIN de autorización del supervisor.
             </p>
 
             {/* Resumen de artículos seleccionados */}
-            <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", overflow: "hidden", marginBottom: "14px" }}>
-              <div style={{ backgroundColor: "#f8fafc", padding: "8px 12px", fontSize: "11px", fontWeight: "700", color: "#334155", borderBottom: "1px solid #e2e8f0" }}>
+            <div style={{ border: "1px solid var(--border)", borderRadius: "8px", overflow: "hidden", marginBottom: "14px" }}>
+              <div style={{ backgroundColor: "var(--surface-2)", padding: "8px 12px", fontSize: "11px", fontWeight: "700", color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>
                 ARTÍCULOS A DEVOLVER
               </div>
               {returnItems.filter((it) => it.selected && it.qtyToReturn > 0).map((item) => (
-                <div key={item.saleDetailId} style={{ padding: "8px 12px", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+                <div key={item.saleDetailId} style={{ padding: "8px 12px", borderBottom: "1px solid var(--surface-3)", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
                   <div>
                     <span style={{ fontWeight: "600" }}>{item.name}</span>
-                    <span style={{ color: "#64748b" }}> × {item.qtyToReturn}</span>
-                    <span style={{ color: "#94a3b8", marginLeft: "8px", fontSize: "10px" }}>→ {item.destination.replace("_", " ")}</span>
+                    <span style={{ color: "var(--text-muted)" }}> × {item.qtyToReturn}</span>
+                    <span style={{ color: "var(--text-faint)", marginLeft: "8px", fontSize: "10px" }}>→ {item.destination.replace("_", " ")}</span>
                   </div>
                   <span style={{ fontWeight: "700" }}>${getItemRefundAmount(item, item.qtyToReturn).toFixed(2)}</span>
                 </div>
@@ -729,11 +729,11 @@ export default function ReturnsModal({
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "14px" }} className="pos-cashier-grid-2">
               <div style={inputGroup}>
                 <label style={label}>Motivo:</label>
-                <div style={{ fontSize: "12px", fontWeight: "600", color: "#0f172a", padding: "6px 0" }}>{returnReason}</div>
+                <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text)", padding: "6px 0" }}>{returnReason}</div>
               </div>
               <div style={inputGroup}>
                 <label style={label}>Reembolso vía:</label>
-                <div style={{ fontSize: "12px", fontWeight: "600", color: "#0f172a", padding: "6px 0" }}>{returnPaymentMethod.replace("_", " ")}</div>
+                <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text)", padding: "6px 0" }}>{returnPaymentMethod.replace("_", " ")}</div>
               </div>
             </div>
 
@@ -773,7 +773,7 @@ export default function ReturnsModal({
             </div>
 
             <div style={{ display: "flex", gap: "8px" }}>
-              <button onClick={() => setReturnStep("select")} style={{ ...submitBtn, backgroundColor: "#64748b", flex: 1 }}>
+              <button onClick={() => setReturnStep("select")} style={{ ...submitBtn, backgroundColor: "var(--text-muted)", flex: 1 }}>
                 ← Atrás
               </button>
               <button
@@ -797,31 +797,31 @@ export default function ReturnsModal({
               <p style={{ fontSize: "12px", color: "#166534", margin: 0 }}>La devolución fue procesada correctamente.</p>
             </div>
 
-            <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", overflow: "hidden", marginBottom: "14px" }}>
-              <div style={{ padding: "10px 14px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
-                <span style={{ color: "#64748b" }}>Folio Devolución:</span>
-                <span style={{ fontWeight: "700", color: "#0f172a" }}>{returnReceipt.returnNumber}</span>
+            <div style={{ border: "1px solid var(--border)", borderRadius: "8px", overflow: "hidden", marginBottom: "14px" }}>
+              <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+                <span style={{ color: "var(--text-muted)" }}>Folio Devolución:</span>
+                <span style={{ fontWeight: "700", color: "var(--text)" }}>{returnReceipt.returnNumber}</span>
               </div>
-              <div style={{ padding: "10px 14px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
-                <span style={{ color: "#64748b" }}>Total Reembolsado:</span>
+              <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+                <span style={{ color: "var(--text-muted)" }}>Total Reembolsado:</span>
                 <span style={{ fontWeight: "700", color: "#166534", fontSize: "16px" }}>${Number(returnReceipt.totalRefunded).toFixed(2)}</span>
               </div>
               {returnReceipt.storeCreditCode && (
-                <div style={{ padding: "10px 14px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
-                  <span style={{ color: "#64748b" }}>Código de Vale:</span>
+                <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+                  <span style={{ color: "var(--text-muted)" }}>Código de Vale:</span>
                   <span style={{ fontWeight: "700", color: "#7c3aed", fontSize: "14px", letterSpacing: "1px" }}>{returnReceipt.storeCreditCode}</span>
                 </div>
               )}
               {returnReceipt.cfdiUuid && (
-                <div style={{ padding: "10px 14px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
-                  <span style={{ color: "#64748b" }}>Nota de Crédito SAT:</span>
+                <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+                  <span style={{ color: "var(--text-muted)" }}>Nota de Crédito SAT:</span>
                   <span style={{ fontWeight: "600", color: "#0d9488", fontSize: "10px" }}>{returnReceipt.cfdiUuid}</span>
                 </div>
               )}
               {returnReceipt.exchangeSaleInvoice && (
                 <div style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
-                  <span style={{ color: "#64748b" }}>Cambio de Producto (nueva venta):</span>
-                  <span style={{ fontWeight: "700", color: "#1e3a8a" }}>{returnReceipt.exchangeSaleInvoice}</span>
+                  <span style={{ color: "var(--text-muted)" }}>Cambio de Producto (nueva venta):</span>
+                  <span style={{ fontWeight: "700", color: "var(--accent-strong)" }}>{returnReceipt.exchangeSaleInvoice}</span>
                 </div>
               )}
             </div>
@@ -840,7 +840,7 @@ export default function ReturnsModal({
               <button
                 onClick={() => { handleReturnReset(); onClose(); }}
                 className="btn-primary"
-                style={{ ...submitBtn, flex: 1, backgroundColor: "#1e3a8a" }}
+                style={{ ...submitBtn, flex: 1, backgroundColor: "var(--accent-strong)" }}
               >
                 Cerrar
               </button>
