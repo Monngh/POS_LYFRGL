@@ -77,7 +77,7 @@ const modalOverlay: React.CSSProperties = {
 const ticketModal: React.CSSProperties = {
   width: "calc(80mm + 48px)",
   maxWidth: "95vw",
-  backgroundColor: "#ffffff",
+  backgroundColor: "var(--surface)",
   borderRadius: "12px",
   padding: "24px",
   boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
@@ -91,7 +91,7 @@ const ticketContainer: React.CSSProperties = {
   padding: "10px 12px",
   border: "1px solid #d4d4d4",
   borderRadius: "4px",
-  backgroundColor: "#ffffff",
+  backgroundColor: "var(--surface)",
   color: "#111111",
   fontFamily: '"Courier New", monospace',
   fontSize: "10px",
@@ -112,7 +112,7 @@ export default function TicketViewModal({
   return (
     <div style={{ ...modalOverlay, zIndex: ticketEmailModalOpen ? 9998 : 100 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
       <div style={ticketModal} className="pos-cashier-modal">
-        <div id="print-area" style={ticketContainer} className="ticket-print">
+        <div id="print-area" style={ticketContainer} className="ticket-print pos-paper">
           {selectedSale.status === "CANCELADA" && (
             <div style={{
               textAlign: "center",
@@ -178,8 +178,8 @@ export default function TicketViewModal({
           )}
           <div style={{ textAlign: "center", marginBottom: "14px" }}>
             <h4 style={{ textTransform: "uppercase", fontWeight: "800", margin: "0 0 4px 0", fontSize: "14px" }}>LYFRGL</h4>
-            <p style={{ fontSize: "11px", color: "#475569" }}>SUCURSAL: {user?.branch.name}</p>
-            <p style={{ fontSize: "10px", color: "#64748b" }}>TEL: 772 100 2000</p>
+            <p style={{ fontSize: "11px", color: "var(--text-secondary)" }}>SUCURSAL: {user?.branch.name}</p>
+            <p style={{ fontSize: "10px", color: "var(--text-muted)" }}>TEL: 772 100 2000</p>
           </div>
 
           <div style={{ borderBottom: "1px dashed #cbd5e1", paddingBottom: "8px", marginBottom: "8px", fontSize: "11px" }}>
@@ -236,7 +236,7 @@ export default function TicketViewModal({
                         </div>
                       )}
                       {(item.taxes || item.taxDetail) && (item.taxes?.length > 0 || item.taxDetail?.length > 0) && (
-                        <div style={{ fontSize: "9px", color: "#64748b", fontStyle: "italic", marginTop: "2px" }}>
+                        <div style={{ fontSize: "9px", color: "var(--text-muted)", fontStyle: "italic", marginTop: "2px" }}>
                           {(item.taxes || item.taxDetail).map((t: any) => `${t.name}: $${Number(t.amount).toFixed(2)}`).join(" | ")}
                         </div>
                       )}
@@ -247,7 +247,7 @@ export default function TicketViewModal({
                     <td style={{ textAlign: "right", padding: "4px 0", whiteSpace: "nowrap" }}>
                       {hasDiscount ? (
                         <>
-                          <span style={{ textDecoration: "line-through", color: "#94a3b8", marginRight: "4px", fontSize: "10px" }}>
+                          <span style={{ textDecoration: "line-through", color: "var(--text-faint)", marginRight: "4px", fontSize: "10px" }}>
                             ${(item.product.sellPrice * item.quantity).toFixed(2)}
                           </span>
                           <span>
@@ -303,7 +303,7 @@ export default function TicketViewModal({
               </div>
             )}
             {selectedSale.taxBreakdown && selectedSale.taxBreakdown.length > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between", fontStyle: "italic", color: "#64748b" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontStyle: "italic", color: "var(--text-muted)" }}>
                 <span>Total Impuestos:</span>
                 <span>${selectedSale.tax.toFixed(2)}</span>
               </div>
@@ -318,7 +318,7 @@ export default function TicketViewModal({
                   <span>Total Devuelto:</span>
                   <span>-${Number(selectedSale.totalRefunded).toFixed(2)}</span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", color: "#0f172a", fontWeight: "800", backgroundColor: "#fef2f2", padding: "4px 6px", borderRadius: "4px", margin: "2px 0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text)", fontWeight: "800", backgroundColor: "#fef2f2", padding: "4px 6px", borderRadius: "4px", margin: "2px 0" }}>
                   <span>Neto Final:</span>
                   <span>${(Number(selectedSale.total) - Number(selectedSale.totalRefunded)).toFixed(2)}</span>
                 </div>
@@ -326,7 +326,7 @@ export default function TicketViewModal({
             )}
           </div>
 
-          <div style={{ borderTop: "1px solid #cbd5e1", marginTop: "8px", paddingTop: "8px", fontSize: "11px" }}>
+          <div style={{ borderTop: "1px solid var(--border-strong)", marginTop: "8px", paddingTop: "8px", fontSize: "11px" }}>
             <p>
               <strong>Método de pago:</strong> {selectedSale.paymentMethod}
               {selectedSale.cardType && ` (${selectedSale.cardType})`}
@@ -356,7 +356,7 @@ export default function TicketViewModal({
             </div>
           </div>
 
-          <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "12px", paddingTop: "8px", fontSize: "9px", textAlign: "center", color: "#64748b", lineHeight: "1.4", display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "12px", paddingTop: "8px", fontSize: "9px", textAlign: "center", color: "var(--text-muted)", lineHeight: "1.4", display: "flex", flexDirection: "column", alignItems: "center" }}>
             <p>Portal de Autofacturación:</p>
             <img
               src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.origin + "/autofacturacion")}`}
@@ -367,7 +367,7 @@ export default function TicketViewModal({
             <p>Escanea el código QR para facturar tu compra</p>
           </div>
 
-          <div style={{ textAlign: "center", marginTop: "20px", fontSize: "10px", color: "#64748b" }}>
+          <div style={{ textAlign: "center", marginTop: "20px", fontSize: "10px", color: "var(--text-muted)" }}>
             <p>¡GRACIAS POR SU COMPRA!</p>
             <p>REGRESE PRONTO</p>
             <p style={{ marginTop: "12px", fontSize: "9px", fontWeight: "600", fontStyle: "italic", borderTop: "1px dashed #cbd5e1", paddingTop: "8px" }}>

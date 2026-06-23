@@ -45,11 +45,11 @@
   align-items: center;
   gap: 12px;
   padding: 16px 18px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-strong);
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--surface);
   box-shadow: 0 16px 28px rgba(15, 23, 42, 0.18);
-  color: #0f172a;
+  color: var(--text);
   font-size: 13px;
   font-weight: 800;
 }
@@ -58,7 +58,7 @@
   width: 22px;
   height: 22px;
   border: 3px solid #dbeafe;
-  border-top-color: #2563eb;
+  border-top-color: var(--accent);
   border-radius: 999px;
   animation: pos-cashier-spin 0.8s linear infinite;
 }
@@ -83,7 +83,7 @@
   .pos-cashier-sidebar {
     width: 100% !important;
     border-right: none !important;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--border);
     padding: 16px 20px !important;
     flex-direction: row !important;
     align-items: center !important;
@@ -232,7 +232,7 @@
   .pos-cashier-cart-mobile-title {
     display: block;
     margin: 0 0 12px;
-    color: #0f172a;
+    color: var(--text);
     font-size: 17px;
     font-weight: 800;
   }
@@ -260,9 +260,9 @@
     width: 100%;
     margin-bottom: 12px;
     padding: 14px 42px 14px 16px;
-    border: 1px solid #cbd5e1 !important;
+    border: 1px solid var(--border-strong) !important;
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--surface);
     box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
   }
 
@@ -276,7 +276,7 @@
 
   .pos-cashier-cart-table tbody tr > td:nth-child(1) {
     grid-area: sku;
-    color: #64748b !important;
+    color: var(--text-muted) !important;
     font-size: 13px !important;
     font-weight: 600;
   }
@@ -284,7 +284,7 @@
   .pos-cashier-cart-table tbody tr > td:nth-child(2) {
     grid-area: product;
     padding-right: 4px !important;
-    color: #0f172a !important;
+    color: var(--text) !important;
     font-size: 16px !important;
     font-weight: 800 !important;
     line-height: 1.25;
@@ -314,7 +314,7 @@
 
   .pos-cashier-cart-table tbody tr > td:nth-child(4) {
     grid-area: price;
-    color: #334155 !important;
+    color: var(--text-secondary) !important;
     font-size: 13px !important;
   }
 
@@ -326,14 +326,14 @@
     grid-area: amount;
     align-self: end;
     justify-self: end;
-    color: #0f172a !important;
+    color: var(--text) !important;
     font-size: 14px !important;
     font-weight: 800 !important;
   }
 
   .pos-cashier-cart-table tbody tr > td:nth-child(5)::before {
     content: "Importe: ";
-    color: #0f172a;
+    color: var(--text);
     font-weight: 500;
   }
 
@@ -442,12 +442,12 @@
     align-items: center;
     gap: 4px;
     padding: 6px 12px;
-    background: #f1f5f9;
-    border: 1px solid #cbd5e1;
+    background: var(--surface-3);
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     font-size: 11px;
     font-weight: 600;
-    color: #1e3a8a;
+    color: var(--accent-strong);
     cursor: pointer;
     margin-top: 8px;
     width: 100%;
@@ -455,7 +455,7 @@
   }
 
   .pos-cashier-table-expand-btn:hover {
-    background: #e2e8f0;
+    background: var(--border);
   }
 
   /* Filas expandidas - mostrar columnas ocultas */
@@ -478,8 +478,8 @@
   .pos-cashier-table-details {
     display: block !important;
     padding: 8px 12px;
-    background: #f8fafc;
-    border-top: 1px solid #e2e8f0;
+    background: var(--surface-2);
+    border-top: 1px solid var(--border);
     font-size: 12px;
   }
 
@@ -491,13 +491,13 @@
   }
 
   .pos-cashier-table-details-label {
-    color: #64748b;
+    color: var(--text-muted);
     font-weight: 600;
     flex-shrink: 0;
   }
 
   .pos-cashier-table-details-value {
-    color: #0f172a;
+    color: var(--text);
     text-align: right;
   }
 
@@ -628,11 +628,11 @@
 
   .pos-cashier-table-card .pos-cashier-table-scroll--dashboard-deposits tbody tr {
     display: block !important;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 4px 12px;
     margin-bottom: 10px;
-    background: #ffffff;
+    background: var(--surface);
   }
 
   /* Cada celda pasa a ser una fila etiqueta:valor; se anula el ocultamiento previo */
@@ -644,7 +644,7 @@
     gap: 14px;
     padding: 8px 0 !important;
     border: none !important;
-    border-bottom: 1px solid #f1f5f9 !important;
+    border-bottom: 1px solid var(--surface-3) !important;
     white-space: normal !important;
     text-align: right;
     font-size: 13px;
@@ -658,7 +658,7 @@
     content: attr(data-label);
     font-weight: 700;
     font-size: 11px;
-    color: #64748b;
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.4px;
     text-align: left;
@@ -756,7 +756,7 @@
   .pos-cashier-cart-mobile-title {
     display: block;
     margin: 0 0 12px;
-    color: #0f172a;
+    color: var(--text);
     font-size: 18px;
     font-weight: 800;
   }
@@ -784,9 +784,9 @@
     width: 100%;
     margin-bottom: 12px;
     padding: 16px 46px 16px 18px;
-    border: 1px solid #cbd5e1 !important;
+    border: 1px solid var(--border-strong) !important;
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--surface);
     box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
   }
 
@@ -800,14 +800,14 @@
 
   .pos-cashier-cart-table tbody tr > td:nth-child(1) {
     grid-area: sku;
-    color: #64748b !important;
+    color: var(--text-muted) !important;
     font-size: 13px !important;
     font-weight: 600;
   }
 
   .pos-cashier-cart-table tbody tr > td:nth-child(2) {
     grid-area: product;
-    color: #0f172a !important;
+    color: var(--text) !important;
     font-size: 17px !important;
     font-weight: 800 !important;
     line-height: 1.25;
@@ -837,7 +837,7 @@
 
   .pos-cashier-cart-table tbody tr > td:nth-child(4) {
     grid-area: price;
-    color: #334155 !important;
+    color: var(--text-secondary) !important;
     font-size: 13px !important;
   }
 
@@ -849,14 +849,14 @@
     grid-area: amount;
     align-self: end;
     justify-self: end;
-    color: #0f172a !important;
+    color: var(--text) !important;
     font-size: 15px !important;
     font-weight: 800 !important;
   }
 
   .pos-cashier-cart-table tbody tr > td:nth-child(5)::before {
     content: "Importe: ";
-    color: #0f172a;
+    color: var(--text);
     font-weight: 500;
   }
 
@@ -929,7 +929,7 @@
   .pos-cashier-table-scroll--dashboard-sales tr,
   .pos-cashier-table-scroll--dashboard-deposits tr {
     display: table-row !important;
-    border-bottom: 1px solid #f1f5f9 !important;
+    border-bottom: 1px solid var(--surface-3) !important;
   }
 
   .pos-cashier-table-scroll--dashboard-sales th,
@@ -996,10 +996,10 @@
   .pos-cashier-kebab-btn {
     width: 34px;
     height: 34px;
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--border-strong);
     border-radius: 6px;
-    background: #ffffff;
-    color: #334155;
+    background: var(--surface);
+    color: var(--text-secondary);
     cursor: pointer;
     display: inline-flex;
     align-items: center;
@@ -1013,8 +1013,8 @@
     z-index: 80;
     min-width: 150px;
     margin-top: 6px;
-    background: #f1f5f9;
-    border: 1px solid #cbd5e1;
+    background: var(--surface-3);
+    border: 1px solid var(--border-strong);
     border-radius: 6px;
     box-shadow: 0 10px 18px rgba(15, 23, 42, 0.14);
     overflow: hidden;
@@ -1024,8 +1024,8 @@
   .pos-cashier-row-menu button {
     width: 100%;
     border: 0;
-    background: #f1f5f9;
-    color: #0f172a;
+    background: var(--surface-3);
+    color: var(--text);
     cursor: pointer;
     display: block;
     font-size: 12px;
@@ -1035,11 +1035,11 @@
   }
 
   .pos-cashier-row-menu button + button {
-    border-top: 1px solid #e2e8f0;
+    border-top: 1px solid var(--border);
   }
 
   .pos-cashier-row-menu button:hover {
-    background: #e2e8f0;
+    background: var(--border);
   }
 
   .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-details-row,
@@ -1099,11 +1099,11 @@
 
   .pos-cashier-table-scroll--dashboard-deposits tr {
     display: block !important;
-    border: 1px solid #e2e8f0 !important;
+    border: 1px solid var(--border) !important;
     border-radius: 8px;
     padding: 4px 12px !important;
     margin-bottom: 10px;
-    background: #ffffff;
+    background: var(--surface);
   }
 
   .pos-cashier-table-scroll--dashboard-deposits th,
@@ -1114,7 +1114,7 @@
     gap: 14px;
     padding: 8px 0 !important;
     border: none !important;
-    border-bottom: 1px solid #f1f5f9 !important;
+    border-bottom: 1px solid var(--surface-3) !important;
     white-space: normal !important;
     text-align: right;
     font-size: 13px;
@@ -1129,7 +1129,7 @@
     content: attr(data-label);
     font-weight: 700;
     font-size: 11px;
-    color: #64748b;
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.4px;
     text-align: left;
@@ -1186,7 +1186,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 8px 0;
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid var(--surface-3);
     font-size: 13px;
   }
 
@@ -1197,14 +1197,14 @@
   .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-details-label {
     font-weight: 700;
     font-size: 11px;
-    color: #64748b;
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.4px;
   }
 
   .pos-cashier-table-scroll--dashboard-sales .pos-cashier-table-details-value {
     font-weight: 600;
-    color: #0f172a;
+    color: var(--text);
     text-align: right;
   }
 

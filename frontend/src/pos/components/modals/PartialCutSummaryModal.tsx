@@ -34,7 +34,7 @@ const modalOverlay: React.CSSProperties = {
 
 const closeModal: React.CSSProperties = {
   width: "420px",
-  backgroundColor: "#ffffff",
+  backgroundColor: "var(--surface)",
   borderRadius: "12px",
   padding: "28px",
   boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
@@ -43,8 +43,8 @@ const closeModal: React.CSSProperties = {
 const modalTitle: React.CSSProperties = {
   fontSize: "16px",
   fontWeight: "800",
-  color: "#0f172a",
-  borderBottom: "1px solid #e2e8f0",
+  color: "var(--text)",
+  borderBottom: "1px solid var(--border)",
   paddingBottom: "8px",
 };
 
@@ -52,7 +52,7 @@ const summaryRow: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   fontSize: "13px",
-  color: "#475569",
+  color: "var(--text-secondary)",
 };
 
 const modalBtn: React.CSSProperties = {
@@ -110,7 +110,7 @@ export default function PartialCutSummaryModal({
           </div>
           <div style={{ ...summaryRow, borderTop: "1px dashed #cbd5e1", paddingTop: "10px", paddingBottom: "10px" }}>
             <span>Total Neto:</span>
-            <span style={{ fontWeight: "800", color: "#1e3a8a", fontSize: "16px" }}>
+            <span style={{ fontWeight: "800", color: "var(--accent-strong)", fontSize: "16px" }}>
               ${sessionStats?.netTotal?.toFixed(2) || "0.00"}
             </span>
           </div>
