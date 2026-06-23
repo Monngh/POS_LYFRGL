@@ -50,6 +50,7 @@ export function useCashSession({
   onSetActiveModal,
 }: UseCashSessionProps) {
   const [session, setSession] = useState<CashSession | null>(null);
+  const [forcedCloseData, setForcedCloseData] = useState<{ reason: string; closedAt: string } | null>(null);
   const [sessionStats, setSessionStats] = useState<any>(null);
   const [lastClosedStats, setLastClosedStats] = useState<any>(null);
   const [recentSales, setRecentSales] = useState<Sale[]>([]);
@@ -205,9 +206,36 @@ export function useCashSession({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  useEffect(() => {
+    if (!session) return;
+    if (user?.role === "ADMIN" || user?.role === "GERENTE") return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get("/api/cash-session/status");
+        if (!res.data.isOpen && res.data.lastClosed?.forceCloseReason) {
+          setForcedCloseData({
+            reason: res.data.lastClosed.forceCloseReason,
+            closedAt: res.data.lastClosed.closedAt,
+          });
+          setSession(null);
+        }
+      } catch {
+        // silent — polling errors no deben interrumpir el POS
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, user]);
+
+  const clearForcedClose = () => setForcedCloseData(null);
+
   return {
     session,
     setSession,
+    forcedCloseData,
+    clearForcedClose,
     sessionStats,
     setSessionStats,
     lastClosedStats,
