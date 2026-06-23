@@ -46,7 +46,6 @@ export const PhoneField: React.FC<PhoneFieldProps> = ({
       <div
         style={{
           display: "flex",
-          flexWrap: "wrap",
           alignItems: "stretch",
           gap: 8,
           minWidth: 0,
