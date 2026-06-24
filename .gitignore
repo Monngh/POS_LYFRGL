@@ -50,3 +50,8 @@ skills-lock.json
 # Referencias locales
 contexto/
 
+# Limpieza y Seguridad FMB POS
+*.key
+llave-oracle.key
+backend/scratch/
+*.patch
