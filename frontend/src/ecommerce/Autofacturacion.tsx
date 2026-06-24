@@ -23,7 +23,6 @@ import {
   normalizeSpaces,
   validateCatalogValue,
   validateInteger,
-  validateMexicanPhone,
   validatePassword,
   validatePasswordConfirmation,
   validateReference,
