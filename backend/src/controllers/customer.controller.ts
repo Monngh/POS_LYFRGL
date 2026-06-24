@@ -11,7 +11,8 @@ import {
   verifyCustomerExists,
   resetCustomerPassword as resetCustomerPasswordService,
 } from "../services/customer.service";
-import https from "https";
+import nodemailer from "nodemailer";
+import { validateEmail } from "../utils/email.util";
 
 const handleAppError = (error: unknown, res: Response, fallbackMessage: string): void => {
   if (error instanceof AppError) {
@@ -26,137 +27,121 @@ const handleAppError = (error: unknown, res: Response, fallbackMessage: string):
 
 export const otpStore = new Map<string, { otp: string; expiresAt: Date }>();
 
-// Función nativa para enviar SMS mediante Twilio
-export const sendSmsViaTwilio = (phone: string, text: string): Promise<void> => {
-  return new Promise((resolve) => {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const fromNumber = process.env.TWILIO_FROM_NUMBER;
+// Enviar código de verificación vía correo electrónico (SMTP)
+const sendOtpEmail = async (to: string, otpCode: string, type: "register" | "reset"): Promise<void> => {
+  const host = process.env.SMTP_HOST?.trim();
+  const port = Number(process.env.SMTP_PORT || 587);
+  const user = process.env.SMTP_USER?.trim();
+  const pass = process.env.SMTP_PASS?.trim();
+  const from = process.env.SMTP_FROM?.trim() || user;
 
-    if (!accountSid || !authToken || !fromNumber) {
-      console.warn("[TWILIO WARNING] Credenciales de Twilio incompletas en el archivo .env.");
-      return resolve(); // fallback a logs de consola
-    }
+  if (!host || !user || !pass || !from) {
+    throw new Error("El servicio de correo no está configurado. Contacte al administrador.");
+  }
 
-    let formattedPhone = phone.trim();
-    if (!formattedPhone.startsWith("+")) {
-      formattedPhone = `+52${formattedPhone}`;
-    }
+  const transporter = nodemailer.createTransport({
+    host, port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
 
-    const postData = new URLSearchParams({
-      To: formattedPhone,
-      From: fromNumber,
-      Body: text,
-    }).toString();
+  const subject = type === "register" 
+    ? "Código de verificación para registro - POS LYFRGL" 
+    : "Restablecer contraseña - POS LYFRGL";
 
-    const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+  const introText = type === "register"
+    ? "Tu código de verificación de un solo uso para crear tu cuenta es:"
+    : "Tu código de verificación de un solo uso para restablecer tu contraseña es:";
 
-    const options = {
-      hostname: "api.twilio.com",
-      port: 443,
-      path: `/2010-04-01/Accounts/${accountSid}/Messages.json`,
-      method: "POST",
-      headers: {
-        "Authorization": `Basic ${auth}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Content-Length": Buffer.byteLength(postData),
-      },
-    };
-
-    const req = https.request(options, (res) => {
-      let body = "";
-      res.on("data", (chunk) => {
-        body += chunk;
-      });
-      res.on("end", () => {
-        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-          console.log(`[TWILIO SUCCESS] SMS enviado exitosamente a ${formattedPhone}`);
-        } else {
-          console.error("[TWILIO ERROR] Status Code:", res.statusCode, "Response:", body);
-        }
-        resolve(); // Resolvemos siempre para no bloquear el flujo si falla Twilio en ambiente de desarrollo
-      });
-    });
-
-    req.on("error", (e) => {
-      console.error("[TWILIO HTTP ERROR]", e);
-      resolve();
-    });
-
-    req.write(postData);
-    req.end();
+  await transporter.sendMail({
+    from, to,
+    subject,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head><meta charset="utf-8" /></head>
+        <body style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;">
+          <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;padding:24px;">
+            <h2 style="margin:0 0 12px 0;font-size:18px;color:#1e3a8a;">LYFRGL POS — Verificación de Seguridad</h2>
+            <p style="margin:0 0 16px 0;font-size:14px;line-height:1.5;">
+              ${introText}
+            </p>
+            <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:20px;text-align:center;margin:0 0 16px 0;">
+              <span style="font-size:36px;font-weight:900;letter-spacing:12px;color:#1e3a8a;">${otpCode}</span>
+            </div>
+            <p style="margin:0;font-size:13px;color:#64748b;line-height:1.5;">
+              Este código es válido por <strong>5 minutos</strong>. Si no lo solicitaste, ignora este correo.
+            </p>
+          </div>
+          <p style="max-width:520px;margin:12px auto 0;font-size:11px;color:#64748b;text-align:center;">
+            Código generado por LYFRGL POS
+          </p>
+        </body>
+      </html>
+    `,
   });
 };
 
 export const sendOtp = async (req: Request, res: Response): Promise<void> => {
-  const { phone } = req.body;
-  if (!phone || typeof phone !== "string") {
-    res.status(400).json({ message: "El teléfono es requerido." });
+  const { email } = req.body;
+  if (!email || typeof email !== "string") {
+    res.status(400).json({ message: "El correo electrónico es requerido." });
     return;
   }
-  const cleanPhone = phone.replace(/\D/g, "");
-  if (cleanPhone.length !== 10) {
-    res.status(400).json({ message: "El teléfono debe tener exactamente 10 dígitos." });
+  const cleanEmail = email.trim().toLowerCase();
+  if (!validateEmail(cleanEmail)) {
+    res.status(400).json({ message: "El correo electrónico no tiene un formato válido." });
     return;
   }
 
-  // Verificar si ya existe una cuenta registrada con este número
-  let existing = await prisma.customer.findFirst({
-    where: {
-      OR: [
-        { phone: cleanPhone },
-        { phone: phone }
-      ]
-    }
-  });
-
-  if (!existing) {
-    const allCustomers = await prisma.customer.findMany({
-      where: { phone: { not: null } }
+  try {
+    // Verificar si ya existe una cuenta registrada con este correo electrónico
+    const existing = await prisma.customer.findFirst({
+      where: { email: cleanEmail }
     });
-    existing = allCustomers.find((c: any) => (c.phone || "").replace(/[^0-9]/g, "") === cleanPhone) || null;
+
+    if (existing && existing.passwordHash) {
+      res.status(400).json({ message: "El correo electrónico ya está registrado con otra cuenta." });
+      return;
+    }
+
+    // Generar OTP de 6 dígitos
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutos de expiración
+
+    otpStore.set(cleanEmail, { otp, expiresAt });
+
+    console.log(`[OTP VERIFICACIÓN EMAIL] Correo: ${cleanEmail} | Código: ${otp}`);
+
+    // Enviar el correo electrónico
+    await sendOtpEmail(cleanEmail, otp, "register");
+
+    res.status(200).json({
+      message: "Código de verificación enviado exitosamente a tu correo electrónico.",
+      otp,
+    });
+  } catch (error) {
+    handleAppError(error, res, "Error al enviar el código de verificación.");
   }
-
-  if (existing && existing.passwordHash) {
-    res.status(400).json({ message: "El número de teléfono ya está registrado con otra cuenta." });
-    return;
-  }
-
-  // Generar OTP de 6 dígitos
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutos de expiración
-
-  otpStore.set(cleanPhone, { otp, expiresAt });
-
-  console.log(`[OTP VERIFICACIÓN] Celular: ${cleanPhone} | Código: ${otp}`);
-
-  // Enviar el SMS real a través de Twilio
-  const messageText = `Tu codigo de verificacion LYFRGL para autofacturacion es: ${otp}`;
-  await sendSmsViaTwilio(cleanPhone, messageText);
-
-  res.status(200).json({
-    message: "Código de verificación enviado exitosamente.",
-    otp,
-  });
 };
 
 export const registerCustomerAccount = async (req: Request, res: Response): Promise<void> => {
-  const { phone, invoiceNumber, password, email, otp } = req.body;
-  if (!phone || !invoiceNumber || !password || !otp) {
-    res.status(400).json({ message: "El teléfono, folio de ticket, contraseña y código OTP son requeridos." });
+  const { email, invoiceNumber, password, otp } = req.body;
+  if (!email || !invoiceNumber || !password || !otp) {
+    res.status(400).json({ message: "El correo electrónico, folio de ticket, contraseña y código OTP son requeridos." });
     return;
   }
 
-  const cleanPhone = phone.replace(/\D/g, "");
-  const record = otpStore.get(cleanPhone);
+  const cleanEmail = email.trim().toLowerCase();
+  const record = otpStore.get(cleanEmail);
 
   if (!record) {
-    res.status(400).json({ message: "No se ha solicitado ningún código para este número de teléfono." });
+    res.status(400).json({ message: "No se ha solicitado ningún código para este correo electrónico." });
     return;
   }
 
   if (record.expiresAt < new Date()) {
-    otpStore.delete(cleanPhone);
+    otpStore.delete(cleanEmail);
     res.status(400).json({ message: "El código de verificación ha expirado." });
     return;
   }
@@ -167,12 +152,12 @@ export const registerCustomerAccount = async (req: Request, res: Response): Prom
   }
 
   // Eliminar OTP al ser verificado con éxito
-  otpStore.delete(cleanPhone);
+  otpStore.delete(cleanEmail);
 
   try {
-    await registerCustomer(cleanPhone, invoiceNumber, password, email);
+    await registerCustomer(cleanEmail, invoiceNumber, password);
     res.status(200).json({
-      message: "Cuenta registrada exitosamente. Ahora puedes iniciar sesión con tu teléfono y contraseña.",
+      message: "Cuenta registrada exitosamente. Ahora puedes iniciar sesión con tu correo electrónico y contraseña.",
     });
   } catch (error) {
     handleAppError(error, res, "Error al registrar la cuenta.");
@@ -181,22 +166,22 @@ export const registerCustomerAccount = async (req: Request, res: Response): Prom
 
 // Solicitar OTP para Restablecimiento de Contraseña
 export const sendPasswordResetOtp = async (req: Request, res: Response): Promise<void> => {
-  const { phone } = req.body;
-  if (!phone || typeof phone !== "string") {
-    res.status(400).json({ message: "El teléfono es requerido." });
+  const { email } = req.body;
+  if (!email || typeof email !== "string") {
+    res.status(400).json({ message: "El correo electrónico es requerido." });
     return;
   }
-  const cleanPhone = phone.replace(/\D/g, "");
-  if (cleanPhone.length !== 10) {
-    res.status(400).json({ message: "El teléfono debe tener exactamente 10 dígitos." });
+  const cleanEmail = email.trim().toLowerCase();
+  if (!validateEmail(cleanEmail)) {
+    res.status(400).json({ message: "El correo electrónico no tiene un formato válido." });
     return;
   }
 
   try {
     // Validar que el cliente exista en DB
-    const exists = await verifyCustomerExists(cleanPhone);
+    const exists = await verifyCustomerExists(cleanEmail);
     if (!exists) {
-      res.status(404).json({ message: "No existe ningún cliente registrado con este número de teléfono." });
+      res.status(404).json({ message: "No existe ningún cliente registrado con este correo electrónico." });
       return;
     }
 
@@ -204,15 +189,14 @@ export const sendPasswordResetOtp = async (req: Request, res: Response): Promise
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutos
 
-    otpStore.set(cleanPhone, { otp, expiresAt });
+    otpStore.set(cleanEmail, { otp, expiresAt });
 
-    console.log(`[RESET PASSWORD OTP] Celular: ${cleanPhone} | Código: ${otp}`);
+    console.log(`[RESET PASSWORD OTP EMAIL] Correo: ${cleanEmail} | Código: ${otp}`);
 
-    const messageText = `Tu codigo de seguridad LYFRGL para restablecer tu contrasena es: ${otp}`;
-    await sendSmsViaTwilio(cleanPhone, messageText);
+    await sendOtpEmail(cleanEmail, otp, "reset");
 
     res.status(200).json({
-      message: "Código de verificación enviado exitosamente.",
+      message: "Código de seguridad enviado exitosamente a tu correo electrónico.",
       otp,
     });
   } catch (error) {
@@ -222,22 +206,22 @@ export const sendPasswordResetOtp = async (req: Request, res: Response): Promise
 
 // Restablecer contraseña con verificación OTP
 export const resetCustomerPassword = async (req: Request, res: Response): Promise<void> => {
-  const { phone, otp, newPassword } = req.body;
-  if (!phone || !otp || !newPassword) {
-    res.status(400).json({ message: "El teléfono, código OTP y la nueva contraseña son requeridos." });
+  const { email, otp, newPassword } = req.body;
+  if (!email || !otp || !newPassword) {
+    res.status(400).json({ message: "El correo electrónico, código OTP y la nueva contraseña son requeridos." });
     return;
   }
 
-  const cleanPhone = phone.replace(/\D/g, "");
-  const record = otpStore.get(cleanPhone);
+  const cleanEmail = email.trim().toLowerCase();
+  const record = otpStore.get(cleanEmail);
 
   if (!record) {
-    res.status(400).json({ message: "No se ha solicitado ningún código para este número de teléfono." });
+    res.status(400).json({ message: "No se ha solicitado ningún código para este correo electrónico." });
     return;
   }
 
   if (record.expiresAt < new Date()) {
-    otpStore.delete(cleanPhone);
+    otpStore.delete(cleanEmail);
     res.status(400).json({ message: "El código de verificación ha expirado." });
     return;
   }
@@ -247,10 +231,10 @@ export const resetCustomerPassword = async (req: Request, res: Response): Promis
     return;
   }
 
-  otpStore.delete(cleanPhone);
+  otpStore.delete(cleanEmail);
 
   try {
-    await resetCustomerPasswordService(cleanPhone, newPassword);
+    await resetCustomerPasswordService(cleanEmail, newPassword);
     res.status(200).json({
       message: "Contraseña actualizada exitosamente. Por favor, inicia sesión con tu nueva contraseña.",
     });
@@ -260,13 +244,13 @@ export const resetCustomerPassword = async (req: Request, res: Response): Promis
 };
 
 export const loginCustomer = async (req: Request, res: Response): Promise<void> => {
-  const { phone, password } = req.body;
-  if (!phone || !password) {
-    res.status(400).json({ message: "El teléfono y la contraseña son requeridos." });
+  const { email, password } = req.body;
+  if (!email || !password) {
+    res.status(400).json({ message: "El correo electrónico y la contraseña son requeridos." });
     return;
   }
   try {
-    const customer = await loginCustomerService(phone, password);
+    const customer = await loginCustomerService(email, password);
     const token = generateToken({ customerId: customer.id, email: customer.email, role: "CUSTOMER" });
     res.status(200).json({ message: "Inicio de sesión exitoso.", token, customer });
   } catch (error) {
