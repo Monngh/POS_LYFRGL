@@ -111,8 +111,6 @@ export const sendOtp = async (req: Request, res: Response): Promise<void> => {
 
     otpStore.set(cleanEmail, { otp, expiresAt });
 
-    console.log(`[OTP VERIFICACIÓN EMAIL] Correo: ${cleanEmail} | Código: ${otp}`);
-
     // Enviar el correo electrónico
     await sendOtpEmail(cleanEmail, otp, "register");
 
@@ -190,8 +188,6 @@ export const sendPasswordResetOtp = async (req: Request, res: Response): Promise
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutos
 
     otpStore.set(cleanEmail, { otp, expiresAt });
-
-    console.log(`[RESET PASSWORD OTP EMAIL] Correo: ${cleanEmail} | Código: ${otp}`);
 
     await sendOtpEmail(cleanEmail, otp, "reset");
 
