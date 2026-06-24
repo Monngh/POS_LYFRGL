@@ -60,6 +60,7 @@ model User {
   purchaseOrdersReceived PurchaseOrder[]   @relation("purchaseReceivedBy")
   reportAuditLogs        ReportAuditLog[]
   authAuditLogs          AuthAuditLog[]
+  priceAdjustments       PriceAdjustment[]
 }
 
 model Product {
@@ -78,6 +79,8 @@ model Product {
   satUnitKey        String             @default("H87")
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+  categoryId        Int?
+  category          Category?          @relation(fields: [categoryId], references: [id])
   inventories       Inventory[]
   kardexEntries     Kardex[]
   promotionProducts PromotionProduct[]
@@ -86,6 +89,7 @@ model Product {
   productTaxes      ProductTax[]
   purchaseDetails   PurchaseDetail[]   @relation("purchaseDetails")
   suppliers         SupplierProduct[]
+  priceLists        PriceListProduct[]
 }
 
 model Inventory {
@@ -162,6 +166,8 @@ model Customer {
   cfdiUse      String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+  priceListId  Int?
+  priceList    PriceList?    @relation(fields: [priceListId], references: [id])
   sales        Sale[]
   storeCredits StoreCredit[]
 
@@ -490,4 +496,62 @@ model AuthAuditLog {
   branch Branch? @relation(fields: [branchId], references: [id], onUpdate: NoAction)
 
   @@index([role, createdAt])
+}
+
+// ─── CATEGORÍAS ────────────────────────────────────────────
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  color       String?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  products         Product[]
+  priceAdjustments PriceAdjustment[]
+}
+
+// ─── LISTAS DE PRECIOS ─────────────────────────────────────
+model PriceList {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  active      Boolean   @default(true)
+  isDefault   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  products  PriceListProduct[]
+  customers Customer[]
+}
+
+model PriceListProduct {
+  id          Int       @id @default(autoincrement())
+  priceListId Int
+  productId   Int
+  price       Decimal   @db.Decimal(18, 2)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  priceList PriceList @relation(fields: [priceListId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+
+  @@unique([priceListId, productId])
+}
+
+// ─── HISTORIAL DE AJUSTES DE PRECIO ───────────────────────
+model PriceAdjustment {
+  id           Int      @id @default(autoincrement())
+  type         String   // "PERCENTAGE" | "FIXED"
+  value        Decimal  @db.Decimal(18, 2)
+  direction    String   // "INCREASE" | "DECREASE"
+  affectedRows Int
+  notes        String?
+  appliedAt    DateTime @default(now())
+  appliedById  Int
+  categoryId   Int?
+
+  appliedBy User      @relation(fields: [appliedById], references: [id])
+  category  Category? @relation(fields: [categoryId], references: [id])
 }
