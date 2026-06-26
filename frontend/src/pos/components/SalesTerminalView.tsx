@@ -1,5 +1,5 @@
 import React from "react";
-import { Menu, MapPin, User, Clock, LogOut, AlertTriangle } from "lucide-react";
+import { Menu, MapPin, User, Clock, LogOut, AlertTriangle, Banknote, CreditCard, ArrowLeftRight, QrCode, ExternalLink } from "lucide-react";
 import { TICKET_PRINT_MEDIA_STYLES } from "../../shared/utils/ticketEmailDocument.util";
 import { DECIMAL_INPUT_REGEX, handleDecimalInputChange } from "../../shared/utils/decimalInput";
 import { useCashSession } from "../hooks/useCashSession";
@@ -45,23 +45,24 @@ const styles: { [key: string]: React.CSSProperties } = {
   terminalBackBtn: { width: "38px", height: "38px", borderRadius: "6px", border: "1px solid var(--border-strong)", backgroundColor: "var(--surface)", color: "var(--accent-strong)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 2px rgba(15,23,42,0.06)" },
   terminalBody: { flex: 1, padding: "20px", display: "flex", flexDirection: "column" as const, gap: "16px" },
   modalOverlay: { position: "fixed" as const, top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.4)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100 },
-  checkoutModal: { backgroundColor: "var(--surface)", padding: "24px", borderRadius: "8px", width: "420px", border: "1px solid var(--border)", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)", display: "flex", flexDirection: "column" as const, gap: "16px" },
+  checkoutModal: { backgroundColor: "var(--surface)", padding: "24px", borderRadius: "8px", width: "450px", border: "1px solid var(--border)", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)", display: "flex", flexDirection: "column" as const, gap: "16px" },
   checkoutTotalBox: { backgroundColor: "var(--surface-2)", border: "1px solid var(--border)", padding: "16px", borderRadius: "6px", fontSize: "32px", fontWeight: "900", color: "var(--accent-strong)", textAlign: "center" as const, fontFamily: "monospace" },
   inputGroup: { display: "flex", flexDirection: "column" as const, gap: "6px" },
   label: { fontSize: "12px", fontWeight: "700", color: "var(--text-secondary)" },
   inputRow: { display: "flex", border: "1px solid var(--border-strong)", borderRadius: "4px", overflow: "hidden", backgroundColor: "var(--surface)" },
   inputPrefix: { padding: "8px 12px", backgroundColor: "var(--surface-3)", borderRight: "1px solid var(--border-strong)", color: "var(--text-muted)", fontSize: "14px", fontWeight: "700" },
   input: { border: "none", outline: "none", padding: "8px 12px", fontSize: "14px", color: "var(--text)", flex: 1, backgroundColor: "transparent" },
-  paymentMethodsGrid: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" },
-  paymentMethodBtn: { padding: "10px", border: "1px solid var(--border-strong)", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "700", display: "flex", flexDirection: "column" as const, alignItems: "center", gap: "6px", backgroundColor: "var(--surface)", color: "var(--text-muted)", transition: "all 0.15s ease" },
-  paymentMethodBtnActive: { border: "1px solid #3b82f6", backgroundColor: "rgba(59, 130, 246, 0.05)", color: "#1e3a8a" },
+  paymentMethodsGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" },
+  paymentMethodBtn: { padding: "12px 6px", border: "1px solid var(--border-strong)", borderRadius: "6px", cursor: "pointer", fontSize: "11px", fontWeight: "700", display: "flex", flexDirection: "column" as const, alignItems: "center", gap: "6px", backgroundColor: "var(--surface)", color: "var(--text-muted)", transition: "all 0.15s ease" },
+  paymentMethodBtnActive: { border: "1px solid var(--accent)", backgroundColor: "var(--accent-soft)", color: "var(--accent)" },
   cardTypesGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" },
   cardTypeBtn: { padding: "8px", border: "1px solid var(--border-strong)", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "700", textAlign: "center" as const, backgroundColor: "var(--surface)", color: "var(--text-muted)", transition: "all 0.15s ease" },
   cardTypeBtnActive: { border: "1px solid #3b82f6", backgroundColor: "rgba(59, 130, 246, 0.05)", color: "#1e3a8a" },
   checkoutSummary: { borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)", padding: "12px 0", display: "flex", flexDirection: "column" as const, gap: "6px" },
   summaryRow: { display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--text-secondary)" },
-  modalBtn: { border: "none", padding: "12px", borderRadius: "4px", fontWeight: "700", fontSize: "12px", cursor: "pointer", transition: "all 0.15s ease", textTransform: "uppercase" as const },
+  modalBtn: { flex: 1, border: "none", padding: "12px", borderRadius: "6px", fontWeight: "700", fontSize: "12px", cursor: "pointer", transition: "all 0.15s ease", textTransform: "uppercase" as const, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" },
   fieldError: { fontSize: "11px", color: "#dc2626", fontWeight: "700", margin: "2px 0 0 0" },
+  select: { width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid var(--border-strong)", backgroundColor: "var(--surface)", color: "var(--text)", fontSize: "14px", outline: "none", cursor: "pointer" },
 };
 
 export function SalesTerminalView({
@@ -211,18 +212,38 @@ export function SalesTerminalView({
             )}
 
             {/* Selector Métodos Pago */}
-            <div style={styles.payMethodsRow} className="pos-cashier-pay-methods">
-              <button onClick={() => { setPaymentMethod("EFECTIVO"); setCheckoutError(null); setCheckoutFieldErrors({}); }} style={{ ...styles.payMethodBtn, ...(paymentMethod === "EFECTIVO" ? styles.payMethodActive : {}) }}>
-                💵 EFECTIVO
+            <div style={styles.paymentMethodsGrid} className="pos-cashier-pay-methods">
+              <button
+                type="button"
+                onClick={() => { setPaymentMethod("EFECTIVO"); setCheckoutError(null); setCheckoutFieldErrors({}); }}
+                style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "EFECTIVO" ? styles.paymentMethodBtnActive : {}) }}
+              >
+                <Banknote size={20} />
+                <span>EFECTIVO</span>
               </button>
-              <button onClick={() => { setPaymentMethod("TARJETA"); setCheckoutError(null); setCheckoutFieldErrors({}); }} style={{ ...styles.payMethodBtn, ...(paymentMethod === "TARJETA" ? styles.payMethodActive : {}) }}>
-                💳 TARJETA
+              <button
+                type="button"
+                onClick={() => { setPaymentMethod("TARJETA"); setCheckoutError(null); setCheckoutFieldErrors({}); }}
+                style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "TARJETA" ? styles.paymentMethodBtnActive : {}) }}
+              >
+                <CreditCard size={20} />
+                <span>TARJETA</span>
               </button>
-              <button onClick={() => { setPaymentMethod("MIXTO"); setCheckoutError(null); setCheckoutFieldErrors({}); }} style={{ ...styles.payMethodBtn, ...(paymentMethod === "MIXTO" ? styles.payMethodActive : {}) }}>
-                ⚖️ MIXTO
+              <button
+                type="button"
+                onClick={() => { setPaymentMethod("MIXTO"); setCheckoutError(null); setCheckoutFieldErrors({}); }}
+                style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "MIXTO" ? styles.paymentMethodBtnActive : {}) }}
+              >
+                <ArrowLeftRight size={20} />
+                <span>MIXTO</span>
               </button>
-              <button onClick={() => { setPaymentMethod("QR_MERCADOPAGO"); setCheckoutError(null); setCheckoutFieldErrors({}); }} style={{ ...styles.payMethodBtn, ...(paymentMethod === "QR_MERCADOPAGO" ? styles.payMethodActive : {}) }}>
-                📱 QR MP
+              <button
+                type="button"
+                onClick={() => { setPaymentMethod("QR_MERCADOPAGO"); setCheckoutError(null); setCheckoutFieldErrors({}); }}
+                style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "QR_MERCADOPAGO" ? styles.paymentMethodBtnActive : {}) }}
+              >
+                <QrCode size={20} />
+                <span>QR MP</span>
               </button>
             </div>
 
@@ -432,8 +453,9 @@ export function SalesTerminalView({
                 <>
                   <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" width="200" height="200" loading="lazy" />
                   <div style={{ marginTop: "12px" }}>
-                    <a href={qrUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#2563eb", textDecoration: "underline", fontWeight: "600", display: "inline-block", padding: "6px 12px", backgroundColor: "var(--surface-3)", borderRadius: "6px" }}>
-                      🔗 Abrir enlace de pago / Sandbox
+                    <a href={qrUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "var(--accent)", textDecoration: "none", fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 12px", backgroundColor: "var(--surface-3)", borderRadius: "6px", border: "1px solid var(--border-strong)" }}>
+                      <ExternalLink size={14} />
+                      <span>Abrir enlace de pago / Sandbox</span>
                     </a>
                   </div>
                 </>

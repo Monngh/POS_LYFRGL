@@ -99,6 +99,7 @@ const Dashboard: React.FC = () => {
 
   // Modales de Acción Rápida: null | "price-lookup" | "ticket-history" | "cancel-sale" | "close-cash" | "bank-deposit" | "close-options" | "partial-cut-summary" | "partial-cut-receipt"
   const [activeModal, setActiveModal] = useState<string | null>(null);
+  const [pendingGoHome, setPendingGoHome] = useState(false);
 
 
   // Estados para alertas personalizadas y cobro (Fase 3.5)
@@ -1085,7 +1086,13 @@ const Dashboard: React.FC = () => {
           setPendingCancelFieldErrors={setPendingCancelFieldErrors}
           setViewingPendingQrSale={setViewingPendingQrSale}
           addPendingQrSale={addPendingQrSale}
-          onGoHome={() => setView("dashboard")}
+          onGoHome={() => {
+            if (cartData.cart.length > 0) {
+              setPendingGoHome(true);
+            } else {
+              setView("dashboard");
+            }
+          }}
           onLogout={handleLogoutClick}
           onLock={lock}
         />
@@ -1189,6 +1196,7 @@ const Dashboard: React.FC = () => {
       <PartialCutSummaryModal
         isOpen={activeModal === "partial-cut-summary"}
         onBack={() => setActiveModal("close-options")}
+        onClose={() => setActiveModal(null)}
         onSave={handleSavePartialCut}
         partialCutLoading={partialCutLoading}
         sessionStats={sessionStats}
@@ -1451,6 +1459,38 @@ const Dashboard: React.FC = () => {
         onToast={showToast}
         onOpenEmailModal={openTicketEmailModal}
       />
+
+      {/* MODAL: CONFIRMACIÓN DE SALIDA DE VENTA ACTIVA */}
+      {pendingGoHome && (
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+          <div style={{ ...styles.cancelModal, width: "400px" }} className="pos-cashier-modal">
+            <h3 style={styles.modalTitle}>Venta en curso</h3>
+            <p style={{ fontSize: "13px", color: "var(--text-secondary)", margin: "12px 0 20px 0", textAlign: "center", lineHeight: "1.5" }}>
+              Tienes una venta en curso con <strong>{cartData.cart.length} producto(s)</strong>.
+              ¿Deseas salir al menú principal? La venta se guardará automáticamente como borrador.
+            </p>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                type="button"
+                onClick={() => setPendingGoHome(false)}
+                style={{ ...styles.modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
+              >
+                CANCELAR
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingGoHome(false);
+                  setView("dashboard");
+                }}
+                style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
+              >
+                SALIR AL MENÚ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
             {/* MODAL: CONFIRMACIÓN DE BORRADOR DE VENTA */}
       {showDraftConfirm && (

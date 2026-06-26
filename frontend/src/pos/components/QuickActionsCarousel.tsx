@@ -51,29 +51,6 @@ export function QuickActionsCarousel({ onOpenModal, onGoHome }: QuickActionsCaro
     <div className="pos-quick-actions-container">
       <div className="pos-quick-actions-header">
         <h4 className="pos-sidebar-title">ACCESOS RÁPIDOS</h4>
-        <div className="pos-carousel-controls">
-          <button
-            type="button"
-            className="pos-carousel-arrow"
-            onClick={() => setPage((prev) => Math.max(0, prev - 1))}
-            disabled={page === 0}
-            aria-label="Anterior"
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <span className="pos-carousel-indicator">
-            {page + 1}/{totalPages}
-          </span>
-          <button
-            type="button"
-            className="pos-carousel-arrow"
-            onClick={() => setPage((prev) => Math.min(totalPages - 1, prev + 1))}
-            disabled={page === totalPages - 1}
-            aria-label="Siguiente"
-          >
-            <ChevronRight size={16} />
-          </button>
-        </div>
       </div>
 
       <div className="pos-quick-actions-grid">
@@ -95,6 +72,29 @@ export function QuickActionsCarousel({ onOpenModal, onGoHome }: QuickActionsCaro
         })}
       </div>
 
+      <div className="pos-carousel-controls">
+        <button
+          type="button"
+          className="pos-carousel-arrow"
+          onClick={() => setPage((prev) => Math.max(0, prev - 1))}
+          disabled={page === 0}
+          aria-label="Anterior"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <span className="pos-carousel-indicator">
+          {page + 1}/{totalPages}
+        </span>
+        <button
+          type="button"
+          className="pos-carousel-arrow"
+          onClick={() => setPage((prev) => Math.min(totalPages - 1, prev + 1))}
+          disabled={page === totalPages - 1}
+          aria-label="Siguiente"
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
 
       {/* Link to main dashboard */}
       <div className="pos-quick-actions-footer" style={{ marginTop: "4px" }}>
