@@ -1,0 +1,929 @@
+diff --git a/backend/src/controllers/customer.controller.ts b/backend/src/controllers/customer.controller.ts
+index caa1b02..a8ae6bb 100644
+--- a/backend/src/controllers/customer.controller.ts
++++ b/backend/src/controllers/customer.controller.ts
+@@ -11,7 +11,8 @@ import {
+   verifyCustomerExists,
+   resetCustomerPassword as resetCustomerPasswordService,
+ } from "../services/customer.service";
+-import https from "https";
++import nodemailer from "nodemailer";
++import { validateEmail } from "../utils/email.util";
+ 
+ const handleAppError = (error: unknown, res: Response, fallbackMessage: string): void => {
+   if (error instanceof AppError) {
+@@ -26,137 +27,121 @@ const handleAppError = (error: unknown, res: Response, fallbackMessage: string):
+ 
+ export const otpStore = new Map<string, { otp: string; expiresAt: Date }>();
+ 
+-// Función nativa para enviar SMS mediante Twilio
+-export const sendSmsViaTwilio = (phone: string, text: string): Promise<void> => {
+-  return new Promise((resolve) => {
+-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+-    const authToken = process.env.TWILIO_AUTH_TOKEN;
+-    const fromNumber = process.env.TWILIO_FROM_NUMBER;
++// Enviar código de verificación vía correo electrónico (SMTP)
++const sendOtpEmail = async (to: string, otpCode: string, type: "register" | "reset"): Promise<void> => {
++  const host = process.env.SMTP_HOST?.trim();
++  const port = Number(process.env.SMTP_PORT || 587);
++  const user = process.env.SMTP_USER?.trim();
++  const pass = process.env.SMTP_PASS?.trim();
++  const from = process.env.SMTP_FROM?.trim() || user;
+ 
+-    if (!accountSid || !authToken || !fromNumber) {
+-      console.warn("[TWILIO WARNING] Credenciales de Twilio incompletas en el archivo .env.");
+-      return resolve(); // fallback a logs de consola
+-    }
+-
+-    let formattedPhone = phone.trim();
+-    if (!formattedPhone.startsWith("+")) {
+-      formattedPhone = `+52${formattedPhone}`;
+-    }
+-
+-    const postData = new URLSearchParams({
+-      To: formattedPhone,
+-      From: fromNumber,
+-      Body: text,
+-    }).toString();
+-
+-    const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+-
+-    const options = {
+-      hostname: "api.twilio.com",
+-      port: 443,
+-      path: `/2010-04-01/Accounts/${accountSid}/Messages.json`,
+-      method: "POST",
+-      headers: {
+-        "Authorization": `Basic ${auth}`,
+-        "Content-Type": "application/x-www-form-urlencoded",
+-        "Content-Length": Buffer.byteLength(postData),
+-      },
+-    };
+-
+-    const req = https.request(options, (res) => {
+-      let body = "";
+-      res.on("data", (chunk) => {
+-        body += chunk;
+-      });
+-      res.on("end", () => {
+-        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+-          console.log(`[TWILIO SUCCESS] SMS enviado exitosamente a ${formattedPhone}`);
+-        } else {
+-          console.error("[TWILIO ERROR] Status Code:", res.statusCode, "Response:", body);
+-        }
+-        resolve(); // Resolvemos siempre para no bloquear el flujo si falla Twilio en ambiente de desarrollo
+-      });
+-    });
++  if (!host || !user || !pass || !from) {
++    throw new Error("El servicio de correo no está configurado. Contacte al administrador.");
++  }
+ 
+-    req.on("error", (e) => {
+-      console.error("[TWILIO HTTP ERROR]", e);
+-      resolve();
+-    });
++  const transporter = nodemailer.createTransport({
++    host, port,
++    secure: port === 465,
++    auth: { user, pass },
++  });
+ 
+-    req.write(postData);
+-    req.end();
++  const subject = type === "register" 
++    ? "Código de verificación para registro - POS LYFRGL" 
++    : "Restablecer contraseña - POS LYFRGL";
++
++  const introText = type === "register"
++    ? "Tu código de verificación de un solo uso para crear tu cuenta es:"
++    : "Tu código de verificación de un solo uso para restablecer tu contraseña es:";
++
++  await transporter.sendMail({
++    from, to,
++    subject,
++    html: `
++      <!DOCTYPE html>
++      <html>
++        <head><meta charset="utf-8" /></head>
++        <body style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;">
++          <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;padding:24px;">
++            <h2 style="margin:0 0 12px 0;font-size:18px;color:#1e3a8a;">LYFRGL POS — Verificación de Seguridad</h2>
++            <p style="margin:0 0 16px 0;font-size:14px;line-height:1.5;">
++              ${introText}
++            </p>
++            <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:20px;text-align:center;margin:0 0 16px 0;">
++              <span style="font-size:36px;font-weight:900;letter-spacing:12px;color:#1e3a8a;">${otpCode}</span>
++            </div>
++            <p style="margin:0;font-size:13px;color:#64748b;line-height:1.5;">
++              Este código es válido por <strong>5 minutos</strong>. Si no lo solicitaste, ignora este correo.
++            </p>
++          </div>
++          <p style="max-width:520px;margin:12px auto 0;font-size:11px;color:#64748b;text-align:center;">
++            Código generado por LYFRGL POS
++          </p>
++        </body>
++      </html>
++    `,
+   });
+ };
+ 
+ export const sendOtp = async (req: Request, res: Response): Promise<void> => {
+-  const { phone } = req.body;
+-  if (!phone || typeof phone !== "string") {
+-    res.status(400).json({ message: "El teléfono es requerido." });
++  const { email } = req.body;
++  if (!email || typeof email !== "string") {
++    res.status(400).json({ message: "El correo electrónico es requerido." });
+     return;
+   }
+-  const cleanPhone = phone.replace(/\D/g, "");
+-  if (cleanPhone.length !== 10) {
+-    res.status(400).json({ message: "El teléfono debe tener exactamente 10 dígitos." });
++  const cleanEmail = email.trim().toLowerCase();
++  if (!validateEmail(cleanEmail)) {
++    res.status(400).json({ message: "El correo electrónico no tiene un formato válido." });
+     return;
+   }
+ 
+-  // Verificar si ya existe una cuenta registrada con este número
+-  let existing = await prisma.customer.findFirst({
+-    where: {
+-      OR: [
+-        { phone: cleanPhone },
+-        { phone: phone }
+-      ]
+-    }
+-  });
+-
+-  if (!existing) {
+-    const allCustomers = await prisma.customer.findMany({
+-      where: { phone: { not: null } }
++  try {
++    // Verificar si ya existe una cuenta registrada con este correo electrónico
++    const existing = await prisma.customer.findFirst({
++      where: { email: cleanEmail }
+     });
+-    existing = allCustomers.find((c: any) => (c.phone || "").replace(/[^0-9]/g, "") === cleanPhone) || null;
+-  }
+ 
+-  if (existing && existing.passwordHash) {
+-    res.status(400).json({ message: "El número de teléfono ya está registrado con otra cuenta." });
+-    return;
+-  }
++    if (existing && existing.passwordHash) {
++      res.status(400).json({ message: "El correo electrónico ya está registrado con otra cuenta." });
++      return;
++    }
+ 
+-  // Generar OTP de 6 dígitos
+-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+-  const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutos de expiración
++    // Generar OTP de 6 dígitos
++    const otp = Math.floor(100000 + Math.random() * 900000).toString();
++    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutos de expiración
+ 
+-  otpStore.set(cleanPhone, { otp, expiresAt });
++    otpStore.set(cleanEmail, { otp, expiresAt });
+ 
+-  console.log(`[OTP VERIFICACIÓN] Celular: ${cleanPhone} | Código: ${otp}`);
++    console.log(`[OTP VERIFICACIÓN EMAIL] Correo: ${cleanEmail} | Código: ${otp}`);
+ 
+-  // Enviar el SMS real a través de Twilio
+-  const messageText = `Tu codigo de verificacion LYFRGL para autofacturacion es: ${otp}`;
+-  await sendSmsViaTwilio(cleanPhone, messageText);
++    // Enviar el correo electrónico
++    await sendOtpEmail(cleanEmail, otp, "register");
+ 
+-  res.status(200).json({
+-    message: "Código de verificación enviado exitosamente.",
+-    otp,
+-  });
++    res.status(200).json({
++      message: "Código de verificación enviado exitosamente a tu correo electrónico.",
++      otp,
++    });
++  } catch (error) {
++    handleAppError(error, res, "Error al enviar el código de verificación.");
++  }
+ };
+ 
+ export const registerCustomerAccount = async (req: Request, res: Response): Promise<void> => {
+-  const { phone, invoiceNumber, password, email, otp } = req.body;
+-  if (!phone || !invoiceNumber || !password || !otp) {
+-    res.status(400).json({ message: "El teléfono, folio de ticket, contraseña y código OTP son requeridos." });
++  const { email, invoiceNumber, password, otp } = req.body;
++  if (!email || !invoiceNumber || !password || !otp) {
++    res.status(400).json({ message: "El correo electrónico, folio de ticket, contraseña y código OTP son requeridos." });
+     return;
+   }
+ 
+-  const cleanPhone = phone.replace(/\D/g, "");
+-  const record = otpStore.get(cleanPhone);
++  const cleanEmail = email.trim().toLowerCase();
++  const record = otpStore.get(cleanEmail);
+ 
+   if (!record) {
+-    res.status(400).json({ message: "No se ha solicitado ningún código para este número de teléfono." });
++    res.status(400).json({ message: "No se ha solicitado ningún código para este correo electrónico." });
+     return;
+   }
+ 
+   if (record.expiresAt < new Date()) {
+-    otpStore.delete(cleanPhone);
++    otpStore.delete(cleanEmail);
+     res.status(400).json({ message: "El código de verificación ha expirado." });
+     return;
+   }
+@@ -167,12 +152,12 @@ export const registerCustomerAccount = async (req: Request, res: Response): Prom
+   }
+ 
+   // Eliminar OTP al ser verificado con éxito
+-  otpStore.delete(cleanPhone);
++  otpStore.delete(cleanEmail);
+ 
+   try {
+-    await registerCustomer(cleanPhone, invoiceNumber, password, email);
++    await registerCustomer(cleanEmail, invoiceNumber, password);
+     res.status(200).json({
+-      message: "Cuenta registrada exitosamente. Ahora puedes iniciar sesión con tu teléfono y contraseña.",
++      message: "Cuenta registrada exitosamente. Ahora puedes iniciar sesión con tu correo electrónico y contraseña.",
+     });
+   } catch (error) {
+     handleAppError(error, res, "Error al registrar la cuenta.");
+@@ -181,22 +166,22 @@ export const registerCustomerAccount = async (req: Request, res: Response): Prom
+ 
+ // Solicitar OTP para Restablecimiento de Contraseña
+ export const sendPasswordResetOtp = async (req: Request, res: Response): Promise<void> => {
+-  const { phone } = req.body;
+-  if (!phone || typeof phone !== "string") {
+-    res.status(400).json({ message: "El teléfono es requerido." });
++  const { email } = req.body;
++  if (!email || typeof email !== "string") {
++    res.status(400).json({ message: "El correo electrónico es requerido." });
+     return;
+   }
+-  const cleanPhone = phone.replace(/\D/g, "");
+-  if (cleanPhone.length !== 10) {
+-    res.status(400).json({ message: "El teléfono debe tener exactamente 10 dígitos." });
++  const cleanEmail = email.trim().toLowerCase();
++  if (!validateEmail(cleanEmail)) {
++    res.status(400).json({ message: "El correo electrónico no tiene un formato válido." });
+     return;
+   }
+ 
+   try {
+     // Validar que el cliente exista en DB
+-    const exists = await verifyCustomerExists(cleanPhone);
++    const exists = await verifyCustomerExists(cleanEmail);
+     if (!exists) {
+-      res.status(404).json({ message: "No existe ningún cliente registrado con este número de teléfono." });
++      res.status(404).json({ message: "No existe ningún cliente registrado con este correo electrónico." });
+       return;
+     }
+ 
+@@ -204,15 +189,14 @@ export const sendPasswordResetOtp = async (req: Request, res: Response): Promise
+     const otp = Math.floor(100000 + Math.random() * 900000).toString();
+     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutos
+ 
+-    otpStore.set(cleanPhone, { otp, expiresAt });
++    otpStore.set(cleanEmail, { otp, expiresAt });
+ 
+-    console.log(`[RESET PASSWORD OTP] Celular: ${cleanPhone} | Código: ${otp}`);
++    console.log(`[RESET PASSWORD OTP EMAIL] Correo: ${cleanEmail} | Código: ${otp}`);
+ 
+-    const messageText = `Tu codigo de seguridad LYFRGL para restablecer tu contrasena es: ${otp}`;
+-    await sendSmsViaTwilio(cleanPhone, messageText);
++    await sendOtpEmail(cleanEmail, otp, "reset");
+ 
+     res.status(200).json({
+-      message: "Código de verificación enviado exitosamente.",
++      message: "Código de seguridad enviado exitosamente a tu correo electrónico.",
+       otp,
+     });
+   } catch (error) {
+@@ -222,22 +206,22 @@ export const sendPasswordResetOtp = async (req: Request, res: Response): Promise
+ 
+ // Restablecer contraseña con verificación OTP
+ export const resetCustomerPassword = async (req: Request, res: Response): Promise<void> => {
+-  const { phone, otp, newPassword } = req.body;
+-  if (!phone || !otp || !newPassword) {
+-    res.status(400).json({ message: "El teléfono, código OTP y la nueva contraseña son requeridos." });
++  const { email, otp, newPassword } = req.body;
++  if (!email || !otp || !newPassword) {
++    res.status(400).json({ message: "El correo electrónico, código OTP y la nueva contraseña son requeridos." });
+     return;
+   }
+ 
+-  const cleanPhone = phone.replace(/\D/g, "");
+-  const record = otpStore.get(cleanPhone);
++  const cleanEmail = email.trim().toLowerCase();
++  const record = otpStore.get(cleanEmail);
+ 
+   if (!record) {
+-    res.status(400).json({ message: "No se ha solicitado ningún código para este número de teléfono." });
++    res.status(400).json({ message: "No se ha solicitado ningún código para este correo electrónico." });
+     return;
+   }
+ 
+   if (record.expiresAt < new Date()) {
+-    otpStore.delete(cleanPhone);
++    otpStore.delete(cleanEmail);
+     res.status(400).json({ message: "El código de verificación ha expirado." });
+     return;
+   }
+@@ -247,10 +231,10 @@ export const resetCustomerPassword = async (req: Request, res: Response): Promis
+     return;
+   }
+ 
+-  otpStore.delete(cleanPhone);
++  otpStore.delete(cleanEmail);
+ 
+   try {
+-    await resetCustomerPasswordService(cleanPhone, newPassword);
++    await resetCustomerPasswordService(cleanEmail, newPassword);
+     res.status(200).json({
+       message: "Contraseña actualizada exitosamente. Por favor, inicia sesión con tu nueva contraseña.",
+     });
+@@ -260,13 +244,13 @@ export const resetCustomerPassword = async (req: Request, res: Response): Promis
+ };
+ 
+ export const loginCustomer = async (req: Request, res: Response): Promise<void> => {
+-  const { phone, password } = req.body;
+-  if (!phone || !password) {
+-    res.status(400).json({ message: "El teléfono y la contraseña son requeridos." });
++  const { email, password } = req.body;
++  if (!email || !password) {
++    res.status(400).json({ message: "El correo electrónico y la contraseña son requeridos." });
+     return;
+   }
+   try {
+-    const customer = await loginCustomerService(phone, password);
++    const customer = await loginCustomerService(email, password);
+     const token = generateToken({ customerId: customer.id, email: customer.email, role: "CUSTOMER" });
+     res.status(200).json({ message: "Inicio de sesión exitoso.", token, customer });
+   } catch (error) {
+diff --git a/backend/src/services/customer.service.ts b/backend/src/services/customer.service.ts
+index 2100d15..cc1a387 100644
+--- a/backend/src/services/customer.service.ts
++++ b/backend/src/services/customer.service.ts
+@@ -5,10 +5,9 @@ import { AppError } from "../utils/AppError";
+ const CUSTOMER_ACCOUNT_EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+ 
+ export const registerCustomer = async (
+-  phone: string,
++  email: string,
+   invoiceNumber: string,
+-  password: string,
+-  email: string
++  password: string
+ ): Promise<{ autoLogin: boolean; customer: { id: number; name: string; phone: string | null; email: string | null } }> => {
+   const sale = await prisma.sale.findUnique({
+     where: { invoiceNumber },
+@@ -19,33 +18,19 @@ export const registerCustomer = async (
+     throw new AppError("El folio del ticket no es válido.", 404);
+   }
+ 
+-  const inputPhoneNormalized = phone.replace(/[^0-9]/g, "");
+-
+-  // Buscar si ya existe un cliente con este teléfono
+-  let customer = await prisma.customer.findFirst({
+-    where: {
+-      OR: [
+-        { phone: inputPhoneNormalized },
+-        { phone: phone }
+-      ]
+-    }
+-  });
++  const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+ 
+-  if (!customer) {
+-    const allCustomers = await prisma.customer.findMany({
+-      where: { phone: { not: null } }
+-    });
+-    customer = allCustomers.find(c => (c.phone || "").replace(/[^0-9]/g, "") === inputPhoneNormalized) || null;
++  if (!cleanEmail || !CUSTOMER_ACCOUNT_EMAIL_REGEX.test(cleanEmail)) {
++    throw new AppError("El correo electrónico no tiene un formato válido.", 400);
+   }
+ 
+-  const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
++  // Buscar si ya existe un cliente con este correo electrónico
++  let customer = await prisma.customer.findFirst({
++    where: { email: cleanEmail }
++  });
+ 
+   if (customer && customer.passwordHash) {
+-    throw new AppError("El número de teléfono ya está registrado con otra cuenta.", 400);
+-  }
+-
+-  if (!cleanEmail || !CUSTOMER_ACCOUNT_EMAIL_REGEX.test(cleanEmail)) {
+-    throw new AppError("El correo electrónico no tiene un formato válido.", 400);
++    throw new AppError("El correo electrónico ya está registrado con otra cuenta.", 400);
+   }
+ 
+   const hashedPassword = await hashPassword(password);
+@@ -54,14 +39,13 @@ export const registerCustomer = async (
+     // Actualizar cliente existente
+     customer = await prisma.customer.update({
+       where: { id: customer.id },
+-      data: { passwordHash: hashedPassword, email: cleanEmail },
++      data: { passwordHash: hashedPassword },
+     });
+   } else {
+     // Crear nuevo cliente
+     customer = await prisma.customer.create({
+       data: {
+         name: "Cliente registrado",
+-        phone: inputPhoneNormalized,
+         email: cleanEmail,
+         passwordHash: hashedPassword,
+       },
+@@ -85,44 +69,20 @@ export const registerCustomer = async (
+   };
+ };
+ 
+-export const verifyCustomerExists = async (phone: string): Promise<boolean> => {
+-  const phoneNormalized = phone.replace(/[^0-9]/g, "");
+-  let customer = await prisma.customer.findFirst({
+-    where: {
+-      OR: [
+-        { phone: phoneNormalized },
+-        { phone: phone }
+-      ]
+-    }
++export const verifyCustomerExists = async (email: string): Promise<boolean> => {
++  const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
++  const customer = await prisma.customer.findFirst({
++    where: { email: cleanEmail }
+   });
+-
+-  if (!customer) {
+-    const allCustomers = await prisma.customer.findMany({
+-      where: { phone: { not: null } }
+-    });
+-    customer = allCustomers.find(c => (c.phone || "").replace(/[^0-9]/g, "") === phoneNormalized) || null;
+-  }
+   return !!customer;
+ };
+ 
+-export const resetCustomerPassword = async (phone: string, password: string): Promise<void> => {
+-  const phoneNormalized = phone.replace(/[^0-9]/g, "");
+-  let customer = await prisma.customer.findFirst({
+-    where: {
+-      OR: [
+-        { phone: phoneNormalized },
+-        { phone: phone }
+-      ]
+-    }
++export const resetCustomerPassword = async (email: string, password: string): Promise<void> => {
++  const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
++  const customer = await prisma.customer.findFirst({
++    where: { email: cleanEmail }
+   });
+ 
+-  if (!customer) {
+-    const allCustomers = await prisma.customer.findMany({
+-      where: { phone: { not: null } }
+-    });
+-    customer = allCustomers.find(c => (c.phone || "").replace(/[^0-9]/g, "") === phoneNormalized) || null;
+-  }
+-
+   if (!customer) {
+     throw new AppError("No se encontró el cliente para actualizar la contraseña.", 404);
+   }
+@@ -134,20 +94,16 @@ export const resetCustomerPassword = async (phone: string, password: string): Pr
+   });
+ };
+ 
+-export const loginCustomer = async (phone: string, password: string) => {
+-  const phoneNormalized = phone.replace(/[^0-9]/g, "");
++export const loginCustomer = async (email: string, password: string) => {
++  const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+ 
+-  const customers = await prisma.customer.findMany({
+-    where: { passwordHash: { not: null } },
++  const customer = await prisma.customer.findFirst({
++    where: { email: cleanEmail },
+   });
+ 
+-  const customer = customers.find(
+-    (c) => (c.phone || "").replace(/[^0-9]/g, "") === phoneNormalized
+-  );
+-
+   if (!customer || !customer.passwordHash) {
+     throw new AppError(
+-      "El número de teléfono no está registrado o no se ha creado una contraseña para este cliente.",
++      "El correo electrónico no está registrado o no se ha creado una contraseña para este cliente.",
+       401
+     );
+   }
+diff --git a/frontend/src/ecommerce/Autofacturacion.tsx b/frontend/src/ecommerce/Autofacturacion.tsx
+index 33a297b..72ce556 100644
+--- a/frontend/src/ecommerce/Autofacturacion.tsx
++++ b/frontend/src/ecommerce/Autofacturacion.tsx
+@@ -48,8 +48,8 @@ import { API_BASE_URL } from "../shared/services/api";
+ 
+ type InvoiceFormField = "rfc" | "legalName" | "zip" | "email" | "taxSystem" | "cfdiUse";
+ type ProfileFormField = "profileRfc" | "profileLegalName" | "profileZip" | "profileEmail" | "profileAddress" | "profileTaxSystem" | "profileCfdiUse";
+-type LoginFormField = "loginPhone" | "loginPassword";
+-type RegisterFormField = "registerPhone" | "registerEmail" | "registerInvoiceNumber" | "registerPassword" | "registerConfirmPassword";
++type LoginFormField = "loginEmail" | "loginPassword";
++type RegisterFormField = "registerEmail" | "registerInvoiceNumber" | "registerPassword" | "registerConfirmPassword";
+ 
+ const REGIMENES_FISCALES = [
+   { code: "601", label: "601 - General de Ley Personas Morales" },
+@@ -141,12 +141,11 @@ const Autofacturacion: React.FC = () => {
+   const [showRegisterModal, setShowRegisterModal] = useState(false);
+ 
+   // Campos Login
+-  const [loginPhone, setLoginPhone] = useState("");
++  const [loginEmail, setLoginEmail] = useState("");
+   const [loginPassword, setLoginPassword] = useState("");
+   const [loginFieldErrors, setLoginFieldErrors] = useState<FieldErrors<LoginFormField>>({});
+ 
+   // Campos Registro (Reclamar cuenta)
+-  const [registerPhone, setRegisterPhone] = useState("");
+   const [registerEmail, setRegisterEmail] = useState("");
+   const [registerInvoiceNumber, setRegisterInvoiceNumber] = useState("");
+   const [registerPassword, setRegisterPassword] = useState("");
+@@ -160,14 +159,14 @@ const Autofacturacion: React.FC = () => {
+ 
+   // Reset Password Modal States
+   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
+-  const [resetPhone, setResetPhone] = useState("");
++  const [resetEmail, setResetEmail] = useState("");
+   const [resetOtp, setResetOtp] = useState("");
+   const [resetPassword, setResetPassword] = useState("");
+   const [resetConfirmPassword, setResetConfirmPassword] = useState("");
+   const [resetOtpSent, setResetOtpSent] = useState(false);
+   const [resetError, setResetError] = useState("");
+   const [resetOtpError, setResetOtpError] = useState("");
+-  const [resetFieldErrors, setResetFieldErrors] = useState<Partial<Record<"resetPhone" | "resetPassword" | "resetConfirmPassword", string>>>({});
++  const [resetFieldErrors, setResetFieldErrors] = useState<Partial<Record<"resetEmail" | "resetPassword" | "resetConfirmPassword", string>>>({});
+ 
+   // Historial de Facturas
+   const [invoicesList, setInvoicesList] = useState<InvoiceHistoryItem[]>([]);
+@@ -239,12 +238,11 @@ const Autofacturacion: React.FC = () => {
+   });
+ 
+   const validateLoginForm = () => ({
+-    loginPhone: validateMexicanPhone(loginPhone, { required: true }),
++    loginEmail: validateAutofactEmail(loginEmail, { required: true }),
+     loginPassword: normalizeSpaces(loginPassword) ? undefined : "La contrasena es obligatoria.",
+   });
+ 
+   const validateRegisterForm = () => ({
+-    registerPhone: validateMexicanPhone(registerPhone, { required: true }),
+     registerEmail: validateAutofactEmail(registerEmail, { required: true }),
+     registerInvoiceNumber: validateReference(registerInvoiceNumber, "El folio", { required: true, max: 40 }),
+     registerPassword: validatePassword(registerPassword),
+@@ -323,7 +321,7 @@ const Autofacturacion: React.FC = () => {
+ 
+     try {
+       const response = await loginCustomer({
+-        phone: normalizeIntegerInput(loginPhone).slice(0, 10),
++        email: cleanEmailInput(loginEmail),
+         password: loginPassword
+       });
+ 
+@@ -334,14 +332,14 @@ const Autofacturacion: React.FC = () => {
+       setCustomerToken(token);
+       setCustomerInfo(customer);
+       setShowLoginModal(false);
+-      setLoginPhone("");
++      setLoginEmail("");
+       setLoginPassword("");
+       setLoginFieldErrors({});
+ 
+       await fetchProfile(token);
+       showToast("¡Bienvenido de nuevo!", "success");
+     } catch (err: any) {
+-      setError(err.response?.data?.message || "Teléfono o contraseña incorrectos.");
++      setError(err.response?.data?.message || "Correo o contraseña incorrectos.");
+     } finally {
+       setLoading(false);
+     }
+@@ -370,8 +368,7 @@ const Autofacturacion: React.FC = () => {
+ 
+     try {
+       // 2. Enviar OTP
+-      const cleanPhone = normalizeIntegerInput(registerPhone).slice(0, 10);
+-      await sendCustomerOtp(cleanPhone);
++      await sendCustomerOtp(cleanEmailInput(registerEmail));
+       setOtpSent(true);
+       setOtpError("");
+       setError("");
+@@ -398,7 +395,6 @@ const Autofacturacion: React.FC = () => {
+ 
+     try {
+       await registerCustomer({
+-        phone: normalizeIntegerInput(registerPhone).slice(0, 10),
+         email: cleanEmailInput(registerEmail),
+         invoiceNumber: registerInvoiceNumber.trim().toUpperCase(),
+         password: registerPassword,
+@@ -406,10 +402,9 @@ const Autofacturacion: React.FC = () => {
+         otp: registerOtp.trim()
+       });
+ 
+-      const phoneTemp = registerPhone;
++      const emailTemp = registerEmail;
+ 
+       // Limpiar estados
+-      setRegisterPhone("");
+       setRegisterEmail("");
+       setRegisterInvoiceNumber("");
+       setRegisterPassword("");
+@@ -421,7 +416,7 @@ const Autofacturacion: React.FC = () => {
+ 
+       setShowRegisterModal(false);
+       setShowLoginModal(true);
+-      setLoginPhone(phoneTemp);
++      setLoginEmail(emailTemp);
+       showToast("Cuenta registrada exitosamente. Por favor inicie sesión con tus credenciales.", "success");
+     } catch (err: any) {
+       setOtpError(err.response?.data?.message || "Error al registrar cuenta. Verifique sus datos.");
+@@ -436,8 +431,7 @@ const Autofacturacion: React.FC = () => {
+     setOtpError("");
+     setLoading(true);
+     try {
+-      const cleanPhone = normalizeIntegerInput(registerPhone).slice(0, 10);
+-      await sendCustomerOtp(cleanPhone);
++      await sendCustomerOtp(cleanEmailInput(registerEmail));
+       setOtpError("");
+       showToast("Se ha reenviado el código de verificación.", "success");
+     } catch (err: any) {
+@@ -656,11 +650,9 @@ const Autofacturacion: React.FC = () => {
+   const setLoginField = (field: LoginFormField, rawValue: string) => {
+     let next = rawValue;
+     let error: string | undefined;
+-    if (field === "loginPhone") {
+-      next = normalizeIntegerInput(rawValue).slice(0, 10);
+-      if (rawValue !== next) error = "El telefono solo puede contener numeros.";
+-      setLoginPhone(next);
+-      error ||= validateMexicanPhone(next, { required: true });
++    if (field === "loginEmail") {
++      setLoginEmail(next);
++      error = validateAutofactEmail(next, { required: true });
+     } else {
+       setLoginPassword(next);
+       error = normalizeSpaces(next) ? undefined : "La contrasena es obligatoria.";
+@@ -671,12 +663,6 @@ const Autofacturacion: React.FC = () => {
+   const setRegisterField = (field: RegisterFormField, rawValue: string) => {
+     let next = rawValue;
+     let error: string | undefined;
+-    if (field === "registerPhone") {
+-      next = normalizeIntegerInput(rawValue).slice(0, 10);
+-      if (rawValue !== next) error = "El telefono solo puede contener numeros.";
+-      setRegisterPhone(next);
+-      error ||= validateMexicanPhone(next, { required: true });
+-    }
+     if (field === "registerEmail") {
+       setRegisterEmail(next);
+       error = validateAutofactEmail(next, { required: true });
+@@ -706,14 +692,12 @@ const Autofacturacion: React.FC = () => {
+     setRegisterFieldErrors((prev) => ({ ...prev, [field]: error }));
+   };
+ 
+-  const setResetField = (field: "resetPhone" | "resetPassword" | "resetConfirmPassword", rawValue: string) => {
++  const setResetField = (field: "resetEmail" | "resetPassword" | "resetConfirmPassword", rawValue: string) => {
+     let next = rawValue;
+     let error: string | undefined;
+-    if (field === "resetPhone") {
+-      next = normalizeIntegerInput(rawValue).slice(0, 10);
+-      if (rawValue !== next) error = "El telefono solo puede contener numeros.";
+-      setResetPhone(next);
+-      error ||= validateMexicanPhone(next, { required: true });
++    if (field === "resetEmail") {
++      setResetEmail(next);
++      error = validateAutofactEmail(next, { required: true });
+     }
+     if (field === "resetPassword") {
+       setResetPassword(next);
+@@ -741,15 +725,14 @@ const Autofacturacion: React.FC = () => {
+     if (loading) return;
+     setResetError("");
+ 
+-    const phoneError = validateMexicanPhone(resetPhone, { required: true });
+-    setResetFieldErrors({ resetPhone: phoneError });
+-    if (phoneError) return;
++    const emailError = validateAutofactEmail(resetEmail, { required: true });
++    setResetFieldErrors({ resetEmail: emailError });
++    if (emailError) return;
+ 
+     setLoading(true);
+ 
+     try {
+-      const cleanPhone = normalizeIntegerInput(resetPhone).slice(0, 10);
+-      await sendPasswordResetOtp(cleanPhone);
++      await sendPasswordResetOtp(cleanEmailInput(resetEmail));
+       setResetOtpSent(true);
+       setResetOtpError("");
+       setResetError("");
+@@ -785,19 +768,18 @@ const Autofacturacion: React.FC = () => {
+     setLoading(true);
+ 
+     try {
+-      const cleanPhone = normalizeIntegerInput(resetPhone).slice(0, 10);
+       await resetCustomerPassword({
+-        phone: cleanPhone,
++        email: cleanEmailInput(resetEmail),
+         otp: resetOtp.trim(),
+         newPassword: resetPassword
+       });
+ 
+       setShowResetPasswordModal(false);
+       setShowLoginModal(true);
+-      setLoginPhone(resetPhone);
++      setLoginEmail(resetEmail);
+ 
+       // Limpiar estados
+-      setResetPhone("");
++      setResetEmail("");
+       setResetOtp("");
+       setResetPassword("");
+       setResetConfirmPassword("");
+@@ -820,8 +802,7 @@ const Autofacturacion: React.FC = () => {
+     setResetOtpError("");
+     setLoading(true);
+     try {
+-      const cleanPhone = normalizeIntegerInput(resetPhone).slice(0, 10);
+-      await sendPasswordResetOtp(cleanPhone);
++      await sendPasswordResetOtp(cleanEmailInput(resetEmail));
+       setResetOtpError("");
+       showToast("Se ha reenviado el código de seguridad.", "success");
+     } catch (err: any) {
+@@ -1449,25 +1430,24 @@ const Autofacturacion: React.FC = () => {
+           <div style={styles.modalContent}>
+             <button onClick={() => setShowLoginModal(false)} style={styles.closeModalButton}>&times;</button>
+             <h2 style={styles.modalTitle}>Acceso de Clientes</h2>
+-            <p style={styles.modalSubtitle}>Ingresa tu teléfono y contraseña para gestionar tus facturas.</p>
++            <p style={styles.modalSubtitle}>Ingresa tu correo electrónico y contraseña para gestionar tus facturas.</p>
+ 
+             <form onSubmit={handleLogin} style={styles.modalForm} noValidate>
+               <div style={styles.formGroup}>
+-                <label style={styles.label}>Número de Teléfono</label>
++                <label style={styles.label}>Correo Electrónico</label>
+                 <div style={styles.modalInputWrapper}>
+                   <User size={16} style={styles.modalInputIcon} />
+                   <input
+-                    type="text"
++                    type="email"
+                     required
+-                    maxLength={10}
+-                    placeholder="Ej: 5551234567"
+-                    value={loginPhone}
+-                    onChange={(e) => setLoginField("loginPhone", e.target.value)}
+-                    onBlur={() => setLoginFieldErrors((prev) => ({ ...prev, loginPhone: validateMexicanPhone(loginPhone, { required: true }) }))}
+-                    style={{ ...styles.modalInput, ...(loginFieldErrors.loginPhone ? styles.inputError : {}) }}
++                    placeholder="Ej: cliente@correo.com"
++                    value={loginEmail}
++                    onChange={(e) => setLoginField("loginEmail", e.target.value)}
++                    onBlur={() => setLoginFieldErrors((prev) => ({ ...prev, loginEmail: validateAutofactEmail(loginEmail, { required: true }) }))}
++                    style={{ ...styles.modalInput, ...(loginFieldErrors.loginEmail ? styles.inputError : {}) }}
+                   />
+                 </div>
+-                {loginFieldErrors.loginPhone && <p style={styles.fieldError}>{loginFieldErrors.loginPhone}</p>}
++                {loginFieldErrors.loginEmail && <p style={styles.fieldError}>{loginFieldErrors.loginEmail}</p>}
+               </div>
+ 
+               <div style={styles.formGroup}>
+@@ -1528,31 +1508,16 @@ const Autofacturacion: React.FC = () => {
+         <div style={styles.modalOverlay}>
+           <div style={styles.modalContent}>
+             <button onClick={() => { setShowRegisterModal(false); handleBackToRegisterForm(); }} style={styles.closeModalButton}>&times;</button>
+-            <h2 style={styles.modalTitle}>{otpSent ? "Verificar Teléfono" : "Crear Cuenta / Contraseña"}</h2>
++            <h2 style={styles.modalTitle}>{otpSent ? "Verificar Correo" : "Crear Cuenta / Contraseña"}</h2>
+             <p style={styles.modalSubtitle}>
+               {otpSent 
+-                ? `Ingresa el código OTP de 6 dígitos enviado a tu teléfono ${registerPhone}.`
++                ? `Ingresa el código OTP de 6 dígitos enviado a tu correo ${registerEmail}.`
+                 : "Crea tu cuenta asociando una contraseña y tu correo electrónico con cualquier ticket de compra válido."
+               }
+             </p>
+ 
+             {!otpSent ? (
+               <form onSubmit={handleRegister} style={styles.modalForm} noValidate>
+-                <div style={styles.formGroup}>
+-                  <label style={styles.label}>Número de Teléfono *</label>
+-                  <input
+-                    type="text"
+-                    required
+-                    maxLength={10}
+-                    placeholder="Ej: 5551234567"
+-                    value={registerPhone}
+-                    onChange={(e) => setRegisterField("registerPhone", e.target.value)}
+-                    onBlur={() => setRegisterFieldErrors((prev) => ({ ...prev, registerPhone: validateMexicanPhone(registerPhone, { required: true }) }))}
+-                    style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerPhone ? styles.inputError : {}) }}
+-                  />
+-                  {registerFieldErrors.registerPhone && <p style={styles.fieldError}>{registerFieldErrors.registerPhone}</p>}
+-                </div>
+-
+                 <div style={styles.formGroup}>
+                   <label style={styles.label}>Correo Electrónico *</label>
+                   <input
+@@ -1647,8 +1612,6 @@ const Autofacturacion: React.FC = () => {
+                   {otpError && <p style={styles.fieldError}>{otpError}</p>}
+                 </div>
+ 
+-
+-
+                 <button type="submit" disabled={loading} style={styles.primaryButton}>
+                   {loading ? "Verificando..." : "Confirmar y Crear Cuenta"}
+                 </button>
+@@ -1705,26 +1668,25 @@ const Autofacturacion: React.FC = () => {
+             <h2 style={styles.modalTitle}>{resetOtpSent ? "Nueva Contraseña" : "Restablecer Contraseña"}</h2>
+             <p style={styles.modalSubtitle}>
+               {resetOtpSent 
+-                ? `Ingresa el código de 6 dígitos enviado a tu teléfono ${resetPhone} junto con tu nueva contraseña.`
+-                : "Ingresa tu número de teléfono registrado. Te enviaremos un código OTP para validar el cambio."
++                ? `Ingresa el código de 6 dígitos enviado a tu correo ${resetEmail} junto con tu nueva contraseña.`
++                : "Ingresa tu correo electrónico registrado. Te enviaremos un código OTP para validar el cambio."
+               }
+             </p>
+ 
+             {!resetOtpSent ? (
+               <form onSubmit={handleRequestResetOtp} style={styles.modalForm} noValidate>
+                 <div style={styles.formGroup}>
+-                  <label style={styles.label}>Número de Teléfono *</label>
++                  <label style={styles.label}>Correo Electrónico *</label>
+                   <input
+-                    type="text"
++                    type="email"
+                     required
+-                    maxLength={10}
+-                    placeholder="Ej: 5551234567"
+-                    value={resetPhone}
+-                    onChange={(e) => setResetField("resetPhone", e.target.value)}
+-                    onBlur={() => setResetFieldErrors((prev) => ({ ...prev, resetPhone: validateMexicanPhone(resetPhone, { required: true }) }))}
+-                    style={{ ...styles.modalInputNoIcon, ...(resetFieldErrors.resetPhone ? styles.inputError : {}) }}
++                    placeholder="Ej: cliente@correo.com"
++                    value={resetEmail}
++                    onChange={(e) => setResetField("resetEmail", e.target.value)}
++                    onBlur={() => setResetFieldErrors((prev) => ({ ...prev, resetEmail: validateAutofactEmail(resetEmail, { required: true }) }))}
++                    style={{ ...styles.modalInputNoIcon, ...(resetFieldErrors.resetEmail ? styles.inputError : {}) }}
+                   />
+-                  {resetFieldErrors.resetPhone && <p style={styles.fieldError}>{resetFieldErrors.resetPhone}</p>}
++                  {resetFieldErrors.resetEmail && <p style={styles.fieldError}>{resetFieldErrors.resetEmail}</p>}
+                 </div>
+ 
+                 {resetError && (
+@@ -1787,8 +1749,6 @@ const Autofacturacion: React.FC = () => {
+                   {resetFieldErrors.resetConfirmPassword && <p style={styles.fieldError}>{resetFieldErrors.resetConfirmPassword}</p>}
+                 </div>
+ 
+-
+-
+                 {resetError && (
+                   <div style={styles.modalError}>
+                     <AlertTriangle size={16} style={{ marginRight: "6px" }} />
+diff --git a/frontend/src/facturacion/facturacion.service.ts b/frontend/src/facturacion/facturacion.service.ts
+index a98c7c7..c4465a9 100644
+--- a/frontend/src/facturacion/facturacion.service.ts
++++ b/frontend/src/facturacion/facturacion.service.ts
+@@ -30,10 +30,10 @@ export const getCustomerInvoices = (token: string) =>
+   });
+ 
+ /**
+- * Login customer with phone and password
++ * Login customer with email and password
+  */
+ export const loginCustomer = (loginData: {
+-  phone: string;
++  email: string;
+   password: string;
+ }) =>
+   api.post<{ token: string; customerId: number }>('/api/customers/login', loginData);
+@@ -41,14 +41,13 @@ export const loginCustomer = (loginData: {
+ /**
+  * Send customer OTP verification code
+  */
+-export const sendCustomerOtp = (phone: string) =>
+-  api.post<{ message: string; otp?: string }>('/api/customers/otp/send', { phone });
++export const sendCustomerOtp = (email: string) =>
++  api.post<{ message: string; otp?: string }>('/api/customers/otp/send', { email });
+ 
+ /**
+  * Register new customer
+  */
+ export const registerCustomer = (registerData: {
+-  phone: string;
+   email: string;
+   invoiceNumber: string;
+   password: string;
+@@ -63,14 +62,14 @@ export const registerCustomer = (registerData: {
+ /**
+  * Send OTP to verify for password reset
+  */
+-export const sendPasswordResetOtp = (phone: string) =>
+-  api.post<{ message: string; otp?: string }>('/api/customers/password/reset-otp', { phone });
++export const sendPasswordResetOtp = (email: string) =>
++  api.post<{ message: string; otp?: string }>('/api/customers/password/reset-otp', { email });
+ 
+ /**
+  * Reset customer password using verified OTP
+  */
+ export const resetCustomerPassword = (resetData: {
+-  phone: string;
++  email: string;
+   otp: string;
+   newPassword: string;
+ }) =>

@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import "../../pos-cashier-responsive.css";
+import "../../pos-modern.css";
 import { useAuth } from "../../auth";
+import { useLockScreen } from "../hooks/useLockScreen";
+import { LockScreen } from "../components/LockScreen";
 import {
   AperturaView,
   DashboardHomeView,
@@ -18,6 +21,8 @@ import {
   TicketHistoryModal,
   BankDepositModal,
   ReturnsModal,
+  CartAuthorizationModal,
+  TicketEmailModal,
 } from "../components";
 import api from "../../shared/services/api";
 import { useCashSession } from "../hooks/useCashSession";
@@ -54,6 +59,7 @@ interface Product {
   } | null;
 }
 
+
 interface Sale {
   id: number;
   invoiceNumber: string;
@@ -83,6 +89,14 @@ const validateFolioInput = (value: string): string =>
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
+  const {
+    isLocked,
+    lock,
+    unlock,
+    unlockError,
+    unlockLoading,
+    setUnlockError,
+  } = useLockScreen({ user });
 
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -362,73 +376,6 @@ const Dashboard: React.FC = () => {
   // 4. TERMINAL DE VENTAS (Mockup 5)
   // ---------------------------------------------------------------------------
 
-  const renderCartAuthorizationModal = () => {
-    if (activeModal !== "cart-pin-auth") return null;
-
-    return (
-      <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-        <div style={{ ...styles.cancelModal, width: "380px" }} className="pos-cashier-modal">
-          <h3 style={styles.modalTitle}>Autorización de Gerente/Admin</h3>
-          <p style={{ fontSize: "12px", color: "var(--text-muted)", margin: "8px 0 16px 0", textAlign: "center" }}>
-            Esta operación requiere la autorización de un Administrador o Gerente. Ingrese la contraseña o clave de autorización.
-          </p>
-
-          <form onSubmit={handleCartPinSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-            <div style={styles.inputGroup}>
-              <label htmlFor="cartAuthorizationPassword" style={styles.label}>Contraseña de autorización:</label>
-              <input
-                id="cartAuthorizationPassword"
-                autoFocus
-                type="password"
-                required
-                className="input-corporate"
-                placeholder="Contraseña o clave"
-                value={cartPin}
-                onChange={(e) => {
-                  setCartPin(e.target.value);
-                  if (cartPinError) setCartPinError("");
-                }}
-                autoComplete="off"
-              />
-            </div>
-
-            {cartPinError && (
-              <p style={{ fontSize: "12px", color: "#dc2626", fontWeight: "600", margin: 0, textAlign: "center" }}>
-                {cartPinError}
-              </p>
-            )}
-
-            <div style={{ display: "flex", gap: "10px", marginTop: "4px" }} className="pos-cashier-modal-actions">
-              <button
-                type="button"
-                onClick={() => {
-                  setPendingCartAction(null);
-                  setCartPin("");
-                  setCartPinError("");
-                  setActiveModal(null);
-                }}
-                style={{ ...styles.modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
-              >
-                CANCELAR
-              </button>
-              <button
-                type="submit"
-                disabled={cartPinLoading || !cartPin}
-                style={{
-                  ...styles.modalBtn,
-                  backgroundColor: cartPin ? "var(--accent-strong)" : "var(--border-strong)",
-                  color: "white",
-                  cursor: cartPin ? "pointer" : "default",
-                }}
-              >
-                {cartPinLoading ? "Validando..." : "AUTORIZAR"}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  };
 
   // Envío de ticket por correo
   const [ticketEmailModalOpen, setTicketEmailModalOpen] = useState(false);
@@ -454,7 +401,6 @@ const Dashboard: React.FC = () => {
     let discountAmount = 0;
     let finalPrice = originalPrice;
 
-    // Verificar minQuantity para TODOS los tipos de promoción
     const minQty = promo.minQuantity || 1;
 
     if (promo.type === "Percentage") {
@@ -498,6 +444,7 @@ const Dashboard: React.FC = () => {
       promoApplied,
     };
   };
+
 
   // ---------------------------------------------------------------------------
   // 5. MODAL COBRO (Mockup 4)
@@ -572,64 +519,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const renderTicketEmailModal = () => {
-    if (!ticketEmailModalOpen) return null;
-    return (
-      <div style={{ ...styles.modalOverlay, zIndex: 100000 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-        <div
-          style={{ ...styles.cancelModal, width: "420px" }}
-          className="pos-cashier-modal"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <h3 style={styles.modalTitle}>Enviar ticket por correo</h3>
-          <p style={{ fontSize: "13px", color: "var(--text-secondary)", margin: "12px 0 16px 0", lineHeight: 1.5 }}>
-            Ingrese o confirme el correo electrónico del destinatario. El ticket se enviará como PDF adjunto con el mismo diseño de impresión.
-          </p>
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Correo electrónico *</label>
-            <input
-              type="email"
-              className="input-corporate"
-              placeholder="cliente@correo.com"
-              value={ticketEmailInput}
-              onChange={(e) => {
-                setTicketEmailInput(e.target.value);
-                if (ticketEmailError) setTicketEmailError("");
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !ticketEmailLoading) handleSendTicketEmail();
-              }}
-              autoFocus
-            />
-          </div>
-          {ticketEmailError && (
-            <p style={{ fontSize: "12px", color: "#dc2626", fontWeight: 600, marginBottom: "12px" }}>
-              {ticketEmailError}
-            </p>
-          )}
-          <div style={{ display: "flex", gap: "10px" }} className="pos-cashier-modal-actions">
-            <button
-              onClick={() => {
-                setTicketEmailModalOpen(false);
-                setTicketEmailError("");
-              }}
-              style={{ ...styles.modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
-              disabled={ticketEmailLoading}
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleSendTicketEmail}
-              style={{ ...styles.modalBtn, backgroundColor: "#2563eb", color: "white" }}
-              disabled={ticketEmailLoading}
-            >
-              {ticketEmailLoading ? "Enviando..." : "Enviar correo"}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   const renderTicketEmailButton = (emailConfig: {
     subject: string;
@@ -1266,6 +1155,7 @@ const Dashboard: React.FC = () => {
           searchData={searchData}
           customerData={customerData}
           user={user}
+          currentTime={currentTime}
           onOpenModal={setActiveModal}
           onToast={showToast}
           pendingQrSales={pendingQrSales}
@@ -1274,6 +1164,9 @@ const Dashboard: React.FC = () => {
           setPendingCancelFieldErrors={setPendingCancelFieldErrors}
           setViewingPendingQrSale={setViewingPendingQrSale}
           addPendingQrSale={addPendingQrSale}
+          onGoHome={() => setView("dashboard")}
+          onLogout={handleLogoutClick}
+          onLock={lock}
         />
 
         {/* MODAL 3: TICKET IMPRESO/PDF (Mockup 3) */}
@@ -1695,8 +1588,38 @@ const Dashboard: React.FC = () => {
           </div>
         )}
 
-        {renderCartAuthorizationModal()}
-        {renderTicketEmailModal()}
+        <CartAuthorizationModal
+          isOpen={activeModal === "cart-pin-auth"}
+          cartPin={cartPin}
+          cartPinError={cartPinError}
+          cartPinLoading={cartPinLoading}
+          onCartPinChange={(val) => {
+            setCartPin(val);
+            if (cartPinError) setCartPinError("");
+          }}
+          onSubmit={handleCartPinSubmit}
+          onCancel={() => {
+            setPendingCartAction(null);
+            setCartPin("");
+            setCartPinError("");
+            setActiveModal(null);
+          }}
+        />
+        <TicketEmailModal
+          isOpen={ticketEmailModalOpen}
+          emailInput={ticketEmailInput}
+          emailError={ticketEmailError}
+          emailLoading={ticketEmailLoading}
+          onEmailChange={(val) => {
+            setTicketEmailInput(val);
+            if (ticketEmailError) setTicketEmailError("");
+          }}
+          onSend={handleSendTicketEmail}
+          onCancel={() => {
+            setTicketEmailModalOpen(false);
+            setTicketEmailError("");
+          }}
+        />
         {renderDashboardTicketLoading()}
         {renderToast()}
         {forcedCloseModal}
@@ -1743,7 +1666,23 @@ const Dashboard: React.FC = () => {
       />
 
       {/* MODAL: AUTORIZACIÓN PIN GERENTE/ADMIN PARA CARRITO (Fase 3.0) */}
-      {renderCartAuthorizationModal()}
+      <CartAuthorizationModal
+        isOpen={activeModal === "cart-pin-auth"}
+        cartPin={cartPin}
+        cartPinError={cartPinError}
+        cartPinLoading={cartPinLoading}
+        onCartPinChange={(val) => {
+          setCartPin(val);
+          if (cartPinError) setCartPinError("");
+        }}
+        onSubmit={handleCartPinSubmit}
+        onCancel={() => {
+          setPendingCartAction(null);
+          setCartPin("");
+          setCartPinError("");
+          setActiveModal(null);
+        }}
+      />
 
       {/* MODAL 2: SOLICITAR CANCELACIÓN CON PIN DE ADMIN (Mockup 1) */}
       <CancelSaleModal
@@ -2095,9 +2034,32 @@ const Dashboard: React.FC = () => {
         </div>
       )}
       {forcedCloseModal}
-      {renderTicketEmailModal()}
+      <TicketEmailModal
+        isOpen={ticketEmailModalOpen}
+        emailInput={ticketEmailInput}
+        emailError={ticketEmailError}
+        emailLoading={ticketEmailLoading}
+        onEmailChange={(val) => {
+          setTicketEmailInput(val);
+          if (ticketEmailError) setTicketEmailError("");
+        }}
+        onSend={handleSendTicketEmail}
+        onCancel={() => {
+          setTicketEmailModalOpen(false);
+          setTicketEmailError("");
+        }}
+      />
       {renderDashboardTicketLoading()}
       {renderToast()}
+      {isLocked && (
+        <LockScreen
+          user={user}
+          unlock={unlock}
+          unlockError={unlockError}
+          setUnlockError={setUnlockError}
+          unlockLoading={unlockLoading}
+        />
+      )}
     </>
   );
 };
