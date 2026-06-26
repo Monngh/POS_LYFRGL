@@ -95,25 +95,6 @@ export function QuickActionsCarousel({ onOpenModal, onGoHome }: QuickActionsCaro
         })}
       </div>
 
-      <div className="pos-quick-actions-footer">
-        {page === 0 ? (
-          <button
-            type="button"
-            className="pos-carousel-link-btn"
-            onClick={() => setPage(1)}
-          >
-            Ver más acciones &gt;
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="pos-carousel-link-btn"
-            onClick={() => setPage(0)}
-          >
-            &lt; Regresar
-          </button>
-        )}
-      </div>
 
       {/* Link to main dashboard */}
       <div className="pos-quick-actions-footer" style={{ marginTop: "4px" }}>
