@@ -46,6 +46,7 @@ Thumbs.db
 .agents/
 .claude/skills/
 skills-lock.json
+testsprite_tests/
 
 # Referencias locales
 contexto/
