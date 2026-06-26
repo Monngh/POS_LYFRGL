@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowLeft, Store, AlertTriangle } from "lucide-react";
+import { Menu, MapPin, User, Clock, LogOut, AlertTriangle, Home, Lock } from "lucide-react";
 import { TICKET_PRINT_MEDIA_STYLES } from "../../shared/utils/ticketEmailDocument.util";
 import { DECIMAL_INPUT_REGEX, handleDecimalInputChange } from "../../shared/utils/decimalInput";
 import { useCashSession } from "../hooks/useCashSession";
@@ -12,6 +12,10 @@ import { CheckoutPanel } from "./CheckoutPanel";
 
 interface SalesTerminalUser {
   name: string;
+  branch?: {
+    id?: number;
+    name: string;
+  };
 }
 
 interface SalesTerminalViewProps {
@@ -20,6 +24,7 @@ interface SalesTerminalViewProps {
   searchData: ReturnType<typeof usePosSearch>;
   customerData: ReturnType<typeof usePosCustomer>;
   user: SalesTerminalUser | null;
+  currentTime?: Date;
   onOpenModal: (modal: string) => void;
   onToast: (msg: string, type?: "error" | "success" | "info") => void;
   pendingQrSales: any[];
@@ -28,6 +33,9 @@ interface SalesTerminalViewProps {
   setPendingCancelFieldErrors: (errors: Partial<Record<"pin" | "reason", string>>) => void;
   setViewingPendingQrSale: (sale: any) => void;
   addPendingQrSale: () => void;
+  onGoHome?: () => void;
+  onLogout?: () => void;
+  onLock?: () => void;
 }
 
 const styles: { [key: string]: React.CSSProperties } = {
@@ -49,11 +57,12 @@ const styles: { [key: string]: React.CSSProperties } = {
 };
 
 export function SalesTerminalView({
-  sessionData,
+  sessionData: _sessionData,
   cartData,
   searchData,
   customerData,
   user,
+  currentTime,
   onToast,
   pendingQrSales,
   pendingQrChecking,
@@ -61,9 +70,10 @@ export function SalesTerminalView({
   setPendingCancelFieldErrors,
   setViewingPendingQrSale,
   addPendingQrSale,
+  onGoHome,
+  onLogout,
+  onLock,
 }: SalesTerminalViewProps) {
-  const { sessionStats } = sessionData;
-
   const {
     checkoutModalOpen, setCheckoutModalOpen,
     checkoutLoading, checkoutError, checkoutFieldErrors, setCheckoutFieldErrors,
@@ -78,7 +88,6 @@ export function SalesTerminalView({
     qrModalOpen, qrUrl, qrReference, qrChecking,
     checkQrStatus,
     setCheckoutError,
-    handleCancelCurrentPurchase,
     handleCheckoutSubmit,
   } = cartData;
 
@@ -90,30 +99,75 @@ export function SalesTerminalView({
     handleRegisterCustomerSubmit, setNewCustomerFieldErrors,
   } = customerData;
 
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
+
+  const formattedTime = currentTime
+    ? currentTime.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", hour12: true })
+    : "";
+
   return (
     <div style={styles.appContainer} className="pos-cashier-app">
       <style>{TICKET_PRINT_MEDIA_STYLES}</style>
 
-      {/* Header Terminal */}
-      <header style={styles.terminalHeader} className="pos-cashier-terminal-header">
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+      {/* Header Terminal — nuevo diseño de Fer */}
+      <header className="pos-terminal-navbar">
+        <div className="pos-terminal-navbar-left">
           <button
             type="button"
-            onClick={handleCancelCurrentPurchase}
-            className="active-tap"
-            style={styles.terminalBackBtn}
-            title="Regresar al menu principal"
-            aria-label="Regresar al menu principal del cajero"
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className="pos-terminal-menu-btn active-tap"
+            title={isSidebarCollapsed ? "Mostrar panel" : "Ocultar panel"}
+            aria-label="Alternar panel lateral"
           >
-            <ArrowLeft size={20} />
+            <Menu size={20} />
           </button>
-          <Store size={22} color="#1e3a8a" />
-          <h2 style={{ fontSize: "18px", fontWeight: "800", color: "var(--text)" }}>
-            Venta - Ticket #{(sessionStats?.salesCount !== undefined) ? sessionStats.salesCount + 1 : 1}
-          </h2>
+          <span className="pos-terminal-brand-text">POS - Punto de Venta</span>
         </div>
-        <div style={{ fontSize: "14px", fontWeight: "600", color: "var(--text-secondary)" }}>
-          Cajero: <span style={{ color: "var(--accent-strong)" }}>{user?.name.split(" ")[0]}</span>
+
+        <div className="pos-terminal-navbar-right">
+          <div className="pos-terminal-chip">
+            <MapPin size={14} />
+            <span>{user?.branch?.name || "Sucursal"}</span>
+          </div>
+          <div className="pos-terminal-chip">
+            <User size={14} />
+            <span>Cajero: {user?.name || "—"}</span>
+          </div>
+          <div className="pos-terminal-chip clock">
+            <Clock size={14} />
+            <span>{formattedTime}</span>
+          </div>
+          {onGoHome && (
+            <button
+              type="button"
+              onClick={onGoHome}
+              className="pos-terminal-home-btn active-tap"
+              title="Ir al inicio"
+              aria-label="Ir al dashboard"
+            >
+              <Home size={16} />
+            </button>
+          )}
+          {onLock && (
+            <button
+              type="button"
+              onClick={onLock}
+              className="pos-terminal-lock-btn active-tap"
+              title="Bloquear pantalla"
+              aria-label="Bloquear sesión"
+            >
+              <Lock size={16} />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onLogout}
+            className="pos-terminal-logout-btn active-tap"
+            title="Cerrar Sesión"
+            aria-label="Cerrar sesión del cajero"
+          >
+            <LogOut size={16} />
+          </button>
         </div>
       </header>
 

@@ -14,6 +14,7 @@ import {
   MoreVertical,
   Sun,
   Moon,
+  ShoppingCart,
 } from "lucide-react";
 import { TICKET_PRINT_MEDIA_STYLES } from "../../shared/utils/ticketEmailDocument.util";
 import api from "../../shared/services/api";
@@ -62,6 +63,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   navBrand: { display: "flex", alignItems: "center", gap: "10px" },
   brandText: { color: "#ffffff", fontWeight: "800", fontSize: "16px", letterSpacing: "-0.3px" },
   logoutBtn: { backgroundColor: "transparent", border: "1px solid #93c5fd", color: "#ffffff", padding: "6px 12px", borderRadius: "4px", fontSize: "13px", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", transition: "all 0.15s ease" },
+  goToSalesBtn: { backgroundColor: "rgba(255, 255, 255, 0.15)", border: "1px solid rgba(255, 255, 255, 0.3)", color: "#ffffff", padding: "6px 12px", borderRadius: "4px", fontSize: "13px", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", transition: "all 0.15s ease" },
   themeBtn: { backgroundColor: "transparent", border: "1px solid #93c5fd", color: "#ffffff", width: "34px", height: "34px", borderRadius: "4px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s ease" },
   navActions: { display: "flex", alignItems: "center", gap: "10px" },
   mainLayout: { display: "flex", flex: 1 },
@@ -128,6 +130,9 @@ export function DashboardHomeView({
             aria-label={theme === "dark" ? "Activar modo claro" : "Activar modo oscuro"}
           >
             {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          <button onClick={onNuevaVenta} style={styles.goToSalesBtn} className="active-tap pos-cashier-nav-sales-btn">
+            <ShoppingCart size={16} /> Ir a Ventas
           </button>
           <button onClick={onLogout} style={styles.logoutBtn} className="active-tap pos-cashier-logout-btn">
             <LogOut size={16} /> Cerrar Sesión
