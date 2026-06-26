@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowLeft, Store, AlertTriangle } from "lucide-react";
+import { Menu, MapPin, User, Clock, LogOut, AlertTriangle } from "lucide-react";
 import { TICKET_PRINT_MEDIA_STYLES } from "../../shared/utils/ticketEmailDocument.util";
 import { DECIMAL_INPUT_REGEX, handleDecimalInputChange } from "../../shared/utils/decimalInput";
 import { useCashSession } from "../hooks/useCashSession";
@@ -9,9 +9,14 @@ import { usePosCustomer } from "../hooks/usePosCustomer";
 import { ProductSearchPanel } from "./ProductSearchPanel";
 import { CartPanel } from "./CartPanel";
 import { CheckoutPanel } from "./CheckoutPanel";
+import { SalesLayoutView } from "./SalesLayoutView";
 
 interface SalesTerminalUser {
   name: string;
+  branch?: {
+    id?: number;
+    name: string;
+  };
 }
 
 interface SalesTerminalViewProps {
@@ -20,6 +25,7 @@ interface SalesTerminalViewProps {
   searchData: ReturnType<typeof usePosSearch>;
   customerData: ReturnType<typeof usePosCustomer>;
   user: SalesTerminalUser | null;
+  currentTime: Date;
   onOpenModal: (modal: string) => void;
   onToast: (msg: string, type?: "error" | "success" | "info") => void;
   pendingQrSales: any[];
@@ -28,6 +34,9 @@ interface SalesTerminalViewProps {
   setPendingCancelFieldErrors: (errors: Partial<Record<"pin" | "reason", string>>) => void;
   setViewingPendingQrSale: (sale: any) => void;
   addPendingQrSale: () => void;
+  onGoHome: () => void;
+  onLogout: () => void;
+  onLock: () => void;
 }
 
 const styles: { [key: string]: React.CSSProperties } = {
@@ -36,16 +45,23 @@ const styles: { [key: string]: React.CSSProperties } = {
   terminalBackBtn: { width: "38px", height: "38px", borderRadius: "6px", border: "1px solid var(--border-strong)", backgroundColor: "var(--surface)", color: "var(--accent-strong)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 2px rgba(15,23,42,0.06)" },
   terminalBody: { flex: 1, padding: "20px", display: "flex", flexDirection: "column" as const, gap: "16px" },
   modalOverlay: { position: "fixed" as const, top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.4)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100 },
-  checkoutModal: { width: "420px", backgroundColor: "var(--surface)", borderRadius: "12px", padding: "28px", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)", display: "flex", flexDirection: "column" as const, gap: "16px" },
-  checkoutTotalBox: { backgroundColor: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "8px", padding: "16px", fontSize: "36px", fontWeight: "800", color: "#dc2626", textAlign: "center" as const },
-  payMethodsRow: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" },
-  payMethodBtn: { padding: "12px 6px", borderRadius: "6px", border: "1px solid var(--border-strong)", backgroundColor: "var(--surface)", fontSize: "11px", fontWeight: "700", cursor: "pointer", textAlign: "center" as const },
-  payMethodActive: { border: "1px solid #2563eb", backgroundColor: "#eff6ff", color: "#1d4ed8" },
-  modalBtn: { flex: 1, padding: "10px", borderRadius: "6px", border: "none", fontWeight: "700", cursor: "pointer", textAlign: "center" as const },
-  inputGroup: { display: "flex", flexDirection: "column" as const, gap: "6px", textAlign: "left" as const },
-  label: { fontSize: "11px", fontWeight: "700", color: "var(--text-secondary)", textTransform: "uppercase" as const, letterSpacing: "0.5px" },
-  select: { width: "100%", padding: "10px 12px", borderRadius: "6px", border: "1px solid var(--border-strong)", fontSize: "14px", backgroundColor: "var(--surface)", cursor: "pointer" },
-  fieldError: { color: "#b91c1c", fontSize: "12px", fontWeight: "600", marginTop: "5px", marginBottom: 0 },
+  checkoutModal: { backgroundColor: "var(--surface)", padding: "24px", borderRadius: "8px", width: "420px", border: "1px solid var(--border)", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)", display: "flex", flexDirection: "column" as const, gap: "16px" },
+  checkoutTotalBox: { backgroundColor: "var(--surface-2)", border: "1px solid var(--border)", padding: "16px", borderRadius: "6px", fontSize: "32px", fontWeight: "900", color: "var(--accent-strong)", textAlign: "center" as const, fontFamily: "monospace" },
+  inputGroup: { display: "flex", flexDirection: "column" as const, gap: "6px" },
+  label: { fontSize: "12px", fontWeight: "700", color: "var(--text-secondary)" },
+  inputRow: { display: "flex", border: "1px solid var(--border-strong)", borderRadius: "4px", overflow: "hidden", backgroundColor: "var(--surface)" },
+  inputPrefix: { padding: "8px 12px", backgroundColor: "var(--surface-3)", borderRight: "1px solid var(--border-strong)", color: "var(--text-muted)", fontSize: "14px", fontWeight: "700" },
+  input: { border: "none", outline: "none", padding: "8px 12px", fontSize: "14px", color: "var(--text)", flex: 1, backgroundColor: "transparent" },
+  paymentMethodsGrid: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" },
+  paymentMethodBtn: { padding: "10px", border: "1px solid var(--border-strong)", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "700", display: "flex", flexDirection: "column" as const, alignItems: "center", gap: "6px", backgroundColor: "var(--surface)", color: "var(--text-muted)", transition: "all 0.15s ease" },
+  paymentMethodBtnActive: { border: "1px solid #3b82f6", backgroundColor: "rgba(59, 130, 246, 0.05)", color: "#1e3a8a" },
+  cardTypesGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" },
+  cardTypeBtn: { padding: "8px", border: "1px solid var(--border-strong)", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "700", textAlign: "center" as const, backgroundColor: "var(--surface)", color: "var(--text-muted)", transition: "all 0.15s ease" },
+  cardTypeBtnActive: { border: "1px solid #3b82f6", backgroundColor: "rgba(59, 130, 246, 0.05)", color: "#1e3a8a" },
+  checkoutSummary: { borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)", padding: "12px 0", display: "flex", flexDirection: "column" as const, gap: "6px" },
+  summaryRow: { display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--text-secondary)" },
+  modalBtn: { border: "none", padding: "12px", borderRadius: "4px", fontWeight: "700", fontSize: "12px", cursor: "pointer", transition: "all 0.15s ease", textTransform: "uppercase" as const },
+  fieldError: { fontSize: "11px", color: "#dc2626", fontWeight: "700", margin: "2px 0 0 0" },
 };
 
 export function SalesTerminalView({
@@ -54,6 +70,8 @@ export function SalesTerminalView({
   searchData,
   customerData,
   user,
+  currentTime,
+  onOpenModal,
   onToast,
   pendingQrSales,
   pendingQrChecking,
@@ -61,8 +79,11 @@ export function SalesTerminalView({
   setPendingCancelFieldErrors,
   setViewingPendingQrSale,
   addPendingQrSale,
+  onGoHome,
+  onLogout,
+  onLock,
 }: SalesTerminalViewProps) {
-  const { sessionStats } = sessionData;
+  const { session, sessionStats } = sessionData;
 
   const {
     checkoutModalOpen, setCheckoutModalOpen,
@@ -78,7 +99,6 @@ export function SalesTerminalView({
     qrModalOpen, qrUrl, qrReference, qrChecking,
     checkQrStatus,
     setCheckoutError,
-    handleCancelCurrentPurchase,
     handleCheckoutSubmit,
   } = cartData;
 
@@ -90,35 +110,68 @@ export function SalesTerminalView({
     handleRegisterCustomerSubmit, setNewCustomerFieldErrors,
   } = customerData;
 
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
+
+  const formattedTime = currentTime.toLocaleTimeString("es-MX", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+
   return (
     <div style={styles.appContainer} className="pos-cashier-app">
       <style>{TICKET_PRINT_MEDIA_STYLES}</style>
 
-      {/* Header Terminal */}
-      <header style={styles.terminalHeader} className="pos-cashier-terminal-header">
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+      {/* Header Terminal — Navy gradient navbar matching reference design */}
+      <header className="pos-terminal-navbar">
+        <div className="pos-terminal-navbar-left">
           <button
             type="button"
-            onClick={handleCancelCurrentPurchase}
-            className="active-tap"
-            style={styles.terminalBackBtn}
-            title="Regresar al menu principal"
-            aria-label="Regresar al menu principal del cajero"
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className="pos-terminal-menu-btn active-tap"
+            title={isSidebarCollapsed ? "Mostrar panel" : "Ocultar panel"}
+            aria-label="Alternar panel lateral"
           >
-            <ArrowLeft size={20} />
+            <Menu size={20} />
           </button>
-          <Store size={22} color="#1e3a8a" />
-          <h2 style={{ fontSize: "18px", fontWeight: "800", color: "var(--text)" }}>
-            Venta - Ticket #{(sessionStats?.salesCount !== undefined) ? sessionStats.salesCount + 1 : 1}
-          </h2>
+          <span className="pos-terminal-brand-text">POS - Punto de Venta</span>
         </div>
-        <div style={{ fontSize: "14px", fontWeight: "600", color: "var(--text-secondary)" }}>
-          Cajero: <span style={{ color: "var(--accent-strong)" }}>{user?.name.split(" ")[0]}</span>
+
+        <div className="pos-terminal-navbar-right">
+          <div className="pos-terminal-chip">
+            <MapPin size={14} />
+            <span>{user?.branch?.name || "Sucursal"}</span>
+          </div>
+          <div className="pos-terminal-chip">
+            <User size={14} />
+            <span>Cajero: {user?.name || "—"}</span>
+          </div>
+          <div className="pos-terminal-chip clock">
+            <Clock size={14} />
+            <span>{formattedTime}</span>
+          </div>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="pos-terminal-logout-btn active-tap"
+            title="Cerrar Sesión"
+            aria-label="Cerrar sesión del cajero"
+          >
+            <LogOut size={16} />
+          </button>
         </div>
       </header>
 
       {/* Cuerpo Terminal */}
-      <div style={styles.terminalBody} className="pos-cashier-terminal-body">
+      <SalesLayoutView
+        session={session}
+        sessionStats={sessionStats}
+        onOpenModal={onOpenModal}
+        onLock={onLock}
+        onGoHome={onGoHome}
+        isSidebarCollapsed={isSidebarCollapsed}
+        setIsSidebarCollapsed={setIsSidebarCollapsed}
+      >
         <ProductSearchPanel
           searchData={searchData}
           customerData={customerData}
@@ -139,7 +192,7 @@ export function SalesTerminalView({
             onOpenCheckout={() => setCheckoutModalOpen(true)}
           />
         </div>
-      </div>
+      </SalesLayoutView>
 
       {/* COBRO MODAL */}
       {checkoutModalOpen && (

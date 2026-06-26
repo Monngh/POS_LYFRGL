@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import "../../pos-cashier-responsive.css";
+import "../../pos-modern.css";
 import { useAuth } from "../../auth";
+import { useLockScreen } from "../hooks/useLockScreen";
+import { LockScreen } from "../components/LockScreen";
 import {
   AperturaView,
   DashboardHomeView,
@@ -18,6 +21,8 @@ import {
   TicketHistoryModal,
   BankDepositModal,
   ReturnsModal,
+  CartAuthorizationModal,
+  TicketEmailModal,
 } from "../components";
 import api from "../../shared/services/api";
 import { useCashSession } from "../hooks/useCashSession";
@@ -32,27 +37,6 @@ import {
   validateReference,
 } from "../../shared/utils/formValidation";
 import { Printer, AlertTriangle, Mail } from "lucide-react";
-
-interface Product {
-  id: number;
-  sku: string;
-  barcode: string;
-  name: string;
-  description: string;
-  costPrice: number;
-  sellPrice: number;
-  stock: number;
-  minStock: number;
-  activePromotion?: {
-    id: number;
-    name: string;
-    type: string;
-    value: number | null;
-    minQuantity: number | null;
-    payQuantity: number | null;
-    specialPrice: number | null;
-  } | null;
-}
 
 interface Sale {
   id: number;
@@ -83,6 +67,14 @@ const validateFolioInput = (value: string): string =>
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
+  const {
+    isLocked,
+    lock,
+    unlock,
+    unlockError,
+    unlockLoading,
+    setUnlockError,
+  } = useLockScreen({ user });
 
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -94,7 +86,7 @@ const Dashboard: React.FC = () => {
   }, []);
   
   // Vistas del Cajero: "dashboard" | "apertura" | "sales-terminal"
-  const [view, setView] = useState<"dashboard" | "apertura" | "sales-terminal">("dashboard");
+  const [view, setView] = useState<"dashboard" | "apertura" | "sales-terminal">("sales-terminal");
   // Bloqueo: el turno de caja del usuario está abierto en otro equipo
   const [cajaLockedByOtherDevice, setCajaLockedByOtherDevice] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -362,73 +354,7 @@ const Dashboard: React.FC = () => {
   // 4. TERMINAL DE VENTAS (Mockup 5)
   // ---------------------------------------------------------------------------
 
-  const renderCartAuthorizationModal = () => {
-    if (activeModal !== "cart-pin-auth") return null;
-
-    return (
-      <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-        <div style={{ ...styles.cancelModal, width: "380px" }} className="pos-cashier-modal">
-          <h3 style={styles.modalTitle}>Autorización de Gerente/Admin</h3>
-          <p style={{ fontSize: "12px", color: "var(--text-muted)", margin: "8px 0 16px 0", textAlign: "center" }}>
-            Esta operación requiere la autorización de un Administrador o Gerente. Ingrese la contraseña o clave de autorización.
-          </p>
-
-          <form onSubmit={handleCartPinSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-            <div style={styles.inputGroup}>
-              <label htmlFor="cartAuthorizationPassword" style={styles.label}>Contraseña de autorización:</label>
-              <input
-                id="cartAuthorizationPassword"
-                autoFocus
-                type="password"
-                required
-                className="input-corporate"
-                placeholder="Contraseña o clave"
-                value={cartPin}
-                onChange={(e) => {
-                  setCartPin(e.target.value);
-                  if (cartPinError) setCartPinError("");
-                }}
-                autoComplete="off"
-              />
-            </div>
-
-            {cartPinError && (
-              <p style={{ fontSize: "12px", color: "#dc2626", fontWeight: "600", margin: 0, textAlign: "center" }}>
-                {cartPinError}
-              </p>
-            )}
-
-            <div style={{ display: "flex", gap: "10px", marginTop: "4px" }} className="pos-cashier-modal-actions">
-              <button
-                type="button"
-                onClick={() => {
-                  setPendingCartAction(null);
-                  setCartPin("");
-                  setCartPinError("");
-                  setActiveModal(null);
-                }}
-                style={{ ...styles.modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
-              >
-                CANCELAR
-              </button>
-              <button
-                type="submit"
-                disabled={cartPinLoading || !cartPin}
-                style={{
-                  ...styles.modalBtn,
-                  backgroundColor: cartPin ? "var(--accent-strong)" : "var(--border-strong)",
-                  color: "white",
-                  cursor: cartPin ? "pointer" : "default",
-                }}
-              >
-                {cartPinLoading ? "Validando..." : "AUTORIZAR"}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  };
+  // renderCartAuthorizationModal removed
 
   // Envío de ticket por correo
   const [ticketEmailModalOpen, setTicketEmailModalOpen] = useState(false);
@@ -439,65 +365,6 @@ const Dashboard: React.FC = () => {
   const [ticketEmailElementId, setTicketEmailElementId] = useState<string | null>(null);
   const [ticketEmailHtml, setTicketEmailHtml] = useState<string | null>(null);
 
-
-  // Función auxiliar para calcular las promociones de una línea del carrito
-  const calculateItemPromotion = (item: { product: Product; quantity: number }) => {
-    const promo = item.product.activePromotion;
-    const originalPrice = item.product.sellPrice;
-    const quantity = item.quantity;
-    const subtotalOriginal = originalPrice * quantity;
-
-    if (!promo) {
-      return { finalPrice: originalPrice, discountAmount: 0, label: "" };
-    }
-
-    let discountAmount = 0;
-    let finalPrice = originalPrice;
-
-    // Verificar minQuantity para TODOS los tipos de promoción
-    const minQty = promo.minQuantity || 1;
-
-    if (promo.type === "Percentage") {
-      if (quantity >= minQty) {
-        const val = promo.value || 0;
-        const discountPerUnit = originalPrice * (val / 100);
-        discountAmount = discountPerUnit * quantity;
-        finalPrice = originalPrice - discountPerUnit;
-      }
-    } else if (promo.type === "FixedAmount") {
-      if (quantity >= minQty) {
-        const val = promo.value || 0;
-        discountAmount = val * quantity;
-        finalPrice = Math.max(0, originalPrice - val);
-      }
-    } else if (promo.type === "BuyXPayY") {
-      const x = promo.minQuantity || 1;
-      const y = promo.payQuantity || 1;
-      if (quantity >= x) {
-        const groups = Math.floor(quantity / x);
-        const remainder = quantity % x;
-        const paidUnits = (groups * y) + remainder;
-        const lineCost = paidUnits * originalPrice;
-        discountAmount = subtotalOriginal - lineCost;
-        finalPrice = lineCost / quantity;
-      }
-    } else if (promo.type === "SpecialPrice") {
-      const special = promo.specialPrice || originalPrice;
-      if (quantity >= minQty) {
-        finalPrice = special;
-        discountAmount = (originalPrice - special) * quantity;
-      }
-    }
-
-    const promoApplied = discountAmount > 0;
-
-    return {
-      finalPrice,
-      discountAmount,
-      label: promoApplied ? promo.name : "",
-      promoApplied,
-    };
-  };
 
   // ---------------------------------------------------------------------------
   // 5. MODAL COBRO (Mockup 4)
@@ -572,64 +439,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const renderTicketEmailModal = () => {
-    if (!ticketEmailModalOpen) return null;
-    return (
-      <div style={{ ...styles.modalOverlay, zIndex: 100000 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-        <div
-          style={{ ...styles.cancelModal, width: "420px" }}
-          className="pos-cashier-modal"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <h3 style={styles.modalTitle}>Enviar ticket por correo</h3>
-          <p style={{ fontSize: "13px", color: "var(--text-secondary)", margin: "12px 0 16px 0", lineHeight: 1.5 }}>
-            Ingrese o confirme el correo electrónico del destinatario. El ticket se enviará como PDF adjunto con el mismo diseño de impresión.
-          </p>
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Correo electrónico *</label>
-            <input
-              type="email"
-              className="input-corporate"
-              placeholder="cliente@correo.com"
-              value={ticketEmailInput}
-              onChange={(e) => {
-                setTicketEmailInput(e.target.value);
-                if (ticketEmailError) setTicketEmailError("");
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !ticketEmailLoading) handleSendTicketEmail();
-              }}
-              autoFocus
-            />
-          </div>
-          {ticketEmailError && (
-            <p style={{ fontSize: "12px", color: "#dc2626", fontWeight: 600, marginBottom: "12px" }}>
-              {ticketEmailError}
-            </p>
-          )}
-          <div style={{ display: "flex", gap: "10px" }} className="pos-cashier-modal-actions">
-            <button
-              onClick={() => {
-                setTicketEmailModalOpen(false);
-                setTicketEmailError("");
-              }}
-              style={{ ...styles.modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
-              disabled={ticketEmailLoading}
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleSendTicketEmail}
-              style={{ ...styles.modalBtn, backgroundColor: "#2563eb", color: "white" }}
-              disabled={ticketEmailLoading}
-            >
-              {ticketEmailLoading ? "Enviando..." : "Enviar correo"}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  // renderTicketEmailModal removed
 
   const renderTicketEmailButton = (emailConfig: {
     subject: string;
@@ -1255,17 +1065,18 @@ const Dashboard: React.FC = () => {
   }
 
   // ===========================================================================
-  // RENDER C: TERMINAL DE VENTAS DEDICADA (Mockup 5)
+  // RENDER D: INTERFAZ PRINCIPAL CON ACCESO A TERMINAL Y DASHBOARD
   // ===========================================================================
-  if (view === "sales-terminal") {
-    return (
-      <>
+  return (
+    <>
+      {view === "sales-terminal" ? (
         <SalesTerminalView
           sessionData={sessionData}
           cartData={cartData}
           searchData={searchData}
           customerData={customerData}
           user={user}
+          currentTime={currentTime}
           onOpenModal={setActiveModal}
           onToast={showToast}
           pendingQrSales={pendingQrSales}
@@ -1274,459 +1085,30 @@ const Dashboard: React.FC = () => {
           setPendingCancelFieldErrors={setPendingCancelFieldErrors}
           setViewingPendingQrSale={setViewingPendingQrSale}
           addPendingQrSale={addPendingQrSale}
+          onGoHome={() => setView("dashboard")}
+          onLogout={handleLogoutClick}
+          onLock={lock}
         />
-
-        {/* MODAL 3: TICKET IMPRESO/PDF (Mockup 3) */}
-        {activeModal === "ticket-view" && selectedSale && (
-          <div style={{ ...styles.modalOverlay, zIndex: ticketEmailModalOpen ? 9998 : 100 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-            <div style={styles.ticketModal} className="pos-cashier-modal">
-              <div id="print-area" style={styles.ticketContainer} className="ticket-print pos-paper">
-                {selectedSale.status === "CANCELADA" && (
-                  <div style={{
-                    textAlign: "center",
-                    color: "#dc2626",
-                    fontWeight: "900",
-                    fontSize: "16px",
-                    border: "2px solid #dc2626",
-                    padding: "4px",
-                    marginBottom: "12px",
-                    borderRadius: "4px",
-                    textTransform: "uppercase"
-                  }}>
-                    *** CANCELADO ***
-                  </div>
-                )}
-                {selectedSale.totalRefunded > 0 && Number(selectedSale.totalRefunded).toFixed(2) === Number(selectedSale.total).toFixed(2) && (
-                  <div style={{
-                    textAlign: "center",
-                    color: "#dc2626",
-                    fontWeight: "900",
-                    fontSize: "15px",
-                    border: "2px solid #dc2626",
-                    padding: "4px",
-                    marginBottom: "12px",
-                    borderRadius: "4px",
-                    textTransform: "uppercase",
-                    backgroundColor: "#fef2f2"
-                  }}>
-                    *** DEVOLUCIÓN TOTAL ***
-                  </div>
-                )}
-                {selectedSale.totalRefunded > 0 && Number(selectedSale.totalRefunded).toFixed(2) !== Number(selectedSale.total).toFixed(2) && (
-                  <div style={{
-                    textAlign: "center",
-                    color: "#d97706",
-                    fontWeight: "900",
-                    fontSize: "14px",
-                    border: "2px solid #d97706",
-                    padding: "4px",
-                    marginBottom: "12px",
-                    borderRadius: "4px",
-                    textTransform: "uppercase",
-                    backgroundColor: "#fffbeb"
-                  }}>
-                    *** DEVOLUCIÓN PARCIAL ***
-                  </div>
-                )}
-                <div style={{ textAlign: "center", marginBottom: "14px" }}>
-                  <h4 style={{ textTransform: "uppercase", fontWeight: "800", margin: "0 0 4px 0", fontSize: "14px" }}>LYFRGL</h4>
-                  <p style={{ fontSize: "11px", color: "var(--text-secondary)" }}>SUCURSAL: {user?.branch.name}</p>
-                  {user?.branch?.phone && <p style={{ fontSize: "10px", color: "var(--text-muted)" }}>TEL: {user.branch.phone}</p>}
-                  {user?.branch?.address && <p style={{ fontSize: "10px", color: "var(--text-muted)" }}>{user.branch.address}</p>}
-                </div>
-
-                <div style={{ borderBottom: "1px dashed #cbd5e1", paddingBottom: "8px", marginBottom: "8px", fontSize: "11px" }}>
-                  <p><strong>Folio:</strong> {selectedSale.invoiceNumber}</p>
-                  <p><strong>Fecha:</strong> {new Date(selectedSale.createdAt).toLocaleDateString()}</p>
-                  <p><strong>Hora:</strong> {new Date(selectedSale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                  <p><strong>Cajero:</strong> {user?.name}</p>
-                  <p><strong>Artículos:</strong> {selectedSale.items.reduce((sum: number, item: any) => sum + item.quantity, 0)}</p>
-                </div>
-
-                <table style={{ width: "100%", fontSize: "10px", borderCollapse: "collapse", marginBottom: "8px", tableLayout: "fixed" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px dashed #111111" }}>
-                      <th style={{ textAlign: "left", paddingBottom: "4px", width: "12%" }}>Cant</th>
-                      <th style={{ textAlign: "left", paddingBottom: "4px", width: "43%" }}>Descripción</th>
-                      <th style={{ textAlign: "right", paddingBottom: "4px", width: "20%" }}>P. Unit</th>
-                      <th style={{ textAlign: "right", paddingBottom: "4px", width: "25%" }}>Importe</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedSale.items.map((item: any, idx: number) => {
-                      const promoDetails = selectedSale.isNewSale === false
-                        ? {
-                            finalPrice: Number(item.product.sellPrice) - (Number(item.discountAmount || 0) / item.quantity),
-                            discountAmount: Number(item.discountAmount || 0),
-                            label: item.product.activePromotion?.name || ""
-                          }
-                        : calculateItemPromotion(item);
-                      const hasDiscount = promoDetails.discountAmount > 0;
-                      return (
-                        <tr key={idx}>
-                          <td style={{ textAlign: "left", padding: "4px 2px 4px 0", whiteSpace: "nowrap" }}>{item.quantity}</td>
-                          <td style={{ padding: "4px 4px 4px 0" }}>
-                            <div>{item.product.name}</div>
-                            {item.product.activePromotion && (
-                              <div style={{ fontSize: "9px", color: "#1e40af", fontWeight: "600" }}>
-                                ({item.product.activePromotion.name})
-                              </div>
-                            )}
-                            {item.returnedQuantity > 0 && (
-                              <div style={{ fontSize: "9px", color: "#dc2626", fontWeight: "700", marginTop: "2px" }}>
-                                ↳ Devuelto: {item.returnedQuantity} ud{item.returnedQuantity > 1 ? 's' : ''}
-                              </div>
-                            )}
-                            {(item.taxes || item.taxDetail) && (item.taxes?.length > 0 || item.taxDetail?.length > 0) && (
-                              <div style={{ fontSize: "9px", color: "var(--text-muted)", fontStyle: "italic", marginTop: "2px" }}>
-                                {(item.taxes || item.taxDetail).map((t: any) => `${t.name}: $${Number(t.amount).toFixed(2)}`).join(" | ")}
-                              </div>
-                            )}
-                          </td>
-                          <td style={{ textAlign: "right", padding: "4px 4px 4px 0", whiteSpace: "nowrap" }}>
-                            ${Number(item.product.sellPrice).toFixed(2)}
-                          </td>
-                          <td style={{ textAlign: "right", padding: "4px 0", whiteSpace: "nowrap" }}>
-                            {hasDiscount ? (
-                              <>
-                                <span style={{ textDecoration: "line-through", color: "var(--text-faint)", marginRight: "4px", fontSize: "10px" }}>
-                                  ${(item.product.sellPrice * item.quantity).toFixed(2)}
-                                </span>
-                                <span>
-                                  ${(promoDetails.finalPrice * item.quantity).toFixed(2)}
-                                </span>
-                              </>
-                            ) : (
-                              `$${(item.product.sellPrice * item.quantity).toFixed(2)}`
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-
-                <div style={{ borderTop: "1px dashed #cbd5e1", paddingTop: "8px", display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px" }}>
-                  {selectedSale.discountAmount > 0 && (
-                    <div style={{ display: "flex", justifyContent: "space-between", color: "#059669", fontWeight: "700" }}>
-                      <span>Descuento Promos:</span>
-                      <span>-${Number(selectedSale.discountAmount).toFixed(2)}</span>
-                    </div>
-                  )}
-                  {selectedSale.pointsDiscount > 0 && (
-                    <div style={{ display: "flex", justifyContent: "space-between", color: "#059669", fontWeight: "700" }}>
-                      <span>Descuento Puntos:</span>
-                      <span>-${Number(selectedSale.pointsDiscount).toFixed(2)}</span>
-                    </div>
-                  )}
-                  {((Number(selectedSale.discountAmount || 0) + Number(selectedSale.pointsDiscount || 0)) > 0) && (
-                    <div style={{ display: "flex", justifyContent: "space-between", color: "#166534", fontWeight: "800", backgroundColor: "#f0fdf4", padding: "4px 6px", borderRadius: "4px", margin: "2px 0" }}>
-                      <span>¡TU AHORRO TOTAL!:</span>
-                      <span>${(Number(selectedSale.discountAmount || 0) + Number(selectedSale.pointsDiscount || 0)).toFixed(2)}</span>
-                    </div>
-                  )}
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>Subtotal:</span>
-                    <span>${selectedSale.subtotal.toFixed(2)}</span>
-                  </div>
-                  {selectedSale.taxBreakdown && selectedSale.taxBreakdown.length > 0 ? (
-                    selectedSale.taxBreakdown
-                      .filter((tb: any) => Number(tb.amount) > 0)
-                      .map((tb: any, i: number) => (
-                        <div key={i} style={{ display: "flex", justifyContent: "space-between" }}>
-                          <span>{tb.name}:</span>
-                          <span>${Number(tb.amount).toFixed(2)}</span>
-                        </div>
-                      ))
-                  ) : (
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span>IVA (16%):</span>
-                      <span>${selectedSale.tax.toFixed(2)}</span>
-                    </div>
-                  )}
-                  {selectedSale.taxBreakdown && selectedSale.taxBreakdown.length > 0 && (
-                    <div style={{ display: "flex", justifyContent: "space-between", fontStyle: "italic", color: "var(--text-muted)" }}>
-                      <span>Total Impuestos:</span>
-                      <span>${selectedSale.tax.toFixed(2)}</span>
-                    </div>
-                  )}
-                  {selectedSale.totalRefunded > 0 && (
-                    <>
-                      <div style={{ display: "flex", justifyContent: "space-between", color: "#dc2626", fontWeight: "700", borderTop: "1px dashed #dc2626", paddingTop: "4px", marginTop: "4px" }}>
-                        <span>Total Devuelto:</span>
-                        <span>-${Number(selectedSale.totalRefunded).toFixed(2)}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text)", fontWeight: "800", backgroundColor: "#fef2f2", padding: "4px 6px", borderRadius: "4px", margin: "2px 0" }}>
-                        <span>Neto Final:</span>
-                        <span>${(Number(selectedSale.total) - Number(selectedSale.totalRefunded)).toFixed(2)}</span>
-                      </div>
-                    </>
-                  )}
-                  <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "800", fontSize: "12px" }}>
-                    <span>TOTAL:</span>
-                    <span>${selectedSale.total.toFixed(2)}</span>
-                  </div>
-                </div>
-
-                <div style={{ borderTop: "1px solid var(--border-strong)", marginTop: "8px", paddingTop: "8px", fontSize: "11px" }}>
-                  <p>
-                    <strong>Método de pago:</strong> {selectedSale.paymentMethod}
-                    {selectedSale.cardType && ` (${selectedSale.cardType})`}
-                  </p>
-                  {selectedSale.paymentMethod === "EFECTIVO" && (
-                    <>
-                      <p><strong>Pagó con:</strong> ${selectedSale.cashReceived.toFixed(2)}</p>
-                      <p><strong>Cambio:</strong> ${selectedSale.changeGiven.toFixed(2)}</p>
-                    </>
-                  )}
-                  {selectedSale.paymentMethod === "MIXTO" && (
-                    <>
-                      <p><strong>Efectivo:</strong> ${selectedSale.cashReceived.toFixed(2)}</p>
-                      <p><strong>Tarjeta:</strong> ${(selectedSale.total - (selectedSale.cashReceived - selectedSale.changeGiven)).toFixed(2)}</p>
-                      <p><strong>Cambio:</strong> ${selectedSale.changeGiven.toFixed(2)}</p>
-                    </>
-                  )}
-                  <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "6px", paddingTop: "6px", fontSize: "10px" }}>
-                    <p><strong>Cliente:</strong> {selectedSale.customerName ? "Cliente registrado" : "Público general"}</p>
-                    {selectedSale.customerName && (
-                      <>
-                        {selectedSale.pointsEarned > 0 && <p><strong>Puntos Ganados:</strong> +{selectedSale.pointsEarned}</p>}
-                        {selectedSale.pointsRedeemed > 0 && <p><strong>Puntos Canjeados:</strong> -{selectedSale.pointsRedeemed} (-${Number(selectedSale.pointsDiscount).toFixed(2)} MXN)</p>}
-                        <p><strong>Saldo Nuevo:</strong> {selectedSale.customerPoints} pts</p>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                <div style={{ borderTop: "1px dashed #cbd5e1", marginTop: "12px", paddingTop: "8px", fontSize: "9px", textAlign: "center", color: "var(--text-muted)", lineHeight: "1.4", display: "flex", flexDirection: "column", alignItems: "center" }}>
-                  <p>Portal de Autofacturación:</p>
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.origin + "/autofacturacion")}`}
-                    alt="QR Facturación"
-                    style={{ width: "100px", height: "100px", marginTop: "6px", marginBottom: "6px" }}
-                  />
-                  <p style={{ fontWeight: "700", wordBreak: "break-all" }}>{window.location.origin + "/autofacturacion"}</p>
-                  <p>Escanea el código QR para facturar tu compra</p>
-                </div>
-
-                <div style={{ textAlign: "center", marginTop: "20px", fontSize: "10px", color: "var(--text-muted)" }}>
-                  <p>¡GRACIAS POR SU COMPRA!</p>
-                  <p>REGRESE PRONTO</p>
-                  <p style={{ marginTop: "12px", fontSize: "9px", fontWeight: "600", fontStyle: "italic", borderTop: "1px dashed #cbd5e1", paddingTop: "8px" }}>
-                    Para devoluciones y cancelaciones, es indispensable presentar este ticket original.
-                  </p>
-                </div>
-              </div>
-
-              {renderTicketActionButtons({
-                onClose: handleCloseTicket,
-                closeLabel: "CERRAR TICKET",
-                onPrint: handlePrintTicket,
-                emailConfig: {
-                  subject: `Ticket de venta ${selectedSale.invoiceNumber}`,
-                  elementId: "print-area",
-                  defaultEmail: selectedSale.customerEmail || null,
-                },
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* MODAL: VER QR DE PAGO PENDIENTE (también disponible en terminal de ventas) */}
-        {viewingPendingQrSale && (
-          <div style={{ ...styles.modalOverlay, zIndex: 9999 }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-            <div style={styles.checkoutModal} className="pos-cashier-modal">
-              <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "var(--text-secondary)", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
-
-              <div style={{ textAlign: "center", padding: "12px 0" }}>
-                <p style={{ marginBottom: "10px", fontSize: "13px", color: "var(--text-secondary)" }}>
-                  Escanea el código QR para pagar la venta{" "}
-                  <strong>${Number(viewingPendingQrSale.amount).toFixed(2)}</strong>
-                </p>
-                {viewingPendingQrSale.qrUrl ? (
-                  <>
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(viewingPendingQrSale.qrUrl)}`}
-                      alt="QR Code"
-                      width="180"
-                      height="180"
-                      style={{ borderRadius: "8px", border: "1px solid var(--border)" }}
-                    />
-                    <div style={{ marginTop: "10px" }}>
-                      <a
-                        href={viewingPendingQrSale.qrUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          fontSize: "12px",
-                          color: "#2563eb",
-                          textDecoration: "underline",
-                          fontWeight: "600",
-                          display: "inline-block",
-                          padding: "6px 12px",
-                          backgroundColor: "var(--surface-3)",
-                          borderRadius: "6px"
-                        }}
-                      >
-                        🔗 Abrir enlace de pago / Sandbox
-                      </a>
-                    </div>
-                  </>
-                ) : (
-                  <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>Código QR no disponible.</p>
-                )}
-                <p style={{ marginTop: "10px", fontSize: "11px", color: "var(--text-muted)" }}>Folio: {viewingPendingQrSale.invoiceNumber}</p>
-                <p style={{ marginTop: "4px", fontSize: "12px", fontWeight: "700",
-                  color: viewingPendingQrSale.status === "approved" ? "#15803d" : viewingPendingQrSale.status === "rejected" ? "#b91c1c" : "#c2410c"
-                }}>
-                  Estado: {viewingPendingQrSale.status === "approved" ? "✅ Aprobado" : viewingPendingQrSale.status === "rejected" ? "❌ Rechazado" : "⏳ Pendiente"}
-                </p>
-              </div>
-
-              {/* Formulario de Cancelación con PIN si la venta sigue pendiente */}
-              {viewingPendingQrSale.status !== "approved" && (
-                <div style={{
-                  borderTop: "1px dashed #e2e8f0",
-                  paddingTop: "12px",
-                  marginTop: "8px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "10px"
-                }}>
-                  <div style={{ fontSize: "11px", fontWeight: "700", color: "#dc2626", textTransform: "uppercase" }}>
-                    ⚠️ Cancelar Venta (Revertir Stock)
-                  </div>
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <div style={{ flex: 1 }}>
-                      <input
-                        type="password"
-                        placeholder="PIN Gerente"
-                        maxLength={4}
-                        value={pendingCancelPin}
-                        onChange={(e) => handlePendingCancelPinChange(e.target.value)}
-                        className="input-corporate"
-                        style={{ padding: "6px 10px", fontSize: "12px", width: "100%" }}
-                      />
-                      {pendingCancelFieldErrors.pin && <p style={styles.fieldError}>{pendingCancelFieldErrors.pin}</p>}
-                    </div>
-                    <div style={{ flex: 2 }}>
-                      <input
-                        type="text"
-                        placeholder="Motivo de cancelación"
-                        value={pendingCancelReason}
-                        onChange={(e) => handlePendingCancelReasonChange(e.target.value)}
-                        className="input-corporate"
-                        style={{ padding: "6px 10px", fontSize: "12px", width: "100%" }}
-                      />
-                      {pendingCancelFieldErrors.reason && <p style={styles.fieldError}>{pendingCancelFieldErrors.reason}</p>}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: "10px" }}>
-                    <button
-                      onClick={() => handlePendingQrCancel("other_method")}
-                      disabled={pendingCancelLoading}
-                      style={{
-                        flex: 1,
-                        padding: "10px 8px",
-                        borderRadius: "6px",
-                        border: "none",
-                        backgroundColor: "#598ffbff",
-                        color: "white",
-                        fontWeight: "700",
-                        fontSize: "11px",
-                        cursor: pendingCancelLoading ? "default" : "pointer"
-                      }}
-                    >
-                      PAGAR CON OTRO MÉTODO
-                    </button>
-                    <button
-                      onClick={() => handlePendingQrCancel("cancel_def")}
-                      disabled={pendingCancelLoading}
-                      style={{
-                        flex: 1,
-                        padding: "10px 8px",
-                        borderRadius: "6px",
-                        border: "none",
-                        backgroundColor: "#dc2626",
-                        color: "white",
-                        fontWeight: "700",
-                        fontSize: "11px",
-                        cursor: pendingCancelLoading ? "default" : "pointer"
-                      }}
-                    >
-                      CANCELAR DEFINITIVAMENTE
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div style={{ display: "flex", gap: "10px", marginTop: "14px", borderTop: "1px solid var(--surface-3)", paddingTop: "12px" }}>
-                <button
-                  onClick={() => {
-                    setViewingPendingQrSale(null);
-                    setPendingCancelPin("");
-                    setPendingCancelReason("");
-                    setPendingCancelFieldErrors({});
-                  }}
-                  style={{ ...styles.modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
-                >
-                  CERRAR
-                </button>
-                {isQrExpired(viewingPendingQrSale) && viewingPendingQrSale.status !== "approved" && viewingPendingQrSale.status !== "rejected" ? (
-                  <button
-                    onClick={() => handleRegenerateQr(viewingPendingQrSale)}
-                    style={{ ...styles.modalBtn, backgroundColor: "#2563eb", color: "white" }}
-                  >
-                    🔄 GENERAR NUEVO QR
-                  </button>
-                ) : (
-                  viewingPendingQrSale.status !== "approved" && (
-                    <button
-                      onClick={() => checkPendingQrStatus(viewingPendingQrSale.invoiceNumber)}
-                      disabled={pendingQrChecking === viewingPendingQrSale.invoiceNumber}
-                      style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
-                    >
-                      {pendingQrChecking === viewingPendingQrSale.invoiceNumber ? "VERIFICANDO..." : "VERIFICAR ESTADO"}
-                    </button>
-                  )
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {renderCartAuthorizationModal()}
-        {renderTicketEmailModal()}
-        {renderDashboardTicketLoading()}
-        {renderToast()}
-        {forcedCloseModal}
-      </>
-    );
-  }
-
-  // ===========================================================================
-  // RENDER D: DASHBOARD PRINCIPAL DEL CAJERO (Mockup 7)
-  // ===========================================================================
-  return (
-    <>
-      <DashboardHomeView
-        sessionData={sessionData}
-        user={user}
-        currentTime={currentTime}
-        onOpenModal={setActiveModal}
-        onLogout={handleLogoutClick}
-        onNuevaVenta={handleNuevaVenta}
-        openDashboardTableMenu={openDashboardTableMenu}
-        onSetOpenDashboardTableMenu={setOpenDashboardTableMenu}
-        expandedSalesRows={expandedSalesRows}
-        onToggleSalesRow={toggleSalesRow}
-        expandedDepositRows={expandedDepositRows}
-        onToggleDepositRow={toggleDepositRow}
-        dashboardTicketLoadingId={dashboardTicketLoadingId}
-        onOpenDashboardSaleTicket={handleOpenDashboardSaleTicket}
-        onSetSelectedSale={setSelectedSale}
-        onToast={showToast}
-      />
+      ) : (
+        <DashboardHomeView
+          sessionData={sessionData}
+          user={user}
+          currentTime={currentTime}
+          onOpenModal={setActiveModal}
+          onLogout={handleLogoutClick}
+          onNuevaVenta={handleNuevaVenta}
+          openDashboardTableMenu={openDashboardTableMenu}
+          onSetOpenDashboardTableMenu={setOpenDashboardTableMenu}
+          expandedSalesRows={expandedSalesRows}
+          onToggleSalesRow={toggleSalesRow}
+          expandedDepositRows={expandedDepositRows}
+          onToggleDepositRow={toggleDepositRow}
+          dashboardTicketLoadingId={dashboardTicketLoadingId}
+          onOpenDashboardSaleTicket={handleOpenDashboardSaleTicket}
+          onSetSelectedSale={setSelectedSale}
+          onToast={showToast}
+        />
+      )}
 
       {/* ========================================================================= */}
       {/* CAPA DE MODALES GLOBALES DE ACCIONES RÁPIDAS */}
@@ -1743,7 +1125,23 @@ const Dashboard: React.FC = () => {
       />
 
       {/* MODAL: AUTORIZACIÓN PIN GERENTE/ADMIN PARA CARRITO (Fase 3.0) */}
-      {renderCartAuthorizationModal()}
+      <CartAuthorizationModal
+        isOpen={activeModal === "cart-pin-auth"}
+        cartPin={cartPin}
+        cartPinError={cartPinError}
+        cartPinLoading={cartPinLoading}
+        onCartPinChange={(val) => {
+          setCartPin(val);
+          if (cartPinError) setCartPinError("");
+        }}
+        onSubmit={handleCartPinSubmit}
+        onCancel={() => {
+          setPendingCartAction(null);
+          setCartPin("");
+          setCartPinError("");
+          setActiveModal(null);
+        }}
+      />
 
       {/* MODAL 2: SOLICITAR CANCELACIÓN CON PIN DE ADMIN (Mockup 1) */}
       <CancelSaleModal
@@ -2095,9 +1493,32 @@ const Dashboard: React.FC = () => {
         </div>
       )}
       {forcedCloseModal}
-      {renderTicketEmailModal()}
+      <TicketEmailModal
+        isOpen={ticketEmailModalOpen}
+        emailInput={ticketEmailInput}
+        emailError={ticketEmailError}
+        emailLoading={ticketEmailLoading}
+        onEmailChange={(val) => {
+          setTicketEmailInput(val);
+          if (ticketEmailError) setTicketEmailError("");
+        }}
+        onSend={handleSendTicketEmail}
+        onCancel={() => {
+          setTicketEmailModalOpen(false);
+          setTicketEmailError("");
+        }}
+      />
       {renderDashboardTicketLoading()}
       {renderToast()}
+      {isLocked && (
+        <LockScreen
+          user={user}
+          unlock={unlock}
+          unlockError={unlockError}
+          setUnlockError={setUnlockError}
+          unlockLoading={unlockLoading}
+        />
+      )}
     </>
   );
 };

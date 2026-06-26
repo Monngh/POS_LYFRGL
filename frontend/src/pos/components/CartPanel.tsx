@@ -115,8 +115,8 @@ export function CartPanel({ cartData, onToast }: CartPanelProps) {
             const promoApplied = promoDetails.promoApplied ?? hasDiscount;
             return (
               <tr key={item.product.id} style={styles.tableRow}>
-                <td style={styles.td}>{item.product.sku}</td>
-                <td style={{ ...styles.td, fontWeight: "600" }}>
+                <td style={styles.td} data-label="Código">{item.product.sku}</td>
+                <td style={{ ...styles.td, fontWeight: "600" }} data-label="Producto">
                   <div>{item.product.name}</div>
                   {item.product.activePromotion && promoApplied && (
                     <span style={{ fontSize: "10px", backgroundColor: "#dbeafe", color: "#1e40af", padding: "2px 6px", borderRadius: "4px", fontWeight: "700", marginTop: "4px", display: "inline-block" }}>
@@ -129,7 +129,7 @@ export function CartPanel({ cartData, onToast }: CartPanelProps) {
                     </span>
                   )}
                 </td>
-                <td style={styles.td}>
+                <td style={styles.td} data-label="Cantidad">
                   <div style={styles.qtyContainer}>
                     <button onClick={() => updateCartQty(item.product.id, -1)} style={styles.qtyBtn}>
                       <Minus size={12} />
@@ -186,7 +186,7 @@ export function CartPanel({ cartData, onToast }: CartPanelProps) {
                     </button>
                   </div>
                 </td>
-                <td style={styles.td}>
+                <td style={styles.td} data-label="Precio">
                   {hasDiscount ? (
                     <>
                       <span style={{ textDecoration: "line-through", color: "var(--text-faint)", marginRight: "6px", fontSize: "12px" }}>
@@ -200,7 +200,7 @@ export function CartPanel({ cartData, onToast }: CartPanelProps) {
                     `$${item.product.sellPrice.toFixed(2)}`
                   )}
                 </td>
-                <td style={{ ...styles.td, fontWeight: "700" }}>
+                <td style={{ ...styles.td, fontWeight: "700" }} data-label="Importe">
                   {hasDiscount ? (
                     <>
                       <div style={{ textDecoration: "line-through", color: "var(--text-faint)", fontSize: "11px", fontWeight: "400" }}>
@@ -217,7 +217,7 @@ export function CartPanel({ cartData, onToast }: CartPanelProps) {
                     `$${(item.product.sellPrice * item.quantity).toFixed(2)}`
                   )}
                 </td>
-                <td style={styles.td}>
+                <td style={styles.td} data-label="Acciones">
                   <button onClick={() => removeCartItem(item.product.id)} style={{ border: "none", background: "none", cursor: "pointer" }}>
                     <XCircle size={18} color="#dc2626" />
                   </button>
