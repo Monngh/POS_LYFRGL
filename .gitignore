@@ -58,3 +58,11 @@ backend/scratch/
 *.patch
 INFORME_*.md
 ANALISIS_*.md
+*.pem
+*.p12
+*.pfx
+*.p8
+.env.production
+.env.staging
+secrets.json
+credentials.json
