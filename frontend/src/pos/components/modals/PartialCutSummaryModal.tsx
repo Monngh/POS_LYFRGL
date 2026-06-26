@@ -13,7 +13,7 @@ interface SessionStats {
 interface PartialCutSummaryModalProps {
   isOpen: boolean;
   onBack: () => void;
-  onClose?: () => void;
+  onClose: () => void;
   onSave: () => void;
   partialCutLoading: boolean;
   sessionStats: SessionStats | null;
@@ -81,17 +81,26 @@ export default function PartialCutSummaryModal({
       <div style={closeModal} className="pos-cashier-modal">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: "8px" }}>
           <h3 style={modalTitle}>Resumen de Corte Parcial:</h3>
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "var(--text-muted)", display: "flex", alignItems: "center", justifyContent: "center", padding: "4px", lineHeight: 1 }}
-              title="Cerrar"
-              aria-label="Cerrar modal"
-            >
-              ✕
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: "none",
+              border: "none",
+              fontSize: "20px",
+              cursor: "pointer",
+              color: "var(--text-muted)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "4px",
+              lineHeight: 1,
+            }}
+            title="Cerrar"
+            aria-label="Cerrar modal"
+          >
+            ✕
+          </button>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "14px" }}>
           <div style={summaryRow}>
