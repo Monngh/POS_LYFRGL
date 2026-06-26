@@ -100,6 +100,12 @@ export function useCashSession({
         onSetView("dashboard");
         await loadDashboardData();
       } else {
+        if (resStatus.data.lastClosed?.forceCloseReason) {
+          setForcedCloseData({
+            reason: resStatus.data.lastClosed.forceCloseReason,
+            closedAt: resStatus.data.lastClosed.closedAt,
+          });
+        }
         onSetCajaLockedByOtherDevice(false);
         setSession(null);
         onSetView("apertura");
