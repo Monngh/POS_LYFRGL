@@ -178,8 +178,9 @@ export default function TicketViewModal({
           )}
           <div style={{ textAlign: "center", marginBottom: "14px" }}>
             <h4 style={{ textTransform: "uppercase", fontWeight: "800", margin: "0 0 4px 0", fontSize: "14px" }}>LYFRGL</h4>
-            <p style={{ fontSize: "11px", color: "var(--text-secondary)" }}>SUCURSAL: {user?.branch.name}</p>
-            <p style={{ fontSize: "10px", color: "var(--text-muted)" }}>TEL: 772 100 2000</p>
+            <p style={{ fontSize: "11px", color: "var(--text-secondary)" }}>SUCURSAL: {user?.branch?.name}</p>
+            {user?.branch?.phone && <p style={{ fontSize: "10px", color: "var(--text-muted)" }}>TEL: {user.branch.phone}</p>}
+            {user?.branch?.address && <p style={{ fontSize: "10px", color: "var(--text-muted)" }}>{user.branch.address}</p>}
           </div>
 
           <div style={{ borderBottom: "1px dashed #cbd5e1", paddingBottom: "8px", marginBottom: "8px", fontSize: "11px" }}>

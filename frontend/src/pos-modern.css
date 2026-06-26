@@ -1,0 +1,952 @@
+/* pos-modern.css - Premium visual styling for the refactored POS */
+
+/* ============================================================
+   Terminal Navbar — Navy gradient with chips (reference design)
+   ============================================================ */
+.pos-terminal-navbar {
+  height: 56px;
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  box-shadow: 0 4px 12px rgba(30, 58, 138, 0.15);
+  position: relative;
+  z-index: 15;
+}
+
+.pos-terminal-navbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pos-terminal-home-btn,
+.pos-terminal-menu-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.pos-terminal-home-btn:hover,
+.pos-terminal-menu-btn:hover {
+  background-color: rgba(255, 255, 255, 0.18);
+  transform: scale(1.05);
+}
+
+.pos-terminal-store-icon {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.pos-terminal-brand-text {
+  font-size: 16px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.3px;
+}
+
+.pos-terminal-navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pos-terminal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+}
+
+.pos-terminal-chip.clock {
+  background-color: rgba(255, 255, 255, 0.06);
+  font-variant-numeric: tabular-nums;
+}
+
+.pos-terminal-logout-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  background-color: rgba(220, 38, 38, 0.12);
+  color: #fecaca;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  margin-left: 4px;
+}
+
+.pos-terminal-logout-btn:hover {
+  background-color: rgba(220, 38, 38, 0.3);
+  color: #ffffff;
+  transform: scale(1.05);
+}
+
+/* ============================================================
+   Layout & Grid wrapper
+   ============================================================ */
+.pos-sales-layout {
+  display: flex;
+  flex-direction: row;
+  min-height: calc(100vh - 56px); /* minus header height */
+  width: 100%;
+  background-color: var(--surface-2);
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.pos-sales-sidebar {
+  width: 352px;
+  min-width: 352px;
+  background-color: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 10;
+  padding: 20px;
+}
+
+.pos-sidebar-inner-content {
+  width: 312px; /* 352 - 40px padding */
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  transition: opacity 0.2s ease;
+  opacity: 1;
+  position: relative;
+}
+
+/* Close sidebar X button — top right inside sidebar content */
+.pos-sidebar-close-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background-color: var(--surface-2);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 5;
+  transition: all 0.2s ease;
+}
+
+.pos-sidebar-close-btn:hover {
+  background-color: var(--surface-3);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+/* Collapsed Sidebar State */
+.pos-sales-layout.sidebar-collapsed .pos-sales-sidebar {
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.pos-sales-layout.sidebar-collapsed .pos-sidebar-inner-content {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* Vertical Tab — visible when sidebar is collapsed */
+.pos-sidebar-vertical-tab {
+  display: none;
+}
+
+.pos-sales-layout.sidebar-collapsed .pos-sidebar-vertical-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 100%;
+  background: linear-gradient(180deg, #1e3a8a 0%, #1e40af 100%);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s ease;
+}
+
+.pos-sidebar-vertical-tab span {
+  writing-mode: vertical-lr;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.pos-sidebar-vertical-tab:hover {
+  background: linear-gradient(180deg, #1e40af 0%, #2563eb 100%);
+}
+
+/* Cerrar Caja Button */
+.pos-sidebar-close-cash-wrapper {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+  margin-top: 4px;
+}
+
+.pos-sidebar-close-cash-btn {
+  width: 100%;
+  background-color: rgba(220, 38, 38, 0.08);
+  color: #dc2626;
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.pos-sidebar-close-cash-btn:hover {
+  background-color: rgba(220, 38, 38, 0.15);
+  border-color: rgba(220, 38, 38, 0.35);
+  transform: scale(1.02);
+}
+
+/* Go Home Link */
+.pos-go-home-link {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+}
+
+.pos-sales-main-content {
+  flex: 1;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  min-width: 0; /* Important for flex child truncation */
+}
+
+/* ============================================================
+   Quick Actions Carousel Styles
+   ============================================================ */
+.pos-quick-actions-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pos-quick-actions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pos-sidebar-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.pos-carousel-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pos-carousel-arrow {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pos-carousel-arrow:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--accent-strong);
+  background-color: var(--surface-2);
+}
+
+.pos-carousel-arrow:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.pos-carousel-indicator {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.pos-quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.pos-quick-action-btn {
+  background-color: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.pos-quick-action-btn:hover {
+  border-color: var(--accent);
+  background-color: var(--surface);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04);
+}
+
+.pos-quick-action-icon-wrapper {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+}
+
+.pos-quick-action-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  line-height: 1.2;
+}
+
+.pos-quick-actions-footer {
+  display: flex;
+  justify-content: center;
+}
+
+.pos-carousel-link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.pos-carousel-link-btn:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+}
+
+/* ============================================================
+   Cash Info Panel Styles (Rows matching reference image)
+   ============================================================ */
+.pos-cash-info-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.pos-cash-info-header {
+  display: flex;
+  align-items: center;
+}
+
+.pos-cash-info-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pos-cash-info-title-icon {
+  color: var(--text-muted);
+}
+
+.pos-cash-info-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pos-cash-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background-color: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.pos-cash-info-row.highlighted {
+  border-color: #059669;
+  background-color: rgba(5, 150, 105, 0.03);
+}
+
+.pos-info-row-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.pos-info-row-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.pos-info-row-value.font-mono {
+  font-family: "SF Mono", "Fira Code", "Courier New", monospace;
+}
+
+.pos-info-row-value.success {
+  color: #059669;
+  font-weight: 800;
+}
+
+.pos-status-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.pos-status-badge.open {
+  background-color: rgba(5, 150, 105, 0.1);
+  color: #059669;
+}
+
+.pos-status-badge.closed {
+  background-color: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}
+
+.pos-cash-info-note {
+  background-color: rgba(217, 119, 6, 0.04);
+  border: 1px dashed rgba(217, 119, 6, 0.25);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pos-note-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pos-note-icon {
+  color: #d97706;
+}
+
+.pos-note-title {
+  font-size: 9px;
+  font-weight: 800;
+  color: #d97706;
+  letter-spacing: 0.5px;
+}
+
+.pos-note-text {
+  font-size: 10px;
+  color: var(--text-secondary);
+  line-height: 1.3;
+  margin: 0;
+}
+
+/* ============================================================
+   Lock Button & Screen Overlay Styles
+   ============================================================ */
+.pos-sidebar-lock-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+  margin-top: 4px;
+}
+
+.pos-sidebar-lock-btn {
+  width: 100%;
+  background-color: rgba(30, 41, 59, 0.85);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.pos-sidebar-lock-btn:hover {
+  background-color: rgba(15, 23, 42, 1);
+  transform: scale(1.02);
+}
+
+.pos-lock-shortcut-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* ============================================================
+   Fullscreen Lock Overlay
+   ============================================================ */
+.pos-lock-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.95);
+  z-index: 99998;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  backdrop-filter: blur(8px);
+}
+
+.pos-lock-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  border-radius: 16px;
+  width: 360px;
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: lockReveal 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes lockReveal {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.pos-lock-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.pos-lock-icon-container {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+
+.pos-lock-icon {
+  animation: pulseLock 2s infinite;
+}
+
+@keyframes pulseLock {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+.pos-lock-title {
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.pos-lock-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.pos-lock-user-badge {
+  width: 100%;
+  background-color: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 20px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pos-lock-user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: var(--accent-strong);
+  color: #ffffff;
+  font-weight: 850;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pos-lock-user-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.pos-lock-user-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pos-lock-user-role {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.pos-lock-dots-display {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.pos-lock-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  transition: all 0.15s ease;
+}
+
+.pos-lock-dot.filled {
+  background-color: var(--accent-strong);
+  border-color: var(--accent-strong);
+  transform: scale(1.15);
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
+}
+
+.pos-lock-error-alert {
+  background-color: rgba(220, 38, 38, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  color: #dc2626;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 6px;
+  width: 100%;
+  text-align: center;
+  margin-bottom: 14px;
+  animation: lockShake 0.3s ease-in-out;
+}
+
+@keyframes lockShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+.pos-lock-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  width: 100%;
+}
+
+.pos-keypad-btn {
+  height: 48px;
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 800;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.pos-keypad-btn:hover {
+  background-color: var(--surface-3);
+  border-color: var(--border-strong);
+  transform: translateY(-0.5px);
+}
+
+.pos-keypad-btn.action {
+  background-color: var(--surface-2);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.pos-keypad-btn.action:hover {
+  background-color: var(--surface-3);
+}
+
+.pos-lock-keyboard-tip {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 16px;
+  text-align: center;
+  font-weight: 600;
+}
+
+/* ============================================================
+   Dashboard Navbar Visual Modernization
+   ============================================================ */
+.pos-cashier-navbar {
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%) !important;
+  box-shadow: 0 4px 12px rgba(30, 58, 138, 0.12) !important;
+  border-bottom: none !important;
+}
+
+.pos-cashier-brand-text {
+  letter-spacing: 0.3px !important;
+  font-weight: 900 !important;
+}
+
+.pos-cashier-logout-btn {
+  background-color: rgba(220, 38, 38, 0.12) !important;
+  border: 1px solid rgba(220, 38, 38, 0.25) !important;
+  color: #fecaca !important;
+}
+
+.pos-cashier-logout-btn:hover {
+  background-color: rgba(220, 38, 38, 0.25) !important;
+  color: #ffffff !important;
+}
+
+/* ============================================================
+   Responsive Overrides (Ensuring NO horizontal scroll)
+   ============================================================ */
+@media (max-width: 1024px) {
+  /* Terminal navbar: collapse chips into single row that wraps */
+  .pos-terminal-navbar {
+    height: auto;
+    min-height: 52px;
+    flex-wrap: wrap;
+    padding: 8px 16px;
+    gap: 8px;
+  }
+
+  .pos-terminal-navbar-right {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .pos-terminal-chip {
+    font-size: 11px;
+    padding: 3px 10px;
+  }
+
+  .pos-sales-layout {
+    flex-direction: column;
+  }
+  
+  .pos-sales-sidebar {
+    width: 100%;
+    min-width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 16px;
+  }
+
+  /* Reset collapsed state styles on tablet/mobile to keep it expanded */
+  .pos-sales-layout.sidebar-collapsed .pos-sales-sidebar {
+    width: 100%;
+    min-width: 100%;
+    padding: 16px;
+  }
+  
+  .pos-sales-layout.sidebar-collapsed .pos-sidebar-inner-content {
+    opacity: 1;
+    pointer-events: auto;
+    position: relative;
+  }
+  
+  .pos-sidebar-vertical-tab {
+    display: none !important; /* Hide vertical tab in stacked layouts */
+  }
+
+  .pos-sidebar-close-btn {
+    display: none; /* No close btn needed in stacked layout */
+  }
+  
+  .pos-sidebar-inner-content {
+    width: 100%;
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  
+  .pos-quick-actions-container {
+    flex: 1.2;
+  }
+  
+  .pos-cash-info-container {
+    flex: 1;
+    border-top: none;
+    padding-top: 0;
+    border-left: 1px solid var(--border);
+    padding-left: 16px;
+  }
+  
+  .pos-sidebar-lock-wrapper {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+    justify-content: center;
+    min-width: 120px;
+  }
+  
+  /* Convert cart table into responsive card layout to eliminate horizontal scrolls */
+  .pos-cashier-cart-card table,
+  .pos-cashier-cart-card thead,
+  .pos-cashier-cart-card tbody,
+  .pos-cashier-cart-card th,
+  .pos-cashier-cart-card td,
+  .pos-cashier-cart-card tr {
+    display: block;
+    width: 100%;
+  }
+  
+  .pos-cashier-cart-card thead tr {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+  }
+  
+  .pos-cashier-cart-card tr {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    padding: 10px;
+    background-color: var(--surface);
+  }
+  
+  .pos-cashier-cart-card td {
+    border: none;
+    position: relative;
+    padding-left: 45% !important;
+    text-align: right;
+    min-height: 32px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    border-bottom: 1px dashed var(--border-light);
+  }
+  
+  .pos-cashier-cart-card td:last-child {
+    border-bottom: none;
+  }
+  
+  .pos-cashier-cart-card td:before {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    left: 12px;
+    width: 40%;
+    padding-right: 10px;
+    white-space: nowrap;
+    text-align: left;
+    font-weight: 700;
+    color: var(--text-muted);
+    font-size: 11px;
+    content: attr(data-label);
+  }
+}
+
+@media (max-width: 768px) {
+  .pos-terminal-navbar-left {
+    width: 100%;
+  }
+
+  .pos-terminal-navbar-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .pos-sidebar-inner-content {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .pos-cash-info-container {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+    width: 100%;
+  }
+  
+  .pos-sidebar-lock-wrapper {
+    width: 100%;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+}

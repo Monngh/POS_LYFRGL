@@ -97,7 +97,7 @@ export function useCashSession({
         }
         onSetCajaLockedByOtherDevice(false);
         setSession(resStatus.data.session);
-        onSetView("dashboard");
+        onSetView("sales-terminal");
         await loadDashboardData();
       } else {
         onSetCajaLockedByOtherDevice(false);
@@ -133,7 +133,7 @@ export function useCashSession({
       });
       setSession(res.data.session);
       onToast(res.data.message || "Caja abierta exitosamente.", "success");
-      onSetView("dashboard");
+      onSetView("sales-terminal");
       await loadDashboardData();
     } catch (err: any) {
       const code = err.response?.data?.code;
