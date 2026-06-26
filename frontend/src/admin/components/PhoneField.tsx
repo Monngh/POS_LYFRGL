@@ -4,6 +4,7 @@ import {
   getCountryCodeByIso,
   LATAM_COUNTRY_CODES,
   normalizeLocalPhone,
+  countryFlag,
 } from "../utils/phone";
 
 interface PhoneFieldProps {
@@ -19,9 +20,9 @@ interface PhoneFieldProps {
   onBlur?: React.FocusEventHandler<HTMLInputElement>;
 }
 
-const PHONE_COUNTRY_SELECT_WIDTH = "clamp(136px, 38vw, 150px)";
+const PHONE_COUNTRY_SELECT_WIDTH = "min(80px, 22vw)";
 const formatCountryOption = (country: (typeof LATAM_COUNTRY_CODES)[number]) =>
-  `${country.code} ${country.country}`;
+  `${countryFlag(country.iso)} ${country.code}`;
 
 export const PhoneField: React.FC<PhoneFieldProps> = ({
   value,
@@ -50,8 +51,8 @@ export const PhoneField: React.FC<PhoneFieldProps> = ({
         style={{
           display: "flex",
           alignItems: "stretch",
-          gap: 8,
-          flexWrap: "wrap",
+          gap: 6,
+          flexWrap: "nowrap",
           minWidth: 0,
           maxWidth: "100%",
         }}
@@ -69,11 +70,11 @@ export const PhoneField: React.FC<PhoneFieldProps> = ({
             value={selectedCountry.iso}
             onChange={(event) => onCountryChange(event.target.value)}
             disabled={disabled}
-            title={formatCountryOption(selectedCountry)}
+            title={`${selectedCountry.code} ${selectedCountry.country}`}
             style={{
               ...ui.input,
               width: "100%",
-              padding: "10px 26px 10px 10px",
+              padding: "10px 20px 10px 6px",
               appearance: "none",
               WebkitAppearance: "none",
               MozAppearance: "none",
@@ -93,11 +94,11 @@ export const PhoneField: React.FC<PhoneFieldProps> = ({
             aria-hidden="true"
             style={{
               position: "absolute",
-              right: 9,
+              right: 8,
               top: "50%",
               transform: "translateY(-50%)",
               color: "var(--text-secondary)",
-              fontSize: 11,
+              fontSize: 10,
               lineHeight: 1,
               pointerEvents: "none",
             }}
@@ -122,8 +123,8 @@ export const PhoneField: React.FC<PhoneFieldProps> = ({
           aria-describedby={error ? errorId : undefined}
           style={{
             ...ui.input,
-            flex: "1 1 96px",
-            minWidth: 96,
+            flex: "1 1 0",
+            minWidth: 0,
             borderColor: error ? "var(--color-danger)" : "var(--border)",
           }}
         />
