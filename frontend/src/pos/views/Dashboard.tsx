@@ -1730,6 +1730,7 @@ const Dashboard: React.FC = () => {
       <PartialCutSummaryModal
         isOpen={activeModal === "partial-cut-summary"}
         onBack={() => setActiveModal("close-options")}
+        onClose={() => setActiveModal(null)}
         onSave={handleSavePartialCut}
         partialCutLoading={partialCutLoading}
         sessionStats={sessionStats}

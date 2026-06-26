@@ -13,6 +13,7 @@ interface SessionStats {
 interface PartialCutSummaryModalProps {
   isOpen: boolean;
   onBack: () => void;
+  onClose?: () => void;
   onSave: () => void;
   partialCutLoading: boolean;
   sessionStats: SessionStats | null;
@@ -44,8 +45,7 @@ const modalTitle: React.CSSProperties = {
   fontSize: "16px",
   fontWeight: "800",
   color: "var(--text)",
-  borderBottom: "1px solid var(--border)",
-  paddingBottom: "8px",
+  margin: 0,
 };
 
 const summaryRow: React.CSSProperties = {
@@ -68,6 +68,7 @@ const modalBtn: React.CSSProperties = {
 export default function PartialCutSummaryModal({
   isOpen,
   onBack,
+  onClose,
   onSave,
   partialCutLoading,
   sessionStats,
@@ -78,7 +79,20 @@ export default function PartialCutSummaryModal({
   return (
     <div style={modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
       <div style={closeModal} className="pos-cashier-modal">
-        <h3 style={modalTitle}>Resumen de Corte Parcial:</h3>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: "8px" }}>
+          <h3 style={modalTitle}>Resumen de Corte Parcial:</h3>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "var(--text-muted)", display: "flex", alignItems: "center", justifyContent: "center", padding: "4px", lineHeight: 1 }}
+              title="Cerrar"
+              aria-label="Cerrar modal"
+            >
+              ✕
+            </button>
+          )}
+        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "14px" }}>
           <div style={summaryRow}>
             <span>Vendedor:</span>
