@@ -173,7 +173,11 @@ const empDetailValue: React.CSSProperties = {
 };
 // COMPONENTE PRINCIPAL
 const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+  // isMobile para la vista de tarjetas de la lista 
   const isMobile = useMediaQuery("(max-width: 1024px)");
+  // isSmallScreen para modales y tablas internas
+  const isSmallScreen = useMediaQuery("(max-width: 640px)");
+
   const [expandedEmployees, setExpandedEmployees] = useState<Record<number, boolean>>({});
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -200,7 +204,6 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [ops, setOps] = useState<Operations | null>(null);
   const [opsLoading, setOpsLoading] = useState(false);
   const [showOps, setShowOps] = useState(false);
-
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
@@ -233,10 +236,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const toggleExpandEmployee = (id: number) => {
     setExpandedEmployees((prev) => ({ ...prev, [id]: !prev[id] }));
   };
-
-  // ============================================================
   // VALIDACIONES
-  // ============================================================
   const validateName = (name: string): string | null => {
     if (!name.trim()) return "El nombre es requerido.";
     if (name.trim().length < 3) return "El nombre debe tener al menos 3 caracteres.";
@@ -324,7 +324,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   };
   // ACCIONES DEL FORMULARIO
   const openCreate = () => {
-    if (showOps) closeOps(); // 👈 Cierra el modal de ver si está abierto
+    if (showOps) closeOps();
     setForm({ ...emptyForm, role: "CAJERO" });
     setEditingId(null);
     setEditActive(true);
@@ -336,7 +336,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   };
 
   const openEdit = (u: EmployeeRow) => {
-    if (showOps) closeOps(); // 👈 Cierra el modal de ver si está abierto
+    if (showOps) closeOps();
     setForm({
       name: u.name,
       email: u.email,
@@ -473,12 +473,9 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setSaving(false);
     }
   };
-
-  // ============================================================
   // VER EMPLEADO (OPERACIONES)
-  // ============================================================
   const openViewEmployee = async (employee: EmployeeRow) => {
-    if (showForm) closeForm(); // 👈 Cierra el modal de edición si está abierto
+    if (showForm) closeForm();
     setSelectedEmployee(employee);
     setOps(null);
     setOpsLoading(true);
@@ -504,10 +501,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setOps(null);
     setOpsLoading(false);
   };
-
-  // ============================================================
   // HANDLERS DE INPUT
-  // ============================================================
   const handleInputChange =
     (k: keyof typeof emptyForm) =>
       (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -565,10 +559,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const checkPasswordRequirements = (password: string) => {
     return getPasswordRequirements().map((req) => ({ ...req, passed: req.test(password) }));
   };
-
-  // ============================================================
   // COLUMNAS DE LA TABLA
-  // ============================================================
   const columns: Column<EmployeeRow>[] = [
     {
       key: "name",
@@ -627,10 +618,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       ),
     },
   ];
-
-  // ============================================================
   // RENDER DE CAMPOS DE AUTENTICACIÓN
-  // ============================================================
   const renderAuthFields = () => {
     const passwordRequired = needsPassword(form.role);
 
@@ -662,7 +650,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
           {passwordRequired && (
             <>
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isSmallScreen ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 10 }}>
                 <div>
                   <label style={ui.fieldLabel}>Contraseña * (14 caracteres)</label>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -740,7 +728,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         </>
       );
     } else {
-      const twoCol = !isMobile;
+      const twoCol = !isSmallScreen;
 
       return (
         <>
@@ -889,25 +877,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     }
   };
   const renderMobileView = () => (
-    <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 4px" }}>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1.2fr 1fr 1fr 1.2fr",
-          padding: "10px 12px",
-          fontWeight: 700,
-          fontSize: 10,
-          color: "var(--text-muted)",
-          textTransform: "uppercase",
-          letterSpacing: "0.3px",
-        }}
-      >
-        <div>Sucursal</div>
-        <div style={{ textAlign: "center" }}>Estado</div>
-        <div style={{ textAlign: "center" }}>Ver</div>
-        <div style={{ textAlign: "right" }}>Acción</div>
-      </div>
-
+    <div style={{ overflowY: "auto", maxHeight: "62vh", padding: isMobile ? "12px 8px" : "8px 4px" }}>
       {loading && <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>Cargando...</div>}
       {!loading && error && <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--color-danger)", fontSize: 13, fontWeight: 500 }}>{error}</div>}
       {!loading && !error && rows.length === 0 && <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>No hay empleados registrados.</div>}
@@ -933,8 +903,8 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  padding: "6px 12px 5px 12px",
-                  fontSize: 10,
+                  padding: "8px 12px",
+                  fontSize: 11,
                   fontWeight: 700,
                   color: "var(--text-muted)",
                   borderBottom: "1px solid var(--surface-3)",
@@ -943,41 +913,43 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   textTransform: "uppercase",
                 }}
               >
-                <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "55%" }}>{u.name}</span>
-                <span style={{ fontSize: 9 }}><Badge tone={roleTone(u.role)}>{u.role}</Badge></span>
+                <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1, marginRight: 8 }}>{u.name}</span>
+                <span style={{ fontSize: 9, flexShrink: 0 }}><Badge tone={roleTone(u.role)}>{u.role}</Badge></span>
               </div>
               <div
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "1.2fr 1fr 1fr 1.2fr",
+                  display: "flex",
                   padding: "10px 12px",
                   alignItems: "center",
-                  gap: "4px",
+                  justifyContent: "space-between",
+                  gap: "8px",
+                  flexWrap: "wrap",
                 }}
               >
-                <div
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: "var(--text-secondary)",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {u.branch}
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, minWidth: 120 }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "var(--text-secondary)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {u.branch}
+                  </div>
+                  <div>
+                    <span style={{ fontSize: 9 }}>
+                      <Badge tone={u.active ? "green" : "red"}>{u.active ? "Activo" : "Inactivo"}</Badge>
+                    </span>
+                  </div>
                 </div>
-                <div style={{ display: "flex", justifyContent: "center" }}>
-                  <span style={{ fontSize: 9 }}>
-                    <Badge tone={u.active ? "green" : "red"}>{u.active ? "Activo" : "Inactivo"}</Badge>
-                  </span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "center" }}>
-                  <button style={{ ...ui.linkBtn, fontSize: 11, padding: "4px 8px" }} className="active-tap" onClick={() => openViewEmployee(u)}>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                  <button style={{ ...ui.linkBtn, fontSize: 11, padding: "4px 8px", backgroundColor: "var(--surface-2)", borderRadius: 6 }} className="active-tap" onClick={() => openViewEmployee(u)}>
                     <Activity size={13} style={{ verticalAlign: "-2px" }} /> Ver
                   </button>
-                </div>
-                <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6 }}>
                   <button
                     onClick={() => openEdit(u)}
                     style={{
@@ -1070,10 +1042,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         })}
     </div>
   );
-
-  // ============================================================
   // RENDER PRINCIPAL
-  // ============================================================
   return (
     <div>
       <SectionHeader
@@ -1115,10 +1084,11 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         onClose={handleCloseRequest}
         title={editingId !== null ? "Editar empleado" : "Registrar nuevo empleado"}
         size="lg"
+        contentStyle={{ maxWidth: 700 }}
       >
         <form onSubmit={submit} style={{ padding: "4px 0", width: "100%" }}>
           {/* Fila 1: Nombre + Correo */}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isSmallScreen ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 10 }}>
             <div>
               <label style={ui.fieldLabel}>Nombre completo *</label>
               <input style={ui.input} value={form.name} onChange={handleInputChange("name")} placeholder="Nombre" maxLength={50} autoFocus />
@@ -1132,7 +1102,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           </div>
 
           {/* Fila 2: Teléfono + Rol */}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isSmallScreen ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 10 }}>
             <div>
               <PhoneField
                 value={form.phone}
@@ -1199,7 +1169,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
           {/* Fila 3: Sucursal + Sueldo (si es nuevo) o Sueldo + Comisión (si es edición) */}
           {editingId === null ? (
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isSmallScreen ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 10 }}>
               <div>
                 <label style={ui.fieldLabel}>Sucursal *</label>
                 <select style={ui.input} value={form.branchId} onChange={handleInputChange("branchId")}>
@@ -1225,7 +1195,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               </div>
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isSmallScreen ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 10 }}>
               <div>
                 <label style={ui.fieldLabel}>Sueldo base ($)</label>
                 <input
@@ -1276,10 +1246,10 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </div>
           )}
 
-          <div style={{ display: "flex", gap: 10, marginTop: 14, flexDirection: isMobile ? "column" : "row" }}>
+          <div style={{ display: "flex", gap: 10, marginTop: 14, flexDirection: isSmallScreen ? "column" : "row" }}>
             <button
               type="button"
-              style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center", width: isMobile ? "100%" : "auto" }}
+              style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center", width: isSmallScreen ? "100%" : "auto" }}
               onClick={handleCloseRequest}
               disabled={saving}
             >
@@ -1292,7 +1262,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 ...ui.primaryBtn,
                 flex: 1,
                 justifyContent: "center",
-                width: isMobile ? "100%" : "auto",
+                width: isSmallScreen ? "100%" : "auto",
                 opacity: saving ? 0.6 : 1,
                 cursor: saving ? "not-allowed" : "pointer",
               }}
@@ -1325,13 +1295,14 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         onClose={closeOps}
         title={selectedEmployee ? `Detalles de ${selectedEmployee.name}` : "Información del empleado"}
         size="lg"
+        contentStyle={{ maxWidth: 700 }}
       >
         {selectedEmployee && (
           <div style={{ padding: "4px 0" }}>
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)",
+                gridTemplateColumns: isSmallScreen ? "1fr" : "repeat(2, 1fr)",
                 gap: "16px 24px",
                 backgroundColor: "var(--surface-2)",
                 padding: "20px 24px",
@@ -1396,7 +1367,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <div
                       style={{
                         display: "grid",
-                        gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
+                        gridTemplateColumns: isSmallScreen ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
                         gap: 10,
                         marginBottom: 20,
                       }}
@@ -1418,58 +1389,100 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <h4 style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-strong)", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
                       <CreditCard size={16} /> Últimas ventas
                     </h4>
-                    <div style={{ ...ui.tableWrap, boxShadow: "none", marginBottom: 18, borderRadius: 8, overflowX: "auto" }}>
-                      <table style={{ ...ui.table, minWidth: 400 }}>
-                        <thead>
-                          <tr style={ui.theadRow}>
-                            <th style={{ ...ui.th, minWidth: 100 }}>Folio</th>
-                            <th style={{ ...ui.th, minWidth: 150 }}>Fecha</th>
-                            <th style={{ ...ui.th, textAlign: "right", minWidth: 100 }}>Total</th>
-                            <th style={{ ...ui.th, textAlign: "center", minWidth: 100 }}>Estado</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {ops.recentSales.length === 0 && <TableState colSpan={4} empty emptyText="Sin ventas registradas." />}
-                          {ops.recentSales.map((s) => (
-                            <tr key={s.id}>
-                              <td style={{ ...ui.td, fontWeight: 700, color: "var(--accent-strong)" }}>{s.invoiceNumber}</td>
-                              <td style={ui.td}>{fmtDate(s.createdAt)} {fmtTime(s.createdAt)}</td>
-                              <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{money(s.totalAmount)}</td>
-                              <td style={{ ...ui.td, textAlign: "center" }}><Badge tone={statusTone(s.status)}>{s.status}</Badge></td>
+                    {isSmallScreen ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18, maxHeight: 180, overflowY: "auto" }}>
+                        {ops.recentSales.length === 0 && <div style={{ textAlign: "center", padding: "20px", color: "var(--text-faint)" }}>Sin ventas registradas.</div>}
+                        {ops.recentSales.map((s) => (
+                          <div key={s.id} style={{ padding: 12, backgroundColor: "var(--surface)", borderRadius: 8, border: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div>
+                              <div style={{ fontWeight: 700, color: "var(--accent-strong)", marginBottom: 4 }}>{s.invoiceNumber}</div>
+                              <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{fmtDate(s.createdAt)} {fmtTime(s.createdAt)}</div>
+                            </div>
+                            <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                              <div style={{ fontWeight: 700 }}>{money(s.totalAmount)}</div>
+                              <Badge tone={statusTone(s.status)}>{s.status}</Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ overflowX: "auto", marginBottom: 18, maxHeight: 240, overflowY: "auto" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                          <thead style={{ position: "sticky", top: 0, zIndex: 1, backgroundColor: "var(--surface-2)" }}>
+                            <tr style={ui.theadRow}>
+                              <th style={{ ...ui.th, textAlign: "left" }}>Folio</th>
+                              <th style={{ ...ui.th, textAlign: "left" }}>Fecha</th>
+                              <th style={{ ...ui.th, textAlign: "right" }}>Total</th>
+                              <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody>
+                            {ops.recentSales.length === 0 && <TableState colSpan={4} empty emptyText="Sin ventas registradas." />}
+                            {ops.recentSales.map((s) => (
+                              <tr key={s.id}>
+                                <td style={{ ...ui.td, fontWeight: 700, color: "var(--accent-strong)" }}>{s.invoiceNumber}</td>
+                                <td style={ui.td}>{fmtDate(s.createdAt)} {fmtTime(s.createdAt)}</td>
+                                <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{money(s.totalAmount)}</td>
+                                <td style={{ ...ui.td, textAlign: "center" }}>
+                                  <Badge tone={statusTone(s.status)}>{s.status}</Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
 
                     <h4 style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-strong)", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
                       <Clock size={16} /> Últimos turnos
                     </h4>
-                    <div style={{ ...ui.tableWrap, boxShadow: "none", borderRadius: 8, overflowX: "auto" }}>
-                      <table style={{ ...ui.table, minWidth: 400 }}>
-                        <thead>
-                          <tr style={ui.theadRow}>
-                            <th style={{ ...ui.th, minWidth: 60 }}>#</th>
-                            <th style={{ ...ui.th, minWidth: 150 }}>Apertura</th>
-                            <th style={{ ...ui.th, textAlign: "right", minWidth: 100 }}>Diferencia</th>
-                            <th style={{ ...ui.th, textAlign: "center", minWidth: 100 }}>Estado</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {ops.recentSessions.length === 0 && <TableState colSpan={4} empty emptyText="Sin turnos registrados." />}
-                          {ops.recentSessions.map((s) => (
-                            <tr key={s.id}>
-                              <td style={{ ...ui.td, fontWeight: 700, color: "var(--accent-strong)" }}>{s.id}</td>
-                              <td style={ui.td}>{fmtDate(s.openedAt)} {fmtTime(s.openedAt)}</td>
-                              <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: s.difference && s.difference < 0 ? "var(--color-danger)" : "var(--text-secondary)" }}>
+                    {isSmallScreen ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18, maxHeight: 180, overflowY: "auto" }}>
+                        {ops.recentSessions.length === 0 && <div style={{ textAlign: "center", padding: "20px", color: "var(--text-faint)" }}>Sin turnos registrados.</div>}
+                        {ops.recentSessions.map((s) => (
+                          <div key={s.id} style={{ padding: 12, backgroundColor: "var(--surface)", borderRadius: 8, border: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div>
+                              <div style={{ fontWeight: 700, color: "var(--accent-strong)", marginBottom: 4 }}>#{s.id}</div>
+                              <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{fmtDate(s.openedAt)} {fmtTime(s.openedAt)}</div>
+                            </div>
+                            <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                              <div style={{ fontWeight: 700, color: s.difference && s.difference < 0 ? "var(--color-danger)" : "var(--text-secondary)" }}>
                                 {s.difference !== null ? money(s.difference) : "—"}
-                              </td>
-                              <td style={{ ...ui.td, textAlign: "center" }}><Badge tone={statusTone(s.status)}>{s.status}</Badge></td>
+                              </div>
+                              <Badge tone={statusTone(s.status)}>{s.status}</Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ overflowX: "auto", marginBottom: 18, maxHeight: 240, overflowY: "auto" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                          <thead style={{ position: "sticky", top: 0, zIndex: 1, backgroundColor: "var(--surface-2)" }}>
+                            <tr style={ui.theadRow}>
+                              <th style={{ ...ui.th, textAlign: "left" }}>#</th>
+                              <th style={{ ...ui.th, textAlign: "left" }}>Apertura</th>
+                              <th style={{ ...ui.th, textAlign: "right" }}>Diferencia</th>
+                              <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody>
+                            {ops.recentSessions.length === 0 && <TableState colSpan={4} empty emptyText="Sin turnos registrados." />}
+                            {ops.recentSessions.map((s) => (
+                              <tr key={s.id}>
+                                <td style={{ ...ui.td, fontWeight: 700, color: "var(--accent-strong)" }}>{s.id}</td>
+                                <td style={ui.td}>{fmtDate(s.openedAt)} {fmtTime(s.openedAt)}</td>
+                                <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: s.difference && s.difference < 0 ? "var(--color-danger)" : "var(--text-secondary)" }}>
+                                  {s.difference !== null ? money(s.difference) : "—"}
+                                </td>
+                                <td style={{ ...ui.td, textAlign: "center" }}>
+                                  <Badge tone={statusTone(s.status)}>{s.status}</Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div style={{ textAlign: "center", padding: "20px", color: "var(--text-faint)" }}>No se pudieron cargar las operaciones.</div>
@@ -1513,7 +1526,6 @@ const Mini: React.FC<{
   };
   const defaultStyle = { background: "var(--surface-2)", borderLeft: "4px solid var(--border)", valueColor: "var(--text)" };
   const style = accent ? accentStyles[accent] : defaultStyle;
-
 
   return (
     <div
