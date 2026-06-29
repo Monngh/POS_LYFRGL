@@ -19,6 +19,7 @@ import {
   fmtDate,
   moneyExact,
   useMediaQuery,
+  filterProductsBySearch,
 } from "./shared";
 
 interface PromotionTypeOption {
@@ -205,12 +206,7 @@ const ProductSelector: React.FC<{
 }> = ({ products, selectedIds, onToggle, disabled }) => {
   const [query, setQuery] = useState("");
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return products;
-
-    return products.filter((product) =>
-      `${product.sku} ${product.name}`.toLowerCase().includes(q)
-    );
+    return filterProductsBySearch(products, query);
   }, [products, query]);
 
   return (
@@ -220,24 +216,26 @@ const ProductSelector: React.FC<{
         <span style={styles.selectedCount}>{selectedIds.length} seleccionado{selectedIds.length === 1 ? "" : "s"}</span>
       </div>
       <div style={styles.productList}>
-        <table style={ui.table}>
+        <table style={{ ...ui.table, ...styles.productTable }}>
           <thead>
-            <tr style={ui.theadRow}>
-              <th style={{ ...ui.th, width: 44 }} />
-              <th style={ui.th}>SKU</th>
-              <th style={ui.th}>Nombre</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Precio</th>
+            <tr style={{ ...ui.theadRow, ...styles.productGridRow }}>
+              <th style={{ ...ui.th, ...styles.productColCheck }} />
+              <th style={{ ...ui.th, ...styles.productColSku }}>SKU</th>
+              <th style={{ ...ui.th, ...styles.productColName }}>Nombre</th>
+              <th style={{ ...ui.th, ...styles.productColPrice, textAlign: "right" }}>Precio</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody style={styles.productTbody}>
             {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={4} style={styles.productEmpty}>No hay productos activos para mostrar.</td>
+              <tr style={styles.productGridRowEmpty}>
+                <td style={{ ...styles.productEmpty, width: "100%" }}>
+                  {query.trim() ? "No se encontraron productos con esa búsqueda." : "No hay productos activos para mostrar."}
+                </td>
               </tr>
             ) : (
               filtered.map((product) => (
-                <tr key={product.id}>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
+                <tr key={product.id} style={styles.productGridRow}>
+                  <td style={{ ...ui.td, ...styles.productColCheck, textAlign: "center" }}>
                     <input
                       type="checkbox"
                       checked={selectedIds.includes(product.id)}
@@ -247,9 +245,9 @@ const ProductSelector: React.FC<{
                       aria-label={`Seleccionar ${product.name}`}
                     />
                   </td>
-                  <td style={{ ...ui.td, fontWeight: 800, color: "var(--accent-strong)" }}>{product.sku}</td>
-                  <td style={{ ...ui.td, whiteSpace: "normal", fontWeight: 700 }}>{product.name}</td>
-                  <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(Number(product.sellPrice))}</td>
+                  <td style={{ ...ui.td, ...styles.productColSku }}>{product.sku}</td>
+                  <td title={product.name} style={{ ...ui.td, ...styles.productColName }}>{product.name}</td>
+                  <td style={{ ...ui.td, ...styles.productColPrice }}>{moneyExact(Number(product.sellPrice))}</td>
                 </tr>
               ))
             )}
@@ -1141,7 +1139,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
       {editing !== null && (
         <div style={ui.overlay} onClick={closeForm}>
-          <form style={{ ...ui.modal, maxWidth: 860 }} onClick={(event) => event.stopPropagation()} onSubmit={submit}>
+          <form style={{ ...ui.modal, width: "calc(100% - 24px)", maxWidth: 710, maxHeight: "90vh" }} onClick={(event) => event.stopPropagation()} onSubmit={submit}>
             <div style={ui.modalHeader}>
               <span style={ui.modalTitle}>{editing === "create" ? "Nueva promocion" : "Editar promocion"}</span>
               <button type="button" style={ui.linkBtn} onClick={closeForm} aria-label="Cerrar">
@@ -1264,7 +1262,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
       {detail && (
         <div style={ui.overlay} onClick={() => setDetail(null)}>
-          <div style={{ ...ui.modal, maxWidth: 720 }} onClick={(event) => event.stopPropagation()}>
+          <div style={{ ...ui.modal, width: "calc(100% - 24px)", maxWidth: 710, maxHeight: "90vh" }} onClick={(event) => event.stopPropagation()}>
             <div style={ui.modalHeader}>
               <span style={ui.modalTitle}>{detail.name}</span>
               <button type="button" style={ui.linkBtn} onClick={() => setDetail(null)} aria-label="Cerrar">
@@ -1314,7 +1312,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
       {productEditor && (
         <div style={ui.overlay} onClick={() => !productSaving && setProductEditor(null)}>
-          <form style={{ ...ui.modal, maxWidth: 760 }} onClick={(event) => event.stopPropagation()} onSubmit={submitProducts}>
+          <form style={{ ...ui.modal, width: "calc(100% - 24px)", maxWidth: 710, maxHeight: "90vh" }} onClick={(event) => event.stopPropagation()} onSubmit={submitProducts}>
             <div style={ui.modalHeader}>
               <span style={ui.modalTitle}>Gestionar productos</span>
               <button type="button" style={ui.linkBtn} onClick={() => setProductEditor(null)} aria-label="Cerrar">
@@ -1417,6 +1415,9 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: 8,
     overflow: "hidden",
     backgroundColor: "var(--surface)",
+    width: "fit-content",
+    maxWidth: "100%",
+    margin: "0 auto",
   },
   productPickerTop: {
     display: "flex",
@@ -1439,6 +1440,58 @@ const styles: { [key: string]: React.CSSProperties } = {
     overflowY: "auto",
     width: "100%",
     maxWidth: "100%",
+  },
+  productTable: {
+    width: "100%",
+    minWidth: 520,
+    maxWidth: "100%",
+    display: "block",
+  },
+  productTbody: {
+    display: "block",
+  },
+  productGridRow: {
+    display: "grid",
+    gridTemplateColumns: "40px 110px minmax(240px, 380px) 90px",
+    gap: 12,
+    justifyContent: "start",
+    alignItems: "center",
+    width: "100%",
+  },
+  productGridRowEmpty: {
+    display: "block",
+    width: "100%",
+  },
+  productColCheck: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 40,
+    boxSizing: "border-box",
+  },
+  productColSku: {
+    display: "block",
+    width: 110,
+    boxSizing: "border-box",
+    fontWeight: 800,
+    color: "var(--accent-strong)",
+  },
+  productColName: {
+    display: "block",
+    boxSizing: "border-box",
+    minWidth: 0,
+    fontWeight: 700,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  productColPrice: {
+    display: "block",
+    width: 90,
+    boxSizing: "border-box",
+    textAlign: "right",
+    fontVariantNumeric: "tabular-nums",
+    whiteSpace: "nowrap",
   },
   productEmpty: {
     textAlign: "center",
