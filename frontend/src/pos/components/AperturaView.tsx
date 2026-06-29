@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { LogOut, Store, Users, Sun, Moon } from "lucide-react";
 import { DECIMAL_INPUT_REGEX, handleDecimalInputChange } from "../../shared/utils/decimalInput";
 import { useCashSession } from "../hooks/useCashSession";
