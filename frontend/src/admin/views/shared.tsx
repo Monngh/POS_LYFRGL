@@ -462,3 +462,71 @@ export const ui: { [k: string]: React.CSSProperties } = {
     margin: "4px 0 0",
   },
 };
+
+export interface SearchableProduct {
+  sku: string;
+  name: string;
+  barcode?: string;
+}
+
+export const normalizeProductSearchText = (value: string): string => {
+  if (!value) return "";
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+};
+
+export const matchesProductSearch = (product: SearchableProduct, query: string): boolean => {
+  const normalizedQuery = normalizeProductSearchText(query);
+  if (!normalizedQuery) return true;
+
+  const terms = normalizedQuery.split(/\s+/).filter(Boolean);
+  const searchableText = normalizeProductSearchText(
+    `${product.sku} ${product.barcode ?? ""} ${product.name}`
+  );
+
+  return terms.every((term) => searchableText.includes(term));
+};
+
+export const filterProductsBySearch = <T extends SearchableProduct>(
+  products: T[],
+  query: string
+): T[] => {
+  const normalizedQuery = normalizeProductSearchText(query);
+  if (!normalizedQuery) return products;
+
+  const matchingProducts = products.filter((product) => matchesProductSearch(product, query));
+
+  return matchingProducts.sort((a, b) => {
+    const q = normalizedQuery;
+    const aSku = normalizeProductSearchText(a.sku);
+    const bSku = normalizeProductSearchText(b.sku);
+    const aBar = a.barcode ? normalizeProductSearchText(a.barcode) : "";
+    const bBar = b.barcode ? normalizeProductSearchText(b.barcode) : "";
+    const aName = normalizeProductSearchText(a.name);
+    const bName = normalizeProductSearchText(b.name);
+
+    // 1. Coincidencia exacta de SKU o código de barras
+    const aExactSkuOrBar = aSku === q || aBar === q;
+    const bExactSkuOrBar = bSku === q || bBar === q;
+    if (aExactSkuOrBar && !bExactSkuOrBar) return -1;
+    if (!aExactSkuOrBar && bExactSkuOrBar) return 1;
+
+    // 2. Coincidencia exacta del nombre
+    const aExactName = aName === q;
+    const bExactName = bName === q;
+    if (aExactName && !bExactName) return -1;
+    if (!aExactName && bExactName) return 1;
+
+    // 3. Nombre inicia con la búsqueda (completa o primer término)
+    const aStartsWith = aName.startsWith(q);
+    const bStartsWith = bName.startsWith(q);
+    if (aStartsWith && !bStartsWith) return -1;
+    if (!aStartsWith && bStartsWith) return 1;
+
+    return 0;
+  });
+};
+

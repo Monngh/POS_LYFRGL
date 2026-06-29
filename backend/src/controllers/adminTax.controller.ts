@@ -14,6 +14,8 @@ import {
     getTaxByName,
     getProductForTaxAssignment,
     getProductTaxRelation,
+    getActiveProductsWithTaxFlag,
+    syncProductsForTax,
 } from "../services/adminTax.service";
 
 const parsePositiveInt = (value: unknown): number | null => {
@@ -552,6 +554,119 @@ export const syncProductTaxes = async (req: Request, res: Response): Promise<voi
 
         res.status(500).json({
             message: "Error al sincronizar los impuestos del producto",
+            error: error.message,
+        });
+    }
+};
+
+/**
+ * Obtener todos los productos activos con flag `assigned` para un impuesto dado.
+ * GET /taxes/:taxId/products?search=...
+ */
+export const getTaxProducts = async (req: Request, res: Response): Promise<void> => {
+    if (!req.user) {
+        res.status(401).json({ message: "No autenticado." });
+        return;
+    }
+
+    try {
+        const taxId = parsePositiveInt(req.params.taxId);
+        if (taxId === null) {
+            res.status(400).json({ message: "El id del impuesto es inválido" });
+            return;
+        }
+
+        const tax = await getTaxById(taxId);
+        if (!tax) {
+            res.status(404).json({ message: "Impuesto no encontrado" });
+            return;
+        }
+
+        const search = req.query.search as string | undefined;
+        const products = await getActiveProductsWithTaxFlag(taxId, search);
+        const assignedCount = products.filter((p) => p.assigned).length;
+
+        res.status(200).json({
+            success: true,
+            data: { products, assignedCount, total: products.length },
+        });
+    } catch (error: any) {
+        logger.error("Error al obtener productos del impuesto", error.message);
+        res.status(500).json({
+            message: "Error al obtener los productos del impuesto",
+            error: error.message,
+        });
+    }
+};
+
+/**
+ * Sincronizar qué productos tienen un impuesto dado (añade/elimina sin tocar
+ * otros impuestos del producto).
+ * PUT /taxes/:taxId/products  body: { productIds: number[] }
+ */
+export const setTaxProducts = async (req: Request, res: Response): Promise<void> => {
+    if (!req.user) {
+        res.status(401).json({ message: "No autenticado." });
+        return;
+    }
+
+    try {
+        const taxId = parsePositiveInt(req.params.taxId);
+        if (taxId === null) {
+            res.status(400).json({ message: "El id del impuesto es inválido" });
+            return;
+        }
+
+        const tax = await getTaxById(taxId);
+        if (!tax) {
+            res.status(404).json({ message: "Impuesto no encontrado" });
+            return;
+        }
+
+        const rawProductIds = req.body.productIds;
+        if (!Array.isArray(rawProductIds)) {
+            res.status(400).json({ message: "productIds debe ser un arreglo de números" });
+            return;
+        }
+
+        const parsedIds: number[] = [];
+        for (const raw of rawProductIds) {
+            const id = parsePositiveInt(raw);
+            if (id === null) {
+                res.status(400).json({ message: "Todos los ids de productos deben ser números positivos" });
+                return;
+            }
+            if (!parsedIds.includes(id)) parsedIds.push(id);
+        }
+
+        const result = await syncProductsForTax(taxId, parsedIds);
+
+        res.status(200).json({
+            success: true,
+            message: `Asignación actualizada: ${result.added} asignado${result.added !== 1 ? "s" : ""}, ${result.removed} desvinculado${result.removed !== 1 ? "s" : ""}.`,
+            data: result,
+        });
+    } catch (error: any) {
+        if (error.message === "TAX_NOT_FOUND") {
+            res.status(404).json({ message: "Impuesto no encontrado" });
+            return;
+        }
+        if (error.message === "TAX_INACTIVE") {
+            res.status(400).json({ message: "No puedes asignar un impuesto inactivo a nuevos productos" });
+            return;
+        }
+        if (error.message === "PRODUCT_NOT_FOUND") {
+            res.status(404).json({ message: "Uno o más productos no fueron encontrados" });
+            return;
+        }
+        if (error.message === "PRODUCT_INACTIVE") {
+            res.status(400).json({ message: "No se puede asignar impuesto a un producto inactivo" });
+            return;
+        }
+
+        logger.error("Error al sincronizar productos del impuesto", error.message);
+        res.status(500).json({
+            message: "Error al actualizar la asignación de productos",
             error: error.message,
         });
     }

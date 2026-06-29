@@ -24,7 +24,8 @@ import {
   money,
   fmtDate,
   fmtTime,
-  useMediaQuery
+  useMediaQuery,
+  filterProductsBySearch,
 } from "./shared";
 
 interface BranchOption {
@@ -968,15 +969,11 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                   </div>
                 ) : (() => {
                   const pool = supplierProducts.length > 0 ? supplierProducts : products;
-                  const filtered = pool.filter(
-                    (p) =>
-                      p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-                      p.sku.toLowerCase().includes(productSearch.toLowerCase())
-                  );
+                  const filtered = filterProductsBySearch(pool, productSearch);
                   if (filtered.length === 0) {
                     return (
                       <div style={{ textAlign: "center", color: "var(--text-muted)", padding: 12, fontSize: 13 }}>
-                        No se encontraron productos.
+                        No se encontraron productos con esa búsqueda.
                       </div>
                     );
                   }
