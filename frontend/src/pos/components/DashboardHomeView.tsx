@@ -312,10 +312,9 @@ export function DashboardHomeView({
               </button>
             </div>
           </div>
-
-          {/* Tablas Inferiores (Mockup 7) */}
+          {/* Tablas Inferiores (Mockup 7)
           <div style={styles.tablesGrid} className="pos-cashier-tables-grid">
-            {/* Últimas Ventas */}
+            {/* Últimas Ventas
             <div className="card-premium pos-cashier-table-card" style={styles.tableCard}>
               <h4 style={styles.tableCardTitle}>ÚLTIMAS VENTAS</h4>
               <div style={{ overflowY: "auto", flex: 1, marginTop: "12px" }} className="pos-cashier-table-scroll pos-cashier-table-scroll--dashboard-sales">
@@ -403,7 +402,7 @@ export function DashboardHomeView({
                               )}
                             </td>
                           </tr>
-                          {/* Fila de detalles adicionales para responsive */}
+                          {/* Fila de detalles adicionales para responsive
                           <tr className="pos-cashier-table-details-row">
                             <td colSpan={8} style={{ padding: 0 }}>
                               <div className="pos-cashier-table-details">
@@ -466,7 +465,7 @@ export function DashboardHomeView({
               </div>
             </div>
 
-            {/* Solicitudes de Cancelación / Historial de depósitos */}
+            {/* Solicitudes de Cancelación / Historial de depósitos 
             <div className="card-premium pos-cashier-table-card" style={styles.tableCard}>
               <h4 style={styles.tableCardTitle}>HISTORIAL DE DEPÓSITOS BANCARIOS</h4>
               <div style={{ overflowY: "auto", flex: 1, marginTop: "12px" }} className="pos-cashier-table-scroll pos-cashier-table-scroll--deposits pos-cashier-table-scroll--dashboard-deposits">
@@ -525,7 +524,7 @@ export function DashboardHomeView({
                               )}
                             </td>
                           </tr>
-                          {/* Fila de detalles adicionales para responsive */}
+                          {/* Fila de detalles adicionales para responsive 
                           <tr className="pos-cashier-table-details-row">
                             <td colSpan={5} style={{ padding: 0 }}>
                               <div className="pos-cashier-table-details">
@@ -556,7 +555,11 @@ export function DashboardHomeView({
                 </table>
               </div>
             </div>
+            
           </div>
+
+
+          */}
         </div>
       </div>
     </div>

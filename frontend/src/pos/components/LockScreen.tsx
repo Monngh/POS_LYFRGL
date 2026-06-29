@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useRef } from "react";
-import { Lock, Delete } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Lock } from "lucide-react";
 
 interface LockScreenProps {
   user: { email: string; name: string } | null;
@@ -18,16 +18,6 @@ export function LockScreen({
 }: LockScreenProps) {
   const [pinCode, setPinCode] = useState("");
   const hiddenInputRef = useRef<HTMLInputElement>(null);
-
-  // Shuffle digits on mount
-  const shuffledDigits = useMemo(() => {
-    const arr = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"];
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr;
-  }, []);
 
   const handleKeyPress = (num: string) => {
     if (pinCode.length < 4 && !unlockLoading) {
@@ -161,53 +151,11 @@ export function LockScreen({
         {/* Unlock Error alert */}
         {unlockError && <div className="pos-lock-error-alert">{unlockError}</div>}
 
-        {/* Shuffled keypad */}
-        <div className="pos-lock-keypad">
-          {shuffledDigits.slice(0, 9).map((num) => (
-            <button
-              key={num}
-              type="button"
-              className="pos-keypad-btn"
-              onClick={() => handleKeyPress(num)}
-              disabled={unlockLoading}
-            >
-              {num}
-            </button>
-          ))}
-
-          {/* Action Row */}
-          <button
-            type="button"
-            className="pos-keypad-btn action"
-            onClick={handleClear}
-            disabled={unlockLoading}
-          >
-            C
-          </button>
-          <button
-            type="button"
-            className="pos-keypad-btn"
-            onClick={() => handleKeyPress(shuffledDigits[9])}
-            disabled={unlockLoading}
-          >
-            {shuffledDigits[9]}
-          </button>
-          <button
-            type="button"
-            className="pos-keypad-btn action"
-            onClick={handleBackspace}
-            disabled={unlockLoading}
-            aria-label="Borrar"
-          >
-            <Delete size={18} />
-          </button>
-        </div>
-
         {/* Physical Keyboard Tip */}
-        <p className="pos-lock-keyboard-tip">
+        <p className="pos-lock-keyboard-tip" style={{ marginTop: "24px" }}>
           {unlockLoading
             ? "Desbloqueando..."
-            : "Puedes utilizar tu teclado físico numérico"}
+            : "Utiliza tu teclado numérico para continuar"}
         </p>
       </div>
     </div>

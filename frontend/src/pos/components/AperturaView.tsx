@@ -43,22 +43,12 @@ export function AperturaView({ sessionData, user, currentTime, onLogout }: Apert
   const { initialFund, setInitialFund, initialFundError, setInitialFundError, openingLoading, handleOpenCash } = sessionData;
   const theme = usePosTheme();
 
-  const [openPin, setOpenPin] = useState("");
-  const [openPinError, setOpenPinError] = useState("");
-
-  // Wrapper que pasa el PIN al hook y captura errores de autorización PIN
   const handleOpen = async () => {
     try {
-      await handleOpenCash(openPin.trim());
-      setOpenPin("");
-      setOpenPinError("");
+      await handleOpenCash();
     } catch (err: any) {
-      const code = err.response?.data?.code;
-      const msg = err.response?.data?.message || "PIN incorrecto.";
-      if (code === "PIN_INVALIDO" || code === "PIN_REQUERIDO") {
-        setOpenPinError(msg);
-        setOpenPin("");
-      }
+      const msg = err.response?.data?.message || "Error al abrir la caja.";
+      setInitialFundError(msg);
     }
   };
 
@@ -85,7 +75,7 @@ export function AperturaView({ sessionData, user, currentTime, onLogout }: Apert
           </button>
         </div>
       </header>
-
+ 
       <div style={styles.mainLayout} className="pos-cashier-main-layout">
         {/* Sidebar */}
         <aside style={styles.sidebar} className="pos-cashier-sidebar">
@@ -104,13 +94,13 @@ export function AperturaView({ sessionData, user, currentTime, onLogout }: Apert
             </div>
           </div>
         </aside>
-
+ 
         {/* Formulario Apertura Caja */}
         <div style={styles.contentArea} className="pos-cashier-content">
           <div style={styles.aperturaCard} className="pos-cashier-apertura-card">
             <h3 style={styles.cardMainTitle}>APERTURA DE CAJA</h3>
             <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "20px" }}>Establezca el fondo de caja inicial para comenzar el turno.</p>
-
+ 
             <div style={styles.inputGroup}>
               <label style={styles.label}>FONDO INICIAL ($)</label>
               <input
@@ -133,35 +123,12 @@ export function AperturaView({ sessionData, user, currentTime, onLogout }: Apert
               />
               {initialFundError && <p style={styles.fieldError}>{initialFundError}</p>}
             </div>
-
-            <div style={{ marginBottom: "12px", marginTop: "16px" }}>
-              <label style={{ display: "block", marginBottom: "4px", fontSize: "13px", color: "var(--text-secondary)" }}>
-                Un admin o gerente debe confirmar la apertura con su PIN.
-              </label>
-              <input
-                type="password"
-                maxLength={4}
-                placeholder="••••"
-                value={openPin}
-                onChange={e => {
-                  setOpenPin(e.target.value.replace(/\D/g, ""));
-                  setOpenPinError("");
-                }}
-                className="input-corporate"
-                style={{ width: "100%" }}
-              />
-              {openPinError && (
-                <p style={{ color: "#ef4444", fontSize: "12px", marginTop: "4px" }}>
-                  {openPinError}
-                </p>
-              )}
-            </div>
-
+ 
             <button
               onClick={handleOpen}
-              disabled={openingLoading || !openPin.trim()}
+              disabled={openingLoading || !initialFund.trim()}
               className="btn-primary active-tap"
-              style={{ ...styles.submitBtn, width: "100%", marginTop: "8px" }}
+              style={{ ...styles.submitBtn, width: "100%", marginTop: "24px" }}
             >
               {openingLoading ? "Abriendo Caja..." : "ABRIR TURNO ➜"}
             </button>

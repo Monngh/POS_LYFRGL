@@ -41,42 +41,13 @@ export const openSession = async (req: Request, res: Response): Promise<void> =>
     return;
   }
 
-  const { initialAmount, pinCode } = req.body;
+  const { initialAmount } = req.body;
   if (initialAmount === undefined || initialAmount === null || isNaN(Number(initialAmount))) {
     res.status(400).json({ message: "El monto del fondo inicial es requerido y debe ser numérico." });
     return;
   }
 
-  // ── Autorización con PIN de gerente/admin ──
-  if (!pinCode || typeof pinCode !== "string" || !pinCode.trim()) {
-    res.status(400).json({
-      code: "PIN_REQUERIDO",
-      message: "Ingrese el PIN de autorización para abrir la caja.",
-    });
-    return;
-  }
-
-  const staff = await prisma.user.findMany({
-    where: { role: { in: ["ADMIN", "GERENTE"] }, active: true, branchId: req.user.branchId },
-    select: { name: true, pinCode: true },
-  });
-
-  let authorized = false;
-  for (const s of staff) {
-    if (s.pinCode && (await comparePassword(pinCode.trim(), s.pinCode))) {
-      authorized = true;
-      break;
-    }
-  }
-
-  if (!authorized) {
-    res.status(403).json({
-      code: "PIN_INVALIDO",
-      message: "PIN de autorización incorrecto.",
-    });
-    return;
-  }
-  // ── Fin autorización ──
+  // ── Autorización con PIN de gerente/admin removida ──
 
   try {
     const newSession = await openCashSession(
