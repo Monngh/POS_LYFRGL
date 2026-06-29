@@ -160,6 +160,19 @@ const initialsOf = (name?: string): string => {
 const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
 
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
+
   const isMobile = useMediaQuery("(max-width: 1024px)");
 
   const [collapsed, setCollapsed] = useState(false);
