@@ -146,6 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginAsCashier = async (email: string, pinCode: string) => {
+    localStorage.removeItem("forcedCloseAcknowledged");
     setLoading(true);
     try {
       const response = await api.post("/api/auth/cashier-login", { email, pinCode });
