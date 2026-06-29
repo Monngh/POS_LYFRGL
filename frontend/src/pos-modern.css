@@ -131,7 +131,6 @@
   flex-direction: column;
   gap: 20px;
   transition: opacity 0.2s ease;
-  opacity: 1;
   position: relative;
 }
 
@@ -164,10 +163,10 @@
 
 /* Collapsed Sidebar State */
 .pos-sales-layout.sidebar-collapsed .pos-sales-sidebar {
-  width: 40px;
-  min-width: 40px;
+  width: 0;
+  min-width: 0;
   padding: 0;
-  border-right: 1px solid var(--border);
+  border-right: none;
   overflow: hidden;
 }
 
@@ -175,40 +174,6 @@
   opacity: 0;
   pointer-events: none;
   position: absolute;
-}
-
-/* Vertical Tab — visible when sidebar is collapsed */
-.pos-sidebar-vertical-tab {
-  display: none;
-}
-
-.pos-sales-layout.sidebar-collapsed .pos-sidebar-vertical-tab {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 100%;
-  background: linear-gradient(180deg, #1e3a8a 0%, #1e40af 100%);
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  transition: all 0.2s ease;
-}
-
-.pos-sidebar-vertical-tab span {
-  writing-mode: vertical-lr;
-  text-orientation: mixed;
-  transform: rotate(180deg);
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  user-select: none;
-}
-
-.pos-sidebar-vertical-tab:hover {
-  background: linear-gradient(180deg, #1e40af 0%, #2563eb 100%);
 }
 
 /* Cerrar Caja Button */
@@ -286,6 +251,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  align-self: flex-end;
 }
 
 .pos-carousel-arrow {
@@ -329,7 +295,7 @@
   background-color: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 10px 6px;
+  padding: 28px 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -826,14 +792,6 @@
     opacity: 1;
     pointer-events: auto;
     position: relative;
-  }
-  
-  .pos-sidebar-vertical-tab {
-    display: none !important; /* Hide vertical tab in stacked layouts */
-  }
-
-  .pos-sidebar-close-btn {
-    display: none; /* No close btn needed in stacked layout */
   }
   
   .pos-sidebar-inner-content {

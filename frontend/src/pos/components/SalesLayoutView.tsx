@@ -29,19 +29,6 @@ export function SalesLayoutView({
     <div className={`pos-sales-layout ${isSidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       {/* Sidebar Container */}
       <aside className="pos-sales-sidebar">
-        {/* Collapsed vertical tab — shown only when sidebar is collapsed */}
-        {isSidebarCollapsed && (
-          <button
-            type="button"
-            onClick={() => setIsSidebarCollapsed(false)}
-            className="pos-sidebar-vertical-tab active-tap"
-            title="Mostrar panel de acciones"
-            aria-label="Mostrar panel de acciones"
-          >
-            <span>Acciones</span>
-          </button>
-        )}
-
         {/* Sidebar Content (hidden when collapsed via CSS) */}
         <div className="pos-sidebar-inner-content">
           {/* Close sidebar button — top right of sidebar */}
