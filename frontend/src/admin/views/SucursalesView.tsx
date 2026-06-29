@@ -110,6 +110,15 @@ const branchDetailValue: React.CSSProperties = {
   color: "var(--text-secondary)",
 };
 
+const empLabel: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 800,
+  color: "var(--text-faint)",
+  textTransform: "uppercase",
+  letterSpacing: "0.5px",
+  marginBottom: 5,
+};
+
 const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [expandedBranches, setExpandedBranches] = useState<Record<number, boolean>>({});
@@ -138,6 +147,8 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [reassignId, setReassignId] = useState<number | null>(null);
   const [reassignTarget, setReassignTarget] = useState<string>("");
   const [reassigningEmployeeId, setReassigningEmployeeId] = useState<number | null>(null);
+  // Acordeón de empleados dentro del modal (sustituye la tabla con scroll horizontal)
+  const [expandedEmp, setExpandedEmp] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
@@ -763,61 +774,104 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
             </p>
           ) : (
             <>
-              <div
-                style={{
-                  ...ui.tableWrap,
-                  boxShadow: "none",
-                  overflowX: "auto",
-                  maxWidth: "100%",
-                  WebkitOverflowScrolling: "touch",
-                }}
-              >
-                <table style={{ ...ui.table, minWidth: 760, tableLayout: "auto" }}>
-                  <thead>
-                    <tr style={ui.theadRow}>
-                      <th style={{ ...ui.th, minWidth: 260 }}>Nombre</th>
-                      <th style={{ ...ui.th, minWidth: 130, textAlign: "center" }}>Rol</th>
-                      <th style={{ ...ui.th, minWidth: 130, textAlign: "center" }}>Estado</th>
-                      <th style={{ ...ui.th, minWidth: 150, textAlign: "center" }}>Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {branchEmployees.map((emp: any) => (
-                      <tr key={emp.id}>
-                        <td style={{ ...ui.td, overflowWrap: "anywhere" }}>{emp.name}</td>
-                        <td style={{ ...ui.td, textAlign: "center" }}>
-                          <Badge
-                            tone={
-                              emp.role === "ADMIN"
-                                ? "red"
-                                : emp.role === "GERENTE"
-                                  ? "amber"
-                                  : "blue"
-                            }
-                          >
-                            {emp.role}
-                          </Badge>
-                        </td>
-                        <td style={{ ...ui.td, textAlign: "center" }}>
-                          <Badge tone={emp.active ? "green" : "red"}>
-                            {emp.active ? "Activo" : "Inactivo"}
-                          </Badge>
-                        </td>
-                        <td style={{ ...ui.td, textAlign: "center" }}>
-                          <button
-                            style={ui.linkBtn}
-                            onClick={() => {
-                              setReassignId(emp.id);
-                              setReassignTarget("");
+              <div style={{ maxHeight: "56vh", overflowY: "auto", paddingRight: 4 }}>
+                {branchEmployees.map((emp: any) => {
+                  const open = !!expandedEmp[emp.id];
+                  const roleTone = emp.role === "ADMIN" ? "red" : emp.role === "GERENTE" ? "amber" : "blue";
+                  const initials = String(emp.name || "?")
+                    .trim()
+                    .split(/\s+/)
+                    .slice(0, 2)
+                    .map((w: string) => w[0])
+                    .join("")
+                    .toUpperCase();
+                  return (
+                    <div
+                      key={emp.id}
+                      style={{
+                        border: "1px solid var(--border)",
+                        borderRadius: 10,
+                        background: "var(--surface)",
+                        overflow: "hidden",
+                        marginBottom: 8,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {/* Cabecera (flecha desplegable) */}
+                      <button
+                        type="button"
+                        className="active-tap"
+                        onClick={() => setExpandedEmp((p) => ({ ...p, [emp.id]: !p[emp.id] }))}
+                        style={{
+                          width: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 10,
+                          padding: "11px 13px",
+                          background: "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                          textAlign: "left",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        <span style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
+                          <span
+                            style={{
+                              width: 34,
+                              height: 34,
+                              borderRadius: "50%",
+                              background: "var(--accent-soft)",
+                              color: "var(--accent-strong)",
+                              fontSize: 12,
+                              fontWeight: 800,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
                             }}
                           >
-                            Reasignar
+                            {initials}
+                          </span>
+                          <span style={{ minWidth: 0 }}>
+                            <span style={{ display: "block", fontWeight: 700, fontSize: 14, color: "var(--text)", overflowWrap: "anywhere" }}>
+                              {emp.name}
+                            </span>
+                            <span style={{ display: "block", fontSize: 11.5, color: "var(--text-muted)", fontWeight: 600 }}>{emp.role}</span>
+                          </span>
+                        </span>
+                        <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                          <Badge tone={emp.active ? "green" : "red"}>{emp.active ? "Activo" : "Inactivo"}</Badge>
+                          {open ? <ChevronUp size={16} color="var(--text-muted)" /> : <ChevronDown size={16} color="var(--text-muted)" />}
+                        </span>
+                      </button>
+
+                      {/* Detalle desplegado */}
+                      {open && (
+                        <div style={{ padding: "12px 13px 13px", borderTop: "1px solid var(--border-soft)" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                            <div>
+                              <div style={empLabel}>Rol</div>
+                              <Badge tone={roleTone}>{emp.role}</Badge>
+                            </div>
+                            <div>
+                              <div style={empLabel}>Estado</div>
+                              <Badge tone={emp.active ? "green" : "red"}>{emp.active ? "Activo" : "Inactivo"}</Badge>
+                            </div>
+                          </div>
+                          <button
+                            style={{ ...ui.ghostBtn, width: "100%", justifyContent: "center" }}
+                            className="active-tap"
+                            onClick={() => { setReassignId(emp.id); setReassignTarget(""); }}
+                          >
+                            Reasignar a otra sucursal
                           </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Formulario de reasignación */}

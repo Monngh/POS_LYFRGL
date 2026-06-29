@@ -106,13 +106,21 @@ const RESTRICTED_KEYS_GERENTE = [
   "admin-access",
 ];
 
+// Orden por prioridad del negocio (alta → baja) para un POS retail multi-sucursal:
+// 1) Inicio: panorama del negocio (primer vistazo del día).
+// 2) Operación: el flujo que genera ingreso (ventas, devoluciones, compras).
+// 3) Caja y finanzas: control diario del dinero / anti-fraude (cajas, depósitos, factura global).
+// 4) Inventario: disponibilidad de producto, el corazón del retail.
+// 5) Reportes: analítica para decisiones gerenciales (uso frecuente de dirección).
+// 6) Catálogos: datos maestros / configuración (se ajustan con baja frecuencia).
+// 7) Seguridad: bitácoras de auditoría (supervisión admin, frecuencia mínima).
 const NAV_SECTIONS: { label: string; items: string[] }[] = [
   { label: "Inicio", items: ["dashboard"] },
   { label: "Operación", items: ["ventas", "devoluciones", "compras"] },
   { label: "Caja y finanzas", items: ["cajas", "depositos", "facturacion-global"] },
   { label: "Inventario", items: ["inventario"] },
-  { label: "Catálogos", items: ["clientes", "empleados", "sucursales", "proveedores", "impuestos", "promociones"] },
   { label: "Reportes", items: ["reportes"] },
+  { label: "Catálogos", items: ["clientes", "promociones", "proveedores", "empleados", "sucursales", "impuestos"] },
   { label: "Seguridad", items: ["auditoria-reportes", "caja-access", "admin-access"] },
 ];
 
