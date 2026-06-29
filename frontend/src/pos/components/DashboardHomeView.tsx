@@ -15,6 +15,9 @@ import {
   Sun,
   Moon,
   ShoppingCart,
+  MapPin,
+  User,
+  Clock,
 } from "lucide-react";
 import { TICKET_PRINT_MEDIA_STYLES } from "../../shared/utils/ticketEmailDocument.util";
 import api from "../../shared/services/api";
@@ -112,30 +115,61 @@ export function DashboardHomeView({
   const { session, sessionStats, recentSales, recentDeposits } = sessionData;
   const theme = usePosTheme();
 
+  const formattedTime = currentTime.toLocaleTimeString("es-MX", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+
   return (
     <div style={styles.appContainer} className="pos-cashier-app">
       <style>{TICKET_PRINT_MEDIA_STYLES}</style>
       {/* Navbar */}
-      <header style={styles.navbar} className="pos-cashier-navbar">
-        <div style={styles.navBrand}>
-          <Store size={22} color="#ffffff" />
-          <span style={styles.brandText} className="pos-cashier-brand-text">POS - PUNTO DE VENTA</span>
+      <header className="pos-terminal-navbar">
+        <div className="pos-terminal-navbar-left">
+          <Store size={20} className="pos-terminal-store-icon" />
+          <span className="pos-terminal-brand-text">POS - Punto de Venta</span>
         </div>
-        <div style={styles.navActions}>
+
+        <div className="pos-terminal-navbar-right">
+          <div className="pos-terminal-chip">
+            <MapPin size={14} />
+            <span>{user?.branch?.name || "Sucursal"}</span>
+          </div>
+          <div className="pos-terminal-chip">
+            <User size={14} />
+            <span>Cajero: {user?.name || "—"}</span>
+          </div>
+          <div className="pos-terminal-chip clock">
+            <Clock size={14} />
+            <span>{formattedTime}</span>
+          </div>
           <button
             onClick={togglePosTheme}
-            style={styles.themeBtn}
-            className="active-tap"
+            className="pos-terminal-home-btn active-tap"
             title={theme === "dark" ? "Modo claro" : "Modo oscuro"}
             aria-label={theme === "dark" ? "Activar modo claro" : "Activar modo oscuro"}
+            type="button"
           >
             {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
           </button>
-          <button onClick={onNuevaVenta} style={styles.goToSalesBtn} className="active-tap pos-cashier-nav-sales-btn">
-            <ShoppingCart size={16} /> Ir a Ventas
+          <button
+            onClick={onNuevaVenta}
+            className="pos-terminal-home-btn active-tap"
+            title="Ir a Ventas"
+            aria-label="Ir a Ventas"
+            type="button"
+          >
+            <ShoppingCart size={16} />
           </button>
-          <button onClick={onLogout} style={styles.logoutBtn} className="active-tap pos-cashier-logout-btn">
-            <LogOut size={16} /> Cerrar Sesión
+          <button
+            onClick={onLogout}
+            className="pos-terminal-logout-btn active-tap"
+            title="Cerrar Sesión"
+            aria-label="Cerrar sesión del cajero"
+            type="button"
+          >
+            <LogOut size={16} />
           </button>
         </div>
       </header>
@@ -278,10 +312,9 @@ export function DashboardHomeView({
               </button>
             </div>
           </div>
-
-          {/* Tablas Inferiores (Mockup 7) */}
+          {/* Tablas Inferiores (Mockup 7)
           <div style={styles.tablesGrid} className="pos-cashier-tables-grid">
-            {/* Últimas Ventas */}
+            {/* Últimas Ventas
             <div className="card-premium pos-cashier-table-card" style={styles.tableCard}>
               <h4 style={styles.tableCardTitle}>ÚLTIMAS VENTAS</h4>
               <div style={{ overflowY: "auto", flex: 1, marginTop: "12px" }} className="pos-cashier-table-scroll pos-cashier-table-scroll--dashboard-sales">
@@ -369,7 +402,7 @@ export function DashboardHomeView({
                               )}
                             </td>
                           </tr>
-                          {/* Fila de detalles adicionales para responsive */}
+                          {/* Fila de detalles adicionales para responsive
                           <tr className="pos-cashier-table-details-row">
                             <td colSpan={8} style={{ padding: 0 }}>
                               <div className="pos-cashier-table-details">
@@ -432,7 +465,7 @@ export function DashboardHomeView({
               </div>
             </div>
 
-            {/* Solicitudes de Cancelación / Historial de depósitos */}
+            {/* Solicitudes de Cancelación / Historial de depósitos 
             <div className="card-premium pos-cashier-table-card" style={styles.tableCard}>
               <h4 style={styles.tableCardTitle}>HISTORIAL DE DEPÓSITOS BANCARIOS</h4>
               <div style={{ overflowY: "auto", flex: 1, marginTop: "12px" }} className="pos-cashier-table-scroll pos-cashier-table-scroll--deposits pos-cashier-table-scroll--dashboard-deposits">
@@ -491,7 +524,7 @@ export function DashboardHomeView({
                               )}
                             </td>
                           </tr>
-                          {/* Fila de detalles adicionales para responsive */}
+                          {/* Fila de detalles adicionales para responsive 
                           <tr className="pos-cashier-table-details-row">
                             <td colSpan={5} style={{ padding: 0 }}>
                               <div className="pos-cashier-table-details">
@@ -522,7 +555,11 @@ export function DashboardHomeView({
                 </table>
               </div>
             </div>
+            
           </div>
+
+
+          */}
         </div>
       </div>
     </div>
