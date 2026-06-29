@@ -87,7 +87,7 @@ const Login: React.FC = () => {
 
   // Sesión única (admin): aviso de "sesión abierta" (informativo) y aviso de
   // "sesión desplazada" si te cerraron por iniciar en otro dispositivo.
-  const [sessionConflict, setSessionConflict] = useState<{ message: string; since?: number; ip?: string | null } | null>(null);
+  const [sessionConflict, setSessionConflict] = useState<{ message: string; since?: number } | null>(null);
   const [logoutReason, setLogoutReason] = useState<string | null>(null);
 
   // Detección de autocompletado del navegador en el formulario de admin: si el
@@ -341,7 +341,6 @@ const Login: React.FC = () => {
         setSessionConflict({
           message: err.message || "Ya hay una sesión activa con este usuario.",
           since: info.session?.since,
-          ip: info.session?.ip ?? null,
         });
       } else {
         setError(err.message || "Credenciales inválidas.");
@@ -553,7 +552,6 @@ const Login: React.FC = () => {
                   {sessionConflict.since && (
                     <div style={{ marginTop: 4, fontSize: 12, color: "#a16207" }}>
                       Activa desde {new Date(sessionConflict.since).toLocaleString("es-MX")}
-                      {sessionConflict.ip ? ` · IP ${sessionConflict.ip}` : ""}
                     </div>
                   )}
                 </div>
