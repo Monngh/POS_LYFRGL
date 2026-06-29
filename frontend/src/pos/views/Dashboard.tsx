@@ -1057,7 +1057,7 @@ const Dashboard: React.FC = () => {
           style={{
             width: "100%",
             padding: "12px",
-            backgroundColor: "var(--color-primary)",
+            backgroundColor: "var(--accent)",
             color: "#ffffff",
             border: "none",
             borderRadius: "8px",
