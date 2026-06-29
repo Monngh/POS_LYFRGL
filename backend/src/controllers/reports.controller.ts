@@ -6,6 +6,7 @@ import {
   getSellerReport,
   getReceivablesReport,
 } from "../services/reports.service";
+import { getExecutiveSummary } from "../services/executiveSummary.service";
 
 const parseBranchId = (req: Request): number | undefined => {
   if (req.user && req.user.role === "GERENTE") {
@@ -126,6 +127,23 @@ export const reportBySeller = async (req: Request, res: Response): Promise<void>
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ message: "Error al generar el reporte por vendedor." });
+  }
+};
+
+export const reportExecutiveSummary = async (req: Request, res: Response): Promise<void> => {
+  const branchId = parseBranchId(req);
+  const range = parseReportDateRange(req.query);
+  if (range.errorStatus) {
+    res.status(range.errorStatus).json({ success: false, message: range.errorMessage });
+    return;
+  }
+  const { from, to } = range;
+  try {
+    const result = await getExecutiveSummary({ from, to, branchId });
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ message: "Error al generar el resumen ejecutivo." });
   }
 };
 

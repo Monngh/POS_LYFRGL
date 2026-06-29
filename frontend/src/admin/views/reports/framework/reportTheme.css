@@ -1,0 +1,216 @@
+/* ============================================================================
+   Sistema visual de Reportes Empresariales — LYFRGL Solutions POS
+   Paleta institucional azul/blanco. "Papel" siempre claro (independiente del
+   modo oscuro de la app). Modelo de páginas A4 explícitas con encabezado/pie
+   y numeración determinista, optimizado para impresión / PDF.
+   ============================================================================ */
+.erp-doc {
+  /* Paleta institucional */
+  --erp-navy: #0b2a5b;
+  --erp-blue: #1e4fa3;
+  --erp-accent: #2563eb;
+  --erp-soft: #eff4fb;
+  --erp-soft2: #f7f9fc;
+  --erp-border: #d8e1f0;
+  --erp-line: #e8eef7;
+  --erp-text: #0f172a;
+  --erp-muted: #5b6b86;
+  --erp-faint: #8b9ab2;
+  --erp-green: #15803d;
+  --erp-red: #b91c1c;
+  --erp-amber: #b45309;
+  --erp-green-bg: #e9f7ef;
+  --erp-red-bg: #fdecec;
+  --erp-amber-bg: #fdf3e3;
+
+  color: var(--erp-text);
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+  background: #eef1f6;
+  padding: 24px 0;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ----------------------------- Página A4 ----------------------------------- */
+.erp-page {
+  position: relative;
+  width: 210mm;
+  min-height: 297mm;
+  background: #ffffff;
+  margin: 0 auto 22px;
+  padding: 16mm 15mm 22mm;
+  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.16);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+.erp-page.landscape {
+  width: 297mm;
+  min-height: 210mm;
+}
+
+/* Encabezado corporativo repetido en páginas interiores */
+.erp-runhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid var(--erp-navy);
+  padding-bottom: 8px;
+  margin-bottom: 16px;
+}
+.erp-runhead-left { display: flex; align-items: center; gap: 10px; }
+.erp-runhead-title { font-size: 11px; font-weight: 800; color: var(--erp-navy); letter-spacing: 0.3px; }
+.erp-runhead-sub { font-size: 9px; color: var(--erp-muted); font-weight: 600; }
+.erp-runhead-meta { font-size: 9px; color: var(--erp-faint); text-align: right; font-weight: 600; }
+
+/* Pie de página */
+.erp-foot {
+  position: absolute;
+  left: 15mm;
+  right: 15mm;
+  bottom: 9mm;
+  border-top: 1px solid var(--erp-border);
+  padding-top: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-size: 8px;
+  color: var(--erp-faint);
+  font-weight: 600;
+}
+.erp-foot-brand { color: var(--erp-navy); font-weight: 800; }
+.erp-foot strong { color: var(--erp-muted); }
+.erp-page-body { flex: 1; }
+
+/* ----------------------------- Portada ------------------------------------- */
+.erp-cover { justify-content: space-between; padding: 24mm 20mm; }
+.erp-cover-top { display: flex; align-items: center; gap: 14px; }
+.erp-cover-band {
+  margin: auto 0;
+  border-left: 6px solid var(--erp-accent);
+  padding-left: 22px;
+}
+.erp-cover-kicker { font-size: 12px; font-weight: 800; letter-spacing: 3px; color: var(--erp-accent); text-transform: uppercase; }
+.erp-cover-title { font-size: 40px; font-weight: 900; color: var(--erp-navy); line-height: 1.05; margin: 10px 0 6px; letter-spacing: -0.5px; }
+.erp-cover-desc { font-size: 13px; color: var(--erp-muted); max-width: 130mm; line-height: 1.6; }
+.erp-cover-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--erp-border); border-radius: 10px; overflow: hidden; }
+.erp-cover-meta-item { padding: 13px 18px; border-bottom: 1px solid var(--erp-line); }
+.erp-cover-meta-item:nth-child(odd) { border-right: 1px solid var(--erp-line); }
+.erp-cover-meta-label { font-size: 9px; font-weight: 800; color: var(--erp-faint); text-transform: uppercase; letter-spacing: 0.6px; }
+.erp-cover-meta-value { font-size: 13px; font-weight: 700; color: var(--erp-text); margin-top: 3px; }
+
+/* ----------------------------- Títulos de sección -------------------------- */
+.erp-section-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--erp-navy);
+  margin: 18px 0 12px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--erp-border);
+}
+.erp-section-title:first-child { margin-top: 0; }
+.erp-section-title .erp-st-icon {
+  width: 26px; height: 26px; border-radius: 7px; background: var(--erp-soft);
+  display: flex; align-items: center; justify-content: center; color: var(--erp-accent);
+}
+.erp-section-sub { font-size: 11px; color: var(--erp-muted); font-weight: 600; margin-left: auto; }
+
+/* ----------------------------- Tarjetas KPI -------------------------------- */
+.erp-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+.erp-kpi {
+  border: 1px solid var(--erp-border);
+  border-radius: 10px;
+  padding: 11px 12px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.erp-kpi-head { display: flex; align-items: center; gap: 7px; }
+.erp-kpi-ico { width: 24px; height: 24px; border-radius: 6px; background: var(--erp-soft); display: flex; align-items: center; justify-content: center; color: var(--erp-accent); flex-shrink: 0; }
+.erp-kpi-label { font-size: 9.5px; font-weight: 700; color: var(--erp-muted); text-transform: uppercase; letter-spacing: 0.3px; line-height: 1.2; }
+.erp-kpi-value { font-size: 19px; font-weight: 900; color: var(--erp-navy); letter-spacing: -0.4px; word-break: break-word; }
+.erp-kpi-delta { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 800; }
+.erp-kpi-delta.up { color: var(--erp-green); }
+.erp-kpi-delta.down { color: var(--erp-red); }
+.erp-kpi-delta.flat { color: var(--erp-faint); }
+.erp-kpi-delta-note { font-size: 8.5px; color: var(--erp-faint); font-weight: 600; }
+
+/* ----------------------------- Tira de "tops" ------------------------------ */
+.erp-tops { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 10px; }
+.erp-top {
+  border: 1px solid var(--erp-border); border-radius: 9px; padding: 10px 11px;
+  background: linear-gradient(180deg, var(--erp-soft) 0%, #fff 100%);
+}
+.erp-top-label { font-size: 8.5px; font-weight: 800; color: var(--erp-accent); text-transform: uppercase; letter-spacing: 0.5px; }
+.erp-top-value { font-size: 12.5px; font-weight: 800; color: var(--erp-navy); margin-top: 4px; line-height: 1.25; }
+
+/* ----------------------------- Insights / Alertas -------------------------- */
+.erp-panel { border: 1px solid var(--erp-border); border-radius: 10px; overflow: hidden; }
+.erp-panel-head { background: var(--erp-soft); padding: 8px 13px; font-size: 11px; font-weight: 800; color: var(--erp-navy); display: flex; align-items: center; gap: 7px; border-bottom: 1px solid var(--erp-border); }
+.erp-list { padding: 6px 13px 9px; }
+.erp-list-item { display: flex; gap: 9px; align-items: flex-start; padding: 5px 0; font-size: 11.5px; color: var(--erp-text); line-height: 1.45; border-bottom: 1px solid var(--erp-line); }
+.erp-list-item:last-child { border-bottom: none; }
+.erp-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; background: var(--erp-accent); }
+.erp-alert-item { border-left: 3px solid; padding: 8px 11px; border-radius: 6px; margin: 7px 0; font-size: 11.5px; font-weight: 600; display: flex; gap: 8px; align-items: flex-start; }
+.erp-alert-item.red { border-color: var(--erp-red); background: var(--erp-red-bg); color: #7f1d1d; }
+.erp-alert-item.amber { border-color: var(--erp-amber); background: var(--erp-amber-bg); color: #78350f; }
+.erp-alert-item.green { border-color: var(--erp-green); background: var(--erp-green-bg); color: #14532d; }
+.erp-alert-empty { padding: 12px 13px; font-size: 11px; color: var(--erp-muted); }
+
+/* ----------------------------- Gráficas ------------------------------------ */
+.erp-charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.erp-chart-card { border: 1px solid var(--erp-border); border-radius: 10px; padding: 11px 13px 6px; background: #fff; }
+.erp-chart-card.full { grid-column: 1 / -1; }
+.erp-chart-q { font-size: 11.5px; font-weight: 800; color: var(--erp-navy); }
+.erp-chart-sub { font-size: 9.5px; color: var(--erp-muted); font-weight: 600; margin-bottom: 6px; }
+
+/* ----------------------------- Tabla --------------------------------------- */
+.erp-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+.erp-table thead th {
+  background: var(--erp-navy); color: #fff; font-weight: 700; text-align: left;
+  padding: 8px 9px; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.3px;
+}
+.erp-table thead th.r { text-align: right; }
+.erp-table thead th.c { text-align: center; }
+.erp-table tbody td { padding: 6px 9px; border-bottom: 1px solid var(--erp-line); color: var(--erp-text); }
+.erp-table tbody td.r { text-align: right; font-variant-numeric: tabular-nums; }
+.erp-table tbody td.c { text-align: center; }
+.erp-table tbody tr:nth-child(even) td { background: var(--erp-soft2); }
+.erp-table tfoot td { padding: 8px 9px; font-weight: 800; color: var(--erp-navy); border-top: 2px solid var(--erp-navy); background: var(--erp-soft); }
+.erp-table tfoot td.r { text-align: right; }
+
+/* ----------------------------- Heatmap ------------------------------------- */
+.erp-heat { display: grid; grid-template-columns: 34px repeat(24, 1fr); gap: 2px; font-size: 8px; }
+.erp-heat-cell { aspect-ratio: 1.1; border-radius: 2px; }
+.erp-heat-axis { color: var(--erp-faint); font-weight: 700; display: flex; align-items: center; }
+
+/* ----------------------------- Barra de control (no imprime) --------------- */
+.erp-toolbar {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px 16px; margin-bottom: 18px;
+}
+.erp-field { display: flex; flex-direction: column; gap: 4px; }
+.erp-field label { font-size: 10px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+.erp-field input { padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: 7px; font-size: 13px; background: var(--input-bg); color: var(--text); }
+.erp-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: 1px solid transparent; }
+.erp-btn-primary { background: var(--erp-accent); color: #fff; }
+.erp-btn-ghost { background: transparent; border-color: var(--border-strong); color: var(--text-secondary); }
+.erp-btn:disabled { opacity: 0.55; cursor: default; }
+.erp-toolbar-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ----------------------------- Impresión ----------------------------------- */
+@media print {
+  body * { visibility: hidden !important; }
+  .erp-doc, .erp-doc * { visibility: visible !important; }
+  .erp-doc { position: absolute; left: 0; top: 0; width: 100%; background: #fff; padding: 0; }
+  .erp-no-print { display: none !important; }
+  .erp-page { box-shadow: none; margin: 0 auto; break-after: page; page-break-after: always; }
+  .erp-page:last-child { break-after: auto; page-break-after: auto; }
+  @page { size: A4; margin: 0; }
+}
