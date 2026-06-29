@@ -1,5 +1,5 @@
 import React from "react";
-import { Menu, MapPin, User, Clock, LogOut, AlertTriangle, Home, Lock } from "lucide-react";
+import { Menu, MapPin, User, Clock, LogOut, AlertTriangle, Home, Lock as LockIcon } from "lucide-react";
 import { TICKET_PRINT_MEDIA_STYLES } from "../../shared/utils/ticketEmailDocument.util";
 import { DECIMAL_INPUT_REGEX, handleDecimalInputChange } from "../../shared/utils/decimalInput";
 import { useCashSession } from "../hooks/useCashSession";
@@ -9,6 +9,7 @@ import { usePosCustomer } from "../hooks/usePosCustomer";
 import { ProductSearchPanel } from "./ProductSearchPanel";
 import { CartPanel } from "./CartPanel";
 import { CheckoutPanel } from "./CheckoutPanel";
+import { SalesLayoutView } from "./SalesLayoutView";
 
 interface SalesTerminalUser {
   name: string;
@@ -57,12 +58,13 @@ const styles: { [key: string]: React.CSSProperties } = {
 };
 
 export function SalesTerminalView({
-  sessionData: _sessionData,
+  sessionData,
   cartData,
   searchData,
   customerData,
   user,
   currentTime,
+  onOpenModal,
   onToast,
   pendingQrSales,
   pendingQrChecking,
@@ -74,6 +76,7 @@ export function SalesTerminalView({
   onLogout,
   onLock,
 }: SalesTerminalViewProps) {
+  const { session, sessionStats } = sessionData;
   const {
     checkoutModalOpen, setCheckoutModalOpen,
     checkoutLoading, checkoutError, checkoutFieldErrors, setCheckoutFieldErrors,
@@ -147,7 +150,6 @@ export function SalesTerminalView({
             >
               <Home size={16} />
             </button>
-          )}
           {onLock && (
             <button
               type="button"
@@ -156,7 +158,7 @@ export function SalesTerminalView({
               title="Bloquear pantalla"
               aria-label="Bloquear sesión"
             >
-              <Lock size={16} />
+              <LockIcon size={16} />
             </button>
           )}
           <button
@@ -172,7 +174,15 @@ export function SalesTerminalView({
       </header>
 
       {/* Cuerpo Terminal */}
-      <div style={styles.terminalBody} className="pos-cashier-terminal-body">
+      <SalesLayoutView
+        session={session}
+        sessionStats={sessionStats}
+        onOpenModal={onOpenModal}
+        onLock={onLock || (() => {})}
+        onGoHome={onGoHome || (() => {})}
+        isSidebarCollapsed={isSidebarCollapsed}
+        setIsSidebarCollapsed={setIsSidebarCollapsed}
+      >
         <ProductSearchPanel
           searchData={searchData}
           customerData={customerData}
@@ -193,7 +203,7 @@ export function SalesTerminalView({
             onOpenCheckout={() => setCheckoutModalOpen(true)}
           />
         </div>
-      </div>
+      </SalesLayoutView>
 
       {/* COBRO MODAL */}
       {checkoutModalOpen && (
