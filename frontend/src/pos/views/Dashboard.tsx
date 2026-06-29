@@ -1052,7 +1052,6 @@ const Dashboard: React.FC = () => {
         <button
           onClick={() => {
             clearForcedClose();
-            logout();
           }}
           style={{
             width: "100%",

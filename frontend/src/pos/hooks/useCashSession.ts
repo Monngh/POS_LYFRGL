@@ -100,7 +100,8 @@ export function useCashSession({
         onSetView("dashboard");
         await loadDashboardData();
       } else {
-        if (resStatus.data.lastClosed?.forceCloseReason) {
+        const alreadyAcknowledged = localStorage.getItem("forcedCloseAcknowledged") === "true";
+        if (resStatus.data.lastClosed?.forceCloseReason && !alreadyAcknowledged) {
           setForcedCloseData({
             reason: resStatus.data.lastClosed.forceCloseReason,
             closedAt: resStatus.data.lastClosed.closedAt,
@@ -118,6 +119,7 @@ export function useCashSession({
   };
 
   const handleOpenCash = async (pinCode?: string) => {
+    localStorage.removeItem("forcedCloseAcknowledged");
     const initialFundValidation = validateDecimalField(initialFund, "El fondo inicial", {
       invalidMessage: "El fondo inicial debe ser un monto valido con maximo 3 decimales.",
     });
@@ -219,7 +221,8 @@ export function useCashSession({
     const interval = setInterval(async () => {
       try {
         const res = await api.get("/api/cash-session/status");
-        if (!res.data.isOpen && res.data.lastClosed?.forceCloseReason) {
+        const alreadyAcknowledged = localStorage.getItem("forcedCloseAcknowledged") === "true";
+        if (!res.data.isOpen && res.data.lastClosed?.forceCloseReason && !alreadyAcknowledged) {
           setForcedCloseData({
             reason: res.data.lastClosed.forceCloseReason,
             closedAt: res.data.lastClosed.closedAt,
@@ -235,7 +238,10 @@ export function useCashSession({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, user]);
 
-  const clearForcedClose = () => setForcedCloseData(null);
+  const clearForcedClose = () => {
+    setForcedCloseData(null);
+    localStorage.setItem("forcedCloseAcknowledged", "true");
+  };
 
   return {
     session,
