@@ -4,9 +4,82 @@ import { AppError } from "../utils/AppError";
 const PRODUCT_TEXT_REGEX = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü0-9\s.,#\-/()]+$/;
 const MOVEMENT_TYPE_REGEX = /^[A-Z_]+$/;
 
+// Normaliza texto eliminando acentos y pasando a minúsculas
+const normalizeSearchText = (value: string): string =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+// Divide la búsqueda en términos individuales
+const splitSearchTerms = (search: string): string[] =>
+  normalizeSearchText(search)
+    .split(/\s+/)
+    .filter(Boolean);
+
+// Construye el bloque AND de condiciones OR para multi-palabra en Inventario
+const buildInventorySearchWhere = (search: string): any => {
+  const terms = splitSearchTerms(search);
+  if (terms.length === 0) return {};
+  if (terms.length === 1) {
+    const t = terms[0];
+    return {
+      OR: [
+        { name: { contains: t } },
+        { sku: { contains: t } },
+        { barcode: { contains: t } },
+        { description: { contains: t } },
+      ],
+    };
+  }
+  // Multi-palabra: AND de bloques OR — todos los términos deben aparecer en algún campo
+  return {
+    AND: terms.map((t) => ({
+      OR: [
+        { name: { contains: t } },
+        { sku: { contains: t } },
+        { barcode: { contains: t } },
+        { description: { contains: t } },
+      ],
+    })),
+  };
+};
+
+// Construye el bloque AND de condiciones OR para multi-palabra en Kardex (relación product)
+const buildKardexProductSearchWhere = (search: string): any => {
+  const terms = splitSearchTerms(search);
+  if (terms.length === 0) return {};
+  if (terms.length === 1) {
+    const t = terms[0];
+    return {
+      product: {
+        OR: [
+          { name: { contains: t } },
+          { sku: { contains: t } },
+          { barcode: { contains: t } },
+          { description: { contains: t } },
+        ],
+      },
+    };
+  }
+  // Multi-palabra sobre la relación product
+  return {
+    AND: terms.map((t) => ({
+      product: {
+        OR: [
+          { name: { contains: t } },
+          { sku: { contains: t } },
+          { barcode: { contains: t } },
+          { description: { contains: t } },
+        ],
+      },
+    })),
+  };
+};
+
 export const listInventory = async (branchId?: number, search?: string) => {
-  const where: any = {};
-  if (search) where.OR = [{ name: { contains: search } }, { sku: { contains: search } }];
+  const where: any = search ? buildInventorySearchWhere(search) : {};
 
   const products = await prisma.product.findMany({
     where,
@@ -43,15 +116,36 @@ export const listKardex = async (params: {
   from?: Date;
   to?: Date;
 }) => {
-  const where: any = {};
-  if (params.branchId) where.branchId = params.branchId;
-  if (params.movementType && params.movementType !== "all") where.movementType = params.movementType;
-  if (params.search) where.product = { OR: [{ name: { contains: params.search } }, { sku: { contains: params.search } }] };
+  const baseWhere: any = {};
+  if (params.branchId) baseWhere.branchId = params.branchId;
+  if (params.movementType && params.movementType !== "all") baseWhere.movementType = params.movementType;
   if (params.from || params.to) {
-    where.createdAt = {
+    baseWhere.createdAt = {
       ...(params.from ? { gte: params.from } : {}),
       ...(params.to ? { lte: params.to } : {}),
     };
+  }
+
+  // Construir la búsqueda multi-palabra fusionada con los filtros base
+  let where: any;
+  if (params.search) {
+    const searchWhere = buildKardexProductSearchWhere(params.search);
+    // Si el searchWhere tiene AND (multi-término), fusionamos con los filtros base
+    if (searchWhere.AND) {
+      where = {
+        ...baseWhere,
+        AND: searchWhere.AND,
+      };
+    } else if (searchWhere.product) {
+      where = {
+        ...baseWhere,
+        product: searchWhere.product,
+      };
+    } else {
+      where = baseWhere;
+    }
+  } else {
+    where = baseWhere;
   }
 
   const entries = await prisma.kardex.findMany({

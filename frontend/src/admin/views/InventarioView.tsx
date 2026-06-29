@@ -1157,7 +1157,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               )}
               {!loading && filteredRows.length === 0 && (
                 <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-                  No hay productos registrados.
+                  {search.trim()
+                    ? "No se encontraron productos con esa b\u00fasqueda."
+                    : "No hay productos registrados."}
                 </div>
               )}
 
@@ -1357,7 +1359,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  <TableState colSpan={7} loading={loading} error={error} empty={!loading && filteredRows.length === 0} />
+                  <TableState
+                    colSpan={7}
+                    loading={loading}
+                    error={error}
+                    empty={!loading && filteredRows.length === 0}
+                    emptyText={search.trim() ? "No se encontraron productos con esa b\u00fasqueda." : "No hay productos registrados."}
+                  />
                   {!loading &&
                     !error &&
                     filteredRows.map((p) => (

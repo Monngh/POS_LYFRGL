@@ -233,7 +233,9 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           )}
           {!loading && !error && rows.length === 0 && (
             <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              Sin registros en el periodo seleccionado.
+              {search.trim()
+                ? "No se encontraron productos con esa b\u00fasqueda."
+                : "Sin registros en el periodo seleccionado."}
             </div>
           )}
 
@@ -432,7 +434,13 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               </tr>
             </thead>
             <tbody>
-              <TableState colSpan={10} loading={loading} error={error} empty={!loading && !error && rows.length === 0} />
+              <TableState
+                colSpan={10}
+                loading={loading}
+                error={error}
+                empty={!loading && !error && rows.length === 0}
+                emptyText={search.trim() ? "No se encontraron productos con esa b\u00fasqueda." : "Sin registros en el periodo seleccionado."}
+              />
               {!loading &&
                 !error &&
                 rows.map((k) => {

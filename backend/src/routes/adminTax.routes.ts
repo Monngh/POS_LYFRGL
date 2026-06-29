@@ -8,6 +8,8 @@ import {
     deleteProductTax,
     getProductTaxes,
     syncProductTaxes,
+    getTaxProducts,
+    setTaxProducts,
 } from "../controllers/adminTax.controller"
 import { authenticateJWT, authorizeRoles } from "../middlewares/auth.middleware";
 
@@ -20,9 +22,12 @@ router.get("/taxes", getTaxes)
 router.post("/taxes", createTax)
 router.put("/taxes", updateTax)
 router.put("/taxes/status", updateTaxStatus)
+router.get("/taxes/:taxId/products", getTaxProducts)
+router.put("/taxes/:taxId/products", setTaxProducts)
 router.get("/products/:productId/taxes", getProductTaxes)
 router.put("/products/:productId/taxes", syncProductTaxes)
 router.post("/taxes/product", createProductTax)
 router.delete("/taxes/product", deleteProductTax)
 
 export default router;
+

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { BadgePercent, ChevronDown, ChevronUp, Pencil, Plus, Power } from "lucide-react";
+import { BadgePercent, ChevronDown, ChevronUp, Package, Pencil, Plus, Power, X } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
 import { DataTable, ActionModal } from "../../shared/ui";
@@ -19,8 +19,14 @@ import {
   Badge,
   SectionHeader,
   fmtDate,
-  useMediaQuery
+  money,
+  matchesProductSearch,
+  useMediaQuery,
 } from "./shared";
+
+// ---------------------------------------------------------------------------
+// Interfaces
+// ---------------------------------------------------------------------------
 
 interface TaxRow {
   id: number;
@@ -50,6 +56,16 @@ interface FormState {
   active: boolean;
 }
 
+/** Producto para el modal de gestión de impuestos */
+interface ProductForTax {
+  id: number;
+  sku: string;
+  name: string;
+  barcode: string | null;
+  sellPrice: number;
+  assigned: boolean;
+}
+
 type FieldErrors = Partial<Record<keyof FormState, string>>;
 
 const emptyForm: FormState = {
@@ -60,6 +76,10 @@ const emptyForm: FormState = {
 };
 
 const TAX_ENDPOINT = "/api/admin-tax/taxes";
+
+// ---------------------------------------------------------------------------
+// Helpers de formato
+// ---------------------------------------------------------------------------
 
 const normalizeRate = (rate: number | string) => {
   const value = Number(rate);
@@ -93,9 +113,12 @@ const getErrorMessage = (err: unknown, fallback: string) => {
     const apiError = err as { response?: { data?: { message?: string } } };
     return apiError.response?.data?.message || fallback;
   }
-
   return fallback;
 };
+
+// ---------------------------------------------------------------------------
+// Componente principal
+// ---------------------------------------------------------------------------
 
 const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [expandedTaxes, setExpandedTaxes] = useState<Record<number, boolean>>({});
@@ -116,7 +139,16 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
 
-  // TODO: integrar asignacion de impuestos desde la pantalla de Productos.
+  // ── Modal: Gestionar productos de un impuesto ──
+  const [manageOpen, setManageOpen] = useState(false);
+  const [managingTax, setManagingTax] = useState<TaxRow | null>(null);
+  const [manageAllProducts, setManageAllProducts] = useState<ProductForTax[]>([]);
+  const [manageLoading, setManageLoading] = useState(false);
+  const [manageError, setManageError] = useState<string | null>(null);
+  const [manageSaving, setManageSaving] = useState(false);
+  const [manageNotice, setManageNotice] = useState<string | null>(null);
+  const [manageSearch, setManageSearch] = useState("");
+  const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
@@ -142,6 +174,18 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
   const activeCount = useMemo(() => rows.filter((r) => r.active).length, [rows]);
   const inactiveCount = rows.length - activeCount;
 
+  // ── Búsqueda local en el modal (multi-palabra) ──
+  const filteredManageProducts = useMemo(() => {
+    if (!manageSearch.trim()) return manageAllProducts;
+    return manageAllProducts.filter((p) =>
+      matchesProductSearch(
+        { sku: p.sku, name: p.name, barcode: p.barcode ?? undefined },
+        manageSearch
+      )
+    );
+  }, [manageAllProducts, manageSearch]);
+
+  // ── Formulario de impuesto ──
   const openCreate = () => {
     setForm({ ...emptyForm });
     setFieldErrors({});
@@ -276,6 +320,89 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
     }
   };
 
+  // ── Gestión masiva de productos ──
+  const openManage = async (tax: TaxRow) => {
+    setManagingTax(tax);
+    setManageSearch("");
+    setManageNotice(null);
+    setManageError(null);
+    setManageLoading(true);
+    setManageOpen(true);
+    setCheckedIds(new Set());
+    setManageAllProducts([]);
+    try {
+      const res = await api.get<{ data: { products: ProductForTax[] } }>(
+        `/api/admin-tax/taxes/${tax.id}/products`
+      );
+      const prods = res.data.data.products;
+      setManageAllProducts(prods);
+      setCheckedIds(new Set(prods.filter((p) => p.assigned).map((p) => p.id)));
+    } catch (err: unknown) {
+      setManageError(getErrorMessage(err, "No se pudo cargar los productos."));
+    } finally {
+      setManageLoading(false);
+    }
+  };
+
+  const closeManage = () => {
+    if (manageSaving) return;
+    setManageOpen(false);
+    setManagingTax(null);
+    setManageAllProducts([]);
+    setCheckedIds(new Set());
+    setManageSearch("");
+    setManageNotice(null);
+    setManageError(null);
+  };
+
+  const saveManage = async () => {
+    if (!managingTax || manageSaving) return;
+    setManageSaving(true);
+    setManageNotice(null);
+    setManageError(null);
+    try {
+      await api.put(`/api/admin-tax/taxes/${managingTax.id}/products`, {
+        productIds: [...checkedIds],
+      });
+      // Recargar lista para reflejar estado actualizado
+      const res = await api.get<{ data: { products: ProductForTax[] } }>(
+        `/api/admin-tax/taxes/${managingTax.id}/products`
+      );
+      const prods = res.data.data.products;
+      setManageAllProducts(prods);
+      setCheckedIds(new Set(prods.filter((p) => p.assigned).map((p) => p.id)));
+      setManageNotice("Impuesto asignado correctamente a los productos seleccionados.");
+    } catch (err: unknown) {
+      setManageError(getErrorMessage(err, "No se pudo guardar la asignación."));
+    } finally {
+      setManageSaving(false);
+    }
+  };
+
+  const toggleChecked = (id: number) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllVisible = () => {
+    const ids = filteredManageProducts.map((p) => p.id);
+    const allChecked = ids.every((id) => checkedIds.has(id));
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => (allChecked ? next.delete(id) : next.add(id)));
+      return next;
+    });
+  };
+
+  const allVisibleChecked =
+    filteredManageProducts.length > 0 &&
+    filteredManageProducts.every((p) => checkedIds.has(p.id));
+
+  // ── Input handlers ──
   const set =
     (key: keyof FormState) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -318,6 +445,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
     });
   };
 
+  // ── Columnas para tabla desktop ──
   const columns: Column<TaxRow>[] = [
     {
       key: "id",
@@ -368,6 +496,14 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
       align: "center",
       render: (tax) => (
         <div style={styles.actions}>
+          <button
+            style={{ ...ui.linkBtn, color: "var(--accent-strong)" }}
+            className="active-tap"
+            onClick={() => openManage(tax)}
+            title="Gestionar productos"
+          >
+            <Package size={14} style={{ verticalAlign: "-2px" }} /> Productos
+          </button>
           <button style={ui.linkBtn} className="active-tap" onClick={() => openEdit(tax)}>
             <Pencil size={14} style={{ verticalAlign: "-2px" }} /> Editar
           </button>
@@ -388,6 +524,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
     },
   ];
 
+  // ── JSX ──
   return (
     <div>
       <SectionHeader
@@ -496,22 +633,30 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                     </div>
 
                     {/* Botones de Acción */}
-                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6 }}>
+                      {/* Gestionar productos */}
+                      <button
+                        onClick={() => openManage(tax)}
+                        style={{
+                          display: "inline-flex", alignItems: "center", justifyContent: "center",
+                          backgroundColor: "var(--accent-soft)", border: "1px solid var(--border)",
+                          borderRadius: 8, width: 34, height: 34, cursor: "pointer",
+                          color: "var(--accent-strong)", padding: 0,
+                        }}
+                        className="active-tap"
+                        title="Gestionar productos"
+                      >
+                        <Package size={14} />
+                      </button>
+
                       {/* Editar */}
                       <button
                         onClick={() => openEdit(tax)}
                         style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: "#eff6ff",
-                          border: "1px solid #bfdbfe",
-                          borderRadius: 8,
-                          width: 34,
-                          height: 34,
-                          cursor: "pointer",
-                          color: "var(--accent-strong)",
-                          padding: 0,
+                          display: "inline-flex", alignItems: "center", justifyContent: "center",
+                          backgroundColor: "#eff6ff", border: "1px solid #bfdbfe",
+                          borderRadius: 8, width: 34, height: 34, cursor: "pointer",
+                          color: "var(--accent-strong)", padding: 0,
                         }}
                         className="active-tap"
                         title="Editar impuesto"
@@ -524,17 +669,11 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                         onClick={() => toggleStatus(tax)}
                         disabled={statusUpdatingId === tax.id}
                         style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
+                          display: "inline-flex", alignItems: "center", justifyContent: "center",
                           backgroundColor: tax.active ? "#fef2f2" : "#f0fdf4",
                           border: `1px solid ${tax.active ? "#fecaca" : "#bbf7d0"}`,
-                          borderRadius: 8,
-                          width: 34,
-                          height: 34,
-                          cursor: "pointer",
-                          color: tax.active ? "#b91c1c" : "#15803d",
-                          padding: 0,
+                          borderRadius: 8, width: 34, height: 34, cursor: "pointer",
+                          color: tax.active ? "#b91c1c" : "#15803d", padding: 0,
                           opacity: statusUpdatingId === tax.id ? 0.55 : 1,
                         }}
                         className="active-tap"
@@ -547,17 +686,10 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                       <button
                         onClick={() => toggleExpandTax(tax.id)}
                         style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: "var(--surface)",
-                          border: "1px solid var(--border-strong)",
-                          borderRadius: 8,
-                          width: 34,
-                          height: 34,
-                          cursor: "pointer",
-                          color: "var(--text-muted)",
-                          padding: 0,
+                          display: "inline-flex", alignItems: "center", justifyContent: "center",
+                          backgroundColor: "var(--surface)", border: "1px solid var(--border-strong)",
+                          borderRadius: 8, width: 34, height: 34, cursor: "pointer",
+                          color: "var(--text-muted)", padding: 0,
                         }}
                         className="active-tap"
                       >
@@ -620,6 +752,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
         </div>
       )}
 
+      {/* ── Modal: Editar / Crear impuesto ── */}
       <ActionModal
         isOpen={editing !== null}
         onClose={closeForm}
@@ -673,9 +806,260 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
           </div>
         </form>
       </ActionModal>
+
+      {/* ── Modal: Gestionar productos de un impuesto ── */}
+      {manageOpen && managingTax && (
+        <div style={{
+          position: "fixed", inset: 0,
+          backgroundColor: "rgba(15,23,42,0.55)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 300, padding: 20,
+        }}>
+          <div style={{
+            backgroundColor: "var(--surface)", borderRadius: 16,
+            boxShadow: "0 24px 48px rgba(0,0,0,0.2)",
+            width: "100%", maxWidth: 780, maxHeight: "90vh",
+            display: "flex", flexDirection: "column", overflow: "hidden",
+          }}>
+
+            {/* Header */}
+            <div style={{
+              padding: "20px 24px 16px", borderBottom: "1px solid var(--border)",
+              display: "flex", justifyContent: "space-between", alignItems: "flex-start",
+              flexShrink: 0,
+            }}>
+              <div>
+                <h2 style={{ fontSize: 17, fontWeight: 800, color: "var(--text)", margin: 0 }}>
+                  Gestionar productos
+                </h2>
+                <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "4px 0 0", fontWeight: 600 }}>
+                  {managingTax.name} · {formatPercent(managingTax.rate)}
+                  {!managingTax.active && (
+                    <span style={{ marginLeft: 8, color: "#b91c1c" }}>· Inactivo</span>
+                  )}
+                </p>
+              </div>
+              <button
+                onClick={closeManage}
+                disabled={manageSaving}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  color: "var(--text-muted)", padding: 4, lineHeight: 1,
+                  opacity: manageSaving ? 0.5 : 1, borderRadius: 6,
+                }}
+                className="active-tap"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Subheader: advertencia + stats + búsqueda + avisos */}
+            <div style={{ padding: "14px 24px 12px", borderBottom: "1px solid var(--border-soft)", flexShrink: 0 }}>
+              {!managingTax.active && (
+                <div style={{
+                  backgroundColor: "#fef3c7", border: "1px solid #fde68a",
+                  borderRadius: 8, padding: "8px 12px", marginBottom: 12,
+                  fontSize: 13, color: "#92400e", fontWeight: 600,
+                }}>
+                  ⚠️ Este impuesto está inactivo. No puedes asignar nuevos productos a él.
+                </div>
+              )}
+
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+                <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
+                  <span style={{ color: "var(--accent-strong)", fontWeight: 800 }}>{checkedIds.size}</span>{" "}
+                  seleccionado{checkedIds.size !== 1 ? "s" : ""}{" "}
+                  · {manageAllProducts.filter((p) => p.assigned).length} ya vinculado{manageAllProducts.filter((p) => p.assigned).length !== 1 ? "s" : ""}
+                  {" "}· {manageAllProducts.length} total
+                </span>
+                {filteredManageProducts.length > 0 && (
+                  <button
+                    onClick={toggleAllVisible}
+                    disabled={manageSaving}
+                    style={{ ...ui.ghostBtn, fontSize: 12 }}
+                    className="active-tap"
+                  >
+                    {allVisibleChecked ? "Deseleccionar visibles" : "Seleccionar visibles"}
+                  </button>
+                )}
+              </div>
+
+              <SearchInput
+                value={manageSearch}
+                onChange={setManageSearch}
+                placeholder="Buscar por nombre, SKU o código de barras..."
+              />
+
+              {manageNotice && (
+                <div style={{
+                  backgroundColor: "#ecfdf5", border: "1px solid #bbf7d0",
+                  borderRadius: 8, padding: "8px 12px", marginTop: 10,
+                  fontSize: 13, color: "#15803d", fontWeight: 700,
+                }}>
+                  {manageNotice}
+                </div>
+              )}
+              {manageError && (
+                <div style={{
+                  backgroundColor: "#fef2f2", border: "1px solid #fecaca",
+                  borderRadius: 8, padding: "8px 12px", marginTop: 10,
+                  fontSize: 13, color: "#b91c1c", fontWeight: 700,
+                }}>
+                  {manageError}
+                </div>
+              )}
+            </div>
+
+            {/* Lista de productos */}
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              {manageLoading && (
+                <div style={{ textAlign: "center", padding: 40, color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+                  Cargando productos...
+                </div>
+              )}
+              {!manageLoading && filteredManageProducts.length === 0 && (
+                <div style={{ textAlign: "center", padding: 40, color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+                  {manageSearch.trim()
+                    ? "No se encontraron productos con esa búsqueda."
+                    : "No hay productos activos disponibles."}
+                </div>
+              )}
+
+              {!manageLoading && filteredManageProducts.length > 0 && (
+                isMobile ? (
+                  /* ── Mobile: cards ── */
+                  <div style={{ padding: "4px 16px" }}>
+                    {filteredManageProducts.map((p) => {
+                      const isChecked = checkedIds.has(p.id);
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => toggleChecked(p.id)}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 12,
+                            padding: "10px 8px", borderBottom: "1px solid var(--border-soft)",
+                            cursor: "pointer", borderRadius: 6,
+                            backgroundColor: isChecked ? "rgba(59,130,246,0.06)" : undefined,
+                            transition: "background-color 0.1s",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}}
+                            disabled={manageSaving}
+                            style={{ width: 16, height: 16, accentColor: "var(--accent)", cursor: "pointer", flexShrink: 0 }}
+                          />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {p.name}
+                            </div>
+                            <div style={{ fontSize: 11, color: "var(--text-faint)", fontFamily: "monospace" }}>{p.sku}</div>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{money(p.sellPrice)}</span>
+                            {p.assigned && <Badge tone="green">Vinculado</Badge>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* ── Desktop: tabla ── */
+                  <table style={{ ...ui.table, width: "100%" }}>
+                    <thead>
+                      <tr style={ui.theadRow}>
+                        <th style={{ ...ui.th, width: 44, textAlign: "center" }}>
+                          <input
+                            type="checkbox"
+                            checked={allVisibleChecked}
+                            onChange={toggleAllVisible}
+                            disabled={manageSaving}
+                            style={{ width: 15, height: 15, accentColor: "var(--accent)", cursor: "pointer" }}
+                            title="Seleccionar / deseleccionar todos los visibles"
+                          />
+                        </th>
+                        <th style={{ ...ui.th, width: 110 }}>SKU</th>
+                        <th style={ui.th}>Nombre</th>
+                        <th style={{ ...ui.th, textAlign: "right", width: 100 }}>Precio venta</th>
+                        <th style={{ ...ui.th, textAlign: "center", width: 110 }}>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredManageProducts.map((p) => {
+                        const isChecked = checkedIds.has(p.id);
+                        return (
+                          <tr
+                            key={p.id}
+                            onClick={() => toggleChecked(p.id)}
+                            style={{
+                              cursor: "pointer",
+                              backgroundColor: isChecked ? "rgba(59,130,246,0.07)" : undefined,
+                              transition: "background-color 0.1s",
+                            }}
+                          >
+                            <td style={{ ...ui.td, textAlign: "center" }}>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {}}
+                                disabled={manageSaving}
+                                style={{ width: 15, height: 15, accentColor: "var(--accent)", cursor: "pointer" }}
+                              />
+                            </td>
+                            <td style={{ ...ui.td, fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                              {p.sku}
+                            </td>
+                            <td style={{ ...ui.td, fontWeight: 600, color: "var(--text)", whiteSpace: "normal" }}>
+                              {p.name}
+                            </td>
+                            <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, whiteSpace: "nowrap" }}>
+                              {money(p.sellPrice)}
+                            </td>
+                            <td style={{ ...ui.td, textAlign: "center" }}>
+                              {p.assigned && <Badge tone="green">Vinculado</Badge>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: "16px 24px", borderTop: "1px solid var(--border)",
+              display: "flex", gap: 10, justifyContent: "flex-end", flexShrink: 0,
+            }}>
+              <button
+                onClick={closeManage}
+                disabled={manageSaving}
+                style={ui.ghostBtn}
+                className="active-tap"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={saveManage}
+                disabled={manageSaving || manageLoading}
+                style={{ ...ui.primaryBtn, opacity: (manageSaving || manageLoading) ? 0.7 : 1 }}
+                className="active-tap"
+              >
+                {manageSaving ? "Guardando..." : "Guardar asignación"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
+// ---------------------------------------------------------------------------
+// Estilos
+// ---------------------------------------------------------------------------
 
 const styles: { [key: string]: React.CSSProperties } = {
   notice: {
