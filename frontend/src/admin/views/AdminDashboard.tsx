@@ -174,10 +174,32 @@ const AdminDashboard: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const INACTIVITY_LIMIT = 15 * 60 * 1000; // 15 minutos
+    let inactivityTimer: ReturnType<typeof setTimeout>;
+
+    const resetTimer = () => {
+      clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(() => {
+        setShowInactivityModal(true);
+      }, INACTIVITY_LIMIT);
+    };
+
+    const activityEvents = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+    activityEvents.forEach((event) => window.addEventListener(event, resetTimer));
+    resetTimer();
+
+    return () => {
+      clearTimeout(inactivityTimer);
+      activityEvents.forEach((event) => window.removeEventListener(event, resetTimer));
+    };
+  }, []);
+
   const isMobile = useMediaQuery("(max-width: 1024px)");
 
   const [collapsed, setCollapsed] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showInactivityModal, setShowInactivityModal] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeNav, setActiveNav] = useState<string>("dashboard");
   const [branchId, setBranchId] = useState<string>("all");
@@ -546,6 +568,40 @@ const AdminDashboard: React.FC = () => {
           <ActiveView branchId={branchId} refreshToken={refreshToken} />
         </div>
       </div>
+      {showInactivityModal && (
+        <div style={ui.overlay}>
+          <div style={{ ...ui.modal, maxWidth: 400, textAlign: "center" }}>
+            <div style={ui.modalHeader}>
+              <span style={ui.modalTitle}>Sesión inactiva</span>
+            </div>
+            <div style={{ ...ui.modalBody, paddingTop: 16, paddingBottom: 8 }}>
+              <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 24 }}>
+                Tu sesión ha estado inactiva por 15 minutos. ¿Deseas continuar o cerrar sesión?
+              </p>
+              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => {
+                    setShowInactivityModal(false);
+                    logout();
+                  }}
+                  style={ui.ghostBtn}
+                >
+                  Cerrar sesión
+                </button>
+                <button
+                  onClick={() => setShowInactivityModal(false)}
+                  style={{
+                    ...ui.primaryBtn,
+                    background: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)",
+                  }}
+                >
+                  Continuar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {showLogoutConfirm && (
         <div style={ui.overlay}>
           <div style={{ ...ui.modal, maxWidth: 400, textAlign: "center" }}>
