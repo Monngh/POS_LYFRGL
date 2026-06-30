@@ -51,6 +51,7 @@ import ReportAuditLogView from "./ReportAuditLogView";
 import CajaAccessLogView from "./CajaAccessLogView";
 import AdminAccessLogView from "./AdminAccessLogView";
 import type { ViewProps } from "./shared";
+import { ui } from "./shared";
 
 interface BranchOption {
   id: number;
@@ -176,6 +177,7 @@ const AdminDashboard: React.FC = () => {
   const isMobile = useMediaQuery("(max-width: 1024px)");
 
   const [collapsed, setCollapsed] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeNav, setActiveNav] = useState<string>("dashboard");
   const [branchId, setBranchId] = useState<string>("all");
@@ -530,7 +532,7 @@ const AdminDashboard: React.FC = () => {
               <RefreshCw size={16} className={spinning ? "adm-spin" : undefined} />
             </button>
             <button
-              onClick={logout}
+              onClick={() => setShowLogoutConfirm(true)}
               className="active-tap adm-logout"
               style={{ ...styles.logoutBtn, ...(isMobile ? { padding: 0, width: 38, justifyContent: "center" } : {}) }}
               title="Cerrar sesión"
@@ -544,6 +546,40 @@ const AdminDashboard: React.FC = () => {
           <ActiveView branchId={branchId} refreshToken={refreshToken} />
         </div>
       </div>
+      {showLogoutConfirm && (
+        <div style={ui.overlay}>
+          <div style={{ ...ui.modal, maxWidth: 400, textAlign: "center" }}>
+            <div style={ui.modalHeader}>
+              <span style={ui.modalTitle}>¿Cerrar sesión?</span>
+            </div>
+            <div style={{ ...ui.modalBody, paddingTop: 16, paddingBottom: 8 }}>
+              <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 24 }}>
+                ¿Estás seguro que deseas cerrar tu sesión? Tendrás que volver a iniciar sesión para acceder al panel.
+              </p>
+              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => setShowLogoutConfirm(false)}
+                  style={ui.ghostBtn}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    setShowLogoutConfirm(false);
+                    logout();
+                  }}
+                  style={{
+                    ...ui.primaryBtn,
+                    background: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)",
+                  }}
+                >
+                  Sí, cerrar sesión
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
