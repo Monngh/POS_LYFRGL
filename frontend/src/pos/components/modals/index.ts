@@ -11,5 +11,5 @@ export { default as TicketHistoryModal } from "./TicketHistoryModal";
 export { default as BankDepositModal } from "./BankDepositModal";
 export { default as ReturnsModal } from "./ReturnsModal";
 export { CartAuthorizationModal } from "./CartAuthorizationModal";
+export { ParkedSalesModal } from "./ParkedSalesModal";
 export { TicketEmailModal } from "./TicketEmailModal";
-

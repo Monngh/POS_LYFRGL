@@ -10,6 +10,8 @@ import { ProductSearchPanel } from "./ProductSearchPanel";
 import { CartPanel } from "./CartPanel";
 import { CheckoutPanel } from "./CheckoutPanel";
 import { SalesLayoutView } from "./SalesLayoutView";
+import { useParkedSales } from "../hooks/useParkedSales";
+import { ParkedSalesModal } from "./modals";
 
 interface SalesTerminalUser {
   name: string;
@@ -112,6 +114,31 @@ export function SalesTerminalView({
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
 
+  const { parkedSales, fetchParkedSales, parkSale, deleteParkedSale, loading: parkedLoading } = useParkedSales(user?.branch?.id);
+  const [parkedModalOpen, setParkedModalOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (user?.branch?.id) {
+      fetchParkedSales();
+    }
+  }, [user?.branch?.id, fetchParkedSales]);
+
+  const handleParkSale = async () => {
+    try {
+      const cartDataStr = JSON.stringify(cartData.cart);
+      const customerId = customerData.selectedCustomer?.id || null;
+      await parkSale(customerId, cartDataStr, cartData.cartTotal);
+      cartData.setCart([]);
+      if (customerData.setSelectedCustomer) {
+         customerData.setSelectedCustomer(null);
+      }
+      cartData.setCheckoutModalOpen(false);
+      onToast("Venta pausada exitosamente", "success");
+    } catch(err: any) {
+      onToast(err.message || "Error al pausar la venta", "error");
+    }
+  };
+
   const formattedTime = currentTime
     ? currentTime.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", hour12: true })
     : "";
@@ -162,6 +189,23 @@ export function SalesTerminalView({
           
           <button
             type="button"
+            onClick={() => setParkedModalOpen(true)}
+            className="pos-terminal-home-btn active-tap"
+            title="Ventas en Espera"
+            aria-label="Ver ventas pausadas"
+          >
+            <div style={{ position: "relative" }}>
+              <Clock size={16} />
+              {parkedSales.length > 0 && (
+                <span style={{ position: "absolute", top: -8, right: -8, backgroundColor: "#dc2626", color: "white", fontSize: "10px", padding: "2px 4px", borderRadius: "8px", fontWeight: "bold" }}>
+                  {parkedSales.length}
+                </span>
+              )}
+            </div>
+          </button>
+
+          <button
+            type="button"
             onClick={onLogout}
             className="pos-terminal-logout-btn active-tap"
             title="Cerrar Sesión"
@@ -200,9 +244,41 @@ export function SalesTerminalView({
             setPendingCancelFieldErrors={setPendingCancelFieldErrors}
             setViewingPendingQrSale={setViewingPendingQrSale}
             onOpenCheckout={() => setCheckoutModalOpen(true)}
+            onParkSale={handleParkSale}
           />
         </div>
       </SalesLayoutView>
+
+      <ParkedSalesModal
+        isOpen={parkedModalOpen}
+        onClose={() => setParkedModalOpen(false)}
+        parkedSales={parkedSales}
+        loading={parkedLoading}
+        onDelete={async (id) => {
+          try {
+            await deleteParkedSale(id);
+            onToast("Venta en espera eliminada", "success");
+          } catch(e: any) {
+            onToast(e.message, "error");
+          }
+        }}
+        onRecover={async (sale) => {
+          try {
+            const parsedCart = JSON.parse(sale.cartData);
+            cartData.setCart(parsedCart);
+            if (sale.customer && customerData.setSelectedCustomer) {
+               customerData.setSelectedCustomer(sale.customer as any);
+            } else if (customerData.setSelectedCustomer) {
+               customerData.setSelectedCustomer(null);
+            }
+            await deleteParkedSale(sale.id);
+            setParkedModalOpen(false);
+            onToast("Venta recuperada", "success");
+          } catch(e: any) {
+            onToast(e.message, "error");
+          }
+        }}
+      />
 
       {/* COBRO MODAL */}
       {checkoutModalOpen && (

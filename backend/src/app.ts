@@ -18,6 +18,7 @@ import returnRouter from "./routes/return.routes";
 import adminTaxRouter from "./routes/adminTax.routes";
 import adminPromotionRouter from "./routes/adminPromotion.routes";
 import customerRouter from "./routes/customer.routes";
+import parkedSaleRouter from "./routes/parkedSale.routes";
 
 // Inicializar cliente de Prisma como Singleton
 export const prisma = new PrismaClient();
@@ -64,6 +65,7 @@ app.use("/api/returns", returnRouter);
 app.use("/api/admin-tax", adminTaxRouter);
 app.use("/api/admin-promotions", adminPromotionRouter);
 app.use("/api/customers", customerRouter);
+app.use("/api/parked-sales", parkedSaleRouter);
 
 // Ruta de healthcheck
 app.get("/health", async (_req: Request, res: Response) => {

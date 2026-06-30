@@ -24,6 +24,7 @@ model Branch {
   purchaseOrders  PurchaseOrder[]  @relation("purchaseOrdersBranch")
   reportAuditLogs ReportAuditLog[]
   authAuditLogs   AuthAuditLog[]
+  parkedSales     ParkedSale[]
 }
 
 model User {
@@ -61,6 +62,7 @@ model User {
   reportAuditLogs        ReportAuditLog[]
   authAuditLogs          AuthAuditLog[]
   priceAdjustments       PriceAdjustment[]
+  parkedSales            ParkedSale[]
 }
 
 model Product {
@@ -176,6 +178,7 @@ model Customer {
   priceList    PriceList?    @relation(fields: [priceListId], references: [id])
   sales        Sale[]
   storeCredits StoreCredit[]
+  parkedSales  ParkedSale[]
 
   @@index([taxId])
 }
@@ -592,4 +595,22 @@ model PriceAdjustment {
 
   appliedBy User      @relation(fields: [appliedById], references: [id])
   category  Category? @relation(fields: [categoryId], references: [id])
+}
+
+// ─── VENTAS PAUSADAS (PARKED SALES) ───────────────────────
+model ParkedSale {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  branchId   Int
+  customerId Int?
+  cartData   String   @db.VarChar(Max)
+  total      Decimal  @db.Decimal(18, 2)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User     @relation(fields: [userId], references: [id], onUpdate: NoAction)
+  branch     Branch   @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+  customer   Customer? @relation(fields: [customerId], references: [id], onUpdate: NoAction)
+
+  @@index([userId, branchId])
 }
