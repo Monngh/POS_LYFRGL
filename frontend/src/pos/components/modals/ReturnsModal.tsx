@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { RotateCcw, XCircle, KeyRound, Minus, Plus } from "lucide-react";
+import { PosModal, PosStepper } from "./shared";
 import { getEligibleReturn, submitReturn } from '../../../facturacion';
 import {
   normalizeIntegerInput,
@@ -392,53 +393,117 @@ export default function ReturnsModal({
     `;
   };
 
+  const renderFooter = () => {
+    if (returnStep === "search") {
+      return (
+        <>
+          <button
+            onClick={onClose}
+            style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
+          >
+            Cerrar
+          </button>
+          <button
+            onClick={handleReturnSearch}
+            disabled={returnLoading}
+            style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer", opacity: returnLoading ? 0.7 : 1 }}
+          >
+            {returnLoading ? "Buscando..." : "Buscar Venta"}
+          </button>
+        </>
+      );
+    }
+    if (returnStep === "select") {
+      return (
+        <>
+          <button 
+            onClick={() => { setReturnStep("search"); setReturnSaleData(null); setReturnItems([]); }} 
+            style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
+          >
+            ← Atrás
+          </button>
+          <button 
+            onClick={handleReturnProceed} 
+            style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer" }}
+          >
+            Continuar →
+          </button>
+        </>
+      );
+    }
+    if (returnStep === "confirm") {
+      return (
+        <>
+          <button 
+            onClick={() => setReturnStep("select")} 
+            style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
+          >
+            ← Atrás
+          </button>
+          <button
+            onClick={handleReturnProcess}
+            disabled={returnProcessing}
+            style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer", opacity: returnProcessing ? 0.7 : 1 }}
+          >
+            {returnProcessing ? "Procesando..." : "Procesar Devolución"}
+          </button>
+        </>
+      );
+    }
+    if (returnStep === "receipt") {
+      return (
+        <>
+          <button
+            onClick={() => onOpenEmailModal({
+              subject: `Comprobante de devolución ${returnReceipt?.returnNumber}`,
+              htmlContent: buildReturnReceiptHtml(),
+              defaultEmail: returnSaleData?.customerEmail || null,
+            })}
+            style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
+          >
+            Enviar por Correo
+          </button>
+          <button
+            onClick={() => {
+              if (onOpenReceipt) onOpenReceipt(returnReceipt);
+            }}
+            style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
+          >
+            Imprimir
+          </button>
+          <button 
+            onClick={onClose} 
+            style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer" }}
+          >
+            Cerrar
+          </button>
+        </>
+      );
+    }
+    return null;
+  };
+
   if (!isOpen) return null;
 
   return (
-    <div style={modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-      <div
-        style={{
-          width: returnStep === "receipt" ? "460px" : "640px",
-          backgroundColor: "var(--surface)",
-          borderRadius: "12px",
-          padding: "28px",
-          boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
-          maxWidth: "95vw",
-          maxHeight: "90vh",
-          overflowY: "auto",
-        } as React.CSSProperties}
-        className="pos-cashier-modal"
-      >
-        {/* HEADER */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
-          <h3 style={{ fontSize: "16px", fontWeight: "800", color: "var(--text)", borderBottom: "1px solid var(--border)", paddingBottom: "8px", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
-            <RotateCcw size={20} color="#dc2626" />
-            Devoluciones
-          </h3>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px" }}>
-            <XCircle size={20} color="#94a3b8" />
-          </button>
-        </div>
+    <PosModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Devoluciones"
+      subtitle="Inicia el proceso de devolución de una venta."
+      icon={<RotateCcw size={24} />}
+      iconColor="#dc2626"
+      size={returnStep === "receipt" ? "md" : "xl"}
+      footer={renderFooter()}
+    >
+      {returnStep !== "receipt" && (
+        <PosStepper
+          steps={["Venta original", "Productos", "Confirmación"]}
+          currentStep={returnStep === "search" ? 0 : returnStep === "select" ? 1 : 2}
+        />
+      )}
 
-        {/* Indicador de pasos */}
-        <div style={{ display: "flex", gap: "4px", marginBottom: "18px" }}>
-          {["search", "select", "confirm", "receipt"].map((step, i) => (
-            <div
-              key={step}
-              style={{
-                flex: 1,
-                height: "4px",
-                borderRadius: "2px",
-                backgroundColor:
-                  ["search", "select", "confirm", "receipt"].indexOf(returnStep) >= i
-                    ? "var(--accent-strong)"
-                    : "var(--border)",
-                transition: "background-color 0.3s",
-              }}
-            />
-          ))}
-        </div>
-
+      <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
         {/* =========== PASO 1: BÚSQUEDA DE TICKET =========== */}
         {returnStep === "search" && (
           <div>
@@ -468,14 +533,6 @@ export default function ReturnsModal({
               />
               {returnFieldErrors.folio && <p style={fieldError}>{returnFieldErrors.folio}</p>}
             </div>
-            <button
-              onClick={handleReturnSearch}
-              disabled={returnLoading}
-              className="btn-primary"
-              style={{ ...submitBtn, marginTop: "14px", width: "100%", opacity: returnLoading ? 0.7 : 1 }}
-            >
-              {returnLoading ? "Buscando..." : "Buscar Venta"}
-            </button>
           </div>
         )}
 
@@ -686,14 +743,6 @@ export default function ReturnsModal({
                 <div style={{ fontSize: "11px", color: "#166534", fontWeight: "600" }}>TOTAL A REEMBOLSAR (IVA incluido)</div>
                 <div style={{ fontSize: "20px", fontWeight: "800", color: "#166534" }}>${getReturnRefundTotal().toFixed(2)}</div>
               </div>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <button onClick={() => { setReturnStep("search"); setReturnSaleData(null); setReturnItems([]); }} style={{ ...modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}>
-                  ← Atrás
-                </button>
-                <button onClick={handleReturnProceed} className="btn-primary" style={{ ...modalBtn, backgroundColor: "var(--accent-strong)", color: "white" }}>
-                  Continuar →
-                </button>
-              </div>
             </div>
           </div>
         )}
@@ -771,20 +820,6 @@ export default function ReturnsModal({
               />
               {returnFieldErrors.pin && <p style={fieldError}>{returnFieldErrors.pin}</p>}
             </div>
-
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button onClick={() => setReturnStep("select")} style={{ ...submitBtn, backgroundColor: "var(--text-muted)", flex: 1 }}>
-                ← Atrás
-              </button>
-              <button
-                onClick={handleReturnProcess}
-                disabled={returnProcessing}
-                className="btn-primary"
-                style={{ ...submitBtn, backgroundColor: "#dc2626", flex: 2, opacity: returnProcessing ? 0.7 : 1 }}
-              >
-                {returnProcessing ? "Procesando Devolución..." : "PROCESAR DEVOLUCIÓN"}
-              </button>
-            </div>
           </div>
         )}
 
@@ -825,29 +860,9 @@ export default function ReturnsModal({
                 </div>
               )}
             </div>
-
-            <div style={{ display: "flex", gap: "10px" }} className="pos-cashier-modal-actions">
-              <button
-                onClick={() => onOpenEmailModal({
-                  subject: `Comprobante de devolución ${returnReceipt.returnNumber}`,
-                  htmlContent: buildReturnReceiptHtml(),
-                  defaultEmail: returnSaleData?.customerEmail || null,
-                })}
-                style={{ ...submitBtn, flex: 1, backgroundColor: "#0369a1" }}
-              >
-                Enviar por Email
-              </button>
-              <button
-                onClick={() => { handleReturnReset(); onClose(); }}
-                className="btn-primary"
-                style={{ ...submitBtn, flex: 1, backgroundColor: "var(--accent-strong)" }}
-              >
-                Cerrar
-              </button>
-            </div>
           </div>
         )}
       </div>
-    </div>
+    </PosModal>
   );
 }

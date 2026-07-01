@@ -31,20 +31,30 @@ interface UsePosSearchProps {
 
 export function usePosSearch({ view, activeModal, onProductFound }: UsePosSearchProps) {
   const [lookupQuery, setLookupQuery] = useState("");
+  const [lookupCategory, setLookupCategory] = useState<string>("");
   const [lookupResults, setLookupResults] = useState<Product[]>([]);
   const [barcodeSearch, setBarcodeSearch] = useState("");
   const [barcodeSearchError, setBarcodeSearchError] = useState("");
   const [searchResults, setSearchResults] = useState<Product[]>([]);
 
   const lastLookupQueryRef = useRef("___RESET___");
+  const lastLookupCategoryRef = useRef("");
   const lastSearchQueryRef = useRef("");
 
-  const handleLookupSearch = async (forceQuery?: string) => {
+  const handleLookupSearch = async (forceQuery?: string, forceCategory?: string) => {
     const query = (forceQuery !== undefined ? forceQuery : lookupQuery).trim();
-    if (query === lastLookupQueryRef.current) return;
+    const category = (forceCategory !== undefined ? forceCategory : lookupCategory);
+    
+    // Si la búsqueda es idéntica a la última, no hacer nada
+    if (query === lastLookupQueryRef.current && category === lastLookupCategoryRef.current) return;
+    
     lastLookupQueryRef.current = query;
+    lastLookupCategoryRef.current = category;
+    
     try {
-      const res = await api.get(`/api/products/search?query=${query}`);
+      let url = `/api/products/search?query=${query}`;
+      if (category) url += `&categoryId=${category}`;
+      const res = await api.get(url);
       setLookupResults(res.data.products);
     } catch (err) {
       console.error("Error al buscar productos:", err);
@@ -60,6 +70,7 @@ export function usePosSearch({ view, activeModal, onProductFound }: UsePosSearch
 
   const resetLookup = () => {
     setLookupQuery("");
+    setLookupCategory("");
     setLookupResults([]);
     lastLookupQueryRef.current = "___RESET___";
   };
@@ -145,6 +156,8 @@ export function usePosSearch({ view, activeModal, onProductFound }: UsePosSearch
   return {
     lookupQuery,
     setLookupQuery,
+    lookupCategory,
+    setLookupCategory,
     lookupResults,
     setLookupResults,
     barcodeSearch,

@@ -1,5 +1,6 @@
-import { X, Clock, ShoppingCart, Trash2 } from "lucide-react";
+import { Clock, ShoppingCart, Trash2 } from "lucide-react";
 import type { ParkedSale } from "../../hooks/useParkedSales";
+import { PosModal } from "./shared";
 
 interface ParkedSalesModalProps {
   isOpen: boolean;
@@ -11,48 +12,6 @@ interface ParkedSalesModalProps {
 }
 
 const styles = {
-  overlay: {
-    position: "fixed" as const,
-    top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1000,
-  },
-  modal: {
-    backgroundColor: "var(--surface)",
-    padding: "24px",
-    borderRadius: "8px",
-    width: "500px",
-    maxWidth: "90vw",
-    maxHeight: "80vh",
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: "16px",
-    boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
-  },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderBottom: "1px solid var(--border)",
-    paddingBottom: "12px",
-  },
-  title: {
-    fontSize: "18px",
-    fontWeight: "700",
-    color: "var(--text)",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-  },
-  closeBtn: {
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    color: "var(--text-muted)",
-  },
   list: {
     display: "flex",
     flexDirection: "column" as const,
@@ -127,58 +86,80 @@ const styles = {
 export function ParkedSalesModal({ isOpen, onClose, parkedSales, loading, onRecover, onDelete }: ParkedSalesModalProps) {
   if (!isOpen) return null;
 
-  return (
-    <div style={styles.overlay}>
-      <div style={styles.modal}>
-        <div style={styles.header}>
-          <h3 style={styles.title}>
-            <Clock size={20} /> Ventas en Espera
-          </h3>
-          <button onClick={onClose} style={styles.closeBtn}><X size={24} /></button>
-        </div>
-
-        <div style={styles.list}>
-          {loading && parkedSales.length === 0 ? (
-            <p style={{ textAlign: "center", padding: "20px" }}>Cargando...</p>
-          ) : parkedSales.length === 0 ? (
-            <div style={styles.empty}>
-              <ShoppingCart size={32} style={{ opacity: 0.5, marginBottom: "8px" }} />
-              <p>No tienes ninguna venta en espera.</p>
-            </div>
-          ) : (
-            parkedSales.map(sale => {
-              const date = new Date(sale.createdAt);
-              const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-              
-              // Intentar leer cuántos items hay en el JSON
-              let itemsCount = 0;
-              try {
-                const cart = JSON.parse(sale.cartData);
-                itemsCount = Array.isArray(cart) ? cart.length : 0;
-              } catch (e) {}
-
-              return (
-                <div key={sale.id} style={styles.card}>
-                  <div style={styles.cardInfo}>
-                    <span style={styles.time}><Clock size={12} /> {timeString}</span>
-                    <span style={styles.customer}>{sale.customer?.name || "Público en General"}</span>
-                    <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>{itemsCount} artículos</span>
-                    <span style={styles.total}>${Number(sale.total).toFixed(2)}</span>
-                  </div>
-                  <div style={styles.actions}>
-                    <button style={styles.deleteBtn} onClick={() => onDelete(sale.id)} title="Eliminar">
-                      <Trash2 size={16} />
-                    </button>
-                    <button style={styles.recoverBtn} onClick={() => onRecover(sale)}>
-                      RECUPERAR
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
+  const renderFooter = () => (
+    <div style={{ display: "flex", width: "100%" }}>
+      <button
+        onClick={onClose}
+        style={{
+          padding: "10px",
+          borderRadius: "6px",
+          border: "none",
+          backgroundColor: "var(--text-muted)",
+          color: "white",
+          fontWeight: "700",
+          cursor: "pointer",
+          fontSize: "12px",
+          textAlign: "center",
+          flex: 1
+        }}
+      >
+        CERRAR
+      </button>
     </div>
+  );
+
+  return (
+    <PosModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Ventas en Espera"
+      subtitle="Recupera o elimina las ventas que han sido puestas en espera."
+      icon={<Clock size={24} />}
+      iconColor="#3b82f6"
+      size="md"
+      footer={renderFooter()}
+    >
+      <div style={styles.list}>
+        {loading && parkedSales.length === 0 ? (
+          <p style={{ textAlign: "center", padding: "20px" }}>Cargando...</p>
+        ) : parkedSales.length === 0 ? (
+          <div style={styles.empty}>
+            <ShoppingCart size={32} style={{ opacity: 0.5, marginBottom: "8px" }} />
+            <p>No tienes ninguna venta en espera.</p>
+          </div>
+        ) : (
+          parkedSales.map(sale => {
+            const date = new Date(sale.createdAt);
+            const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            // Intentar leer cuántos items hay en el JSON
+            let itemsCount = 0;
+            try {
+              const cart = JSON.parse(sale.cartData);
+              itemsCount = Array.isArray(cart) ? cart.length : 0;
+            } catch (e) {}
+
+            return (
+              <div key={sale.id} style={styles.card}>
+                <div style={styles.cardInfo}>
+                  <span style={styles.time}><Clock size={12} /> {timeString}</span>
+                  <span style={styles.customer}>{sale.customer?.name || "Público en General"}</span>
+                  <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>{itemsCount} artículos</span>
+                  <span style={styles.total}>${Number(sale.total).toFixed(2)}</span>
+                </div>
+                <div style={styles.actions}>
+                  <button style={styles.deleteBtn} onClick={() => onDelete(sale.id)} title="Eliminar">
+                    <Trash2 size={16} />
+                  </button>
+                  <button style={styles.recoverBtn} onClick={() => onRecover(sale)}>
+                    RECUPERAR
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </PosModal>
   );
 }

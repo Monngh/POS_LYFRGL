@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
+import { History } from "lucide-react";
 import api from '../../../shared/services/api';
 import {
   normalizeIntegerInput,
 } from '../../../shared/utils/formValidation';
+import { PosModal } from "./shared";
 
 const maskPhone = (value: string | null | undefined): string => {
   const digits = (value || "").replace(/\D/g, "");
@@ -26,35 +28,6 @@ interface TicketHistoryModalProps {
   onSelectSale: (sale: any) => void;
 }
 
-const modalOverlay: React.CSSProperties = {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: "rgba(15, 23, 42, 0.4)",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  zIndex: 100,
-};
-
-const historyModal: React.CSSProperties = {
-  width: "520px",
-  maxWidth: "95vw",
-  backgroundColor: "var(--surface)",
-  borderRadius: "12px",
-  padding: "24px",
-  boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
-};
-
-const modalTitle: React.CSSProperties = {
-  fontSize: "16px",
-  fontWeight: "800",
-  color: "var(--text)",
-  borderBottom: "1px solid var(--border)",
-  paddingBottom: "8px",
-};
 
 const inputGroup: React.CSSProperties = {
   display: "flex",
@@ -99,16 +72,7 @@ const td: React.CSSProperties = {
   color: "var(--text-secondary)",
 };
 
-const submitBtn: React.CSSProperties = {
-  backgroundColor: "#2563eb",
-  color: "#ffffff",
-  border: "none",
-  padding: "12px",
-  borderRadius: "6px",
-  fontWeight: "700",
-  cursor: "pointer",
-  boxShadow: "0 4px 6px rgba(37,99,235,0.15)",
-};
+
 
 export default function TicketHistoryModal({
   isOpen,
@@ -156,12 +120,40 @@ export default function TicketHistoryModal({
 
   if (!isOpen) return null;
 
-  return (
-    <div style={modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-      <div style={historyModal} className="pos-cashier-modal">
-        <h3 style={modalTitle}>Reimprimir Ticket de Venta:</h3>
-        <p style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "14px" }}>Seleccione la venta de la sucursal para reimprimir su comprobante.</p>
+  const renderFooter = () => (
+    <div style={{ display: "flex", width: "100%" }}>
+      <button
+        onClick={onClose}
+        style={{
+          padding: "10px",
+          borderRadius: "6px",
+          border: "none",
+          backgroundColor: "var(--text-muted)",
+          color: "white",
+          fontWeight: "700",
+          cursor: "pointer",
+          fontSize: "12px",
+          textAlign: "center",
+          flex: 1
+        }}
+      >
+        CERRAR
+      </button>
+    </div>
+  );
 
+  return (
+    <PosModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Reimprimir Ticket de Venta"
+      subtitle="Seleccione la venta de la sucursal para reimprimir su comprobante."
+      icon={<History size={24} />}
+      iconColor="#2563eb"
+      size="xl"
+      footer={renderFooter()}
+    >
+      <div style={{ display: "flex", flexDirection: "column" }}>
         {localError && (
           <p style={{ fontSize: "12px", color: "#dc2626", fontWeight: "600", marginBottom: "10px" }}>
             {localError}
@@ -220,10 +212,10 @@ export default function TicketHistoryModal({
           </div>
         </div>
 
-        <div style={{ maxHeight: "240px", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "6px" }} className="pos-cashier-table-scroll pos-cashier-table-scroll--history">
+        <div style={{ maxHeight: "40vh", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "6px" }} className="pos-cashier-table-scroll pos-cashier-table-scroll--history">
           <style>{`
             @media (max-width: 1024px) {
-              .pos-cashier-table-scroll--history { overflow-x: hidden; max-height: 60vh; padding: 4px 6px; }
+              .pos-cashier-table-scroll--history { overflow-x: hidden; max-height: 50vh; padding: 4px 6px; }
               .pos-cashier-table-scroll--history table { width: 100%; border-collapse: collapse; min-width: 0; }
               .pos-cashier-table-scroll--history thead { display: none; }
               .pos-cashier-table-scroll--history tbody { display: block; }
@@ -300,10 +292,7 @@ export default function TicketHistoryModal({
             </tbody>
           </table>
         </div>
-        <button onClick={onClose} style={{ ...submitBtn, backgroundColor: "var(--text-muted)", marginTop: "14px", width: "100%" }}>
-          Cerrar
-        </button>
       </div>
-    </div>
+    </PosModal>
   );
 }

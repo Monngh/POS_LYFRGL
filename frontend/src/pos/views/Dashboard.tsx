@@ -205,7 +205,10 @@ const Dashboard: React.FC = () => {
   const {
     lookupQuery,
     setLookupQuery,
+    lookupCategory,
+    setLookupCategory,
     lookupResults,
+    handleLookupSearch,
     handleLookupKeyDown,
     resetLookup,
     resetSearch,
@@ -452,9 +455,9 @@ const Dashboard: React.FC = () => {
   }) => (
     <button
       onClick={() => openTicketEmailModal(emailConfig)}
-      style={{ ...styles.modalBtn, backgroundColor: "#2563eb", color: "white" }}
+      style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
     >
-      <Mail size={16} /> ENVIAR
+      <Mail size={16} /> Enviar por Correo
     </button>
   );
 
@@ -470,15 +473,15 @@ const Dashboard: React.FC = () => {
       defaultEmail?: string | null;
     };
   }) => (
-    <div style={{ display: "flex", gap: "10px", marginTop: "20px" }} className="pos-cashier-modal-actions no-print" data-no-ticket-print="true">
-      <button onClick={options.onClose} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
-        {options.closeLabel || "CERRAR"}
+    <>
+      <button onClick={options.onClose} style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}>
+        {options.closeLabel || "Cerrar"}
       </button>
       {renderTicketEmailButton(options.emailConfig)}
-      <button onClick={options.onPrint} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
-        <Printer size={16} /> {options.printLabel || "IMPRIMIR"}
+      <button onClick={options.onPrint} style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>
+        <Printer size={16} /> {options.printLabel || "Imprimir"}
       </button>
-    </div>
+    </>
   );
 
   const handleCloseTicket = () => {
@@ -533,7 +536,24 @@ const Dashboard: React.FC = () => {
     const timer = setTimeout(async () => {
       try {
         const res = await api.get(`/api/sales/detail?invoiceNumber=${invoice}`);
-        setCancelSalePreview(res.data.sale);
+        const sale = res.data.sale;
+        if (sale.status === "CANCELED") {
+          setCancelFieldErrors(prev => ({ ...prev, invoice: "Esta venta ya fue cancelada en su totalidad." }));
+          setCancelSalePreview(null);
+        } else if (sale.status === "BILLED") {
+          setCancelFieldErrors(prev => ({ ...prev, invoice: "Las ventas facturadas no se pueden cancelar por este medio." }));
+          setCancelSalePreview(null);
+        } else {
+          // Limpiar error de invoice si era válido
+          setCancelFieldErrors(prev => { 
+            const n = { ...prev }; 
+            if (n.invoice === "Esta venta ya fue cancelada en su totalidad." || n.invoice === "Las ventas facturadas no se pueden cancelar por este medio.") {
+              delete n.invoice; 
+            }
+            return n; 
+          });
+          setCancelSalePreview(sale);
+        }
       } catch (err) {
         setCancelSalePreview(null);
       }
@@ -1123,6 +1143,11 @@ const Dashboard: React.FC = () => {
         onClose={handleCloseLookup}
         lookupQuery={lookupQuery}
         onQueryChange={(v) => setLookupQuery(validateTextInput(v))}
+        lookupCategory={lookupCategory}
+        onCategoryChange={(val) => {
+          setLookupCategory(val);
+          handleLookupSearch(undefined, val);
+        }}
         lookupResults={lookupResults}
         onLookupKeyDown={handleLookupKeyDown}
       />

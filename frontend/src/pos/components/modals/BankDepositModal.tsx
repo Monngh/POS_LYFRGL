@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Landmark } from "lucide-react";
+import { PosModal } from "./shared";
 import api from '../../../shared/services/api';
 import {
   normalizeIntegerInput,
@@ -377,20 +378,81 @@ export default function BankDepositModal({
 
   if (!isOpen) return null;
 
-  return (
-    <div style={modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-      <div style={depositModal} className="pos-cashier-modal">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-strong)", paddingBottom: "8px", marginBottom: "14px" }} className="pos-cashier-modal-header-row">
-          <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "800", color: "var(--text)" }}>
-            Resguardo de Efectivo (Cash Deposit)
-          </h3>
+  const renderFooter = () => {
+    if (cancellingDep) {
+      return (
+        <div style={{ display: "flex", width: "100%", gap: "10px" }}>
           <button
-            onClick={onClose}
-            style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "20px", cursor: "pointer", fontWeight: "bold" }}
+            type="button"
+            onClick={() => {
+              setCancellingDep(null);
+              setDepCancelPin("");
+              setDepCancelReason("");
+              setDepCancelFieldErrors({});
+            }}
+            style={{ ...modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
           >
-            &times;
+            VOLVER AL HISTORIAL
+          </button>
+          <button
+            type="button"
+            onClick={(e) => handleCancelDepositSubmit(e as any)}
+            disabled={depCancelLoading}
+            style={{ ...modalBtn, backgroundColor: "#dc2626", color: "white" }}
+          >
+            {depCancelLoading ? "Cancelando..." : "CANCELAR RESGUARDO"}
           </button>
         </div>
+      );
+    }
+    if (depTab === "registrar") {
+      return (
+        <div style={{ display: "flex", width: "100%", gap: "10px" }} className="pos-cashier-modal-actions">
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ ...modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
+          >
+            CERRAR
+          </button>
+          <button
+            type="button"
+            onClick={(e) => handleDepositSubmit(e as any)}
+            disabled={depLoading}
+            style={{ ...modalBtn, backgroundColor: "#2563eb", color: "white" }}
+          >
+            {depLoading ? "Procesando..." : "REGISTRAR RESGUARDO"}
+          </button>
+        </div>
+      );
+    }
+    if (depTab === "buscar") {
+      return (
+        <div style={{ display: "flex", width: "100%" }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ ...modalBtn, backgroundColor: "var(--text-muted)", color: "white", width: "100%" }}
+          >
+            CERRAR HISTORIAL
+          </button>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <PosModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Resguardo de Efectivo (Cash Deposit)"
+      subtitle="Registra retiros de efectivo o depósitos bancarios de la caja."
+      icon={<Landmark size={24} />}
+      iconColor="#0369a1"
+      size="xl"
+      footer={renderFooter()}
+    >
 
         <div style={{ backgroundColor: "#e0f2fe", border: "1px solid #bae6fd", borderRadius: "8px", padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "13px", color: "#0369a1", fontWeight: "600", marginTop: "12px", marginBottom: "14px" }} className="pos-cashier-deposit-info">
           <span>Efectivo disponible en caja:</span>
@@ -452,27 +514,6 @@ export default function BankDepositModal({
                   }}
                 />
                 {depCancelFieldErrors.reason && <p style={fieldError}>{depCancelFieldErrors.reason}</p>}
-              </div>
-              <div style={{ display: "flex", gap: "10px", marginTop: "6px" }} className="pos-cashier-modal-actions">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCancellingDep(null);
-                    setDepCancelPin("");
-                    setDepCancelReason("");
-                    setDepCancelFieldErrors({});
-                  }}
-                  style={{ ...modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
-                >
-                  VOLVER AL HISTORIAL
-                </button>
-                <button
-                  type="submit"
-                  disabled={depCancelLoading}
-                  style={{ ...modalBtn, backgroundColor: "#dc2626", color: "white" }}
-                >
-                  {depCancelLoading ? "Cancelando..." : "CANCELAR RESGUARDO"}
-                </button>
               </div>
             </form>
           </div>
@@ -665,22 +706,6 @@ export default function BankDepositModal({
                   {depositFieldErrors.comments && <p style={fieldError}>{depositFieldErrors.comments}</p>}
                 </div>
 
-                <div style={{ display: "flex", gap: "10px", marginTop: "10px" }} className="pos-cashier-modal-actions">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    style={{ ...modalBtn, backgroundColor: "#dc2626", color: "white" }}
-                  >
-                    CERRAR
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={depLoading}
-                    style={{ ...modalBtn, backgroundColor: "#059669", color: "white" }}
-                  >
-                    {depLoading ? "Procesando..." : "REGISTRAR RESGUARDO"}
-                  </button>
-                </div>
               </form>
             ) : (
               <div style={{ display: "flex", flexDirection: "column" }}>
@@ -878,18 +903,10 @@ export default function BankDepositModal({
                   </table>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={onClose}
-                  style={{ ...modalBtn, backgroundColor: "var(--text-muted)", color: "white", width: "100%" }}
-                >
-                  CERRAR HISTORIAL
-                </button>
               </div>
             )}
           </>
         )}
-      </div>
-    </div>
+    </PosModal>
   );
 }
