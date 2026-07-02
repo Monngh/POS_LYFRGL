@@ -538,19 +538,24 @@ const Dashboard: React.FC = () => {
       try {
         const res = await api.get(`/api/sales/detail?invoiceNumber=${invoice}`);
         const sale = res.data.sale;
-        if (sale.status === "CANCELED") {
+        
+        if (sale.status === "CANCELED" || sale.status === "CANCELADA") {
           setCancelFieldErrors(prev => ({ ...prev, invoice: "Esta venta ya fue cancelada en su totalidad." }));
           setCancelSalePreview(null);
-        } else if (sale.status === "BILLED") {
+        } else if (sale.status === "BILLED" || sale.status === "FACTURADA") {
           setCancelFieldErrors(prev => ({ ...prev, invoice: "Las ventas facturadas no se pueden cancelar por este medio." }));
+          setCancelSalePreview(null);
+        } else if (sale.returns && sale.returns.length > 0) {
+          setCancelFieldErrors(prev => ({ ...prev, invoice: "Venta con devoluciones parciales. Use el módulo de devoluciones." }));
+          setCancelSalePreview(null);
+        } else if (new Date(sale.createdAt).toDateString() !== new Date().toDateString()) {
+          setCancelFieldErrors(prev => ({ ...prev, invoice: "Solo se pueden cancelar ventas del mismo día." }));
           setCancelSalePreview(null);
         } else {
           // Limpiar error de invoice si era válido
           setCancelFieldErrors(prev => { 
             const n = { ...prev }; 
-            if (n.invoice === "Esta venta ya fue cancelada en su totalidad." || n.invoice === "Las ventas facturadas no se pueden cancelar por este medio.") {
-              delete n.invoice; 
-            }
+            delete n.invoice;
             return n; 
           });
           setCancelSalePreview(sale);
