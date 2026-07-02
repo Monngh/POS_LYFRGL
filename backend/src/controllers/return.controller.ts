@@ -264,7 +264,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    if (paymentMethod !== "CAMBIO_PRODUCTO") {
+    if (paymentMethod !== "CAMBIO_PRODUCTO" && paymentMethod !== "VALE_DEVOLUCION") {
       if (sale.paymentMethod === "EFECTIVO" && paymentMethod !== "EFECTIVO") {
         res.status(400).json({ message: "El método de devolución debe coincidir con el método de pago original (Efectivo)." });
         return;
@@ -387,8 +387,8 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       });
     }
 
-    const refundTax = validatedItems.reduce((acc, item) => acc + item.taxAmount, 0);
-    const refundTotal = (refundSubtotal - refundDiscount) + refundTax;
+
+    const refundTotal = (refundSubtotal - refundDiscount);
 
     // 5. Procesar cambio de producto (si aplica)
     let exchangeSale: any = null;
@@ -397,6 +397,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
     let promoCalc: any = null;
     let balanceDifference = refundTotal; // RefundTotal es a favor del cliente
     let exchangeItemsWithPrices: any[] = [];
+    let pointsCredited = 0;
 
     if (exchangeItems && Array.isArray(exchangeItems) && exchangeItems.length > 0) {
       const cartItems = [];
@@ -601,24 +602,26 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
         });
       }
 
-      // e. Generación de Vale de Devolución (Monedero)
+      // e. Generación de Vale de Devolución (Monedero) o Acreditación a Puntos
       let storeCreditCode = null;
       if (paymentMethod === "VALE_DEVOLUCION" && (!exchangeItems || exchangeItems.length === 0)) {
-        const valSuffix = Math.floor(1000 + Math.random() * 9000);
-        storeCreditCode = `VALE-${timestamp}${valSuffix}`;
+        if (sale.customerId) {
+          // Si tiene cuenta en el sistema, se acredita directamente en su sistema de puntos
+          pointsCredited = Math.floor(refundTotal);
+        } else {
+          // Si no tiene cuenta (Público General), se le genera un vale con código
+          const valSuffix = Math.floor(1000 + Math.random() * 9000);
+          storeCreditCode = `VALE-${timestamp}${valSuffix}`;
 
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 90);
-
-        await tx.storeCredit.create({
-          data: {
-            code: storeCreditCode,
-            amount: refundTotal,
-            remaining: refundTotal,
-            customerId: sale.customerId,
-            expiresAt
-          }
-        });
+          await tx.storeCredit.create({
+            data: {
+              code: storeCreditCode,
+              amount: refundTotal,
+              remaining: refundTotal,
+              customerId: null
+            }
+          });
+        }
 
         // Registrar en caja como expectedAmount decrementado (salió de venta regular para convertirse en vale)
         await tx.cashSession.update({
@@ -629,7 +632,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
         });
       }
 
-      // f. Reversión de puntos de lealtad del cliente
+      // f. Reversión y Acreditación de puntos de lealtad del cliente
       if (sale.customerId) {
         const customer = await tx.customer.findUnique({
           where: { id: sale.customerId }
@@ -637,7 +640,8 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
         if (customer) {
           // 1 punto por cada $10.00 pesos netos devueltos
           const pointsToDeduct = Math.floor(refundTotal / 10);
-          const newPoints = Math.max(0, customer.points - pointsToDeduct);
+          const netPointsChange = pointsCredited - pointsToDeduct;
+          const newPoints = Math.max(0, customer.points + netPointsChange);
           await tx.customer.update({
             where: { id: sale.customerId },
             data: { points: newPoints }
@@ -740,21 +744,31 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
           // El cliente tiene saldo a favor restante. Generar un vale de reembolso o pagar la diferencia
           const absDiff = Math.abs(balanceDifference);
           if (paymentMethod === "VALE_DEVOLUCION") {
-            const valSuffix = Math.floor(1000 + Math.random() * 9000);
-            storeCreditCode = `VALE-${timestamp}${valSuffix}`;
-
-            const expiresAt = new Date();
-            expiresAt.setDate(expiresAt.getDate() + 90);
-
-            await tx.storeCredit.create({
-              data: {
-                code: storeCreditCode,
-                amount: absDiff,
-                remaining: absDiff,
-                customerId: sale.customerId,
-                expiresAt
+            if (sale.customerId) {
+              const pointsToAdd = Math.floor(absDiff);
+              pointsCredited += pointsToAdd;
+              const customer = await tx.customer.findUnique({
+                where: { id: sale.customerId }
+              });
+              if (customer) {
+                await tx.customer.update({
+                  where: { id: sale.customerId },
+                  data: { points: customer.points + pointsToAdd }
+                });
               }
-            });
+            } else {
+              const valSuffix = Math.floor(1000 + Math.random() * 9000);
+              storeCreditCode = `VALE-${timestamp}${valSuffix}`;
+
+              await tx.storeCredit.create({
+                data: {
+                  code: storeCreditCode,
+                  amount: absDiff,
+                  remaining: absDiff,
+                  customerId: null
+                }
+              });
+            }
           }
 
           // Ajustar sesión de caja chica: devolvemos la diferencia al cliente
@@ -825,7 +839,8 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
         storeCreditCode,
         mpRefundInfo,
         exchangeSaleInvoice: exchangeSale?.invoiceNumber || null,
-        balanceDifference
+        balanceDifference,
+        pointsCredited
       };
     });
 
@@ -874,6 +889,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       returnNumber: result.returnNumber,
       totalRefunded: result.totalRefunded,
       storeCreditCode: result.storeCreditCode,
+      pointsCredited: result.pointsCredited,
       exchangeSaleInvoice: result.exchangeSaleInvoice,
       balanceDifference: result.balanceDifference,
       cfdiUuid: billingInfo?.uuid || null,

@@ -161,7 +161,7 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
             }} className="pos-cashier-customer-selected">
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <span style={{ fontWeight: "700", color: "#166534" }}>
-                  👤 {selectedCustomer.isNew ? "Cliente registrado para puntos" : "Cliente registrado"}
+                  👤 {selectedCustomer.isNew ? "Cliente registrado para puntos" : (selectedCustomer.name || "Cliente registrado")}
                 </span>
                 <span style={{ color: "var(--text-secondary)" }}>(Teléfono: {maskPhoneLast2(selectedCustomer.phone)})</span>
                 <span style={{ backgroundColor: "#dcfce7", color: "#15803d", padding: "2px 6px", borderRadius: "4px", fontWeight: "700" }}>

@@ -11,7 +11,8 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
     return;
   }
 
-  const { query } = req.query;
+  const { query, categoryId } = req.query;
+  const catId = categoryId ? Number(categoryId) : undefined;
 
   try {
     const qStr = query ? String(query).trim() : "";
@@ -154,7 +155,7 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
   }
 };
 
-export const getCategories = async (req: Request, res: Response) => {
+export const getCategories = async (_req: Request, res: Response) => {
   try {
     const categories = await prisma.category.findMany({
       orderBy: { name: 'asc' },

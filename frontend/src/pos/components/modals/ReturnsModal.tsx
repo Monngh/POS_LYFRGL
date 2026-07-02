@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { RotateCcw, XCircle, KeyRound, Minus, Plus } from "lucide-react";
 import { PosModal, PosStepper } from "./shared";
 import { getEligibleReturn, submitReturn } from '../../../facturacion';
+import { openTicketPrintWindow } from "../../../shared/utils/ticketEmailDocument.util";
 import {
   normalizeIntegerInput,
   validateReference,
@@ -101,7 +102,7 @@ export default function ReturnsModal({
   const [returnPin, setReturnPin] = useState("");
   const [returnFieldErrors, setReturnFieldErrors] = useState<Partial<Record<"folio" | "reason" | "pin", string>>>({});
   const [returnPinAttempts, setReturnPinAttempts] = useState<number>(0);
-  const [returnPaymentMethod, setReturnPaymentMethod] = useState("EFECTIVO");
+  const [returnPaymentMethod, setReturnPaymentMethod] = useState("VALE_DEVOLUCION");
   const [returnProcessing, setReturnProcessing] = useState(false);
   const [returnReceipt, setReturnReceipt] = useState<any>(null);
 
@@ -114,7 +115,7 @@ export default function ReturnsModal({
     setReturnPin("");
     setReturnFieldErrors({});
     setReturnPinAttempts(0);
-    setReturnPaymentMethod("EFECTIVO");
+    setReturnPaymentMethod("VALE_DEVOLUCION");
     setReturnProcessing(false);
     setReturnReceipt(null);
   };
@@ -152,14 +153,7 @@ export default function ReturnsModal({
           batchNumberInput: "",
         }))
       );
-      let defaultMethod = "EFECTIVO";
-      if (sale.paymentMethod === "TARJETA") {
-        defaultMethod = "TARJETA";
-      } else if (sale.paymentMethod === "QR_MERCADOPAGO") {
-        defaultMethod = "QR_MERCADOPAGO";
-      } else if (sale.paymentMethod === "MIXTO") {
-        defaultMethod = "EFECTIVO";
-      }
+      let defaultMethod = "VALE_DEVOLUCION"; // Default to Store Credit for returns
       setReturnPaymentMethod(defaultMethod);
       setReturnStep("select");
     } catch (err: any) {
@@ -327,12 +321,14 @@ export default function ReturnsModal({
       `<div class="ticket-row"><span>Fecha:</span><span class="ticket-value">${safe(new Date().toLocaleString())}</span></div>`,
       `<div class="ticket-row"><span>Sucursal:</span><span class="ticket-value">${safe(user?.branch?.name || "N/A")}</span></div>`,
       `<div class="ticket-row"><span>Cajero:</span><span class="ticket-value">${safe(user?.name || "N/A")}</span></div>`,
-      `<div class="ticket-row"><span>Cliente:</span><span class="ticket-value">${safe(returnSaleData?.customerName ? "Cliente registrado" : "Publico general")}</span></div>`,
+      `<div class="ticket-row"><span>Cliente:</span><span class="ticket-value">${safe(returnSaleData?.customerName || "Publico general")}</span></div>`,
       `<div class="ticket-row"><span>Metodo reembolso:</span><span class="ticket-value">${safe(returnPaymentMethod)}</span></div>`,
       `<div class="ticket-row"><span>Motivo:</span><span class="ticket-value">${safe(returnReason || "N/A")}</span></div>`,
     ];
     if (returnReceipt.storeCreditCode) {
       rows.push(`<div class="ticket-row"><span>Codigo de vale:</span><span class="ticket-value">${safe(returnReceipt.storeCreditCode)}</span></div>`);
+    } else if (returnReceipt.pointsCredited) {
+      rows.push(`<div class="ticket-row"><span>Acreditado a Puntos:</span><span class="ticket-value">+${safe(returnReceipt.pointsCredited)} pts</span></div>`);
     }
     if (returnReceipt.cfdiUuid) {
       rows.push(`<div class="ticket-row"><span>Nota credito SAT:</span><span class="ticket-value">${safe(returnReceipt.cfdiUuid)}</span></div>`);
@@ -463,9 +459,12 @@ export default function ReturnsModal({
           >
             Enviar por Correo
           </button>
-          <button
+           <button
             onClick={() => {
-              if (onOpenReceipt) onOpenReceipt(returnReceipt);
+              const html = buildReturnReceiptHtml();
+              const title = `Comprobante de devolución ${returnReceipt?.returnNumber}`;
+              const printed = openTicketPrintWindow(title, html);
+              if (!printed) alert("Habilite las ventanas emergentes para imprimir el comprobante.");
             }}
             style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
           >
@@ -706,26 +705,13 @@ export default function ReturnsModal({
               </div>
               <div style={inputGroup}>
                 <label style={label}>Método de reembolso:</label>
-                <select
+                <input
+                  type="text"
                   className="input-corporate"
-                  value={returnPaymentMethod}
-                  onChange={(e) => setReturnPaymentMethod(e.target.value)}
-                >
-                  {returnSaleData?.paymentMethod === "MIXTO" ? (
-                    <>
-                      <option value="EFECTIVO">Efectivo</option>
-                      <option value="TARJETA">Tarjeta</option>
-                      <option value="VALE_DEVOLUCION">Monedero Electrónico (Store Credit)</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="EFECTIVO">Efectivo</option>
-                      <option value="TARJETA">Tarjeta</option>
-                      <option value="QR_MERCADOPAGO">Mercado Pago</option>
-                      <option value="VALE_DEVOLUCION">Monedero Electrónico (Store Credit)</option>
-                    </>
-                  )}
-                </select>
+                  style={{ backgroundColor: "var(--surface-3)", fontWeight: "600", color: "var(--text)" }}
+                  value="Saldo a Favor (Vale de Tienda)"
+                  readOnly
+                />
               </div>
             </div>
 
@@ -846,6 +832,12 @@ export default function ReturnsModal({
                 <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
                   <span style={{ color: "var(--text-muted)" }}>Código de Vale:</span>
                   <span style={{ fontWeight: "700", color: "#7c3aed", fontSize: "14px", letterSpacing: "1px" }}>{returnReceipt.storeCreditCode}</span>
+                </div>
+              )}
+              {returnReceipt.pointsCredited !== undefined && returnReceipt.pointsCredited > 0 && (
+                <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+                  <span style={{ color: "var(--text-muted)" }}>Acreditado a Puntos:</span>
+                  <span style={{ fontWeight: "700", color: "#10b981", fontSize: "14px" }}>+{returnReceipt.pointsCredited} pts</span>
                 </div>
               )}
               {returnReceipt.cfdiUuid && (

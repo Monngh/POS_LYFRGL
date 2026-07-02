@@ -13,7 +13,7 @@ export const calculateSaleCart = async (params: {
   salePaymentMethod: string;
   numericCashReceived: number;
   numericCardAmount: number;
-  storeCreditAmount?: number;
+  payments?: { method: string; amount: number; reference?: string }[];
 }): Promise<{
   activeSession: any;
   itemsWithCosts: any[];
@@ -25,7 +25,7 @@ export const calculateSaleCart = async (params: {
   pointsEarned: number;
   finalPaidAmount: number;
 }> => {
-  const { normalizedItems, branchId, userId, customerId, ptsRedeemed, salePaymentMethod, numericCashReceived, numericCardAmount, storeCreditAmount = 0 } = params;
+  const { normalizedItems, branchId, userId, customerId, ptsRedeemed, salePaymentMethod, numericCashReceived, numericCardAmount, payments } = params;
 
   const activeSession = await prisma.cashSession.findFirst({
     where: { userId, branchId, status: "ABIERTA", closedAt: null },
@@ -146,17 +146,36 @@ export const calculateSaleCart = async (params: {
     pointsEarned = Math.floor(Math.max(0, finalTotal - pointsDiscount) / 10);
   }
 
-  const finalPaidAmount = Number(Math.max(0, finalTotal - pointsDiscount - storeCreditAmount).toFixed(2));
+  const finalPaidAmount = Number((finalTotal - pointsDiscount).toFixed(2));
 
   if (salePaymentMethod === "EFECTIVO" && numericCashReceived < finalPaidAmount) {
     throw new AppError(`El efectivo recibido ($${numericCashReceived.toFixed(2)}) es menor al total a pagar ($${finalPaidAmount.toFixed(2)}).`, 400);
   }
   if (salePaymentMethod === "MIXTO") {
-    if (numericCardAmount > finalPaidAmount) {
-      throw new AppError("El monto pagado con tarjeta no puede ser mayor al total de la compra.", 400);
+    if (payments && payments.length > 0) {
+      const totalPayments = payments.reduce((sum, p) => sum + p.amount, 0);
+      if (totalPayments < finalPaidAmount) {
+        throw new AppError(`La suma de los pagos en modo mixto ($${totalPayments.toFixed(2)}) es menor al total a pagar ($${finalPaidAmount.toFixed(2)}).`, 400);
+      }
+    } else {
+      if (numericCardAmount > finalPaidAmount) {
+        throw new AppError("El monto pagado con tarjeta no puede ser mayor al total de la compra.", 400);
+      }
+      if (numericCashReceived + numericCardAmount < finalPaidAmount) {
+        throw new AppError("La suma de efectivo y tarjeta es menor al total a pagar.", 400);
+      }
     }
-    if (numericCashReceived + numericCardAmount < finalPaidAmount) {
-      throw new AppError("La suma de efectivo y tarjeta es menor al total a pagar.", 400);
+  }
+  if (salePaymentMethod === "STORE_CREDIT") {
+    if (!payments || payments.length === 0) {
+      throw new AppError("El pago con vale requiere especificar los detalles del vale.", 400);
+    }
+    const storeCreditPayment = payments.find(p => p.method === "STORE_CREDIT");
+    if (!storeCreditPayment) {
+      throw new AppError("El pago con vale requiere un método de pago STORE_CREDIT.", 400);
+    }
+    if (storeCreditPayment.amount < finalPaidAmount) {
+      throw new AppError(`El monto del vale ($${storeCreditPayment.amount.toFixed(2)}) es insuficiente para cubrir el total ($${finalPaidAmount.toFixed(2)}).`, 400);
     }
   }
 
@@ -177,21 +196,21 @@ export const processSaleTransaction = async (params: {
   numericCashReceived: number;
   numericChangeGiven: number;
   pointsEarned: number;
+  ptsRedeemed: number;
   pointsDiscount: number;
-  storeCreditCode?: string;
-  storeCreditAmount?: number;
   itemsWithCosts: any[];
   activeSessionId: number;
+  payments?: { method: string; amount: number; reference?: string }[];
 }) => {
   const {
     invoiceNumber, branchId, userId, customerId, cashSessionId,
     finalPaidAmount, finalTax, discount, salePaymentMethod, cardType,
     numericCashReceived, numericChangeGiven, pointsEarned, ptsRedeemed,
-    pointsDiscount, storeCreditCode, storeCreditAmount, itemsWithCosts, activeSessionId,
+    pointsDiscount, itemsWithCosts, activeSessionId, payments,
   } = params;
 
   return prisma.$transaction(async (tx) => {
-    // a. Crear registro de venta principal
+    // a. Crear registro de venta principal y pagos
     const sale = await tx.sale.create({
       data: {
         invoiceNumber,
@@ -210,8 +229,34 @@ export const processSaleTransaction = async (params: {
         pointsEarned,
         pointsRedeemed: ptsRedeemed,
         pointsDiscount,
+        payments: payments ? {
+          create: payments.map(p => ({
+            paymentMethod: p.method,
+            amount: p.amount,
+            reference: p.reference,
+          }))
+        } : undefined
       },
     });
+
+    // Validar Store Credits usados en pagos
+    if (payments && payments.length > 0) {
+      for (const p of payments) {
+        if (p.method === 'STORE_CREDIT' && p.reference) {
+          const storeCredit = await tx.storeCredit.findUnique({ where: { code: p.reference } });
+          if (!storeCredit || !storeCredit.active || Number(storeCredit.remaining) < p.amount) {
+            throw new Error(`Código de Store Credit inválido o con saldo insuficiente: ${p.reference}`);
+          }
+          await tx.storeCredit.update({
+            where: { id: storeCredit.id },
+            data: {
+              remaining: { decrement: p.amount },
+              active: Number(storeCredit.remaining) - p.amount > 0
+            }
+          });
+        }
+      }
+    }
 
     // b. Actualizar puntos del cliente si está seleccionado
     if (customerId) {
@@ -220,14 +265,6 @@ export const processSaleTransaction = async (params: {
         const newPoints = customer.points - ptsRedeemed + pointsEarned;
         await tx.customer.update({ where: { id: customerId }, data: { points: newPoints } });
       }
-    }
-
-    // b2. Consumir Monedero Electrónico (Store Credit)
-    if (storeCreditCode && storeCreditAmount && storeCreditAmount > 0) {
-      await tx.storeCredit.update({
-        where: { code: storeCreditCode },
-        data: { remaining: { decrement: storeCreditAmount } }
-      });
     }
 
     // c. Procesar cada detalle del carrito, ajustar inventario y registrar Kardex

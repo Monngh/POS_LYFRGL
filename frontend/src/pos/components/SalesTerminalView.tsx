@@ -1,5 +1,5 @@
 import React from "react";
-import { Menu, MapPin, User, Clock, LogOut, AlertTriangle, Banknote, CreditCard, ArrowLeftRight, QrCode, ExternalLink, Home } from "lucide-react";
+import { Menu, MapPin, User, Clock, LogOut, AlertTriangle, Banknote, CreditCard, ArrowLeftRight, QrCode, ExternalLink, Home, Ticket } from "lucide-react";
 import { TICKET_PRINT_MEDIA_STYLES } from "../../shared/utils/ticketEmailDocument.util";
 import { DECIMAL_INPUT_REGEX, handleDecimalInputChange } from "../../shared/utils/decimalInput";
 import { useCashSession } from "../hooks/useCashSession";
@@ -11,7 +11,7 @@ import { CartPanel } from "./CartPanel";
 import { CheckoutPanel } from "./CheckoutPanel";
 import { SalesLayoutView } from "./SalesLayoutView";
 import { useParkedSales } from "../hooks/useParkedSales";
-import { ParkedSalesModal } from "./modals";
+import { ParkedSalesModal, MixedPaymentModal } from "./modals";
 
 interface SalesTerminalUser {
   name: string;
@@ -94,6 +94,7 @@ export function SalesTerminalView({
     cashReceived, setCashReceived, calculatedChange,
     cardType, setCardType,
     mixtoCard, setMixtoCard, mixtoCash, setMixtoCash,
+    storeCreditCode, setStoreCreditCode,
     pointsToRedeem, setPointsToRedeem,
     usePoints, setUsePoints,
     invoiceRequested, setInvoiceRequested,
@@ -116,6 +117,7 @@ export function SalesTerminalView({
 
   const { parkedSales, fetchParkedSales, parkSale, deleteParkedSale, loading: parkedLoading } = useParkedSales(user?.branch?.id);
   const [parkedModalOpen, setParkedModalOpen] = React.useState(false);
+  const [mixedModalOpen, setMixedModalOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (user?.branch?.id) {
@@ -280,6 +282,16 @@ export function SalesTerminalView({
         }}
       />
 
+      <MixedPaymentModal
+        isOpen={mixedModalOpen}
+        onClose={() => setMixedModalOpen(false)}
+        totalToPay={cartTotal - (usePoints ? pointsDiscount : 0)}
+        onConfirm={(payments, totalCash) => {
+          setMixedModalOpen(false);
+          handleCheckoutSubmit(payments, totalCash);
+        }}
+      />
+
       {/* COBRO MODAL */}
       {checkoutModalOpen && (
         <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
@@ -297,7 +309,7 @@ export function SalesTerminalView({
             )}
 
             {/* Selector Métodos Pago */}
-            <div style={styles.paymentMethodsGrid} className="pos-cashier-pay-methods">
+            <div style={{ ...styles.paymentMethodsGrid, gridTemplateColumns: "repeat(5, 1fr)" }} className="pos-cashier-pay-methods">
               <button
                 type="button"
                 onClick={() => { setPaymentMethod("EFECTIVO"); setCheckoutError(null); setCheckoutFieldErrors({}); }}
@@ -313,6 +325,14 @@ export function SalesTerminalView({
               >
                 <CreditCard size={20} />
                 <span>TARJETA</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setPaymentMethod("STORE_CREDIT"); setCheckoutError(null); setCheckoutFieldErrors({}); }}
+                style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "STORE_CREDIT" ? styles.paymentMethodBtnActive : {}) }}
+              >
+                <Ticket size={20} />
+                <span>VALE</span>
               </button>
               <button
                 type="button"
@@ -378,59 +398,38 @@ export function SalesTerminalView({
               </div>
             )}
 
+            {paymentMethod === "STORE_CREDIT" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "14px" }}>
+                <div style={styles.inputGroup}>
+                  <label style={styles.label}>Código de Vale:</label>
+                  <input
+                    type="text"
+                    className="input-corporate"
+                    placeholder="Ej. VALE-123456"
+                    value={storeCreditCode}
+                    onChange={(e) => {
+                      setStoreCreditCode(e.target.value.toUpperCase());
+                      setCheckoutFieldErrors((prev) => ({ ...prev, storeCreditCode: "" }));
+                      setCheckoutError(null);
+                    }}
+                  />
+                  {checkoutFieldErrors.storeCreditCode && <p style={styles.fieldError}>{checkoutFieldErrors.storeCreditCode}</p>}
+                </div>
+              </div>
+            )}
+
             {paymentMethod === "MIXTO" && (
               <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "14px" }}>
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>Tipo de Tarjeta:</label>
-                  <select value={cardType} onChange={(e) => setCardType(e.target.value as "CREDITO" | "DEBITO")} style={styles.select}>
-                    <option value="DEBITO">Débito</option>
-                    <option value="CREDITO">Crédito</option>
-                  </select>
-                </div>
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>Monto con Tarjeta ($):</label>
-                  <input
-                    type="text"
-                    className="input-corporate"
-                    value={mixtoCard}
-                    inputMode="decimal"
-                    onChange={(e) => {
-                      const rawValue = e.target.value.trim();
-                      if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
-                        setCheckoutFieldErrors((prev) => ({ ...prev, mixtoCard: "El monto con tarjeta debe ser un numero valido con maximo 3 decimales." }));
-                        return;
-                      }
-                      handleDecimalInputChange(rawValue, setMixtoCard);
-                      setCheckoutFieldErrors((prev) => ({ ...prev, mixtoCard: "" }));
-                      setCheckoutError(null);
-                    }}
-                  />
-                  {checkoutFieldErrors.mixtoCard && <p style={styles.fieldError}>{checkoutFieldErrors.mixtoCard}</p>}
-                </div>
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>Monto con Efectivo ($):</label>
-                  <input
-                    type="text"
-                    className="input-corporate"
-                    value={mixtoCash}
-                    inputMode="decimal"
-                    onChange={(e) => {
-                      const rawValue = e.target.value.trim();
-                      if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
-                        setCheckoutFieldErrors((prev) => ({ ...prev, mixtoCash: "El monto con efectivo debe ser un numero valido con maximo 3 decimales." }));
-                        return;
-                      }
-                      handleDecimalInputChange(rawValue, setMixtoCash);
-                      setCheckoutFieldErrors((prev) => ({ ...prev, mixtoCash: "" }));
-                      setCheckoutError(null);
-                    }}
-                  />
-                  {checkoutFieldErrors.mixtoCash && <p style={styles.fieldError}>{checkoutFieldErrors.mixtoCash}</p>}
-                </div>
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>Cambio en Efectivo ($):</label>
-                  <input type="text" readOnly className="input-corporate" style={{ backgroundColor: "var(--surface-3)", fontWeight: "700" }} value={`$ ${calculatedChange.toFixed(2)}`} />
-                </div>
+                <p style={{ color: "var(--text-muted)", fontSize: "14px", textAlign: "center", marginBottom: "8px" }}>
+                  Configura múltiples métodos de pago (Efectivo, Tarjeta, Saldo a Favor) para cubrir el total de la compra.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setMixedModalOpen(true)}
+                  style={{ ...styles.modalBtn, backgroundColor: "#2563eb", color: "white" }}
+                >
+                  Configurar Pagos Mixtos
+                </button>
               </div>
             )}
 
@@ -514,13 +513,19 @@ export function SalesTerminalView({
               </button>
               <button
                 disabled={checkoutLoading}
-                onClick={handleCheckoutSubmit}
+                onClick={() => {
+                  if (paymentMethod === "MIXTO") {
+                    setMixedModalOpen(true);
+                  } else {
+                    handleCheckoutSubmit();
+                  }
+                }}
                 style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
               >
                 {checkoutLoading && (
                   <div className="pos-cashier-loading-spinner" style={{ width: "14px", height: "14px", borderWidth: "2px", borderColor: "rgba(255,255,255,0.4)", borderTopColor: "#ffffff", flexShrink: 0 }} />
                 )}
-                {checkoutLoading ? "PROCESANDO..." : "COBRAR"}
+                {checkoutLoading ? "PROCESANDO..." : paymentMethod === "MIXTO" ? "CONFIGURAR PAGOS" : "COBRAR"}
               </button>
             </div>
           </div>

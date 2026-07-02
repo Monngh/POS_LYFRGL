@@ -119,13 +119,14 @@ export function usePosCart({
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [checkoutFieldErrors, setCheckoutFieldErrors] = useState<
-    Partial<Record<"cashReceived" | "mixtoCard" | "mixtoCash", string>>
+    Partial<Record<"cashReceived" | "mixtoCard" | "mixtoCash" | "storeCreditCode", string>>
   >({});
 
-  const [paymentMethod, setPaymentMethod] = useState<"EFECTIVO" | "TARJETA" | "MIXTO" | "QR_MERCADOPAGO">("EFECTIVO");
+  const [paymentMethod, setPaymentMethod] = useState<"EFECTIVO" | "TARJETA" | "MIXTO" | "QR_MERCADOPAGO" | "STORE_CREDIT">("EFECTIVO");
   const [cashReceived, setCashReceived] = useState("");
   const [mixtoCash, setMixtoCash] = useState("");
   const [mixtoCard, setMixtoCard] = useState("");
+  const [storeCreditCode, setStoreCreditCode] = useState("");
   const [cardType, setCardType] = useState<"CREDITO" | "DEBITO">("DEBITO");
 
   const [pointsToRedeem, setPointsToRedeem] = useState<number>(0);
@@ -138,10 +139,6 @@ export function usePosCart({
   const [qrChecking, setQrChecking] = useState(false);
   const [qrExpiresAt] = useState("");
 
-  const [storeCreditCodeInput, setStoreCreditCodeInput] = useState("");
-  const [appliedStoreCredit, setAppliedStoreCredit] = useState<{ code: string; amount: number; remaining: number } | null>(null);
-  const [storeCreditLoading, setStoreCreditLoading] = useState(false);
-
   // Valores calculados del carrito desde simulación
   const cartSubtotalOriginal: number = simulationData?.subtotal ?? 0;
   const cartDiscount: number = simulationData?.totalDiscount ?? 0;
@@ -151,8 +148,7 @@ export function usePosCart({
   const taxBreakdown: Record<string, number> = simulationData?.taxBreakdown ?? {};
 
   const pointsDiscount = (usePoints && selectedCustomer) ? Math.min(selectedCustomer.points, pointsToRedeem) : 0;
-  const storeCreditDiscount = appliedStoreCredit ? appliedStoreCredit.amount : 0;
-  const netTotalToPay = Math.max(0, cartTotal - pointsDiscount - storeCreditDiscount);
+  const netTotalToPay = Math.max(0, cartTotal - pointsDiscount);
 
   const parsedReceived = roundToTwoDecimals(Number(cashReceived) || 0);
   const parsedMixtoCash = roundToTwoDecimals(Number(mixtoCash) || 0);
@@ -162,34 +158,6 @@ export function usePosCart({
     : paymentMethod === "MIXTO"
     ? (parsedMixtoCard <= netTotalToPay && parsedMixtoCash >= (netTotalToPay - parsedMixtoCard) ? parsedMixtoCash - (netTotalToPay - parsedMixtoCard) : 0)
     : 0;
-
-  const handleValidateStoreCredit = async () => {
-    if (!storeCreditCodeInput.trim()) {
-      onToast("Ingrese un código de monedero.", "error");
-      return;
-    }
-    setStoreCreditLoading(true);
-    try {
-      const res = await api.get(`/api/sales/store-credit/${storeCreditCodeInput.trim()}`);
-      const credit = res.data.storeCredit;
-      const amountToApply = Math.min(credit.remaining, Math.max(0, cartTotal - pointsDiscount));
-      setAppliedStoreCredit({
-        code: credit.code,
-        amount: amountToApply,
-        remaining: credit.remaining
-      });
-      onToast("Monedero electrónico aplicado exitosamente.", "success");
-      setStoreCreditCodeInput("");
-    } catch (err: any) {
-      onToast(err.response?.data?.message || "Error al validar el código.", "error");
-    } finally {
-      setStoreCreditLoading(false);
-    }
-  };
-
-  const handleRemoveStoreCredit = () => {
-    setAppliedStoreCredit(null);
-  };
 
   const clearCartAndDraft = () => {
     setCart([]);
@@ -402,7 +370,10 @@ export function usePosCart({
     });
   };
 
-  const handleCheckoutSubmit = async () => {
+  const handleCheckoutSubmit = async (paymentsArray?: { method: string, amount: number, reference?: string }[], totalCashReceived?: number) => {
+    if (paymentsArray && !Array.isArray(paymentsArray)) {
+      paymentsArray = undefined; // Guard against accidental event objects passed to the function
+    }
     if (checkoutLoading) return;
     setCheckoutError(null);
     setCheckoutFieldErrors({});
@@ -431,7 +402,8 @@ export function usePosCart({
       paymentRoundedValues.push(cashValidation.value);
     }
 
-    if (paymentMethod === "MIXTO") {
+    if (paymentMethod === "MIXTO" && !paymentsArray) {
+      // Logic for old MIXTO or fallback
       const cardValidation = validateDecimalField(mixtoCard, "El monto con tarjeta", {
         min: 0,
         minExclusive: true,
@@ -466,6 +438,35 @@ export function usePosCart({
         setCheckoutFieldErrors((prev) => ({ ...prev, mixtoCash: "La suma de efectivo y tarjeta es menor al total a pagar." }));
         return;
       }
+    } else if (paymentMethod === "MIXTO" && paymentsArray) {
+      cashPayment = totalCashReceived || 0;
+    }
+
+    if (paymentMethod === "STORE_CREDIT") {
+      const codeClean = storeCreditCode.trim().toUpperCase();
+      if (!codeClean) {
+        setCheckoutFieldErrors((prev) => ({ ...prev, storeCreditCode: "El código de vale es requerido." }));
+        return;
+      }
+      setCheckoutLoading(true);
+      try {
+        const res = await api.get(`/api/sales/store-credit/${encodeURIComponent(codeClean)}`);
+        const sc = res.data;
+        if (sc.remaining < netTotalToPay) {
+          setCheckoutError(`El vale solo tiene $${sc.remaining.toFixed(2)} de saldo disponible, que es menor al total a pagar de $${netTotalToPay.toFixed(2)}.`);
+          setCheckoutLoading(false);
+          return;
+        }
+        paymentsArray = [{
+          method: "STORE_CREDIT",
+          amount: netTotalToPay,
+          reference: codeClean
+        }];
+      } catch (err: any) {
+        setCheckoutError(err.response?.data?.message || "Error al validar el vale.");
+        setCheckoutLoading(false);
+        return;
+      }
     }
 
     const paymentRoundingMessages = collectRoundedDecimalMessages(paymentRoundedValues);
@@ -487,8 +488,6 @@ export function usePosCart({
           customerId: selectedCustomer ? selectedCustomer.id : undefined,
           pointsRedeemed: (usePoints && selectedCustomer) ? pointsToRedeem : undefined,
           invoiceRequested: selectedCustomer ? invoiceRequested : false,
-          storeCreditCode: appliedStoreCredit?.code,
-          storeCreditAmount: appliedStoreCredit?.amount,
         }, { timeout: LONG_OPERATION_TIMEOUT });
 
         const saleInvoice = res.data.invoiceNumber;
@@ -540,8 +539,7 @@ export function usePosCart({
         customerId: selectedCustomer ? selectedCustomer.id : undefined,
         pointsRedeemed: (usePoints && selectedCustomer) ? pointsToRedeem : undefined,
         invoiceRequested: selectedCustomer ? invoiceRequested : false,
-        storeCreditCode: appliedStoreCredit?.code,
-        storeCreditAmount: appliedStoreCredit?.amount,
+        payments: paymentsArray,
       }, { timeout: LONG_OPERATION_TIMEOUT });
 
       try {
@@ -570,7 +568,6 @@ export function usePosCart({
           pointsEarned: res.data.pointsEarned || 0,
           pointsRedeemed: res.data.pointsRedeemed || 0,
           pointsDiscount: res.data.pointsDiscount || 0,
-          storeCreditAmount: res.data.storeCreditAmount || 0,
           customerPoints: res.data.customerPoints || 0,
           customerName: res.data.customerName || null,
           customerEmail: selectedCustomer?.email || null,
@@ -588,8 +585,6 @@ export function usePosCart({
       setCashReceived("");
       setMixtoCash("");
       setMixtoCard("");
-      setAppliedStoreCredit(null);
-      setStoreCreditCodeInput("");
       onSetActiveModal("ticket-view");
     } catch (err: any) {
       setCheckoutError(getCheckoutErrorMessage(err, "Error al completar el cobro."));
@@ -682,6 +677,8 @@ export function usePosCart({
     setMixtoCash,
     mixtoCard,
     setMixtoCard,
+    storeCreditCode,
+    setStoreCreditCode,
     cardType,
     setCardType,
     // Puntos y factura
@@ -699,14 +696,6 @@ export function usePosCart({
     qrReference,
     setQrReference,
     qrChecking,
-    // Store credit
-    storeCreditCodeInput,
-    setStoreCreditCodeInput,
-    appliedStoreCredit,
-    setAppliedStoreCredit,
-    storeCreditLoading,
-    handleValidateStoreCredit,
-    handleRemoveStoreCredit,
     // Valores calculados
     cartSubtotalOriginal,
     cartDiscount,
@@ -715,7 +704,6 @@ export function usePosCart({
     cartTotal,
     taxBreakdown,
     pointsDiscount,
-    storeCreditDiscount,
     netTotalToPay,
     parsedReceived,
     parsedMixtoCash,

@@ -37,15 +37,7 @@ export function CheckoutPanel({
     taxBreakdown,
     cartTax,
     cartTotal,
-    netTotalToPay,
     handleCancelCurrentPurchase,
-    storeCreditCodeInput,
-    setStoreCreditCodeInput,
-    appliedStoreCredit,
-    handleValidateStoreCredit,
-    handleRemoveStoreCredit,
-    storeCreditLoading,
-    storeCreditDiscount,
   } = cartData;
 
   return (
@@ -147,36 +139,9 @@ export function CheckoutPanel({
             </span>
           </div>
         )}
-
-        {/* Store Credit Input */}
-        <div style={{ marginTop: "6px", display: "flex", gap: "6px" }}>
-          <input
-            type="text"
-            placeholder="Código de Monedero"
-            value={storeCreditCodeInput}
-            onChange={(e) => setStoreCreditCodeInput(e.target.value.toUpperCase())}
-            disabled={storeCreditLoading || !!appliedStoreCredit}
-            style={{ flex: 1, padding: "6px", borderRadius: "4px", border: "1px solid var(--border)", fontSize: "12px", outline: "none" }}
-          />
-          <button
-            onClick={appliedStoreCredit ? handleRemoveStoreCredit : handleValidateStoreCredit}
-            disabled={storeCreditLoading || (!storeCreditCodeInput.trim() && !appliedStoreCredit)}
-            style={{ padding: "6px 12px", borderRadius: "4px", border: "none", backgroundColor: appliedStoreCredit ? "#dc2626" : "var(--accent-strong)", color: "white", fontSize: "12px", fontWeight: "600", cursor: "pointer" }}
-          >
-            {appliedStoreCredit ? "Quitar" : "Aplicar"}
-          </button>
-        </div>
-
-        {appliedStoreCredit && (
-          <div style={{ ...styles.summaryRow, color: "#7c3aed", fontWeight: "700", marginTop: "4px" }}>
-            <span>Monedero:</span>
-            <span>-${storeCreditDiscount.toFixed(2)}</span>
-          </div>
-        )}
-
-        <div style={{ ...styles.summaryRow, ...styles.summaryTotal, marginTop: "8px" }}>
+        <div style={{ ...styles.summaryRow, ...styles.summaryTotal }}>
           <span>Total:</span>
-          <span style={{ color: "#dc2626", fontWeight: "800" }}>${netTotalToPay.toFixed(2)}</span>
+          <span style={{ color: "#dc2626", fontWeight: "800" }}>${cartTotal.toFixed(2)}</span>
         </div>
         <div style={{ display: "flex", gap: "10px", marginTop: "10px", flexWrap: "wrap" }} className="pos-cashier-modal-actions">
           <button
