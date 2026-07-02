@@ -286,6 +286,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
     // 4. Validar reglas de negocio para cada ítem devuelto y calcular montos de reembolso
     let refundSubtotal = 0;
     let refundDiscount = 0;
+    let refundTax = 0;
     const validatedItems: any[] = [];
 
     for (const item of items) {
@@ -371,6 +372,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
 
       refundSubtotal += lineOriginalTotal;
       refundDiscount += lineDiscountRefund;
+      refundTax += lineTaxRefund;
 
       validatedItems.push({
         saleDetailId: saleDetail.id,
@@ -387,8 +389,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       });
     }
 
-
-    const refundTotal = (refundSubtotal - refundDiscount);
+    const refundTotal = (refundSubtotal - refundDiscount) + refundTax;
 
     // 5. Procesar cambio de producto (si aplica)
     let exchangeSale: any = null;
