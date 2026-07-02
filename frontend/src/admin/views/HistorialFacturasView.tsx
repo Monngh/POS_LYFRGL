@@ -7,7 +7,6 @@ import {
   Badge,
   Panel,
   TableState,
-  SectionHeader,
   moneyExact,
   useMediaQuery,
 } from "./shared";
@@ -54,10 +53,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   return (
     <div>
-      <SectionHeader
-        title="Historial de Facturas"
-        subtitle="Consulta todas las facturas individuales y globales timbradas. Descarga el PDF y XML de cada una."
-      />
+  
 
       <Panel>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", backgroundColor: "var(--surface-2)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -70,23 +66,6 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
         {isMobile ? (
           /* ── Mobile / Tablet: Card-based layout ── */
           <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
-            {/* Header row mirroring the fields */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "1.5fr 2fr 1.5fr 0.8fr",
-              padding: "12px 16px",
-              fontWeight: 700,
-              fontSize: 11,
-              color: "var(--text-muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.4px",
-            }}>
-              <div>Cliente</div>
-              <div>Fecha</div>
-              <div>Total</div>
-              <div style={{ textAlign: "right", paddingRight: 8 }}>Más</div>
-            </div>
-
             {loading && (
               <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
                 Cargando información...
@@ -113,10 +92,10 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                     key={item.uuid}
                     style={{
                       backgroundColor: "var(--surface)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 12,
-                      marginBottom: 10,
-                      boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                      border: "1px solid var(--border-soft)",
+                      borderRadius: 16,
+                      marginBottom: 12,
+                      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
                       overflow: "hidden",
                     }}
                   >
@@ -141,28 +120,31 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
 
                     {/* Fila principal */}
                     <div style={{
-                      display: "grid",
-                      gridTemplateColumns: "1.5fr 2fr 1.5fr 0.8fr",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
                       padding: "12px 16px",
-                      alignItems: "center",
+                      gap: 12,
                     }}>
                       {/* Cliente */}
-                      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--accent-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {item.customer || "Público General"}
-                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, gap: 8 }}>
+                          <span style={{ fontWeight: 700, fontSize: 14, color: "var(--accent-strong)", wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
+                            {item.customer || "Público General"}
+                          </span>
+                          <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", whiteSpace: "normal", wordBreak: "break-word", overflowWrap: "anywhere" }}>
+                            {moneyExact(item.totalAmount)}
+                          </span>
+                        </div>
 
-                      {/* Fecha */}
-                      <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-                        {formatDate(item.date)}
-                      </div>
-
-                      {/* Total */}
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
-                        {moneyExact(item.totalAmount)}
+                        {/* Fecha */}
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)", wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
+                          {formatDate(item.date)}
+                        </div>
                       </div>
 
                       {/* Chevron */}
-                      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
+                      <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
                         <button
                           onClick={() => toggleExpandInvoice(item.uuid)}
                           style={{
@@ -172,15 +154,15 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                             backgroundColor: "var(--surface)",
                             border: "1px solid var(--border-strong)",
                             borderRadius: 8,
-                            width: 34,
-                            height: 34,
+                            width: 38,
+                            height: 38,
                             cursor: "pointer",
-                            color: "var(--text-muted)",
+                            color: "var(--accent)",
                             padding: 0,
                           }}
                           className="active-tap"
                         >
-                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                          {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                         </button>
                       </div>
                     </div>
@@ -232,7 +214,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                         {/* Descarga de Archivos */}
                         <div>
                           <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Descargar Comprobantes</h4>
-                          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                          <div style={{ display: "flex", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
                             <a
                               href={`${api.defaults.baseURL}/api/public/sales/invoice/${item.uuid}/pdf`}
                               target="_blank"

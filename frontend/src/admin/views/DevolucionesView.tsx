@@ -876,7 +876,7 @@ const sumRow: React.CSSProperties = {
 const detailRowStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "flex-start",
-  alignItems: "center",
+  alignItems: "flex-start",
   gap: "8px",
   fontSize: 13,
   marginBottom: 6,
@@ -887,11 +887,17 @@ const detailLabelStyle: React.CSSProperties = {
   color: "var(--text-muted)",
   minWidth: "85px",
   display: "inline-block",
+  flexShrink: 0,
 };
 
 const detailValueStyle: React.CSSProperties = {
   fontWeight: 600,
   color: "var(--text-secondary)",
+  wordBreak: "break-word",
+  overflowWrap: "anywhere",
+  whiteSpace: "normal",
+  minWidth: 0,
+  flex: 1,
 };
 
 export default DevolucionesView;

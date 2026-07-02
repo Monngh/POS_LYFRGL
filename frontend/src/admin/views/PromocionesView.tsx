@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, Eye, PackagePlus, Pencil, Plus, Power, Tags, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Eye, PackagePlus, Pencil, Plus, Power, Tags, X, Calendar } from "lucide-react";
 import api from "../../shared/services/api";
 import {
   collectRoundedDecimalMessages,
@@ -8,8 +8,6 @@ import {
   validateDecimalField,
 } from "../../shared/utils/decimalInput";
 import { normalizeIntegerInput, validateInteger, validateSafeText } from "../../shared/utils/formValidation";
-import { useToast } from "../../shared/context/ToastContext";
-import { ConfirmModal } from "../../shared/ui";
 import {
   ui,
   type ViewProps,
@@ -23,6 +21,33 @@ import {
   useMediaQuery,
   filterProductsBySearch,
 } from "./shared";
+
+const promoDetailRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-start",
+  alignItems: "flex-start",
+  gap: "8px",
+  fontSize: 13,
+  marginBottom: 6,
+};
+
+const promoDetailLabel: React.CSSProperties = {
+  flexShrink: 0,
+  fontWeight: 700,
+  color: "var(--text-muted)",
+  minWidth: "95px",
+  display: "inline-block",
+};
+
+const promoDetailValue: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
+  whiteSpace: "normal",
+  fontWeight: 600,
+  color: "var(--text-secondary)",
+};
 
 interface PromotionTypeOption {
   id: number;
@@ -219,123 +244,85 @@ const ProductSelector: React.FC<{
         <span style={styles.selectedCount}>{selectedIds.length} seleccionado{selectedIds.length === 1 ? "" : "s"}</span>
       </div>
       {isMobile ? (
-        <div style={{ border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              padding: "8px 12px",
-              backgroundColor: "var(--surface-2)",
-              borderBottom: "1px solid var(--border)",
-              borderRadius: "6px 6px 0 0",
-              position: "sticky",
-              top: 0,
-              zIndex: 1,
-            }}
-          >
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
-              Producto
-            </span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
-              Precio
-            </span>
+        <div style={styles.productList}>
+          <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", backgroundColor: "var(--surface-2)", borderBottom: "1px solid var(--border)" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Producto</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Precio</span>
           </div>
-          <div style={{ maxHeight: 240, overflowY: "auto", overflowX: "hidden" }}>
-            {filtered.length === 0 ? (
-              <div style={styles.productEmpty}>
-                {query.trim() ? "No se encontraron productos con esa búsqueda." : "No hay productos activos para mostrar."}
-              </div>
-            ) : (
-              filtered.map((product) => (
-                <div
-                  key={product.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "10px 12px",
-                    borderBottom: "1px solid var(--border)",
-                    width: "100%",
-                    boxSizing: "border-box",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(product.id)}
-                    disabled={disabled}
-                    onChange={() => onToggle(product.id)}
-                    style={{ width: 18, height: 18, flexShrink: 0 }}
-                    aria-label={`Seleccionar ${product.name}`}
-                  />
-                  <div style={{ flex: 1, minWidth: 0, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                    <div style={{ minWidth: 0 }}>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: "var(--text)",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {product.name}
-                      </div>
-                      <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
-                        SKU: {product.sku}
-                      </div>
+          {filtered.length === 0 ? (
+            <div style={styles.productEmpty}>
+              {query.trim() ? "No se encontraron productos con esa búsqueda." : "No hay productos activos para mostrar."}
+            </div>
+          ) : (
+            filtered.map((product) => (
+              <div
+                key={product.id}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderBottom: "1px solid var(--border)", width: "100%", boxSizing: "border-box" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(product.id)}
+                  disabled={disabled}
+                  onChange={() => onToggle(product.id)}
+                  style={{ width: 18, height: 18, flexShrink: 0 }}
+                  aria-label={`Seleccionar ${product.name}`}
+                />
+                <div style={{ flex: 1, minWidth: 0, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {product.name}
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", flexShrink: 0 }}>
-                      {moneyExact(Number(product.sellPrice))}
+                    <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
+                      SKU: {product.sku}
                     </div>
                   </div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", flexShrink: 0 }}>
+                    {moneyExact(Number(product.sellPrice))}
+                  </div>
                 </div>
-              ))
-            )}
-          </div>
+              </div>
+            ))
+          )}
         </div>
       ) : (
         <div style={styles.productList}>
-          <div
-            style={{
-              ...ui.theadRow,
-              ...styles.productGridRow,
-              position: "sticky",
-              top: 0,
-              zIndex: 1,
-              backgroundColor: "var(--surface-2)",
-            }}
-          >
-            <div style={{ ...ui.th, ...styles.productColCheck }} />
-            <div style={{ ...ui.th, ...styles.productColSku }}>SKU</div>
-            <div style={{ ...ui.th, ...styles.productColName }}>Nombre</div>
-            <div style={{ ...ui.th, ...styles.productColPrice }}>Precio</div>
-          </div>
-          <div style={styles.productTbody}>
-            {filtered.length === 0 ? (
-              <div style={styles.productEmpty}>
-                {query.trim() ? "No se encontraron productos con esa búsqueda." : "No hay productos activos para mostrar."}
-              </div>
-            ) : (
-              filtered.map((product) => (
-                <div key={product.id} style={styles.productGridRow}>
-                  <div style={{ ...ui.td, ...styles.productColCheck, textAlign: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(product.id)}
-                      disabled={disabled}
-                      onChange={() => onToggle(product.id)}
-                      style={styles.check}
-                      aria-label={`Seleccionar ${product.name}`}
-                    />
-                  </div>
-                  <div style={{ ...ui.td, ...styles.productColSku }}>{product.sku}</div>
-                  <div title={product.name} style={{ ...ui.td, ...styles.productColName }}>{product.name}</div>
-                  <div style={{ ...ui.td, ...styles.productColPrice }}>{moneyExact(Number(product.sellPrice))}</div>
-                </div>
-              ))
-            )}
-          </div>
+          <table style={{ ...ui.table, ...styles.productTable }}>
+            <thead>
+              <tr style={{ ...ui.theadRow, ...styles.productGridRow }}>
+                <th style={{ ...ui.th, ...styles.productColCheck }} />
+                <th style={{ ...ui.th, ...styles.productColSku }}>SKU</th>
+                <th style={{ ...ui.th, ...styles.productColName }}>Nombre</th>
+                <th style={{ ...ui.th, ...styles.productColPrice, textAlign: "right" }}>Precio</th>
+              </tr>
+            </thead>
+            <tbody style={styles.productTbody}>
+              {filtered.length === 0 ? (
+                <tr style={styles.productGridRowEmpty}>
+                  <td style={{ ...styles.productEmpty, width: "100%" }}>
+                    {query.trim() ? "No se encontraron productos con esa búsqueda." : "No hay productos activos para mostrar."}
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((product) => (
+                  <tr key={product.id} style={styles.productGridRow}>
+                    <td style={{ ...ui.td, ...styles.productColCheck, textAlign: "center" }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(product.id)}
+                        disabled={disabled}
+                        onChange={() => onToggle(product.id)}
+                        style={styles.check}
+                        aria-label={`Seleccionar ${product.name}`}
+                      />
+                    </td>
+                    <td style={{ ...ui.td, ...styles.productColSku }}>{product.sku}</td>
+                    <td title={product.name} style={{ ...ui.td, ...styles.productColName }}>{product.name}</td>
+                    <td style={{ ...ui.td, ...styles.productColPrice }}>{moneyExact(Number(product.sellPrice))}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -343,8 +330,6 @@ const ProductSelector: React.FC<{
 };
 
 const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
-  const { showToast } = useToast();
-  const [statusConfirmTarget, setStatusConfirmTarget] = useState<PromotionRow | null>(null);
   const [rows, setRows] = useState<PromotionRow[]>([]);
   const [promotionTypes, setPromotionTypes] = useState<PromotionTypeOption[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
@@ -754,7 +739,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     setFieldErrors({});
     try {
       if (decimalValidation.value.roundingMessages.length > 0) {
-        showToast(decimalValidation.value.roundingMessages.join(" | "), "warning");
+        alert(decimalValidation.value.roundingMessages.join("\n"));
       }
 
       if (editing === "create") {
@@ -776,15 +761,11 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     }
   };
 
-  const toggleStatus = (promotion: PromotionRow) => {
-    setStatusConfirmTarget(promotion);
-  };
-
-  const confirmToggleStatus = async () => {
-    const promotion = statusConfirmTarget;
-    if (!promotion) return;
-    setStatusConfirmTarget(null);
+  const toggleStatus = async (promotion: PromotionRow) => {
     const next = !promotion.isActive;
+    const action = next ? "activar" : "desactivar";
+    const confirmed = window.confirm(`Desea ${action} la promocion "${promotion.name}"?`);
+    if (!confirmed) return;
 
     setLoadingActionId(promotion.id);
     setError(null);
@@ -861,23 +842,8 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
       )}
 
       {isMobile ? (
-        /* ── Mobile / Tablet: Card-based layout ── */
+        /* ── Mobile / Tablet: Card-based layout (DevolucionesView pattern with Inventario header) ── */
         <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
-          {/* Header row mirroring the fields */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "1fr auto",
-            padding: "12px 16px",
-            fontWeight: 700,
-            fontSize: 11,
-            color: "var(--text-muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.4px",
-          }}>
-            <div>Promoción</div>
-            <div style={{ textAlign: "right", paddingRight: 8 }}>Acciones</div>
-          </div>
-
           {loading && (
             <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
@@ -897,6 +863,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
           {!loading &&
             !error &&
             rows.map((promotion) => {
+              const status = getStatus(promotion);
               const busy = loadingActionId === promotion.id;
               const isExpanded = expandedPromotions[promotion.id];
 
@@ -912,7 +879,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     overflow: "hidden",
                   }}
                 >
-                  {/* Header: Tipo de Promoción */}
+                  {/* Header: Vigencia y Estado (Diseño similar a Inventario) */}
                   <div style={{
                     display: "flex",
                     justifyContent: "space-between",
@@ -925,53 +892,73 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
-                    <span>{typeLabel(promotion.promotionType.name).toUpperCase()}</span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <Calendar size={12} color="var(--text-muted)" />
+                      {fmtDate(promotion.startDate)} — {fmtDate(promotion.endDate)}
+                    </span>
+                    <Badge tone={status.tone}>{status.label}</Badge>
                   </div>
 
                   {/* Fila principal */}
                   <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr auto",
-                    padding: "12px 16px",
+                    display: "flex",
+                    justifyContent: "space-between",
                     alignItems: "center",
+                    padding: "12px 16px",
+                    gap: 12,
                   }}>
-                    {/* Promoción (Nombre + tipo + valor apilados) */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 2, overflow: "hidden" }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Nombre */}
+                      <div style={{
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: "var(--text)",
+                        wordBreak: "break-word",
+                        overflowWrap: "anywhere",
+                        whiteSpace: "normal",
+                      }}>
                         {promotion.name}
                       </div>
-                      <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
-                        {typeLabel(promotion.promotionType.name)} · {formatPromotionValue(promotion)}
+
+                      {/* Tipo y Valor */}
+                      <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        fontSize: 13,
+                        color: "var(--text-secondary)",
+                        marginTop: 4,
+                        wordBreak: "break-word",
+                        overflowWrap: "anywhere",
+                        whiteSpace: "normal",
+                      }}>
+                        <Tags size={14} color="#2563eb" style={{ flexShrink: 0 }} />
+                        <span>
+                          {typeLabel(promotion.promotionType.name)} · <strong>{formatPromotionValue(promotion)}</strong>
+                        </span>
+                      </div>
+
+                      {/* Productos */}
+                      <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        fontSize: 12,
+                        color: "var(--text-secondary)",
+                        marginTop: 4,
+                        wordBreak: "break-word",
+                        overflowWrap: "anywhere",
+                        whiteSpace: "normal",
+                      }}>
+                        <PackagePlus size={14} color="#2563eb" style={{ flexShrink: 0 }} />
+                        <span>
+                          {promotion.products.length} producto{promotion.products.length === 1 ? "" : "s"} ({productSummary(promotion)})
+                        </span>
                       </div>
                     </div>
 
-                    {/* Botones de Acción */}
-                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
-                      {/* Ver */}
-                      <button
-                        onClick={() => openDetail(promotion)}
-                        disabled={busy}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: "var(--surface-3)",
-                          border: "1px solid var(--border-strong)",
-                          borderRadius: 8,
-                          width: 34,
-                          height: 34,
-                          cursor: "pointer",
-                          color: "var(--text-secondary)",
-                          padding: 0,
-                          opacity: busy ? 0.55 : 1,
-                        }}
-                        className="active-tap"
-                        title="Ver detalle"
-                      >
-                        <Eye size={14} />
-                      </button>
-
-                      {/* Chevron */}
+                    {/* Chevron Button */}
+                    <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
                       <button
                         onClick={() => toggleExpandPromotion(promotion.id)}
                         style={{
@@ -981,87 +968,126 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           backgroundColor: "var(--surface)",
                           border: "1px solid var(--border-strong)",
                           borderRadius: 8,
-                          width: 34,
-                          height: 34,
+                          width: 38,
+                          height: 38,
                           cursor: "pointer",
-                          color: "var(--text-muted)",
+                          color: "var(--accent)",
                           padding: 0,
                         }}
                         className="active-tap"
                       >
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                       </button>
                     </div>
                   </div>
 
-                  {/* Detalle expandido */}
+                  {/* Expanded Content */}
                   {isExpanded && (
                     <div style={{
                       padding: "16px",
                       margin: "0 16px 16px 16px",
                       backgroundColor: "var(--surface-2)",
-                      borderRadius: 8,
+                      borderRadius: "12px",
                       border: "1px solid var(--border)",
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-                      gap: 16,
-                      textAlign: "left",
                     }}>
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>ID de Promoción</div>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)" }}>{promotion.id}</div>
+                      {/* Ver detalle link */}
+                      <div style={{ marginBottom: 16 }}>
+                        <button
+                          onClick={() => openDetail(promotion)}
+                          disabled={busy}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "var(--accent)",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            padding: 0,
+                            fontSize: 13,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            opacity: busy ? 0.55 : 1,
+                          }}
+                          className="active-tap"
+                        >
+                          <Eye size={15} /> Ver detalle
+                        </button>
                       </div>
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Descripción</div>
-                        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{promotion.description || "Sin descripción"}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Vigencia</div>
-                        <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 700 }}>{fmtDate(promotion.startDate)} - {fmtDate(promotion.endDate)}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Cantidad de Productos</div>
-                        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{promotion.products.length} producto{promotion.products.length === 1 ? "" : "s"}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Productos incluidos</div>
-                        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{productSummary(promotion)}</div>
-                      </div>
-                      {promotion.minQuantity !== null && (
-                        <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Cantidad mínima</div>
-                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{promotion.minQuantity}</div>
-                        </div>
-                      )}
-                      {promotion.payQuantity !== null && (
-                        <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Cantidad a pagar</div>
-                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{promotion.payQuantity}</div>
-                        </div>
-                      )}
-                      {promotion.createdAt && (
-                        <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Fecha de creación</div>
-                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmtDate(promotion.createdAt)}</div>
-                        </div>
-                      )}
-                      {promotion.updatedAt && (
-                        <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Última actualización</div>
-                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmtDate(promotion.updatedAt)}</div>
-                        </div>
-                      )}
 
-                      {/* Acciones del desplegable */}
+                      {/* Detail box */}
                       <div style={{
-                        gridColumn: "1 / -1",
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                        gap: 16,
+                        textAlign: "left",
+                      }}>
+                        {/* Información General */}
+                        <div>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Información General</h4>
+                          <div style={promoDetailRow}>
+                            <span style={promoDetailLabel}>Tipo:</span>
+                            <span style={promoDetailValue}>{typeLabel(promotion.promotionType.name)}</span>
+                          </div>
+                          <div style={promoDetailRow}>
+                            <span style={promoDetailLabel}>Valor:</span>
+                            <span style={promoDetailValue}>{formatPromotionValue(promotion)}</span>
+                          </div>
+                          {promotion.description && (
+                            <div style={promoDetailRow}>
+                              <span style={promoDetailLabel}>Descripción:</span>
+                              <span style={promoDetailValue}>{promotion.description}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Vigencia */}
+                        <div>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Vigencia</h4>
+                          <div style={promoDetailRow}>
+                            <span style={promoDetailLabel}>Inicio:</span>
+                            <span style={promoDetailValue}>{fmtDate(promotion.startDate)}</span>
+                          </div>
+                          <div style={promoDetailRow}>
+                            <span style={promoDetailLabel}>Fin:</span>
+                            <span style={promoDetailValue}>{fmtDate(promotion.endDate)}</span>
+                          </div>
+                          {promotion.minQuantity !== null && (
+                            <div style={promoDetailRow}>
+                              <span style={promoDetailLabel}>Cant. mín.:</span>
+                              <span style={promoDetailValue}>{promotion.minQuantity}</span>
+                            </div>
+                          )}
+                          {promotion.payQuantity !== null && (
+                            <div style={promoDetailRow}>
+                              <span style={promoDetailLabel}>Cant. pago:</span>
+                              <span style={promoDetailValue}>{promotion.payQuantity}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Productos */}
+                        <div>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Productos</h4>
+                          <div style={promoDetailRow}>
+                            <span style={promoDetailLabel}>Incluidos:</span>
+                            <span style={promoDetailValue}>{productSummary(promotion)}</span>
+                          </div>
+                          <div style={promoDetailRow}>
+                            <span style={promoDetailLabel}>Cantidad:</span>
+                            <span style={promoDetailValue}>{promotion.products.length} producto{promotion.products.length === 1 ? "" : "s"}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Botones de acción */}
+                      <div style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: 12,
-                        marginTop: 8,
+                        gap: 10,
+                        marginTop: 14,
+                        flexWrap: "wrap",
                         borderTop: "1px solid var(--border)",
                         paddingTop: 14,
-                        flexWrap: "wrap",
                       }}>
                         {/* Editar */}
                         <button
@@ -1084,7 +1110,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           }}
                           className="active-tap"
                         >
-                          <Pencil size={13} /> Editar promoción
+                          <Pencil size={13} /> Editar
                         </button>
 
                         {/* Productos */}
@@ -1342,31 +1368,9 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
       {detail && (
         <div style={ui.overlay} onClick={() => setDetail(null)}>
-          <div
-            style={{
-              ...ui.modal,
-              width: "100%",
-              maxWidth: "min(710px, calc(100vw - 32px))",
-              maxHeight: "90vh",
-              boxSizing: "border-box",
-              wordBreak: "break-word",
-            }}
-            onClick={(event) => event.stopPropagation()}
-          >
+          <div style={{ ...ui.modal, width: "calc(100% - 24px)", maxWidth: 710, maxHeight: "90vh" }} onClick={(event) => event.stopPropagation()}>
             <div style={ui.modalHeader}>
-              <span
-                style={{
-                  ...ui.modalTitle,
-                  minWidth: 0,
-                  flex: 1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  maxWidth: "100%",
-                }}
-              >
-                {detail.name}
-              </span>
+              <span style={ui.modalTitle}>{detail.name}</span>
               <button type="button" style={ui.linkBtn} onClick={() => setDetail(null)} aria-label="Cerrar">
                 <X size={18} />
               </button>
@@ -1396,50 +1400,15 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
               <div style={{ marginTop: 18 }}>
                 <label style={ui.fieldLabel}>Productos asignados</label>
                 <div style={styles.assignedList}>
-                  {detail.products.map((row) =>
-                    isMobile ? (
-                      <div
-                        key={row.productId}
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "flex-start",
-                          padding: "10px 12px",
-                          borderBottom: "1px solid var(--border)",
-                          gap: 8,
-                        }}
-                      >
-                        <div style={{ minWidth: 0 }}>
-                          <div
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 600,
-                              color: "var(--text)",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {row.product?.name ?? `Producto #${row.productId}`}
-                          </div>
-                          <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
-                            {row.product?.sku ?? `#${row.productId}`}
-                          </div>
-                        </div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", flexShrink: 0 }}>
-                          {row.product ? moneyExact(Number(row.product.sellPrice)) : ""}
-                        </div>
-                      </div>
-                    ) : (
-                      <div key={row.productId} style={styles.assignedRow}>
-                        <span style={styles.sku}>{row.product?.sku ?? `#${row.productId}`}</span>
-                        <span style={{ fontWeight: 800 }}>{row.product?.name ?? `Producto #${row.productId}`}</span>
-                        <span style={{ marginLeft: "auto", color: "var(--text-muted)" }}>
-                          {row.product ? moneyExact(Number(row.product.sellPrice)) : ""}
-                        </span>
-                      </div>
-                    )
-                  )}
+                  {detail.products.map((row) => (
+                    <div key={row.productId} style={styles.assignedRow}>
+                      <span style={styles.sku}>{row.product?.sku ?? `#${row.productId}`}</span>
+                      <span style={{ fontWeight: 800 }}>{row.product?.name ?? `Producto #${row.productId}`}</span>
+                      <span style={{ marginLeft: "auto", color: "var(--text-muted)" }}>
+                        {row.product ? moneyExact(Number(row.product.sellPrice)) : ""}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -1475,15 +1444,6 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
           </form>
         </div>
       )}
-
-      <ConfirmModal
-        isOpen={statusConfirmTarget !== null}
-        onClose={() => setStatusConfirmTarget(null)}
-        onConfirm={confirmToggleStatus}
-        variant="warning"
-        title="Cambiar estado de promoción"
-        message={`¿Desea ${statusConfirmTarget?.isActive ? "desactivar" : "activar"} la promoción "${statusConfirmTarget?.name}"?`}
-      />
     </div>
   );
 };
@@ -1561,8 +1521,9 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: 8,
     overflow: "hidden",
     backgroundColor: "var(--surface)",
-    width: "100%",
+    width: "fit-content",
     maxWidth: "100%",
+    margin: "0 auto",
   },
   productPickerTop: {
     display: "flex",
@@ -1572,6 +1533,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderBottom: "1px solid var(--border)",
     backgroundColor: "var(--surface-2)",
     flexWrap: "wrap",
+    overflowX: "hidden",
+    width: "100%",
   },
   selectedCount: {
     marginLeft: "auto",
@@ -1580,56 +1543,59 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: 800,
   },
   productList: {
+    maxHeight: 260,
+    overflowX: "hidden",
+    overflowY: "auto",
     width: "100%",
     maxWidth: "100%",
-    border: "1px solid var(--border)",
-    borderRadius: 6,
-    overflow: "hidden",
+  },
+  productTable: {
+    width: "100%",
+    maxWidth: "100%",
+    display: "block",
   },
   productTbody: {
     display: "block",
-    width: "100%",
-    maxHeight: 220,
-    overflowY: "auto",
-    overflowX: "hidden",
   },
   productGridRow: {
-    display: "flex",
+    display: "grid",
+    gridTemplateColumns: "40px 110px minmax(0, 1fr) 90px",
+    gap: 12,
+    justifyContent: "start",
     alignItems: "center",
     width: "100%",
-    boxSizing: "border-box",
-    borderBottom: "1px solid var(--border-soft)",
+    overflow: "hidden",
+  },
+  productGridRowEmpty: {
+    display: "block",
+    width: "100%",
   },
   productColCheck: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    flex: "0 0 28px",
-    width: 28,
+    width: 40,
     boxSizing: "border-box",
   },
   productColSku: {
-    flex: "0 0 100px",
-    width: 100,
-    minWidth: 90,
+    display: "block",
+    width: 110,
     boxSizing: "border-box",
     fontWeight: 800,
     color: "var(--accent-strong)",
-    overflow: "visible",
-    whiteSpace: "nowrap",
   },
   productColName: {
-    flex: "1 1 auto",
-    minWidth: 0,
+    display: "block",
     boxSizing: "border-box",
+    minWidth: 0,
     fontWeight: 700,
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
   productColPrice: {
-    flex: "0 0 80px",
-    width: 80,
+    display: "block",
+    width: 90,
     boxSizing: "border-box",
     textAlign: "right",
     fontVariantNumeric: "tabular-nums",
@@ -1698,8 +1664,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "var(--text-secondary)",
     fontSize: 13,
     padding: "10px 12px",
-    overflow: "hidden",
-    wordBreak: "break-word",
   },
   sku: {
     backgroundColor: "var(--accent-soft)",

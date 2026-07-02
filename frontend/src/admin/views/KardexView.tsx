@@ -74,7 +74,7 @@ const chipStyle = (active: boolean): React.CSSProperties => ({
   border: active ? "1px solid var(--accent-strong)" : "1px solid var(--border)",
   backgroundColor: active ? "var(--accent-strong)" : "var(--surface)",
   color: active ? "#ffffff" : "var(--text-muted)",
-  fontSize: 13,
+                    fontSize: 12,
   fontWeight: active ? 700 : 600,
   cursor: "pointer",
   fontFamily: "inherit",
@@ -263,7 +263,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     justifyContent: "space-between",
                     alignItems: "center",
                     padding: "8px 16px 6px 16px",
-                    fontSize: 11,
+                    fontSize: 10,
                     fontWeight: 700,
                     color: "var(--text-muted)",
                     borderBottom: "1px solid var(--border-soft)",
@@ -289,7 +289,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     </div>
 
                     {/* Cambio */}
-                    <div style={{ fontSize: 13, fontWeight: 800, color: k.quantityChange >= 0 ? "var(--color-success)" : "var(--color-danger)" }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: k.quantityChange >= 0 ? "var(--color-success)" : "var(--color-danger)" }}>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
                         {k.quantityChange >= 0 ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
                         {Math.abs(k.quantityChange)}
@@ -317,7 +317,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         className="active-tap"
                         title="Imprimir comprobante"
                       >
-                        <Printer size={15} />
+                        <Printer size={14} />
                       </button>
 
                       {/* Chevron */}
@@ -330,15 +330,15 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           backgroundColor: "var(--surface)",
                           border: "1px solid var(--border-strong)",
                           borderRadius: 8,
-                          width: 34,
-                          height: 34,
+                          width: 32,
+                          height: 32,
                           cursor: "pointer",
                           color: "var(--text-muted)",
                           padding: 0,
                         }}
                         className="active-tap"
                       >
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                       </button>
                     </div>
                   </div>
@@ -357,7 +357,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     }}>
                       {/* Datos del Movimiento */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Datos del Movimiento</h4>
+                        <h4 style={{ fontSize: 12, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Datos del Movimiento</h4>
                         <div style={kardexDetailRow}>
                           <span style={kardexDetailLabel}>Fecha/Hora:</span>
                           <span style={kardexDetailValue}>
@@ -376,7 +376,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                       {/* Resumen Físico */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Resumen Físico</h4>
+                        <h4 style={{ fontSize: 12, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Resumen Físico</h4>
                         <div style={kardexDetailRow}>
                           <span style={kardexDetailLabel}>Exist. anterior:</span>
                           <span style={kardexDetailValue}>{balanceBefore} uds</span>
@@ -395,7 +395,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                       {/* Referencia / Motivo */}
                       <div style={{ gridColumn: "1 / -1" }}>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 6 }}>Referencia / Motivo</h4>
+                        <h4 style={{ fontSize: 12, color: "var(--text)", marginBottom: 6 }}>Referencia / Motivo</h4>
                         <div style={{
                           padding: "8px 12px",
                           backgroundColor: "var(--surface)",
@@ -403,6 +403,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           borderRadius: 8,
                           fontSize: 12,
                           color: "var(--text-secondary)",
+                          fontWeight: 400,
                           whiteSpace: "normal",
                           lineHeight: 1.5,
                         }}>
