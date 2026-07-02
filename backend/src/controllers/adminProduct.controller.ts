@@ -42,6 +42,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
         isReturnable: product.isReturnable, returnWindowDays: product.returnWindowDays,
         trackingType: product.trackingType, satProductKey: product.satProductKey,
         satUnitKey: product.satUnitKey,
+        categories: product.categories.map((row) => row.category),
       },
     });
   } catch (error: any) {
@@ -94,8 +95,13 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
     if (!id || id <= 0) { res.status(400).json({ message: "Identificador de producto inválido." }); return; }
 
     const updated = await updateProductService(id, req.body as Record<string, unknown>);
+    const categoriesWereSent = Boolean(req.body) &&
+      typeof req.body === "object" &&
+      Object.prototype.hasOwnProperty.call(req.body, "categoryIds");
     res.status(200).json({
-      message: "Producto actualizado exitosamente.",
+      message: categoriesWereSent
+        ? "Producto actualizado exitosamente. Categorias actualizadas correctamente."
+        : "Producto actualizado exitosamente.",
       product: {
         id: updated.id, sku: updated.sku, barcode: updated.barcode, name: updated.name,
         description: updated.description, costPrice: Number(updated.costPrice),
@@ -103,6 +109,7 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
         isReturnable: updated.isReturnable, returnWindowDays: updated.returnWindowDays,
         trackingType: updated.trackingType, satProductKey: updated.satProductKey,
         satUnitKey: updated.satUnitKey,
+        categories: updated.categories.map((row) => row.category),
       },
     });
   } catch (error: any) {

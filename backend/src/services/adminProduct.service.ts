@@ -18,6 +18,14 @@ const SKU_GENERATION_MAX_ATTEMPTS = 5;
 
 type MoneyValidation = { ok: true; value: number } | { ok: false; message: string };
 
+const productCategorySummarySelect = {
+  id: true,
+  code: true,
+  name: true,
+  level: true,
+  active: true,
+} satisfies Prisma.CategorySelect;
+
 const cleanBodyText = (value: unknown): string => String(value ?? "").trim();
 const cleanOptionalBodyText = (value: unknown): string | null => {
   const text = cleanBodyText(value);
@@ -42,6 +50,137 @@ const parseInteger = (value: unknown): number | null => {
   const numeric = Number(text);
   return Number.isSafeInteger(numeric) ? numeric : null;
 };
+
+const parsePositiveInteger = (value: unknown): number | null => {
+  const parsed = parseInteger(value);
+  return parsed !== null && parsed > 0 ? parsed : null;
+};
+
+const parseCategoryIds = (value: unknown, required: boolean): number[] | undefined => {
+  if (value === undefined) {
+    if (required) throw new AppError("Selecciona al menos una categoria para el producto.", 400);
+    return undefined;
+  }
+
+  if (!Array.isArray(value)) {
+    throw new AppError("categoryIds debe ser un arreglo de ids numericos.", 400);
+  }
+
+  const categoryIds: number[] = [];
+  for (const raw of value) {
+    const categoryId = parsePositiveInteger(raw);
+    if (categoryId === null) {
+      throw new AppError("categoryIds debe contener ids numericos validos.", 400);
+    }
+    if (!categoryIds.includes(categoryId)) {
+      categoryIds.push(categoryId);
+    }
+  }
+
+  if (required && categoryIds.length === 0) {
+    throw new AppError("Selecciona al menos una categoria para el producto.", 400);
+  }
+
+  return categoryIds;
+};
+
+const validateAssignableCategories = async (
+  client: Prisma.TransactionClient,
+  categoryIds: number[]
+) => {
+  if (categoryIds.length === 0) return [];
+
+  const categories = await client.category.findMany({
+    where: { id: { in: categoryIds } },
+    select: productCategorySummarySelect,
+  });
+
+  if (categories.length !== categoryIds.length) {
+    throw new AppError("Una o mas categorias no existen.", 404);
+  }
+
+  if (categories.some((category) => category.level !== "CATEGORY")) {
+    throw new AppError("Solo se pueden asignar categorias finales a un producto.", 400);
+  }
+
+  if (categories.some((category) => !category.active)) {
+    throw new AppError("No puedes asignar una categoria inactiva.", 400);
+  }
+
+  return categories;
+};
+
+const validateCategoriesForSync = async (
+  client: Prisma.TransactionClient,
+  productId: number,
+  categoryIds: number[]
+) => {
+  if (categoryIds.length === 0) return [];
+
+  const [categories, currentRows] = await Promise.all([
+    client.category.findMany({
+      where: { id: { in: categoryIds } },
+      select: productCategorySummarySelect,
+    }),
+    client.productCategory.findMany({
+      where: { productId },
+      select: { categoryId: true },
+    }),
+  ]);
+  const currentIds = new Set(currentRows.map((row) => row.categoryId));
+
+  if (categories.length !== categoryIds.length) {
+    throw new AppError("Una o mas categorias no existen.", 404);
+  }
+
+  if (categories.some((category) => category.level !== "CATEGORY")) {
+    throw new AppError("Solo se pueden asignar categorias finales a un producto.", 400);
+  }
+
+  if (categories.some((category) => !category.active && !currentIds.has(category.id))) {
+    throw new AppError("No puedes asignar una categoria inactiva.", 400);
+  }
+
+  return categories;
+};
+
+const syncProductCategories = async (
+  client: Prisma.TransactionClient,
+  productId: number,
+  categoryIds: number[]
+): Promise<{ added: number; removed: number }> => {
+  const currentRows = await client.productCategory.findMany({
+    where: { productId },
+    select: { categoryId: true },
+  });
+  const currentIds = new Set(currentRows.map((row) => row.categoryId));
+  const nextIds = new Set(categoryIds);
+  const toRemove = [...currentIds].filter((categoryId) => !nextIds.has(categoryId));
+  const toAdd = categoryIds.filter((categoryId) => !currentIds.has(categoryId));
+
+  if (toRemove.length > 0) {
+    await client.productCategory.deleteMany({
+      where: { productId, categoryId: { in: toRemove } },
+    });
+  }
+
+  if (toAdd.length > 0) {
+    await client.productCategory.createMany({
+      data: toAdd.map((categoryId) => ({ productId, categoryId })),
+    });
+  }
+
+  return { added: toAdd.length, removed: toRemove.length };
+};
+
+const productCategoriesInclude = {
+  categories: {
+    orderBy: { categoryId: "asc" },
+    include: {
+      category: { select: productCategorySummarySelect },
+    },
+  },
+} satisfies Prisma.ProductInclude;
 
 const generateNextProductSku = async (client: Prisma.TransactionClient): Promise<string> => {
   const products = await client.product.findMany({
@@ -154,6 +293,7 @@ const validateSupplierData = (data: SupplierValidationData, isUpdate = false): s
 export const getNextProductSku = async (): Promise<string> => generateNextProductSku(prisma);
 
 export const createProduct = async (body: Record<string, unknown>) => {
+  const categoryIds = parseCategoryIds(body.categoryIds, true) ?? [];
   const nameClean = cleanBodyText(body.name);
   if (!nameClean) throw new AppError("El nombre del producto es requerido.", 400);
   if (nameClean.length > PRODUCT_NAME_MAX_LENGTH) throw new AppError("El nombre del producto no puede tener más de 20 caracteres.", 400);
@@ -186,6 +326,8 @@ export const createProduct = async (body: Record<string, unknown>) => {
     try {
       return await prisma.$transaction(
         async (tx) => {
+          await validateAssignableCategories(tx, categoryIds);
+
           if (barcodeClean) {
             const existingBarcode = await tx.product.findUnique({ where: { barcode: barcodeClean } });
             if (existingBarcode) throw new AppError("El código de barras ingresado ya está registrado.", 409);
@@ -216,7 +358,14 @@ export const createProduct = async (body: Record<string, unknown>) => {
             });
           }
 
-          return product;
+          await tx.productCategory.createMany({
+            data: categoryIds.map((categoryId) => ({ productId: product.id, categoryId })),
+          });
+
+          return tx.product.findUniqueOrThrow({
+            where: { id: product.id },
+            include: productCategoriesInclude,
+          });
         },
         {
           isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
@@ -260,6 +409,10 @@ export const listProducts = async (search?: string, includeInactive = false) => 
       id: true, sku: true, barcode: true, name: true, description: true,
       costPrice: true, sellPrice: true, active: true, trackingType: true,
       isReturnable: true, createdAt: true,
+      categories: {
+        orderBy: { categoryId: "asc" },
+        include: { category: { select: productCategorySummarySelect } },
+      },
     },
   });
 
@@ -267,6 +420,7 @@ export const listProducts = async (search?: string, includeInactive = false) => 
     ...p,
     costPrice: Number(p.costPrice),
     sellPrice: Number(p.sellPrice),
+    categories: p.categories.map((row) => row.category),
   }));
 };
 
@@ -274,6 +428,7 @@ export const getProductDetail = async (id: number) => {
   const product = await prisma.product.findUnique({
     where: { id },
     include: {
+      ...productCategoriesInclude,
       inventories: { include: { branch: { select: { id: true, name: true } } } },
       kardexEntries: {
         take: 20,
@@ -301,6 +456,7 @@ export const getProductDetail = async (id: number) => {
     satUnitKey: product.satUnitKey,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
+    categories: product.categories.map((row) => row.category),
     inventories: product.inventories.map((inv) => ({
       id: inv.id,
       branch: inv.branch.name,
@@ -323,6 +479,7 @@ export const getProductDetail = async (id: number) => {
 };
 
 export const updateProduct = async (id: number, body: Record<string, unknown>) => {
+  const categoryIds = parseCategoryIds(body.categoryIds, false);
   const existingProduct = await prisma.product.findUnique({ where: { id } });
   if (!existingProduct) throw new AppError("Producto no encontrado.", 404);
 
@@ -376,21 +533,36 @@ export const updateProduct = async (id: number, body: Record<string, unknown>) =
     if (duplicateBarcode) throw new AppError("El código de barras ingresado ya está asignado a otro producto.", 409);
   }
 
-  return prisma.product.update({
-    where: { id },
-    data: {
-      name: nameClean,
-      description: descriptionClean,
-      barcode: barcodeClean,
-      costPrice: cost,
-      sellPrice: sell,
-      active: typeof active === "boolean" ? active : existingProduct.active,
-      isReturnable: isReturnable !== undefined ? Boolean(isReturnable) : existingProduct.isReturnable,
-      returnWindowDays: returnWindowDaysClean,
-      trackingType: trackingType !== undefined ? cleanBodyText(trackingType) || "NONE" : existingProduct.trackingType,
-      satProductKey: satProductKeyClean,
-      satUnitKey: satUnitKeyClean,
-    },
+  return prisma.$transaction(async (tx) => {
+    if (categoryIds !== undefined) {
+      await validateCategoriesForSync(tx, id, categoryIds);
+    }
+
+    await tx.product.update({
+      where: { id },
+      data: {
+        name: nameClean,
+        description: descriptionClean,
+        barcode: barcodeClean,
+        costPrice: cost,
+        sellPrice: sell,
+        active: typeof active === "boolean" ? active : existingProduct.active,
+        isReturnable: isReturnable !== undefined ? Boolean(isReturnable) : existingProduct.isReturnable,
+        returnWindowDays: returnWindowDaysClean,
+        trackingType: trackingType !== undefined ? cleanBodyText(trackingType) || "NONE" : existingProduct.trackingType,
+        satProductKey: satProductKeyClean,
+        satUnitKey: satUnitKeyClean,
+      },
+    });
+
+    if (categoryIds !== undefined) {
+      await syncProductCategories(tx, id, categoryIds);
+    }
+
+    return tx.product.findUniqueOrThrow({
+      where: { id },
+      include: productCategoriesInclude,
+    });
   });
 };
 

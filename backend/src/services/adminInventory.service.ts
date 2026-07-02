@@ -84,7 +84,23 @@ export const listInventory = async (branchId?: number, search?: string) => {
   const products = await prisma.product.findMany({
     where,
     orderBy: { name: "asc" },
-    include: { inventories: branchId ? { where: { branchId } } : true },
+    include: {
+      inventories: branchId ? { where: { branchId } } : true,
+      categories: {
+        orderBy: { categoryId: "asc" },
+        include: {
+          category: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              level: true,
+              active: true,
+            },
+          },
+        },
+      },
+    },
   });
 
   return products.map((p) => {
@@ -105,6 +121,7 @@ export const listInventory = async (branchId?: number, search?: string) => {
       minStock,
       low,
       branchCount: invs.length,
+      categories: p.categories.map((row) => row.category),
     };
   });
 };
