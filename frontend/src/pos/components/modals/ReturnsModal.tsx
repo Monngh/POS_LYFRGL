@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { RotateCcw, XCircle, KeyRound, Minus, Plus } from "lucide-react";
+import { RotateCcw, KeyRound, Minus, Plus } from "lucide-react";
 import { PosModal, PosStepper } from "./shared";
 import { getEligibleReturn, submitReturn } from '../../../facturacion';
 import { openTicketPrintWindow } from "../../../shared/utils/ticketEmailDocument.util";
@@ -28,18 +28,7 @@ interface ReturnsModalProps {
   onOpenEmailModal: (config: { subject: string; htmlContent?: string; defaultEmail?: string | null }) => void;
 }
 
-const modalOverlay: React.CSSProperties = {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: "rgba(15, 23, 42, 0.4)",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  zIndex: 100,
-};
+
 
 const inputGroup: React.CSSProperties = {
   display: "flex",
@@ -62,27 +51,6 @@ const fieldError: React.CSSProperties = {
   fontWeight: "600",
   marginTop: "5px",
   marginBottom: 0,
-};
-
-const submitBtn: React.CSSProperties = {
-  backgroundColor: "#2563eb",
-  color: "#ffffff",
-  border: "none",
-  padding: "12px",
-  borderRadius: "6px",
-  fontWeight: "700",
-  cursor: "pointer",
-  boxShadow: "0 4px 6px rgba(37,99,235,0.15)",
-};
-
-const modalBtn: React.CSSProperties = {
-  flex: 1,
-  padding: "10px",
-  borderRadius: "6px",
-  border: "none",
-  fontWeight: "700",
-  cursor: "pointer",
-  textAlign: "center",
 };
 
 export default function ReturnsModal({
