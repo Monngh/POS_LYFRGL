@@ -6,10 +6,11 @@ export { default as TicketViewModal } from "./TicketViewModal";
 export { default as PartialCutReceiptModal } from "./PartialCutReceiptModal";
 export { default as CloseCashModal } from "./CloseCashModal";
 export { default as DepositReceiptModal } from "./DepositReceiptModal";
+export { default as MixedPaymentModal } from "./MixedPaymentModal";
 export { default as CloseReceiptModal } from "./CloseReceiptModal";
 export { default as TicketHistoryModal } from "./TicketHistoryModal";
 export { default as BankDepositModal } from "./BankDepositModal";
 export { default as ReturnsModal } from "./ReturnsModal";
 export { CartAuthorizationModal } from "./CartAuthorizationModal";
+export { ParkedSalesModal } from "./ParkedSalesModal";
 export { TicketEmailModal } from "./TicketEmailModal";
-

@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
+import { XCircle, Search } from "lucide-react";
+import { PosModal, PosStepper } from "./shared";
 
 interface CancelSalePreview {
   createdAt: string;
@@ -19,68 +21,6 @@ interface CancelSaleModalProps {
   onSubmit: (e: React.FormEvent) => void;
 }
 
-const modalOverlay: React.CSSProperties = {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: "rgba(15, 23, 42, 0.4)",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  zIndex: 100,
-};
-
-const cancelModal: React.CSSProperties = {
-  width: "420px",
-  backgroundColor: "var(--surface)",
-  borderRadius: "12px",
-  padding: "28px",
-  boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
-};
-
-const modalTitle: React.CSSProperties = {
-  fontSize: "16px",
-  fontWeight: "800",
-  color: "var(--text)",
-  borderBottom: "1px solid var(--border)",
-  paddingBottom: "8px",
-};
-
-const inputGroup: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "6px",
-  textAlign: "left",
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: "11px",
-  fontWeight: "700",
-  color: "var(--text-secondary)",
-  textTransform: "uppercase",
-  letterSpacing: "0.5px",
-};
-
-const fieldError: React.CSSProperties = {
-  color: "#b91c1c",
-  fontSize: "12px",
-  fontWeight: "600",
-  marginTop: "5px",
-  marginBottom: 0,
-};
-
-const modalBtn: React.CSSProperties = {
-  flex: 1,
-  padding: "10px",
-  borderRadius: "6px",
-  border: "none",
-  fontWeight: "700",
-  cursor: "pointer",
-  textAlign: "center",
-};
-
 export default function CancelSaleModal({
   isOpen,
   onClose,
@@ -93,97 +33,176 @@ export default function CancelSaleModal({
   onSetField,
   onSubmit,
 }: CancelSaleModalProps) {
-  if (!isOpen) return null;
+  const [currentStep, setCurrentStep] = useState(0);
+  const steps = ["Buscar venta", "Validar venta", "Confirmar"];
+
+  // Limpiar estado cuando se cierra
+  React.useEffect(() => {
+    if (!isOpen) setCurrentStep(0);
+  }, [isOpen]);
+
+  const handleNext = () => {
+    if (currentStep === 0 && (!cancelInvoice || cancelFieldErrors.invoice || !cancelSalePreview)) return;
+    if (currentStep === 1 && (!cancelReason || cancelFieldErrors.reason)) return;
+    setCurrentStep(c => c + 1);
+  };
+
+  const handlePrev = () => setCurrentStep(c => Math.max(0, c - 1));
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (currentStep < 2) {
+      handleNext();
+    } else {
+      onSubmit(e);
+    }
+  };
+
+  const footer = (
+    <>
+      <button 
+        type="button" 
+        onClick={currentStep === 0 ? onClose : handlePrev} 
+        style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
+      >
+        {currentStep === 0 ? "Cancelar" : "Atrás"}
+      </button>
+      <button 
+        type="button" 
+        onClick={handleFormSubmit} 
+        disabled={
+          cancelLoading || 
+          (currentStep === 0 && (!cancelInvoice || !cancelSalePreview)) ||
+          (currentStep === 1 && !cancelReason) ||
+          (currentStep === 2 && (!cancelPin || cancelPin.length < 4))
+        } 
+        style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer", opacity: cancelLoading ? 0.7 : 1 }}
+      >
+        {cancelLoading ? "Procesando..." : (currentStep === 2 ? "Confirmar Cancelación" : "Siguiente ->")}
+      </button>
+    </>
+  );
 
   return (
-    <div style={modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-      <div style={cancelModal} className="pos-cashier-modal">
-        <h3 style={modalTitle}>Cancelación Producto / Venta:</h3>
-        <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "14px" }}>
-          <div style={inputGroup}>
-            <label htmlFor="cancelInvoice" style={labelStyle}>Folio de Venta (Invoice):</label>
-            <input
-              id="cancelInvoice"
-              type="text"
-              required
-              className="input-corporate"
-              placeholder="V-XXXXXX"
-              value={cancelInvoice}
-              onChange={(e) => onSetField("invoice", e.target.value)}
-            />
-            {cancelFieldErrors.invoice && <p style={fieldError}>{cancelFieldErrors.invoice}</p>}
-          </div>
+    <PosModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Cancelar venta"
+      subtitle="Ingresa los datos de la venta para proceder con la cancelación."
+      icon={<XCircle size={24} />}
+      iconColor="#dc2626"
+      size="lg"
+      footer={footer}
+    >
+      <PosStepper steps={steps} currentStep={currentStep} />
+      
+      <form onSubmit={handleFormSubmit} style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+        
+        {/* PASO 1: BUSCAR VENTA */}
+        {currentStep === 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <label style={{ fontSize: "12px", fontWeight: "700", color: "var(--text-secondary)", textTransform: "uppercase" }}>
+                Folio de Venta (Invoice)
+              </label>
+              <input
+                type="text"
+                required
+                style={{ width: "100%", padding: "12px 16px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "var(--surface-2)", color: "var(--text)", fontSize: "14px", outline: "none" }}
+                placeholder="Ej. V-607245285"
+                value={cancelInvoice}
+                onChange={(e) => onSetField("invoice", e.target.value)}
+                autoFocus
+              />
+              {cancelFieldErrors.invoice && <p style={{ color: "#dc2626", fontSize: "12px", margin: 0, fontWeight: "600" }}>{cancelFieldErrors.invoice}</p>}
+            </div>
 
-          {cancelSalePreview && (
-            <div style={{
-              backgroundColor: "var(--surface-2)",
-              border: "1px dashed #cbd5e1",
-              borderRadius: "6px",
-              padding: "10px 12px",
-              fontSize: "12px",
-              color: "var(--text-secondary)",
-              marginTop: "-4px"
-            }}>
-              <div style={{ fontWeight: "700", marginBottom: "4px", color: "var(--accent-strong)" }}>
-                Resumen de Venta Encontrada:
-              </div>
-              <div><strong>Fecha:</strong> {new Date(cancelSalePreview.createdAt).toLocaleString()}</div>
-              <div><strong>Total:</strong> <span style={{ fontWeight: "700", color: "#b91c1c" }}>${cancelSalePreview.total.toFixed(2)}</span></div>
-              <div><strong>Artículos:</strong> {cancelSalePreview.items.reduce((sum: number, item) => sum + item.quantity, 0)} pz</div>
-              <div style={{ fontSize: "10px", marginTop: "4px", color: "var(--text-muted)", maxHeight: "60px", overflowY: "auto" }}>
-                {cancelSalePreview.items.map((it) => `${it.product.name} (x${it.quantity})`).join(", ")}
+            <div style={{ backgroundColor: "#eff6ff", borderRadius: "8px", padding: "16px", display: "flex", gap: "12px", alignItems: "flex-start" }}>
+              <div style={{ color: "#2563eb", marginTop: "2px" }}><Search size={16} /></div>
+              <div>
+                <p style={{ margin: 0, fontSize: "13px", fontWeight: "600", color: "#1e3a8a" }}>Importante</p>
+                <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#3b82f6" }}>Solo se pueden cancelar ventas del mismo día y que no hayan sido facturadas.</p>
               </div>
             </div>
-          )}
 
-          <div style={inputGroup}>
-            <label htmlFor="cancelPin" style={labelStyle}>PIN de Autorización del Gerente:</label>
-            <input
-              id="cancelPin"
-              type="password"
-              maxLength={4}
-              required
-              className="input-corporate"
-              placeholder="PIN de 4 dígitos"
-              value={cancelPin}
-              onChange={(e) => onSetField("pin", e.target.value)}
-            />
-            {cancelFieldErrors.pin && <p style={fieldError}>{cancelFieldErrors.pin}</p>}
+            {cancelSalePreview && (
+              <div style={{ marginTop: "8px", padding: "16px", border: "1px solid #93c5fd", backgroundColor: "#f8fafc", borderRadius: "8px" }}>
+                <p style={{ margin: "0 0 8px 0", fontSize: "13px", fontWeight: "700", color: "#2563eb" }}>Venta encontrada:</p>
+                <div style={{ fontSize: "13px", color: "var(--text)", display: "flex", justifyContent: "space-between" }}>
+                  <span>{new Date(cancelSalePreview.createdAt).toLocaleString()}</span>
+                  <span style={{ fontWeight: "800" }}>${cancelSalePreview.total.toFixed(2)}</span>
+                </div>
+              </div>
+            )}
           </div>
+        )}
 
-          <div style={inputGroup}>
-            <label htmlFor="cancelReason" style={labelStyle}>Motivo de Cancelación:</label>
-            <input
-              id="cancelReason"
-              type="text"
-              required
-              maxLength={100}
-              className="input-corporate"
-              placeholder="Ej. Producto equivocado, error de cobro"
-              value={cancelReason}
-              onChange={(e) => onSetField("reason", e.target.value)}
-            />
-            {cancelFieldErrors.reason && <p style={fieldError}>{cancelFieldErrors.reason}</p>}
-          </div>
+        {/* PASO 2: VALIDAR VENTA */}
+        {currentStep === 1 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            {cancelSalePreview && (
+              <div style={{ padding: "16px", backgroundColor: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "8px" }}>
+                <div style={{ fontSize: "14px", fontWeight: "700", color: "var(--text)", marginBottom: "8px" }}>Resumen de Artículos</div>
+                <div style={{ maxHeight: "150px", overflowY: "auto", fontSize: "13px", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {cancelSalePreview.items.map((it, idx) => (
+                    <div key={idx} style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span>{it.product.name}</span>
+                      <span>x{it.quantity}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-          <div style={{ display: "flex", gap: "10px", marginTop: "10px" }} className="pos-cashier-modal-actions">
-            <button
-              type="button"
-              onClick={onClose}
-              style={{ ...modalBtn, backgroundColor: "#dc2626", color: "white" }}
-            >
-              VOLVER
-            </button>
-            <button
-              type="submit"
-              disabled={cancelLoading}
-              style={{ ...modalBtn, backgroundColor: "#059669", color: "white" }}
-            >
-              {cancelLoading ? "Cancelando..." : "CANCELAR VENTA"}
-            </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
+              <label style={{ fontSize: "12px", fontWeight: "700", color: "var(--text-secondary)", textTransform: "uppercase" }}>
+                Motivo de Cancelación
+              </label>
+              <input
+                type="text"
+                required
+                maxLength={100}
+                style={{ width: "100%", padding: "12px 16px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "var(--surface-2)", color: "var(--text)", fontSize: "14px", outline: "none" }}
+                placeholder="Ej. Producto equivocado, error de cobro"
+                value={cancelReason}
+                onChange={(e) => onSetField("reason", e.target.value)}
+                autoFocus
+              />
+              {cancelFieldErrors.reason && <p style={{ color: "#dc2626", fontSize: "12px", margin: 0, fontWeight: "600" }}>{cancelFieldErrors.reason}</p>}
+            </div>
           </div>
-        </form>
-      </div>
-    </div>
+        )}
+
+        {/* PASO 3: CONFIRMAR */}
+        {currentStep === 2 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px", alignItems: "center", padding: "20px 0" }}>
+            <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", color: "#dc2626", marginBottom: "8px" }}>
+              <XCircle size={24} />
+            </div>
+            <h4 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "var(--text)" }}>Autorización Requerida</h4>
+            <p style={{ margin: 0, fontSize: "14px", color: "var(--text-secondary)", textAlign: "center" }}>
+              Ingresa el PIN de 4 dígitos del gerente en turno para autorizar la cancelación de esta venta.
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%", maxWidth: "300px", marginTop: "16px" }}>
+              <input
+                type="password"
+                maxLength={4}
+                required
+                style={{ width: "100%", padding: "16px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "var(--surface-2)", color: "var(--text)", fontSize: "24px", textAlign: "center", letterSpacing: "8px", outline: "none" }}
+                placeholder="••••"
+                value={cancelPin}
+                onChange={(e) => onSetField("pin", e.target.value)}
+                autoFocus
+              />
+              {cancelFieldErrors.pin && <p style={{ color: "#dc2626", fontSize: "12px", margin: 0, fontWeight: "600", textAlign: "center" }}>{cancelFieldErrors.pin}</p>}
+            </div>
+          </div>
+        )}
+        
+        {/* Hidden submit button to allow Enter key submission */}
+        <button type="submit" style={{ display: "none" }} />
+      </form>
+    </PosModal>
   );
 }

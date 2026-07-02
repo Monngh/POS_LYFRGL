@@ -119,13 +119,14 @@ export function usePosCart({
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [checkoutFieldErrors, setCheckoutFieldErrors] = useState<
-    Partial<Record<"cashReceived" | "mixtoCard" | "mixtoCash", string>>
+    Partial<Record<"cashReceived" | "mixtoCard" | "mixtoCash" | "storeCreditCode", string>>
   >({});
 
-  const [paymentMethod, setPaymentMethod] = useState<"EFECTIVO" | "TARJETA" | "MIXTO" | "QR_MERCADOPAGO">("EFECTIVO");
+  const [paymentMethod, setPaymentMethod] = useState<"EFECTIVO" | "TARJETA" | "MIXTO" | "QR_MERCADOPAGO" | "STORE_CREDIT">("EFECTIVO");
   const [cashReceived, setCashReceived] = useState("");
   const [mixtoCash, setMixtoCash] = useState("");
   const [mixtoCard, setMixtoCard] = useState("");
+  const [storeCreditCode, setStoreCreditCode] = useState("");
   const [cardType, setCardType] = useState<"CREDITO" | "DEBITO">("DEBITO");
 
   const [pointsToRedeem, setPointsToRedeem] = useState<number>(0);
@@ -369,7 +370,10 @@ export function usePosCart({
     });
   };
 
-  const handleCheckoutSubmit = async () => {
+  const handleCheckoutSubmit = async (paymentsArray?: { method: string, amount: number, reference?: string }[], totalCashReceived?: number) => {
+    if (paymentsArray && !Array.isArray(paymentsArray)) {
+      paymentsArray = undefined; // Guard against accidental event objects passed to the function
+    }
     if (checkoutLoading) return;
     setCheckoutError(null);
     setCheckoutFieldErrors({});
@@ -398,7 +402,8 @@ export function usePosCart({
       paymentRoundedValues.push(cashValidation.value);
     }
 
-    if (paymentMethod === "MIXTO") {
+    if (paymentMethod === "MIXTO" && !paymentsArray) {
+      // Logic for old MIXTO or fallback
       const cardValidation = validateDecimalField(mixtoCard, "El monto con tarjeta", {
         min: 0,
         minExclusive: true,
@@ -431,6 +436,35 @@ export function usePosCart({
       }
       if (cashPayment + cardPayment < netTotalToPay) {
         setCheckoutFieldErrors((prev) => ({ ...prev, mixtoCash: "La suma de efectivo y tarjeta es menor al total a pagar." }));
+        return;
+      }
+    } else if (paymentMethod === "MIXTO" && paymentsArray) {
+      cashPayment = totalCashReceived || 0;
+    }
+
+    if (paymentMethod === "STORE_CREDIT") {
+      const codeClean = storeCreditCode.trim().toUpperCase();
+      if (!codeClean) {
+        setCheckoutFieldErrors((prev) => ({ ...prev, storeCreditCode: "El código de vale es requerido." }));
+        return;
+      }
+      setCheckoutLoading(true);
+      try {
+        const res = await api.get(`/api/sales/store-credit/${encodeURIComponent(codeClean)}`);
+        const sc = res.data;
+        if (sc.remaining < netTotalToPay) {
+          setCheckoutError(`El vale solo tiene $${sc.remaining.toFixed(2)} de saldo disponible, que es menor al total a pagar de $${netTotalToPay.toFixed(2)}.`);
+          setCheckoutLoading(false);
+          return;
+        }
+        paymentsArray = [{
+          method: "STORE_CREDIT",
+          amount: netTotalToPay,
+          reference: codeClean
+        }];
+      } catch (err: any) {
+        setCheckoutError(err.response?.data?.message || "Error al validar el vale.");
+        setCheckoutLoading(false);
         return;
       }
     }
@@ -505,6 +539,7 @@ export function usePosCart({
         customerId: selectedCustomer ? selectedCustomer.id : undefined,
         pointsRedeemed: (usePoints && selectedCustomer) ? pointsToRedeem : undefined,
         invoiceRequested: selectedCustomer ? invoiceRequested : false,
+        payments: paymentsArray,
       }, { timeout: LONG_OPERATION_TIMEOUT });
 
       try {
@@ -642,6 +677,8 @@ export function usePosCart({
     setMixtoCash,
     mixtoCard,
     setMixtoCard,
+    storeCreditCode,
+    setStoreCreditCode,
     cardType,
     setCardType,
     // Puntos y factura

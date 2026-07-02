@@ -31,7 +31,25 @@ interface UsePosCustomerProps {
 }
 
 export function usePosCustomer({ onToast, view }: UsePosCustomerProps) {
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const DRAFT_CUSTOMER_KEY = "pos_customer_draft";
+
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_CUSTOMER_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    if (selectedCustomer) {
+      localStorage.setItem(DRAFT_CUSTOMER_KEY, JSON.stringify(selectedCustomer));
+    } else {
+      localStorage.removeItem(DRAFT_CUSTOMER_KEY);
+    }
+  }, [selectedCustomer]);
+
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerSearchError, setCustomerSearchError] = useState("");
   const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([]);

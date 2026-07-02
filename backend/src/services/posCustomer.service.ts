@@ -12,7 +12,7 @@ export const searchCustomers = async (query: string) => {
     where: { phone: { contains: phoneDigits.slice(-4) } },
     orderBy: { name: "asc" },
     take: 25,
-    select: { id: true, phone: true, points: true },
+    select: { id: true, name: true, phone: true, email: true, points: true },
   });
 
   return candidates

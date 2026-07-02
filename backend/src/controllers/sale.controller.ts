@@ -17,7 +17,7 @@ import {
   confirmQrPayment as confirmQrPaymentService,
 } from "../services/sale.service";
 
-const SALE_PAYMENT_METHODS = ["EFECTIVO", "TARJETA", "MIXTO", "QR_MERCADOPAGO"] as const;
+const SALE_PAYMENT_METHODS = ["EFECTIVO", "TARJETA", "MIXTO", "QR_MERCADOPAGO", "STORE_CREDIT"] as const;
 type SalePaymentMethod = typeof SALE_PAYMENT_METHODS[number];
 const CARD_TYPES = ["CREDITO", "DEBITO"] as const;
 
@@ -225,7 +225,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     return;
   }
 
-  const { items, paymentMethod, cardType, cashReceived, changeGiven, customerId, pointsRedeemed, invoiceRequested, cardAmount } = req.body;
+  const { items, paymentMethod, cardType, cashReceived, changeGiven, customerId, pointsRedeemed, invoiceRequested, cardAmount, payments } = req.body;
 
   const normalizedResult = normalizeSaleItems(items);
   if (normalizedResult.error) {
@@ -273,9 +273,18 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     return;
   }
 
-  if (salePaymentMethod === "MIXTO" && (numericCashReceived <= 0 || numericCardAmount <= 0)) {
-    res.status(400).json({ message: "En pago mixto, el monto en efectivo y el monto en tarjeta deben ser mayores a cero." });
-    return;
+  if (salePaymentMethod === "MIXTO") {
+    if (payments && Array.isArray(payments) && payments.length > 0) {
+      // Si recibimos arreglo payments, calcular total recibido
+      const totalReceived = payments.reduce((acc, p) => acc + numberOrZero(p.amount), 0);
+      if (totalReceived <= 0) {
+         res.status(400).json({ message: "En pago mixto, la suma de los pagos debe ser mayor a cero." });
+         return;
+      }
+    } else if (numericCashReceived <= 0 || numericCardAmount <= 0) {
+      res.status(400).json({ message: "En pago mixto clásico, el monto en efectivo y tarjeta deben ser mayores a cero." });
+      return;
+    }
   }
 
   try {
@@ -304,6 +313,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       salePaymentMethod,
       numericCashReceived,
       numericCardAmount,
+      payments: Array.isArray(payments) ? payments : undefined,
     });
 
     const timestamp = Date.now().toString().slice(-6);
@@ -328,6 +338,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       pointsDiscount: cartData.pointsDiscount,
       itemsWithCosts: cartData.itemsWithCosts,
       activeSessionId: cartData.activeSession.id,
+      payments: Array.isArray(payments) ? payments : undefined,
     });
 
     let customerPoints = 0;
@@ -675,5 +686,39 @@ export const retryQrPayment = async (req: Request, res: Response): Promise<void>
   } catch (error: any) {
     console.error("Error al regenerar preferencia de Mercado Pago:", error);
     res.status(500).json({ message: "Error al regenerar el cobro QR en Mercado Pago", error: error.message });
+  }
+};
+
+export const getStoreCreditInfo = async (req: Request, res: Response): Promise<void> => {
+  const { code } = req.params;
+  if (!code) {
+    res.status(400).json({ message: "El código de vale es requerido." });
+    return;
+  }
+
+  try {
+    const sc = await prisma.storeCredit.findUnique({
+      where: { code: code.trim().toUpperCase() },
+      include: { customer: true }
+    });
+
+    if (!sc) {
+      res.status(404).json({ message: "El vale no existe." });
+      return;
+    }
+
+    if (!sc.active || Number(sc.remaining) <= 0) {
+      res.status(400).json({ message: "El vale ya no está activo o no tiene saldo disponible." });
+      return;
+    }
+
+    res.json({
+      code: sc.code,
+      remaining: Number(sc.remaining),
+      active: sc.active,
+      customerName: sc.customer?.name || "Público General"
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Error al consultar el vale.", error: error.message });
   }
 };

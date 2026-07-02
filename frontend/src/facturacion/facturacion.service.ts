@@ -154,3 +154,8 @@ export const getEligibleReturn = (folio: string) =>
  */
 export const submitReturn = (returnData: ReturnSubmitPayload) =>
   api.post<ReturnReceipt>('/api/returns', returnData);
+
+export const validateStoreCredit = (code: string) =>
+  api.get<{ code: string; remaining: number; active: boolean; customerName: string }>(
+    `/api/sales/store-credit/${encodeURIComponent(code)}`
+  );

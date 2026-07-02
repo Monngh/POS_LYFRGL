@@ -11,7 +11,8 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
     return;
   }
 
-  const { query } = req.query;
+  const { query, categoryId } = req.query;
+  const catId = categoryId ? Number(categoryId) : undefined;
 
   try {
     const qStr = query ? String(query).trim() : "";
@@ -44,12 +45,16 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
       }
     }
 
-    const whereCondition = qStr
-      ? {
-          active: true,
-          id: { in: matchingProductIds },
-        }
-      : { active: true };
+    const whereCondition: any = { active: true };
+    if (qStr) {
+      whereCondition.id = { in: matchingProductIds };
+    }
+    if (catId) {
+      whereCondition.OR = [
+        { categoryId: catId },
+        { categories: { some: { categoryId: catId } } }
+      ];
+    }
 
     const productsRaw = await prisma.product.findMany({
       where: whereCondition,
@@ -147,5 +152,17 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ message: "Error al buscar productos." });
+  }
+};
+
+export const getCategories = async (_req: Request, res: Response) => {
+  try {
+    const categories = await prisma.category.findMany({
+      orderBy: { name: 'asc' },
+    });
+    res.status(200).json({ categories });
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener categorías." });
   }
 };

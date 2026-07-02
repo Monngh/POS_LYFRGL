@@ -9,6 +9,7 @@ interface CheckoutPanelProps {
   setPendingCancelFieldErrors: (errors: Partial<Record<"pin" | "reason", string>>) => void;
   setViewingPendingQrSale: (sale: any) => void;
   onOpenCheckout: () => void;
+  onParkSale: () => void;
 }
 
 const styles: { [key: string]: React.CSSProperties } = {
@@ -26,6 +27,7 @@ export function CheckoutPanel({
   setPendingCancelFieldErrors,
   setViewingPendingQrSale,
   onOpenCheckout,
+  onParkSale,
 }: CheckoutPanelProps) {
   const {
     cart,
@@ -141,13 +143,21 @@ export function CheckoutPanel({
           <span>Total:</span>
           <span style={{ color: "#dc2626", fontWeight: "800" }}>${cartTotal.toFixed(2)}</span>
         </div>
-        <div style={{ display: "flex", gap: "10px", marginTop: "10px" }} className="pos-cashier-modal-actions">
+        <div style={{ display: "flex", gap: "10px", marginTop: "10px", flexWrap: "wrap" }} className="pos-cashier-modal-actions">
           <button
             onClick={handleCancelCurrentPurchase}
             className="active-tap"
-            style={{ ...styles.terminalBtn, flex: 1, backgroundColor: "#dc2626", color: "white" }}
+            style={{ ...styles.terminalBtn, flex: 1, minWidth: "120px", backgroundColor: "#dc2626", color: "white" }}
           >
             CANCELAR COMPRA
+          </button>
+          <button
+            onClick={onParkSale}
+            disabled={cart.length === 0}
+            className="active-tap"
+            style={{ ...styles.terminalBtn, flex: 1, minWidth: "120px", backgroundColor: "#d97706", color: "white", opacity: cart.length === 0 ? 0.5 : 1 }}
+          >
+            PAUSAR VENTA
           </button>
           <button
             disabled={cart.length === 0}
