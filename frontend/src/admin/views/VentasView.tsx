@@ -691,14 +691,14 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               <Info label="Método" value={<Badge tone={payTone(detail.paymentMethod)}>{detail.paymentMethod}</Badge>} />
             </div>
 
-            <div style={{ ...ui.tableWrap, boxShadow: "none", marginBottom: 14 }}>
-              <table style={ui.table}>
+            <div style={{ ...ui.tableWrap, boxShadow: "none", marginBottom: 14, overflowX: "hidden" }}>
+              <table style={{ ...ui.table, minWidth: "unset", width: "100%" }}>
                 <thead>
                   <tr style={ui.theadRow}>
-                    <th style={ui.th}>Producto</th>
-                    <th style={{ ...ui.th, textAlign: "center" }}>Cant</th>
-                    <th style={{ ...ui.th, textAlign: "right" }}>P. unit.</th>
-                    <th style={{ ...ui.th, textAlign: "right" }}>Importe</th>
+                    <th style={{ ...ui.th, width: "50%" }}>Producto</th>
+                    <th style={{ ...ui.th, textAlign: "center", width: "15%" }}>Cant</th>
+                    <th style={{ ...ui.th, textAlign: "right", width: "17%" }}>P. unit.</th>
+                    <th style={{ ...ui.th, textAlign: "right", width: "18%" }}>Importe</th>
                   </tr>
                 </thead>
                 <tbody>
