@@ -5,6 +5,11 @@ export interface TicketItem {
   sku: string;
   quantity: number;
   unitPrice: number;
+  unitPriceAfterDiscount?: number;
+  grossTotal?: number;
+  discountAmount?: number;
+  promotionLabel?: string | null;
+  taxAmount?: number;
   total: number;
 }
 
@@ -14,8 +19,18 @@ export interface TicketData {
   createdAt: string;
   invoiceDeadline?: string;
   totalAmount: number;
+  totalBeforePoints?: number;
+  subtotalAmount?: number;
   taxAmount: number;
+  discountAmount?: number;
+  pointsRedeemed?: number;
+  pointsDiscount?: number;
+  paymentMethod?: string;
+  cashReceived?: number | null;
+  changeGiven?: number;
   branchName: string;
+  taxBreakdown?: Array<{ name: string; rate: number; amount: number }>;
+  payments?: Array<{ method: string; amount: number; reference?: string | null }>;
   items: TicketItem[];
 }
 
