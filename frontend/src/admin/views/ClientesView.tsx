@@ -4,6 +4,7 @@ import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
 import { DataTable, ActionModal } from "../../shared/ui";
 import type { Column } from "../../shared/ui";
+import { useToast } from "../../shared/context/ToastContext";
 import {
   collectRoundedDecimalMessages,
   DECIMAL_INPUT_REGEX,
@@ -235,6 +236,7 @@ const cliDetailValue: React.CSSProperties = {
 };
 
 const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
+  const { showToast } = useToast();
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [expandedCustomers, setExpandedCustomers] = useState<Record<number, boolean>>({});
 
@@ -366,7 +368,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     try {
       const payload = validation.payload;
       if (validation.roundingMessages.length > 0) {
-        alert(validation.roundingMessages.join("\n"));
+        showToast(validation.roundingMessages.join(" | "), "warning");
       }
 
       if (editingId !== null) {

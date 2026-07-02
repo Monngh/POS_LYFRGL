@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import { AuthProvider, useAuth, Login } from "./auth";
 import Autofacturacion from "./ecommerce/Autofacturacion";
 import AppRouter from "./router";
+import { ToastProvider } from "./shared/context/ToastContext";
 
 const PageLoader = () => (
   <div style={{
@@ -75,11 +76,13 @@ const AppContent: React.FC = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <AppContent />
-      </Router>
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <Router>
+          <AppContent />
+        </Router>
+      </AuthProvider>
+    </ToastProvider>
   );
 }
 

@@ -25,6 +25,7 @@ import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
 import { DataTable, ActionModal } from "../../shared/ui";
 import type { Column } from "../../shared/ui";
+import { useToast } from "../../shared/context/ToastContext";
 import {
   collectRoundedDecimalMessages,
   DECIMAL_INPUT_REGEX,
@@ -173,7 +174,8 @@ const empDetailValue: React.CSSProperties = {
 };
 // COMPONENTE PRINCIPAL
 const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
-  // isMobile para la vista de tarjetas de la lista 
+  const { showToast } = useToast();
+  // isMobile para la vista de tarjetas de la lista
   const isMobile = useMediaQuery("(max-width: 1024px)");
   // isSmallScreen para modales y tablas internas
   const isSmallScreen = useMediaQuery("(max-width: 640px)");
@@ -424,7 +426,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setFieldErrors({});
 
     try {
-      if (roundingMessages.length > 0) alert(roundingMessages.join("\n"));
+      if (roundingMessages.length > 0) showToast(roundingMessages.join(" | "), "warning");
 
       if (editingId !== null) {
         const payload: Record<string, any> = {

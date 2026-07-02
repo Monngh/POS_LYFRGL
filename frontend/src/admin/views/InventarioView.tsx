@@ -8,6 +8,7 @@ import {
   validateDecimalField,
 } from "../../shared/utils/decimalInput";
 import { validateInteger } from "../../shared/utils/formValidation";
+import { useToast } from "../../shared/context/ToastContext";
 import KardexView from "./KardexView";
 import {
   ui,
@@ -303,6 +304,7 @@ const formatTaxRate = (rate: number | string) => {
 };
 
 const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+  const { showToast } = useToast();
   const { user } = useAuth();
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [expandedProducts, setExpandedProducts] = useState<Record<number, boolean>>({});
@@ -635,7 +637,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       }
       await load();
     } catch (err: unknown) {
-      alert(getErrorMessage(err, "No se pudo cambiar el estado del producto."));
+      showToast(getErrorMessage(err, "No se pudo cambiar el estado del producto."), "error");
     } finally {
       setStatusSaving(false);
     }
@@ -674,7 +676,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setFieldErrors({});
     try {
       if (validatedProduct.roundingMessages.length > 0) {
-        alert(validatedProduct.roundingMessages.join("\n"));
+        showToast(validatedProduct.roundingMessages.join(" | "), "warning");
       }
 
       if (editingId !== null) {
@@ -877,7 +879,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setPriceSaving(true);
     try {
       if (roundingMessages.length > 0) {
-        alert(roundingMessages.join("\n"));
+        showToast(roundingMessages.join(" | "), "warning");
       }
 
       await api.put(`/api/admin/products/${selectedProduct.id}`, {
