@@ -776,7 +776,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
           {/* Header row mirroring the fields */}
           <div style={{
             display: "grid",
-            gridTemplateColumns: "1.6fr 0.8fr 0.8fr 0.8fr",
+            gridTemplateColumns: "1fr auto",
             padding: "12px 16px",
             fontWeight: 700,
             fontSize: 11,
@@ -785,8 +785,6 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
             letterSpacing: "0.4px",
           }}>
             <div>Promoción</div>
-            <div style={{ textAlign: "right" }}>Valor</div>
-            <div style={{ textAlign: "center" }}>Estado</div>
             <div style={{ textAlign: "right", paddingRight: 8 }}>Acciones</div>
           </div>
 
@@ -809,7 +807,6 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
           {!loading &&
             !error &&
             rows.map((promotion) => {
-              const status = getStatus(promotion);
               const busy = loadingActionId === promotion.id;
               const isExpanded = expandedPromotions[promotion.id];
 
@@ -844,25 +841,18 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                   {/* Fila principal */}
                   <div style={{
                     display: "grid",
-                    gridTemplateColumns: "1.6fr 0.8fr 0.8fr 0.8fr",
+                    gridTemplateColumns: "1fr auto",
                     padding: "12px 16px",
                     alignItems: "center",
                   }}>
-                    {/* Promoción (Nombre) */}
-                    <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {promotion.name}
-                    </div>
-
-                    {/* Valor */}
-                    <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text)", textAlign: "right" }}>
-                      {formatPromotionValue(promotion)}
-                    </div>
-
-                    {/* Estado */}
-                    <div style={{ textAlign: "center" }}>
-                      <Badge tone={status.tone}>
-                        {status.label}
-                      </Badge>
+                    {/* Promoción (Nombre + tipo + valor apilados) */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2, overflow: "hidden" }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {promotion.name}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+                        {typeLabel(promotion.promotionType.name)} · {formatPromotionValue(promotion)}
+                      </div>
                     </div>
 
                     {/* Botones de Acción */}
