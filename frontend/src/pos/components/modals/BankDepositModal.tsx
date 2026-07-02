@@ -40,27 +40,6 @@ interface BankDepositModalProps {
   onActionComplete?: () => void;
 }
 
-const modalOverlay: React.CSSProperties = {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: "rgba(15, 23, 42, 0.4)",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  zIndex: 100,
-};
-
-const depositModal: React.CSSProperties = {
-  width: "700px",
-  maxWidth: "95vw",
-  backgroundColor: "var(--surface)",
-  borderRadius: "12px",
-  padding: "28px",
-  boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
-};
 
 const inputGroup: React.CSSProperties = {
   display: "flex",

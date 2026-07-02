@@ -1190,9 +1190,7 @@ const Dashboard: React.FC = () => {
         isOpen={activeModal === "ticket-view" && !!selectedSale}
         selectedSale={selectedSale}
         user={user}
-        ticketEmailModalOpen={ticketEmailModalOpen}
         onClose={handleCloseTicket}
-        onPrint={handlePrintTicket}
         actionButtons={selectedSale ? renderTicketActionButtons({
           onClose: handleCloseTicket,
           closeLabel: "CERRAR TICKET",

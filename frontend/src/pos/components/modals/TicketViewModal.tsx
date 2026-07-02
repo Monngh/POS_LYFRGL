@@ -6,9 +6,7 @@ interface TicketViewModalProps {
   isOpen: boolean;
   selectedSale: any;
   user: any;
-  ticketEmailModalOpen: boolean;
   onClose: () => void;
-  onPrint: () => void;
   actionButtons: React.ReactNode;
 }
 
@@ -86,9 +84,7 @@ export default function TicketViewModal({
   isOpen,
   selectedSale,
   user,
-  ticketEmailModalOpen,
   onClose,
-  onPrint,
   actionButtons,
 }: TicketViewModalProps) {
   if (!isOpen || !selectedSale) return null;

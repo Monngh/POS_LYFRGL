@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { CreditCard, Banknote, HelpCircle, X, CheckCircle2 } from "lucide-react";
 import { PosModal } from "./shared";
 import { validateStoreCredit } from "../../../facturacion/facturacion.service";
