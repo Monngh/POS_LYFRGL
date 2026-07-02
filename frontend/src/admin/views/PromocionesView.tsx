@@ -205,6 +205,7 @@ const ProductSelector: React.FC<{
   disabled?: boolean;
 }> = ({ products, selectedIds, onToggle, disabled }) => {
   const [query, setQuery] = useState("");
+  const isMobile = useMediaQuery("(max-width: 1024px)");
   const filtered = useMemo(() => {
     return filterProductsBySearch(products, query);
   }, [products, query]);
@@ -215,27 +216,108 @@ const ProductSelector: React.FC<{
         <SearchInput value={query} onChange={setQuery} placeholder="Buscar SKU o producto" />
         <span style={styles.selectedCount}>{selectedIds.length} seleccionado{selectedIds.length === 1 ? "" : "s"}</span>
       </div>
-      <div style={styles.productList}>
-        <table style={{ ...ui.table, ...styles.productTable }}>
-          <thead>
-            <tr style={{ ...ui.theadRow, ...styles.productGridRow }}>
-              <th style={{ ...ui.th, ...styles.productColCheck }} />
-              <th style={{ ...ui.th, ...styles.productColSku }}>SKU</th>
-              <th style={{ ...ui.th, ...styles.productColName }}>Nombre</th>
-              <th style={{ ...ui.th, ...styles.productColPrice, textAlign: "right" }}>Precio</th>
-            </tr>
-          </thead>
-          <tbody style={styles.productTbody}>
+      {isMobile ? (
+        <div style={{ border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              padding: "8px 12px",
+              backgroundColor: "var(--surface-2)",
+              borderBottom: "1px solid var(--border)",
+              borderRadius: "6px 6px 0 0",
+              position: "sticky",
+              top: 0,
+              zIndex: 1,
+            }}
+          >
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
+              Producto
+            </span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
+              Precio
+            </span>
+          </div>
+          <div style={{ maxHeight: 240, overflowY: "auto", overflowX: "hidden" }}>
             {filtered.length === 0 ? (
-              <tr style={styles.productGridRowEmpty}>
-                <td style={{ ...styles.productEmpty, width: "100%" }}>
-                  {query.trim() ? "No se encontraron productos con esa búsqueda." : "No hay productos activos para mostrar."}
-                </td>
-              </tr>
+              <div style={styles.productEmpty}>
+                {query.trim() ? "No se encontraron productos con esa búsqueda." : "No hay productos activos para mostrar."}
+              </div>
             ) : (
               filtered.map((product) => (
-                <tr key={product.id} style={styles.productGridRow}>
-                  <td style={{ ...ui.td, ...styles.productColCheck, textAlign: "center" }}>
+                <div
+                  key={product.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 12px",
+                    borderBottom: "1px solid var(--border)",
+                    width: "100%",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(product.id)}
+                    disabled={disabled}
+                    onChange={() => onToggle(product.id)}
+                    style={{ width: 18, height: 18, flexShrink: 0 }}
+                    aria-label={`Seleccionar ${product.name}`}
+                  />
+                  <div style={{ flex: 1, minWidth: 0, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: "var(--text)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {product.name}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
+                        SKU: {product.sku}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", flexShrink: 0 }}>
+                      {moneyExact(Number(product.sellPrice))}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      ) : (
+        <div style={styles.productList}>
+          <div
+            style={{
+              ...ui.theadRow,
+              ...styles.productGridRow,
+              position: "sticky",
+              top: 0,
+              zIndex: 1,
+              backgroundColor: "var(--surface-2)",
+            }}
+          >
+            <div style={{ ...ui.th, ...styles.productColCheck }} />
+            <div style={{ ...ui.th, ...styles.productColSku }}>SKU</div>
+            <div style={{ ...ui.th, ...styles.productColName }}>Nombre</div>
+            <div style={{ ...ui.th, ...styles.productColPrice }}>Precio</div>
+          </div>
+          <div style={styles.productTbody}>
+            {filtered.length === 0 ? (
+              <div style={styles.productEmpty}>
+                {query.trim() ? "No se encontraron productos con esa búsqueda." : "No hay productos activos para mostrar."}
+              </div>
+            ) : (
+              filtered.map((product) => (
+                <div key={product.id} style={styles.productGridRow}>
+                  <div style={{ ...ui.td, ...styles.productColCheck, textAlign: "center" }}>
                     <input
                       type="checkbox"
                       checked={selectedIds.includes(product.id)}
@@ -244,16 +326,16 @@ const ProductSelector: React.FC<{
                       style={styles.check}
                       aria-label={`Seleccionar ${product.name}`}
                     />
-                  </td>
-                  <td style={{ ...ui.td, ...styles.productColSku }}>{product.sku}</td>
-                  <td title={product.name} style={{ ...ui.td, ...styles.productColName }}>{product.name}</td>
-                  <td style={{ ...ui.td, ...styles.productColPrice }}>{moneyExact(Number(product.sellPrice))}</td>
-                </tr>
+                  </div>
+                  <div style={{ ...ui.td, ...styles.productColSku }}>{product.sku}</div>
+                  <div title={product.name} style={{ ...ui.td, ...styles.productColName }}>{product.name}</div>
+                  <div style={{ ...ui.td, ...styles.productColPrice }}>{moneyExact(Number(product.sellPrice))}</div>
+                </div>
               ))
             )}
-          </tbody>
-        </table>
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1252,9 +1334,31 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
       {detail && (
         <div style={ui.overlay} onClick={() => setDetail(null)}>
-          <div style={{ ...ui.modal, width: "calc(100% - 24px)", maxWidth: 710, maxHeight: "90vh" }} onClick={(event) => event.stopPropagation()}>
+          <div
+            style={{
+              ...ui.modal,
+              width: "100%",
+              maxWidth: "min(710px, calc(100vw - 32px))",
+              maxHeight: "90vh",
+              boxSizing: "border-box",
+              wordBreak: "break-word",
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
             <div style={ui.modalHeader}>
-              <span style={ui.modalTitle}>{detail.name}</span>
+              <span
+                style={{
+                  ...ui.modalTitle,
+                  minWidth: 0,
+                  flex: 1,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: "100%",
+                }}
+              >
+                {detail.name}
+              </span>
               <button type="button" style={ui.linkBtn} onClick={() => setDetail(null)} aria-label="Cerrar">
                 <X size={18} />
               </button>
@@ -1284,15 +1388,50 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
               <div style={{ marginTop: 18 }}>
                 <label style={ui.fieldLabel}>Productos asignados</label>
                 <div style={styles.assignedList}>
-                  {detail.products.map((row) => (
-                    <div key={row.productId} style={styles.assignedRow}>
-                      <span style={styles.sku}>{row.product?.sku ?? `#${row.productId}`}</span>
-                      <span style={{ fontWeight: 800 }}>{row.product?.name ?? `Producto #${row.productId}`}</span>
-                      <span style={{ marginLeft: "auto", color: "var(--text-muted)" }}>
-                        {row.product ? moneyExact(Number(row.product.sellPrice)) : ""}
-                      </span>
-                    </div>
-                  ))}
+                  {detail.products.map((row) =>
+                    isMobile ? (
+                      <div
+                        key={row.productId}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "flex-start",
+                          padding: "10px 12px",
+                          borderBottom: "1px solid var(--border)",
+                          gap: 8,
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: "var(--text)",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {row.product?.name ?? `Producto #${row.productId}`}
+                          </div>
+                          <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
+                            {row.product?.sku ?? `#${row.productId}`}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", flexShrink: 0 }}>
+                          {row.product ? moneyExact(Number(row.product.sellPrice)) : ""}
+                        </div>
+                      </div>
+                    ) : (
+                      <div key={row.productId} style={styles.assignedRow}>
+                        <span style={styles.sku}>{row.product?.sku ?? `#${row.productId}`}</span>
+                        <span style={{ fontWeight: 800 }}>{row.product?.name ?? `Producto #${row.productId}`}</span>
+                        <span style={{ marginLeft: "auto", color: "var(--text-muted)" }}>
+                          {row.product ? moneyExact(Number(row.product.sellPrice)) : ""}
+                        </span>
+                      </div>
+                    )
+                  )}
                 </div>
               </div>
             </div>
@@ -1405,9 +1544,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: 8,
     overflow: "hidden",
     backgroundColor: "var(--surface)",
-    width: "fit-content",
+    width: "100%",
     maxWidth: "100%",
-    margin: "0 auto",
   },
   productPickerTop: {
     display: "flex",
@@ -1425,59 +1563,56 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: 800,
   },
   productList: {
-    maxHeight: 260,
-    overflowX: "auto",
-    overflowY: "auto",
     width: "100%",
     maxWidth: "100%",
-  },
-  productTable: {
-    width: "100%",
-    minWidth: 520,
-    maxWidth: "100%",
-    display: "block",
+    border: "1px solid var(--border)",
+    borderRadius: 6,
+    overflow: "hidden",
   },
   productTbody: {
     display: "block",
+    width: "100%",
+    maxHeight: 220,
+    overflowY: "auto",
+    overflowX: "hidden",
   },
   productGridRow: {
-    display: "grid",
-    gridTemplateColumns: "40px 110px minmax(240px, 380px) 90px",
-    gap: 12,
-    justifyContent: "start",
+    display: "flex",
     alignItems: "center",
     width: "100%",
-  },
-  productGridRowEmpty: {
-    display: "block",
-    width: "100%",
+    boxSizing: "border-box",
+    borderBottom: "1px solid var(--border-soft)",
   },
   productColCheck: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    width: 40,
+    flex: "0 0 28px",
+    width: 28,
     boxSizing: "border-box",
   },
   productColSku: {
-    display: "block",
-    width: 110,
+    flex: "0 0 100px",
+    width: 100,
+    minWidth: 90,
     boxSizing: "border-box",
     fontWeight: 800,
     color: "var(--accent-strong)",
+    overflow: "visible",
+    whiteSpace: "nowrap",
   },
   productColName: {
-    display: "block",
-    boxSizing: "border-box",
+    flex: "1 1 auto",
     minWidth: 0,
+    boxSizing: "border-box",
     fontWeight: 700,
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
   productColPrice: {
-    display: "block",
-    width: 90,
+    flex: "0 0 80px",
+    width: 80,
     boxSizing: "border-box",
     textAlign: "right",
     fontVariantNumeric: "tabular-nums",
@@ -1546,6 +1681,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "var(--text-secondary)",
     fontSize: 13,
     padding: "10px 12px",
+    overflow: "hidden",
+    wordBreak: "break-word",
   },
   sku: {
     backgroundColor: "var(--accent-soft)",
