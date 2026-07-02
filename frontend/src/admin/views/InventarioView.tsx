@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
-import { AlertTriangle, Printer, X, Plus, Eye, ChevronDown, ChevronUp } from "lucide-react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { AlertTriangle, Printer, X, Plus, Eye, ChevronDown, ChevronUp, Search, Tags, FolderTree } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAuth } from "../../auth";
 import {
@@ -9,6 +9,9 @@ import {
 } from "../../shared/utils/decimalInput";
 import { validateInteger } from "../../shared/utils/formValidation";
 import KardexView from "./KardexView";
+import { CategoryManagementView } from "../components/categories/CategoryManagementView";
+import { getCategoryDisplayColor } from "../components/categories/categoryColors";
+import type { CategoryLevel } from "../services/categoryAdmin.service";
 import {
   ui,
   type ViewProps,
@@ -23,8 +26,32 @@ import {
   fmtTime,
   printHtml,
   useMediaQuery,
+  normalizeProductSearchText,
 } from "./shared";
 
+interface ProductCategorySummary {
+  id: number;
+  code: string;
+  name: string;
+  level: CategoryLevel;
+  active: boolean;
+  color?: string | null;
+}
+
+interface CategoryPathNode extends ProductCategorySummary {
+  parent?: CategoryPathNode | null;
+}
+
+interface CategoryOption extends ProductCategorySummary {
+  description: string | null;
+  parent: CategoryPathNode | null;
+  path?: string[];
+  pathLabel?: string;
+}
+
+interface CategoryListResponse {
+  data: CategoryOption[];
+}
 
 interface ProductRow {
   id: number;
@@ -39,6 +66,7 @@ interface ProductRow {
   minStock: number;
   low: boolean;
   branchCount: number;
+  categories: ProductCategorySummary[];
 }
 
 interface ProductDetail {
@@ -57,6 +85,7 @@ interface ProductDetail {
   satUnitKey?: string;
   createdAt: string;
   updatedAt: string;
+  categories: ProductCategorySummary[];
   inventories: {
     id: number;
     branch: string;
@@ -114,7 +143,7 @@ interface ProductTaxResponse {
 }
 
 const emptyForm = { sku: "", barcode: "", name: "", description: "", costPrice: "", sellPrice: "", satProductKey: "", satUnitKey: "" };
-type ProductFieldErrors = Partial<Record<keyof typeof emptyForm, string>>;
+type ProductFieldErrors = Partial<Record<keyof typeof emptyForm | "categoryIds", string>>;
 const PRODUCT_TEXT_REGEX = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü0-9\s.,#\-/()]+$/;
 const SKU_REGEX = /^[A-Za-z0-9_-]+$/;
 const BARCODE_REGEX = /^[0-9]+$/;
@@ -293,6 +322,56 @@ const extractTaxOptions = (payload: TaxListResponse | { data?: unknown }) => {
   return Array.isArray(payload.data) ? payload.data as TaxOption[] : [];
 };
 
+const extractCategoryOptions = (payload: CategoryListResponse | { data?: unknown }) => {
+  return Array.isArray(payload.data) ? payload.data as CategoryOption[] : [];
+};
+
+const getCategoryPathLabel = (category: CategoryOption | ProductCategorySummary): string => {
+  if ("pathLabel" in category && category.pathLabel) return category.pathLabel;
+  if ("path" in category && Array.isArray(category.path) && category.path.length > 0) return category.path.join(" > ");
+  if ("parent" in category && category.parent) {
+    const parts = [category.parent.parent?.name, category.parent.name, category.name].filter(Boolean);
+    return parts.join(" > ");
+  }
+  return category.name;
+};
+
+const mergeCategoryOptions = (
+  activeOptions: CategoryOption[],
+  selectedCategories: ProductCategorySummary[]
+): CategoryOption[] => {
+  const optionsById = new Map<number, CategoryOption>();
+  activeOptions.forEach((category) => optionsById.set(category.id, category));
+  selectedCategories.forEach((category) => {
+    if (!optionsById.has(category.id)) {
+      optionsById.set(category.id, {
+        ...category,
+        description: null,
+        parent: null,
+        path: [category.name],
+        pathLabel: category.name,
+      });
+    }
+  });
+  return [...optionsById.values()].sort((a, b) => a.code.localeCompare(b.code));
+};
+
+const matchesCategorySearch = (category: CategoryOption, search: string): boolean => {
+  const terms = normalizeProductSearchText(search).split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return true;
+
+  const text = normalizeProductSearchText([
+    category.code,
+    category.name,
+    category.description ?? "",
+    category.parent?.name ?? "",
+    category.parent?.parent?.name ?? "",
+    category.pathLabel ?? "",
+  ].join(" "));
+
+  return terms.every((term) => text.includes(term));
+};
+
 const formatTaxRate = (rate: number | string) => {
   const value = Number(rate);
   const percent = Number.isFinite(value) ? value * 100 : 0;
@@ -368,6 +447,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [suppliersSaving, setSuppliersSaving] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
+  const [categoryAdminOpen, setCategoryAdminOpen] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
   const [fieldErrors, setFieldErrors] = useState<ProductFieldErrors>({});
   const [saving, setSaving] = useState(false);
@@ -378,8 +458,28 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [taxLoading, setTaxLoading] = useState(false);
   const [taxError, setTaxError] = useState<string | null>(null);
   const taxRequestId = useRef(0);
+  const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
+  const [initialCategoryIds, setInitialCategoryIds] = useState<number[]>([]);
+  const [categoryLoading, setCategoryLoading] = useState(false);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [categorySearch, setCategorySearch] = useState("");
+  const [categoryPanelOpen, setCategoryPanelOpen] = useState(false);
+  const categoryRequestId = useRef(0);
   const [skuLoading, setSkuLoading] = useState(false);
   const skuRequestId = useRef(0);
+
+  const selectedCategories = useMemo(
+    () => selectedCategoryIds
+      .map((categoryId) => categoryOptions.find((category) => category.id === categoryId))
+      .filter((category): category is CategoryOption => Boolean(category)),
+    [categoryOptions, selectedCategoryIds]
+  );
+
+  const visibleCategoryOptions = useMemo(
+    () => categoryOptions.filter((category) => matchesCategorySearch(category, categorySearch)),
+    [categoryOptions, categorySearch]
+  );
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const value = k === "barcode"
@@ -485,6 +585,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const closeForm = () => {
     if (saving) return;
     taxRequestId.current += 1;
+    categoryRequestId.current += 1;
     skuRequestId.current += 1;
     setSkuLoading(false);
     setShowForm(false);
@@ -494,6 +595,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setTaxError(null);
     setTaxOptions([]);
     setSelectedTaxIds([]);
+    setCategoryLoading(false);
+    setCategoryError(null);
+    setCategoryOptions([]);
+    setSelectedCategoryIds([]);
+    setInitialCategoryIds([]);
+    setCategorySearch("");
+    setCategoryPanelOpen(false);
   };
 
   const loadProductTaxes = async (productId: number) => {
@@ -547,12 +655,70 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     }
   };
 
+  const loadCategoryList = async (selectedProductCategories: ProductCategorySummary[] = []) => {
+    const requestId = categoryRequestId.current + 1;
+    categoryRequestId.current = requestId;
+    setCategoryLoading(true);
+    setCategoryError(null);
+
+    try {
+      const categoriesRes = await api.get<CategoryListResponse>("/api/admin-categories/flat", {
+        params: { onlyFinal: true },
+      });
+      if (categoryRequestId.current !== requestId) return;
+
+      const activeFinalCategories = extractCategoryOptions(categoriesRes.data).filter(
+        (category) => category.level === "CATEGORY" && category.active
+      );
+      setCategoryOptions(mergeCategoryOptions(activeFinalCategories, selectedProductCategories));
+    } catch (err: unknown) {
+      if (categoryRequestId.current !== requestId) return;
+      setCategoryError(getErrorMessage(err, "No se pudieron cargar las categorias."));
+      setCategoryOptions(mergeCategoryOptions([], selectedProductCategories));
+    } finally {
+      if (categoryRequestId.current === requestId) {
+        setCategoryLoading(false);
+      }
+    }
+  };
+
   const toggleTax = (taxId: number) => {
     setSelectedTaxIds((current) =>
       current.includes(taxId)
         ? current.filter((id) => id !== taxId)
         : [...current, taxId]
     );
+  };
+
+  const toggleCategory = (category: CategoryOption) => {
+    if (selectedCategoryIds.includes(category.id)) {
+      setSelectedCategoryIds((current) => current.filter((id) => id !== category.id));
+      return;
+    }
+
+    if (!category.active) {
+      setFieldErrors((prev) => ({ ...prev, categoryIds: "No puedes asignar una categoria inactiva." }));
+      return;
+    }
+
+    setSelectedCategoryIds((current) => current.includes(category.id) ? current : [...current, category.id]);
+    setFieldErrors((prev) => {
+      const nextErrors = { ...prev };
+      delete nextErrors.categoryIds;
+      return nextErrors;
+    });
+    setFormError(null);
+  };
+
+  const removeSelectedCategory = (categoryId: number) => {
+    setSelectedCategoryIds((current) => current.filter((id) => id !== categoryId));
+    if (editingId !== null) {
+      setFieldErrors((prev) => {
+        const nextErrors = { ...prev };
+        delete nextErrors.categoryIds;
+        return nextErrors;
+      });
+    }
   };
 
   const loadNextSku = async () => {
@@ -584,6 +750,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const handleOpenCreate = () => {
     taxRequestId.current += 1;
+    categoryRequestId.current += 1;
     skuRequestId.current += 1;
     setForm({ ...emptyForm, satProductKey: "01010101", satUnitKey: "H87" });
     setEditingId(null);
@@ -591,8 +758,15 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setFormError(null);
     setTaxError(null);
     setSelectedTaxIds([]);
+    setCategoryError(null);
+    setCategorySearch("");
+    setCategoryPanelOpen(false);
+    setSelectedCategoryIds([]);
+    setInitialCategoryIds([]);
+    setCategoryOptions([]);
     setShowForm(true);
     void loadTaxList();
+    void loadCategoryList();
     void loadNextSku();
   };
 
@@ -613,8 +787,26 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setEditingId(p.id);
     setFieldErrors({});
     setFormError(null);
+    setCategorySearch("");
+    setCategoryPanelOpen(false);
+    const productCategoryIds = p.categories.map((category) => category.id);
+    setSelectedCategoryIds(productCategoryIds);
+    setInitialCategoryIds(productCategoryIds);
+    setCategoryOptions(mergeCategoryOptions([], p.categories));
     setShowForm(true);
     void loadProductTaxes(p.id);
+    void loadCategoryList(p.categories);
+  };
+
+  const handleClassifyProductFromCategoryAdmin = async (productId: number) => {
+    try {
+      const response = await api.get<{ product: ProductDetail }>(`/api/admin/products/${productId}`);
+      setCategoryAdminOpen(false);
+      handleEdit(response.data.product);
+    } catch (err: unknown) {
+      alert(getErrorMessage(err, "No se pudo abrir el producto para clasificarlo."));
+      throw err;
+    }
   };
 
   const handleToggleActive = async (p: ProductRow | ProductDetail) => {
@@ -646,6 +838,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     if (saving) return;
 
     const fieldValidation = validateProductFormFields(form, editingId === null);
+    if (editingId === null && selectedCategoryIds.length === 0) {
+      fieldValidation.categoryIds = "Selecciona al menos una categoria para el producto.";
+    }
     if (Object.keys(fieldValidation).length > 0) {
       setFieldErrors(fieldValidation);
       setFormError("Revisa los campos marcados antes de guardar.");
@@ -668,6 +863,34 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setFormError("No se puede guardar hasta cargar correctamente los impuestos aplicables.");
       return;
     }
+    if (categoryLoading) {
+      setFormError("Espere a que terminen de cargar las categorias del producto.");
+      return;
+    }
+    if (editingId === null && categoryError) {
+      setFormError("No se puede guardar hasta cargar correctamente las categorias.");
+      return;
+    }
+
+    const categoryIds = [...new Set(selectedCategoryIds)];
+    if (editingId !== null) {
+      const removedCategoryIds = initialCategoryIds.filter((categoryId) => !categoryIds.includes(categoryId));
+      if (removedCategoryIds.length > 0) {
+        const removedLabels = removedCategoryIds
+          .map((categoryId) => categoryOptions.find((category) => category.id === categoryId))
+          .filter((category): category is CategoryOption => Boolean(category))
+          .map((category) => `${category.code} - ${category.name}`);
+        const remainingLabels = selectedCategories.map((category) => `${category.code} - ${category.name}`);
+        const confirmed = window.confirm(
+          [
+            `Se quitaran ${removedCategoryIds.length} categoria(s) del producto.`,
+            removedLabels.length > 0 ? `Se quitaran: ${removedLabels.join(", ")}` : "",
+            remainingLabels.length > 0 ? `Quedaran: ${remainingLabels.join(", ")}` : "El producto quedara sin categorias nuevas.",
+          ].filter(Boolean).join("\n")
+        );
+        if (!confirmed) return;
+      }
+    }
 
     setSaving(true);
     setFormError(null);
@@ -687,6 +910,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           sellPrice: validatedProduct.sellPrice,
           satProductKey: validatedProduct.satProductKey,
           satUnitKey: validatedProduct.satUnitKey,
+          categoryIds,
         });
         await api.put(`/api/admin-tax/products/${editingId}/taxes`, {
           taxIds: selectedTaxIds,
@@ -701,6 +925,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           sellPrice: validatedProduct.sellPrice,
           satProductKey: validatedProduct.satProductKey,
           satUnitKey: validatedProduct.satUnitKey,
+          categoryIds,
         });
         if (selectedTaxIds.length > 0) {
           const newProductId = createRes.data.product.id;
@@ -715,6 +940,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setFieldErrors({});
       setTaxOptions([]);
       setSelectedTaxIds([]);
+      setCategoryOptions([]);
+      setSelectedCategoryIds([]);
+      setInitialCategoryIds([]);
+      setCategorySearch("");
+      setCategoryPanelOpen(false);
       await load();
     } catch (err: unknown) {
       setFormError(getErrorMessage(err, "No se pudo guardar el producto."));
@@ -1123,6 +1353,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
               {filteredRows.length} producto{filteredRows.length === 1 ? "" : "s"}
             </span>
+            {user?.role === "ADMIN" && (
+              <button onClick={() => setCategoryAdminOpen(true)} style={ui.ghostBtn}>
+                <FolderTree size={15} /> Administrar categorias
+              </button>
+            )}
             {user?.role !== "GERENTE" && (
               <button onClick={handleOpenCreate} style={ui.primaryBtn}>
                 <Plus size={15} /> Nuevo producto
@@ -1415,6 +1650,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </div>
           )}
         </>
+      )}
+
+      {categoryAdminOpen && user?.role === "ADMIN" && (
+        <CategoryManagementView
+          onClose={() => setCategoryAdminOpen(false)}
+          onClassifyProduct={handleClassifyProductFromCategoryAdmin}
+        />
       )}
 
       {/* =================== MODAL DETALLE =================== */}
@@ -2365,6 +2607,142 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 </div>
               </div>
 
+              <div style={styles.categorySection}>
+                <div style={styles.categoryHeader}>
+                  <div style={styles.categoryTitleWrap}>
+                    <Tags size={16} color="var(--accent)" />
+                    <span style={styles.categoryTitle}>Categorias *</span>
+                  </div>
+                  <span style={styles.categoryCounter}>
+                    {selectedCategories.length} categoria(s) seleccionada(s)
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCategoryPanelOpen((open) => !open)}
+                  style={styles.categoryPickerButton}
+                  disabled={saving}
+                >
+                  <span style={styles.categoryPickerText}>
+                    {selectedCategories.length > 0 ? "Editar categorias seleccionadas" : "Seleccionar categorias"}
+                  </span>
+                  {categoryPanelOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+
+                {selectedCategories.length > 0 && (
+                  <div style={styles.categoryChips}>
+                    {selectedCategories.map((category) => {
+                      const categoryColor = getCategoryDisplayColor(category.color, category.level, category.active);
+                      return (
+                        <button
+                          key={category.id}
+                          type="button"
+                          onClick={() => removeSelectedCategory(category.id)}
+                          style={{
+                            ...styles.categoryChip,
+                            opacity: category.active ? 1 : 0.78,
+                            borderColor: category.active ? "var(--border)" : "var(--color-warning, #f59e0b)",
+                          }}
+                          disabled={saving}
+                          title={category.active ? "Quitar categoria" : "Categoria inactiva; puedes quitarla, pero no volver a asignarla"}
+                        >
+                          <span
+                            style={{
+                              ...styles.categoryColorDot,
+                              backgroundColor: categoryColor,
+                              opacity: category.active ? 1 : 0.45,
+                            }}
+                          />
+                          <span style={styles.categoryChipText}>{category.code} - {category.name}</span>
+                          {!category.active && <span style={styles.categoryInactiveMark}>Inactiva</span>}
+                          <X size={13} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {fieldErrors.categoryIds && <p style={styles.fieldError}>{fieldErrors.categoryIds}</p>}
+
+                {categoryPanelOpen && (
+                  <div style={styles.categoryPanel}>
+                    <div style={styles.categorySearchWrap}>
+                      <Search size={15} color="var(--text-muted)" />
+                      <input
+                        style={styles.categorySearchInput}
+                        value={categorySearch}
+                        onChange={(event) => setCategorySearch(event.target.value)}
+                        placeholder="Buscar categoria por codigo o nombre"
+                      />
+                    </div>
+
+                    {categoryLoading && <p style={styles.taxMuted}>Cargando categorias...</p>}
+
+                    {!categoryLoading && categoryError && (
+                      <div style={styles.taxErrorBox}>
+                        <span>{categoryError}</span>
+                        <button
+                          type="button"
+                          style={ui.linkBtn}
+                          onClick={() => void loadCategoryList(selectedCategories)}
+                        >
+                          Reintentar
+                        </button>
+                      </div>
+                    )}
+
+                    {!categoryLoading && !categoryError && visibleCategoryOptions.length === 0 && (
+                      <p style={styles.taxMuted}>No se encontraron categorias con esa busqueda.</p>
+                    )}
+
+                    {!categoryLoading && !categoryError && visibleCategoryOptions.length > 0 && (
+                      <div style={styles.categoryOptionList}>
+                        {visibleCategoryOptions.map((category) => {
+                          const checked = selectedCategoryIds.includes(category.id);
+                          const inactiveAndUnavailable = !category.active && !checked;
+                          const categoryColor = getCategoryDisplayColor(category.color, category.level, category.active);
+                          return (
+                            <label
+                              key={category.id}
+                              style={{
+                                ...styles.categoryOption,
+                                backgroundColor: checked ? "var(--accent-soft)" : "var(--surface)",
+                                borderColor: checked ? "#93c5fd" : "var(--border)",
+                                cursor: inactiveAndUnavailable ? "not-allowed" : "pointer",
+                                opacity: inactiveAndUnavailable ? 0.62 : 1,
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={saving || inactiveAndUnavailable}
+                                onChange={() => toggleCategory(category)}
+                                style={styles.taxCheckbox}
+                              />
+                              <span
+                                style={{
+                                  ...styles.categoryColorDot,
+                                  backgroundColor: categoryColor,
+                                  opacity: category.active ? 1 : 0.45,
+                                }}
+                              />
+                              <span style={styles.categoryOptionText}>
+                                <span style={styles.categoryOptionName}>
+                                  {category.code} - {category.name}
+                                  {!category.active && <span style={styles.categoryInactiveInline}>Inactiva</span>}
+                                </span>
+                                <span style={styles.categoryOptionPath}>{getCategoryPathLabel(category)}</span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div style={{ border: "1px solid var(--border)", borderRadius: 10, backgroundColor: "var(--surface-2)", padding: 14, marginBottom: 14 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -2487,6 +2865,173 @@ const styles: { [key: string]: React.CSSProperties } = {
     justifyContent: "space-between",
     gap: 8,
     marginTop: 5,
+  },
+  categorySection: {
+    border: "1px solid var(--border)",
+    borderRadius: 10,
+    backgroundColor: "var(--surface-2)",
+    padding: 14,
+    marginBottom: 14,
+  },
+  categoryHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 10,
+  },
+  categoryTitleWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  categoryTitle: {
+    color: "var(--text)",
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  categoryCounter: {
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 700,
+    textAlign: "right",
+  },
+  categoryPickerButton: {
+    width: "100%",
+    minHeight: 42,
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    backgroundColor: "var(--surface)",
+    color: "var(--text)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    padding: "10px 12px",
+    cursor: "pointer",
+    fontWeight: 700,
+  },
+  categoryPickerText: {
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  categoryChips: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10,
+  },
+  categoryChip: {
+    border: "1px solid var(--border)",
+    borderRadius: 999,
+    backgroundColor: "var(--surface)",
+    color: "var(--text)",
+    minHeight: 30,
+    maxWidth: "100%",
+    padding: "5px 8px 5px 10px",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 800,
+  },
+  categoryChipText: {
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    minWidth: 0,
+  },
+  categoryColorDot: {
+    width: 9,
+    height: 9,
+    borderRadius: "50%",
+    border: "1px solid rgba(15, 23, 42, 0.14)",
+    flexShrink: 0,
+  },
+  categoryInactiveMark: {
+    borderRadius: 999,
+    backgroundColor: "rgba(245, 158, 11, 0.14)",
+    color: "#b45309",
+    padding: "2px 6px",
+    fontSize: 10,
+    fontWeight: 900,
+    textTransform: "uppercase",
+  },
+  categoryPanel: {
+    borderTop: "1px solid var(--border)",
+    marginTop: 12,
+    paddingTop: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  categorySearchWrap: {
+    minHeight: 40,
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    backgroundColor: "var(--input-bg)",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "0 10px",
+  },
+  categorySearchInput: {
+    border: 0,
+    outline: "none",
+    backgroundColor: "transparent",
+    color: "var(--text)",
+    fontFamily: "inherit",
+    fontSize: 13,
+    width: "100%",
+    minWidth: 0,
+  },
+  categoryOptionList: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: 8,
+    maxHeight: 260,
+    overflowY: "auto",
+    paddingRight: 2,
+  },
+  categoryOption: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    padding: "10px 12px",
+    minHeight: 58,
+  },
+  categoryOptionText: {
+    display: "flex",
+    flexDirection: "column",
+    minWidth: 0,
+    gap: 3,
+  },
+  categoryOptionName: {
+    color: "var(--text)",
+    fontSize: 13,
+    fontWeight: 800,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  categoryInactiveInline: {
+    color: "#b45309",
+    fontSize: 10,
+    fontWeight: 900,
+    marginLeft: 8,
+    textTransform: "uppercase",
+  },
+  categoryOptionPath: {
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 700,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
   taxSection: {
     border: "1px solid var(--border)",
