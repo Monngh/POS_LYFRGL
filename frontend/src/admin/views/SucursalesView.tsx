@@ -4,6 +4,7 @@ import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
 import { DataTable, ActionModal } from "../../shared/ui";
 import type { Column } from "../../shared/ui";
+import { useToast } from "../../shared/context/ToastContext";
 import {
   validateReference,
   validateSafeText,
@@ -120,6 +121,7 @@ const empLabel: React.CSSProperties = {
 };
 
 const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
+  const { showToast } = useToast();
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [expandedBranches, setExpandedBranches] = useState<Record<number, boolean>>({});
 
@@ -199,7 +201,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const handleReassign = async () => {
     if (!reassignId || !reassignTarget) {
-      alert("Selecciona un empleado y una sucursal destino.");
+      showToast("Selecciona un empleado y una sucursal destino.", "warning");
       return;
     }
     if (reassigningEmployeeId === reassignId) return;
@@ -214,7 +216,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
         prev ? { ...prev, employees: prev.employees - 1 } : prev
       );
     } catch (err: any) {
-      alert(err.response?.data?.message || "Error al reasignar empleado.");
+      showToast(err.response?.data?.message || "Error al reasignar empleado.", "error");
     } finally {
       setReassigningEmployeeId(null);
     }

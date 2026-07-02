@@ -8,6 +8,8 @@ import {
   validateDecimalField,
 } from "../../shared/utils/decimalInput";
 import { validateInteger } from "../../shared/utils/formValidation";
+import { useToast } from "../../shared/context/ToastContext";
+import { ConfirmModal } from "../../shared/ui";
 import KardexView from "./KardexView";
 import { CategoryManagementView } from "../components/categories/CategoryManagementView";
 import { getCategoryDisplayColor } from "../components/categories/categoryColors";
@@ -382,6 +384,7 @@ const formatTaxRate = (rate: number | string) => {
 };
 
 const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+  const { showToast } = useToast();
   const { user } = useAuth();
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [expandedProducts, setExpandedProducts] = useState<Record<number, boolean>>({});
@@ -465,6 +468,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [categoryError, setCategoryError] = useState<string | null>(null);
   const [categorySearch, setCategorySearch] = useState("");
   const [categoryPanelOpen, setCategoryPanelOpen] = useState(false);
+  const [categoryRemovalConfirm, setCategoryRemovalConfirm] = useState<{
+    message: string;
+    categoryIds: number[];
+    validatedProduct: ValidatedProductForm;
+  } | null>(null);
   const categoryRequestId = useRef(0);
   const [skuLoading, setSkuLoading] = useState(false);
   const skuRequestId = useRef(0);
@@ -804,7 +812,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setCategoryAdminOpen(false);
       handleEdit(response.data.product);
     } catch (err: unknown) {
-      alert(getErrorMessage(err, "No se pudo abrir el producto para clasificarlo."));
+      showToast(getErrorMessage(err, "No se pudo abrir el producto para clasificarlo."), "error");
       throw err;
     }
   };
@@ -827,7 +835,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       }
       await load();
     } catch (err: unknown) {
-      alert(getErrorMessage(err, "No se pudo cambiar el estado del producto."));
+      showToast(getErrorMessage(err, "No se pudo cambiar el estado del producto."), "error");
     } finally {
       setStatusSaving(false);
     }
@@ -881,23 +889,33 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           .filter((category): category is CategoryOption => Boolean(category))
           .map((category) => `${category.code} - ${category.name}`);
         const remainingLabels = selectedCategories.map((category) => `${category.code} - ${category.name}`);
-        const confirmed = window.confirm(
-          [
-            `Se quitaran ${removedCategoryIds.length} categoria(s) del producto.`,
-            removedLabels.length > 0 ? `Se quitaran: ${removedLabels.join(", ")}` : "",
-            remainingLabels.length > 0 ? `Quedaran: ${remainingLabels.join(", ")}` : "El producto quedara sin categorias nuevas.",
-          ].filter(Boolean).join("\n")
-        );
-        if (!confirmed) return;
+        const message = [
+          `Se quitaran ${removedCategoryIds.length} categoria(s) del producto.`,
+          removedLabels.length > 0 ? `Se quitaran: ${removedLabels.join(", ")}` : "",
+          remainingLabels.length > 0 ? `Quedaran: ${remainingLabels.join(", ")}` : "El producto quedara sin categorias nuevas.",
+        ].filter(Boolean).join("\n");
+        setCategoryRemovalConfirm({ message, categoryIds, validatedProduct });
+        return;
       }
     }
 
+    await saveProduct(categoryIds, validatedProduct);
+  };
+
+  const confirmCategoryRemoval = async () => {
+    if (!categoryRemovalConfirm) return;
+    const { categoryIds, validatedProduct } = categoryRemovalConfirm;
+    setCategoryRemovalConfirm(null);
+    await saveProduct(categoryIds, validatedProduct);
+  };
+
+  const saveProduct = async (categoryIds: number[], validatedProduct: ValidatedProductForm) => {
     setSaving(true);
     setFormError(null);
     setFieldErrors({});
     try {
       if (validatedProduct.roundingMessages.length > 0) {
-        alert(validatedProduct.roundingMessages.join("\n"));
+        showToast(validatedProduct.roundingMessages.join(" | "), "warning");
       }
 
       if (editingId !== null) {
@@ -1107,7 +1125,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setPriceSaving(true);
     try {
       if (roundingMessages.length > 0) {
-        alert(roundingMessages.join("\n"));
+        showToast(roundingMessages.join(" | "), "warning");
       }
 
       await api.put(`/api/admin/products/${selectedProduct.id}`, {
@@ -2827,6 +2845,16 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           </form>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={categoryRemovalConfirm !== null}
+        onClose={() => setCategoryRemovalConfirm(null)}
+        onConfirm={confirmCategoryRemoval}
+        variant="warning"
+        title="Quitar categorías del producto"
+        message={categoryRemovalConfirm?.message || ""}
+        confirmLabel="Continuar"
+      />
     </div>
   );
 };
