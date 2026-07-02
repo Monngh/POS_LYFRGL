@@ -11,7 +11,6 @@ import {
   PiggyBank,
   FileText,
   RotateCcw,
-  MoreVertical,
   Sun,
   Moon,
   ShoppingCart,
@@ -20,7 +19,6 @@ import {
   Clock,
 } from "lucide-react";
 import { TICKET_PRINT_MEDIA_STYLES } from "../../shared/utils/ticketEmailDocument.util";
-import api from "../../shared/services/api";
 import { useCashSession } from "../hooks/useCashSession";
 import { usePosTheme, togglePosTheme } from "../../shared/hooks/usePosTheme";
 
@@ -101,18 +99,18 @@ export function DashboardHomeView({
   onOpenModal,
   onLogout,
   onNuevaVenta,
-  openDashboardTableMenu,
-  onSetOpenDashboardTableMenu,
-  expandedSalesRows,
-  onToggleSalesRow,
-  expandedDepositRows,
-  onToggleDepositRow,
-  dashboardTicketLoadingId,
-  onOpenDashboardSaleTicket,
-  onSetSelectedSale,
-  onToast,
+  openDashboardTableMenu: _openDashboardTableMenu,
+  onSetOpenDashboardTableMenu: _onSetOpenDashboardTableMenu,
+  expandedSalesRows: _expandedSalesRows,
+  onToggleSalesRow: _onToggleSalesRow,
+  expandedDepositRows: _expandedDepositRows,
+  onToggleDepositRow: _onToggleDepositRow,
+  dashboardTicketLoadingId: _dashboardTicketLoadingId,
+  onOpenDashboardSaleTicket: _onOpenDashboardSaleTicket,
+  onSetSelectedSale: _onSetSelectedSale,
+  onToast: _onToast,
 }: DashboardHomeViewProps) {
-  const { session, sessionStats, recentSales, recentDeposits } = sessionData;
+  const { session, sessionStats } = sessionData;
   const theme = usePosTheme();
 
   const formattedTime = currentTime.toLocaleTimeString("es-MX", {

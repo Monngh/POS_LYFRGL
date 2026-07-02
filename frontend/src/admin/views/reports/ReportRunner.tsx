@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { Printer, RefreshCw, CalendarClock, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { Printer, RefreshCw, CalendarClock, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Calendar, User, Package, Layers, TrendingUp, TrendingDown, ArrowUpDown, Activity } from "lucide-react";
 import api from '../../../shared/services/api';
 import {
   ui,
@@ -25,6 +25,33 @@ import {
   validateReportDateRange,
   type ReportPeriod,
 } from "./reportPeriods";
+
+const reportDetailRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-start",
+  alignItems: "flex-start",
+  gap: "8px",
+  fontSize: 13,
+  marginBottom: 6,
+};
+
+const reportDetailLabelStyle: React.CSSProperties = {
+  fontWeight: 700,
+  color: "var(--text-muted)",
+  minWidth: "85px",
+  display: "inline-block",
+  flexShrink: 0,
+};
+
+const reportDetailValueStyle: React.CSSProperties = {
+  fontWeight: 600,
+  color: "var(--text-secondary)",
+  wordBreak: "break-word",
+  overflowWrap: "anywhere",
+  whiteSpace: "normal",
+  minWidth: 0,
+  flex: 1,
+};
 
 const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: string }> = ({ def, branchId, branchLabel }) => {
   const [filters, setFilters] = useState<ReportFilters>({
@@ -173,7 +200,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
           </>
         );
       default:
-        return raw;
+        return <span style={{ wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>{raw}</span>;
     }
   };
 
@@ -326,57 +353,50 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                   key={i}
                   style={{
                     backgroundColor: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 12,
-                    marginBottom: 10,
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
-                    overflow: "hidden",
+                    border: "1px solid var(--border-soft)",
+                    borderRadius: 16,
+                    padding: 16,
+                    marginBottom: 12,
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
                     textAlign: "left",
                   }}
                 >
-                  {/* Header: Folio y Estatus */}
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "8px 16px 6px 16px",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: "var(--text-muted)",
-                    borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "var(--surface-2)",
-                    letterSpacing: "0.2px",
-                  }}>
-                    <span style={{ fontFamily: "monospace", color: "var(--text-muted)" }}>{row.invoiceNumber}</span>
-                    <Badge tone={statusTone(row.status)}>
-                      {row.status}
-                    </Badge>
-                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Folio & Total */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                        <span style={{ fontWeight: 700, color: "var(--accent-strong)", fontSize: 16 }}>
+                          {row.invoiceNumber}
+                        </span>
+                        <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>
+                          {money(row.totalAmount)}
+                        </span>
+                      </div>
 
-                  {/* Fila principal */}
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.5fr 2fr 1.5fr 0.8fr",
-                    padding: "12px 16px",
-                    alignItems: "center",
-                  }}>
-                    {/* Cliente */}
-                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--accent-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {row.customer || "Público General"}
+                      {/* Sucursal / Cajero */}
+                      <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 8, wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
+                        {row.branch} · {row.cajero}
+                      </div>
+
+                      {/* Fecha */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", marginBottom: 6 }}>
+                        <Calendar size={14} color="#2563eb" style={{ flexShrink: 0 }} />
+                        <span style={{ wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
+                          {fmtDate(row.createdAt)} {fmtTime(row.createdAt)}
+                        </span>
+                      </div>
+
+                      {/* Cliente */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
+                        <User size={14} color="#2563eb" style={{ flexShrink: 0 }} />
+                        <span style={{ wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
+                          Cliente: {row.customer || "Público General"}
+                        </span>
+                      </div>
                     </div>
 
-                    {/* Fecha */}
-                    <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-                      {fmtDate(row.createdAt)} <span style={{ color: "var(--text-faint)" }}>{fmtTime(row.createdAt)}</span>
-                    </div>
-
-                    {/* Total */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
-                      {money(row.totalAmount)}
-                    </div>
-
-                    {/* Chevron */}
-                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
+                    {/* Chevron Button */}
+                    <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
                       <button
                         onClick={() => toggleExpandSale(i)}
                         style={{
@@ -386,71 +406,83 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                           backgroundColor: "var(--surface)",
                           border: "1px solid var(--border-strong)",
                           borderRadius: 8,
-                          width: 34,
-                          height: 34,
+                          width: 38,
+                          height: 38,
                           cursor: "pointer",
-                          color: "var(--text-muted)",
+                          color: "var(--accent)",
                           padding: 0,
                         }}
                         className="active-tap"
                       >
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                       </button>
                     </div>
                   </div>
 
                   {/* Detalle expandido */}
                   {isExpanded && (
-                    <div style={{
-                      padding: "16px",
-                      margin: "0 16px 16px 16px",
-                      backgroundColor: "var(--surface-2)",
-                      borderRadius: "8px",
-                      border: "1px solid var(--border)",
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                      gap: "16px",
-                    }}>
-                      {/* Datos de la Venta */}
-                      <div>
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
+                      <div style={{
+                        backgroundColor: "var(--surface-2)",
+                        borderRadius: 12,
+                        border: "1px solid var(--border)",
+                        padding: 16,
+                      }}>
+                        {/* Datos de la Venta */}
                         <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Datos de la Venta</h4>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                          <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Folio:</span>
-                          <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{row.invoiceNumber}</span>
+                        <div style={reportDetailRowStyle}>
+                          <span style={reportDetailLabelStyle}>Folio:</span>
+                          <span style={reportDetailValueStyle}>{row.invoiceNumber}</span>
                         </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                          <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Sucursal:</span>
-                          <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{row.branch}</span>
+                        <div style={reportDetailRowStyle}>
+                          <span style={reportDetailLabelStyle}>Cajero:</span>
+                          <span style={reportDetailValueStyle}>{row.cajero}</span>
                         </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                          <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Vendedor:</span>
-                          <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{row.cajero}</span>
+                        <div style={reportDetailRowStyle}>
+                          <span style={reportDetailLabelStyle}>Artículos:</span>
+                          <span style={reportDetailValueStyle}>{row.items}</span>
                         </div>
-                      </div>
 
-                      {/* Detalles Económicos */}
-                      <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Detalles Económicos</h4>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                          <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Subtotal:</span>
-                          <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{money(row.subtotal)}</span>
+                        {/* Detalle de Operación */}
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginTop: 16, marginBottom: 10 }}>Detalle de Operación</h4>
+                        <div style={reportDetailRowStyle}>
+                          <span style={reportDetailLabelStyle}>Fecha:</span>
+                          <span style={reportDetailValueStyle}>{fmtDate(row.createdAt)} {fmtTime(row.createdAt)}</span>
                         </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                          <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Impuestos:</span>
-                          <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{money(row.taxAmount)}</span>
+                        <div style={reportDetailRowStyle}>
+                          <span style={reportDetailLabelStyle}>Sucursal:</span>
+                          <span style={reportDetailValueStyle}>{row.branch}</span>
                         </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                          <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Método de Pago:</span>
-                          <Badge tone={payTone(row.paymentMethod)}>{row.paymentMethod}</Badge>
+                        <div style={reportDetailRowStyle}>
+                          <span style={reportDetailLabelStyle}>Cliente:</span>
+                          <span style={reportDetailValueStyle}>{row.customer || "Público General"}</span>
                         </div>
-                      </div>
 
-                      {/* Artículos */}
-                      <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Artículos</h4>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                          <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Cantidad:</span>
-                          <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{row.items} artículos</span>
+                        {/* Resumen Económico */}
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginTop: 16, marginBottom: 10 }}>Resumen Económico</h4>
+                        <div style={reportDetailRowStyle}>
+                          <span style={reportDetailLabelStyle}>Subtotal:</span>
+                          <span style={reportDetailValueStyle}>{money(row.subtotal)}</span>
+                        </div>
+                        <div style={reportDetailRowStyle}>
+                          <span style={reportDetailLabelStyle}>Impuestos:</span>
+                          <span style={reportDetailValueStyle}>{money(row.taxAmount)}</span>
+                        </div>
+                        <div style={reportDetailRowStyle}>
+                          <span style={reportDetailLabelStyle}>Método:</span>
+                          <span style={reportDetailValueStyle}>
+                            <Badge tone={payTone(row.paymentMethod)}>{row.paymentMethod}</Badge>
+                          </span>
+                        </div>
+                        <div style={reportDetailRowStyle}>
+                          <span style={reportDetailLabelStyle}>Estado:</span>
+                          <span style={reportDetailValueStyle}>
+                            <Badge tone={statusTone(row.status)}>{row.status}</Badge>
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 12 }}>
+                          <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>Total:</span>
+                          <span style={{ fontSize: 18, fontWeight: 800, color: "var(--accent-strong)" }}>{money(row.totalAmount)}</span>
                         </div>
                       </div>
                     </div>
@@ -487,56 +519,40 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                   key={i}
                   style={{
                     backgroundColor: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 12,
-                    marginBottom: 10,
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
-                    overflow: "hidden",
+                    border: "1px solid var(--border-soft)",
+                    borderRadius: 16,
+                    padding: 16,
+                    marginBottom: 12,
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
                     textAlign: "left",
                   }}
                 >
-                  {/* Header: Ranking y SKU */}
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "8px 16px 6px 16px",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: "var(--text-muted)",
-                    borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "var(--surface-2)",
-                    letterSpacing: "0.2px",
-                  }}>
-                    <span style={{ color: "var(--accent-strong)", fontWeight: 800, fontSize: 12 }}>#{row.rank}</span>
-                    <span style={{ fontFamily: "monospace", color: "var(--text-muted)", fontSize: 11 }}>{row.sku}</span>
-                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Name & Rank / SKU */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                        <span style={{ fontWeight: 800, color: "var(--accent-strong)", fontSize: 14 }}>
+                          #{row.rank} · <span style={{ fontFamily: "monospace", color: "var(--text-muted)", fontSize: 13 }}>{row.sku}</span>
+                        </span>
+                        <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>
+                          {money(row.importe)}
+                        </span>
+                      </div>
 
-                  {/* Fila principal: Producto, Cantidad, Importe, Chevron */}
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "2fr 1fr 1.5fr 0.6fr",
-                    padding: "12px 16px",
-                    alignItems: "center",
-                    gap: 8,
-                  }}>
-                    {/* Producto */}
-                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--accent-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {row.name}
+                      {/* Product Name */}
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", marginBottom: 8, wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
+                        {row.name}
+                      </div>
+
+                      {/* Cantidad Vendida */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
+                        <Package size={14} color="#2563eb" style={{ flexShrink: 0 }} />
+                        <span>Cantidad vendida: <strong>{row.cantidad}</strong> unidades</span>
+                      </div>
                     </div>
 
-                    {/* Cantidad */}
-                    <div style={{ fontSize: 13, color: "var(--text-secondary)", textAlign: "center", fontWeight: 600 }}>
-                      {row.cantidad} <span style={{ color: "var(--text-faint)", fontSize: 11 }}>uds</span>
-                    </div>
-
-                    {/* Importe */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "right" }}>
-                      {money(row.importe)}
-                    </div>
-
-                    {/* Chevron */}
-                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
+                    {/* Chevron Button */}
+                    <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
                       <button
                         onClick={() => toggleExpandSale(i)}
                         style={{
@@ -546,40 +562,62 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                           backgroundColor: "var(--surface)",
                           border: "1px solid var(--border-strong)",
                           borderRadius: 8,
-                          width: 34,
-                          height: 34,
+                          width: 38,
+                          height: 38,
                           cursor: "pointer",
-                          color: "var(--text-muted)",
+                          color: "var(--accent)",
                           padding: 0,
                         }}
                         className="active-tap"
                       >
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                       </button>
                     </div>
                   </div>
 
                   {/* Detalle expandido */}
                   {isExpanded && (
-                    <div style={{
-                      padding: "16px",
-                      margin: "0 16px 16px 16px",
-                      backgroundColor: "var(--surface-2)",
-                      borderRadius: "8px",
-                      border: "1px solid var(--border)",
-                    }}>
-                      <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Detalles del Producto</h4>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Transacciones:</span>
-                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{row.transacciones}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Precio promedio:</span>
-                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{money(row.precioPromedio)}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Utilidad:</span>
-                        <span style={{ color: "#16a34a", fontWeight: 700 }}>{money(row.utilidad)}</span>
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
+                      <div style={{
+                        backgroundColor: "var(--surface-2)",
+                        borderRadius: 12,
+                        border: "1px solid var(--border)",
+                        padding: 16,
+                      }}>
+                        {/* Detalles del Producto */}
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Detalles del Producto</h4>
+                        <div style={reportDetailRowStyle}>
+                          <span style={reportDetailLabelStyle}>Nombre:</span>
+                          <span style={reportDetailValueStyle}>{row.name}</span>
+                        </div>
+                        <div style={reportDetailRowStyle}>
+                          <span style={reportDetailLabelStyle}>SKU:</span>
+                          <span style={{ ...reportDetailValueStyle, fontFamily: "monospace" }}>{row.sku}</span>
+                        </div>
+                        <div style={reportDetailRowStyle}>
+                          <span style={reportDetailLabelStyle}>Ranking:</span>
+                          <span style={reportDetailValueStyle}>#{row.rank}</span>
+                        </div>
+                        <div style={reportDetailRowStyle}>
+                          <span style={reportDetailLabelStyle}>Unidades:</span>
+                          <span style={reportDetailValueStyle}>{row.cantidad} uds</span>
+                        </div>
+                        <div style={reportDetailRowStyle}>
+                          <span style={reportDetailLabelStyle}>Transacciones:</span>
+                          <span style={reportDetailValueStyle}>{row.transacciones}</span>
+                        </div>
+                        <div style={reportDetailRowStyle}>
+                          <span style={reportDetailLabelStyle}>Precio prom.:</span>
+                          <span style={reportDetailValueStyle}>{money(row.precioPromedio)}</span>
+                        </div>
+                        <div style={reportDetailRowStyle}>
+                          <span style={reportDetailLabelStyle}>Utilidad:</span>
+                          <span style={{ ...reportDetailValueStyle, color: "#16a34a", fontWeight: 700 }}>{money(row.utilidad)}</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 12 }}>
+                          <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>Importe Total:</span>
+                          <span style={{ fontSize: 18, fontWeight: 800, color: "var(--accent-strong)" }}>{money(row.importe)}</span>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -588,656 +626,352 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
             })}
         </div>
       ) : isMobile && def.key === "existencias" ? (
-        /* ── Mobile / Tablet: Card-based layout for Existencias report ── */
+        /* ── Mobile: Inventario-style card layout for Existencias report ── */
         <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)" }}>
-          {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              Cargando información...
-            </div>
-          )}
-          {error && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
-              {error}
-            </div>
-          )}
-          {!loading && !error && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              Sin registros.
-            </div>
-          )}
+          {loading && <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>Cargando información...</div>}
+          {error && <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>{error}</div>}
+          {!loading && !error && rows.length === 0 && <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>Sin registros.</div>}
 
-          {!loading &&
-            !error &&
-            rows.map((row, i) => {
-              const isExpanded = expandedSales[i];
-              return (
-                <div
-                  key={i}
-                  style={{
-                    backgroundColor: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 12,
-                    marginBottom: 10,
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
-                    overflow: "hidden",
-                    textAlign: "left",
-                  }}
-                >
-                  {/* Header: SKU y Estado */}
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "8px 16px 6px 16px",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: "var(--text-muted)",
-                    borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "var(--surface-2)",
-                    letterSpacing: "0.2px",
-                  }}>
-                    <span style={{ fontFamily: "monospace", color: "var(--text-muted)" }}>{row.sku}</span>
-                    {getCell(row, "estado")}
-                  </div>
+          {!loading && !error && rows.map((row, i) => {
+            const isExpanded = expandedSales[i];
+            return (
+              <div key={i} style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border-soft)", borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)", textAlign: "left" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* SKU & Estado chip */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <span style={{ fontFamily: "monospace", fontWeight: 700, color: "var(--text-muted)", fontSize: 12, wordBreak: "break-word", overflowWrap: "anywhere" }}>{row.sku}</span>
+                      <span style={{ flexShrink: 0, marginLeft: 8 }}>{getCell(row, "estado")}</span>
+                    </div>
 
-                  {/* Fila principal: Producto, Stock, Precio, Chevron */}
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "2fr 1fr 1.5fr 0.6fr",
-                    padding: "12px 16px",
-                    alignItems: "center",
-                    gap: 8,
-                  }}>
-                    {/* Producto */}
-                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--accent-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {/* Nombre */}
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", marginBottom: 8, wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
                       {row.name}
                     </div>
 
                     {/* Stock */}
-                    <div style={{ fontSize: 13, color: "var(--text-secondary)", textAlign: "center", fontWeight: 600 }}>
-                      {row.stock} <span style={{ color: "var(--text-faint)", fontSize: 11 }}>uds</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>
+                      <Layers size={14} color="#2563eb" style={{ flexShrink: 0 }} />
+                      <span>Stock: <strong>{row.stock}</strong> uds · Mínimo: <strong>{row.minStock}</strong></span>
                     </div>
 
-                    {/* Precio */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "right" }}>
-                      {getCell(row, "sellPrice")}
-                    </div>
-
-                    {/* Chevron */}
-                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
-                      <button
-                        onClick={() => toggleExpandSale(i)}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: "var(--surface)",
-                          border: "1px solid var(--border-strong)",
-                          borderRadius: 8,
-                          width: 34,
-                          height: 34,
-                          cursor: "pointer",
-                          color: "var(--text-muted)",
-                          padding: 0,
-                        }}
-                        className="active-tap"
-                      >
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                      </button>
+                    {/* Precio venta */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
+                      <TrendingUp size={14} color="#16a34a" style={{ flexShrink: 0 }} />
+                      <span>Precio venta: <strong>{getCell(row, "sellPrice")}</strong></span>
                     </div>
                   </div>
 
-                  {/* Detalle expandido */}
-                  {isExpanded && (
-                    <div style={{
-                      padding: "16px",
-                      margin: "0 16px 16px 16px",
-                      backgroundColor: "var(--surface-2)",
-                      borderRadius: "8px",
-                      border: "1px solid var(--border)",
-                    }}>
+                  {/* Chevron */}
+                  <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
+                    <button onClick={() => toggleExpandSale(i)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--surface)", border: "1px solid var(--border-strong)", borderRadius: 8, width: 38, height: 38, cursor: "pointer", color: "var(--accent)", padding: 0 }} className="active-tap">
+                      {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Detalle expandido */}
+                {isExpanded && (
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
+                    <div style={{ backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)", padding: 16 }}>
                       <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Detalles de Inventario</h4>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Stock mínimo:</span>
-                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{row.minStock} uds</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Costo:</span>
-                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "costPrice")}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Valor del Inventario:</span>
-                        <span style={{ color: "var(--text)", fontWeight: 700 }}>{getCell(row, "valor")}</span>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>SKU:</span><span style={{ ...reportDetailValueStyle, fontFamily: "monospace" }}>{row.sku}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Nombre:</span><span style={reportDetailValueStyle}>{row.name}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Stock actual:</span><span style={reportDetailValueStyle}>{row.stock} uds</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Stock mínimo:</span><span style={reportDetailValueStyle}>{row.minStock} uds</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Costo:</span><span style={reportDetailValueStyle}>{getCell(row, "costPrice")}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Precio venta:</span><span style={reportDetailValueStyle}>{getCell(row, "sellPrice")}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Estado:</span><span style={reportDetailValueStyle}>{getCell(row, "estado")}</span></div>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 12 }}>
+                        <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>Valor inventario:</span>
+                        <span style={{ fontSize: 18, fontWeight: 800, color: "var(--accent-strong)" }}>{getCell(row, "valor")}</span>
                       </div>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : isMobile && def.key === "kardex" ? (
-        /* ── Mobile / Tablet: Card-based layout for Kardex report ── */
+        /* ── Mobile: Inventario-style card layout for Kardex report ── */
         <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)" }}>
-          {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              Cargando información...
-            </div>
-          )}
-          {error && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
-              {error}
-            </div>
-          )}
-          {!loading && !error && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              Sin registros en el periodo seleccionado.
-            </div>
-          )}
+          {loading && <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>Cargando información...</div>}
+          {error && <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>{error}</div>}
+          {!loading && !error && rows.length === 0 && <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>Sin registros en el periodo seleccionado.</div>}
 
-          {!loading &&
-            !error &&
-            rows.map((row, i) => {
-              const isExpanded = expandedSales[i];
-              return (
-                <div
-                  key={i}
-                  style={{
-                    backgroundColor: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 12,
-                    marginBottom: 10,
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
-                    overflow: "hidden",
-                    textAlign: "left",
-                  }}
-                >
-                  {/* Header: SKU y Movimiento */}
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "8px 16px 6px 16px",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: "var(--text-muted)",
-                    borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "var(--surface-2)",
-                    letterSpacing: "0.2px",
-                  }}>
-                    <span style={{ fontFamily: "monospace", color: "var(--text-muted)" }}>{row.sku}</span>
-                    {getCell(row, "movementType")}
-                  </div>
+          {!loading && !error && rows.map((row, i) => {
+            const isExpanded = expandedSales[i];
+            const isPos = row.quantityChange > 0;
+            const isNeg = row.quantityChange < 0;
+            return (
+              <div key={i} style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border-soft)", borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)", textAlign: "left" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* SKU & Tipo de movimiento */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <span style={{ fontFamily: "monospace", fontWeight: 700, color: "var(--text-muted)", fontSize: 12, wordBreak: "break-word", overflowWrap: "anywhere" }}>{row.sku}</span>
+                      <span style={{ flexShrink: 0, marginLeft: 8 }}>{getCell(row, "movementType")}</span>
+                    </div>
 
-                  {/* Fila principal: Producto, Cambio, Saldo, Chevron */}
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "2fr 1.2fr 1.2fr 0.6fr",
-                    padding: "12px 16px",
-                    alignItems: "center",
-                    gap: 8,
-                  }}>
                     {/* Producto */}
-                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--accent-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", marginBottom: 8, wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
                       {row.product}
                     </div>
 
-                    {/* Cambio (Cantidad) */}
-                    <div style={{ fontSize: 13, color: row.quantityChange > 0 ? "#16a34a" : row.quantityChange < 0 ? "#dc2626" : "#475569", textAlign: "center", fontWeight: 700 }}>
-                      {row.quantityChange > 0 ? `+${row.quantityChange}` : row.quantityChange}
+                    {/* Cambio de cantidad */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>
+                      {isPos ? <TrendingUp size={14} color="#16a34a" style={{ flexShrink: 0 }} /> : isNeg ? <TrendingDown size={14} color="#dc2626" style={{ flexShrink: 0 }} /> : <ArrowUpDown size={14} color="#64748b" style={{ flexShrink: 0 }} />}
+                      <span style={{ color: isPos ? "#16a34a" : isNeg ? "#dc2626" : "#475569", fontWeight: 700 }}>
+                        {isPos ? `+${row.quantityChange}` : row.quantityChange} uds
+                      </span>
+                      <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>· Saldo: <strong style={{ color: "var(--text)" }}>{row.balanceAfter}</strong></span>
                     </div>
 
-                    {/* Saldo */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "right" }}>
-                      {row.balanceAfter} <span style={{ color: "var(--text-faint)", fontSize: 11, fontWeight: 500 }}>uds</span>
-                    </div>
-
-                    {/* Chevron */}
-                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
-                      <button
-                        onClick={() => toggleExpandSale(i)}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: "var(--surface)",
-                          border: "1px solid var(--border-strong)",
-                          borderRadius: 8,
-                          width: 34,
-                          height: 34,
-                          cursor: "pointer",
-                          color: "var(--text-muted)",
-                          padding: 0,
-                        }}
-                        className="active-tap"
-                      >
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                      </button>
+                    {/* Fecha */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
+                      <Activity size={14} color="#2563eb" style={{ flexShrink: 0 }} />
+                      <span style={{ wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>{getCell(row, "createdAt")}</span>
                     </div>
                   </div>
 
-                  {/* Detalle expandido */}
-                  {isExpanded && (
-                    <div style={{
-                      padding: "16px",
-                      margin: "0 16px 16px 16px",
-                      backgroundColor: "var(--surface-2)",
-                      borderRadius: "8px",
-                      border: "1px solid var(--border)",
-                    }}>
+                  {/* Chevron */}
+                  <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
+                    <button onClick={() => toggleExpandSale(i)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--surface)", border: "1px solid var(--border-strong)", borderRadius: 8, width: 38, height: 38, cursor: "pointer", color: "var(--accent)", padding: 0 }} className="active-tap">
+                      {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Detalle expandido */}
+                {isExpanded && (
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
+                    <div style={{ backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)", padding: 16 }}>
                       <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Detalles del Movimiento</h4>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Fecha y hora:</span>
-                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "createdAt")}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Sucursal:</span>
-                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "branch")}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Usuario:</span>
-                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "user")}</span>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Referencia / Motivo:</span>
-                        <span style={{ color: "var(--text-secondary)", padding: "6px 8px", backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, minHeight: 32 }}>{row.reason || "—"}</span>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>SKU:</span><span style={{ ...reportDetailValueStyle, fontFamily: "monospace" }}>{row.sku}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Producto:</span><span style={reportDetailValueStyle}>{row.product}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Tipo:</span><span style={reportDetailValueStyle}>{getCell(row, "movementType")}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Cambio:</span><span style={{ ...reportDetailValueStyle, color: isPos ? "#16a34a" : isNeg ? "#dc2626" : "#475569", fontWeight: 700 }}>{isPos ? `+${row.quantityChange}` : row.quantityChange} uds</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Saldo:</span><span style={reportDetailValueStyle}>{row.balanceAfter} uds</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Fecha:</span><span style={reportDetailValueStyle}>{getCell(row, "createdAt")}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Sucursal:</span><span style={reportDetailValueStyle}>{getCell(row, "branch")}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Usuario:</span><span style={reportDetailValueStyle}>{getCell(row, "user")}</span></div>
+                      <div style={{ marginTop: 8 }}>
+                        <div style={{ ...reportDetailLabelStyle, display: "block", marginBottom: 4 }}>Referencia / Motivo:</div>
+                        <div style={{ ...reportDetailValueStyle, padding: "6px 8px", backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, minHeight: 32, display: "block" }}>{row.reason || "—"}</div>
                       </div>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : isMobile && def.key === "compras" ? (
-        /* ── Mobile / Tablet: Card-based layout for Compras report ── */
+        /* ── Mobile: Inventario-style card layout for Compras report ── */
         <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)" }}>
-          {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              Cargando información...
-            </div>
-          )}
-          {error && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
-              {error}
-            </div>
-          )}
-          {!loading && !error && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              Sin registros en el periodo seleccionado.
-            </div>
-          )}
+          {loading && <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>Cargando información...</div>}
+          {error && <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>{error}</div>}
+          {!loading && !error && rows.length === 0 && <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>Sin registros en el periodo seleccionado.</div>}
 
-          {!loading &&
-            !error &&
-            rows.map((row, i) => {
-              const isExpanded = expandedSales[i];
-              return (
-                <div
-                  key={i}
-                  style={{
-                    backgroundColor: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 12,
-                    marginBottom: 10,
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
-                    overflow: "hidden",
-                    textAlign: "left",
-                  }}
-                >
-                  {/* Header: Folio y Estado */}
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "8px 16px 6px 16px",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: "var(--text-muted)",
-                    borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "var(--surface-2)",
-                    letterSpacing: "0.2px",
-                  }}>
-                    <span style={{ fontFamily: "monospace", color: "var(--text-muted)" }}>{row.reference}</span>
-                    {getCell(row, "status")}
-                  </div>
+          {!loading && !error && rows.map((row, i) => {
+            const isExpanded = expandedSales[i];
+            return (
+              <div key={i} style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border-soft)", borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)", textAlign: "left" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* Referencia & Estado */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <span style={{ fontFamily: "monospace", fontWeight: 700, color: "var(--text-muted)", fontSize: 12, wordBreak: "break-word", overflowWrap: "anywhere" }}>{row.reference}</span>
+                      <span style={{ flexShrink: 0, marginLeft: 8 }}>{getCell(row, "status")}</span>
+                    </div>
 
-                  {/* Fila principal: Proveedor, Fecha, Total, Chevron */}
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.8fr 1.5fr 1.5fr 0.6fr",
-                    padding: "12px 16px",
-                    alignItems: "center",
-                    gap: 8,
-                  }}>
                     {/* Proveedor */}
-                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--accent-strong)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", marginBottom: 8, wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
                       {getCell(row, "supplier")}
                     </div>
 
                     {/* Fecha */}
-                    <div style={{ fontSize: 13, color: "var(--text-secondary)", textAlign: "center" }}>
-                      {getCell(row, "purchaseDate")}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>
+                      <Calendar size={14} color="#2563eb" style={{ flexShrink: 0 }} />
+                      <span style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}>{getCell(row, "purchaseDate")}</span>
                     </div>
 
                     {/* Total */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "right" }}>
-                      {getCell(row, "total")}
-                    </div>
-
-                    {/* Chevron */}
-                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
-                      <button
-                        onClick={() => toggleExpandSale(i)}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: "var(--surface)",
-                          border: "1px solid var(--border-strong)",
-                          borderRadius: 8,
-                          width: 34,
-                          height: 34,
-                          cursor: "pointer",
-                          color: "var(--text-muted)",
-                          padding: 0,
-                        }}
-                        className="active-tap"
-                      >
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                      </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
+                      <TrendingUp size={14} color="#16a34a" style={{ flexShrink: 0 }} />
+                      <span>Total: <strong>{getCell(row, "total")}</strong></span>
                     </div>
                   </div>
 
-                  {/* Detalle expandido */}
-                  {isExpanded && (
-                    <div style={{
-                      padding: "16px",
-                      margin: "0 16px 16px 16px",
-                      backgroundColor: "var(--surface-2)",
-                      borderRadius: "8px",
-                      border: "1px solid var(--border)",
-                    }}>
+                  {/* Chevron */}
+                  <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
+                    <button onClick={() => toggleExpandSale(i)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--surface)", border: "1px solid var(--border-strong)", borderRadius: 8, width: 38, height: 38, cursor: "pointer", color: "var(--accent)", padding: 0 }} className="active-tap">
+                      {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Detalle expandido */}
+                {isExpanded && (
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
+                    <div style={{ backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)", padding: 16 }}>
                       <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Desglose de Compra</h4>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Sucursal:</span>
-                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "branch")}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Subtotal:</span>
-                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "subtotal")}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Impuestos:</span>
-                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "tax")}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Registró:</span>
-                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "createdByUser")}</span>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Referencia:</span><span style={{ ...reportDetailValueStyle, fontFamily: "monospace" }}>{row.reference}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Proveedor:</span><span style={reportDetailValueStyle}>{getCell(row, "supplier")}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Fecha:</span><span style={reportDetailValueStyle}>{getCell(row, "purchaseDate")}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Estado:</span><span style={reportDetailValueStyle}>{getCell(row, "status")}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Sucursal:</span><span style={reportDetailValueStyle}>{getCell(row, "branch")}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Subtotal:</span><span style={reportDetailValueStyle}>{getCell(row, "subtotal")}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Impuestos:</span><span style={reportDetailValueStyle}>{getCell(row, "tax")}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Registró:</span><span style={reportDetailValueStyle}>{getCell(row, "createdByUser")}</span></div>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 12 }}>
+                        <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>Total:</span>
+                        <span style={{ fontSize: 18, fontWeight: 800, color: "var(--accent-strong)" }}>{getCell(row, "total")}</span>
                       </div>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : isMobile && def.key === "operaciones" ? (
-        /* ── Mobile / Tablet: Card-based layout for Operaciones del vendedor report ── */
+        /* ── Mobile: Inventario-style card layout for Operaciones del vendedor ── */
         <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)" }}>
-          {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              Cargando información...
-            </div>
-          )}
-          {error && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
-              {error}
-            </div>
-          )}
-          {!loading && !error && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              Sin registros en el periodo seleccionado.
-            </div>
-          )}
+          {loading && <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>Cargando información...</div>}
+          {error && <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>{error}</div>}
+          {!loading && !error && rows.length === 0 && <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>Sin registros en el periodo seleccionado.</div>}
 
-          {!loading &&
-            !error &&
-            rows.map((row, i) => {
-              const isExpanded = expandedSales[i];
-              return (
-                <div
-                  key={i}
-                  style={{
-                    backgroundColor: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 12,
-                    marginBottom: 10,
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
-                    overflow: "hidden",
-                    textAlign: "left",
-                  }}
-                >
-                  {/* Header: Vendedor y Rol */}
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "8px 16px 6px 16px",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: "var(--text-muted)",
-                    borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "var(--surface-2)",
-                    letterSpacing: "0.2px",
-                  }}>
-                    <span style={{ color: "var(--accent-strong)", fontWeight: 800, fontSize: 12 }}>{row.name}</span>
-                    {getCell(row, "role")}
-                  </div>
+          {!loading && !error && rows.map((row, i) => {
+            const isExpanded = expandedSales[i];
+            return (
+              <div key={i} style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border-soft)", borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)", textAlign: "left" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* Nombre & Rol */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <span style={{ fontWeight: 800, color: "var(--accent-strong)", fontSize: 13, wordBreak: "break-word", overflowWrap: "anywhere" }}>{row.name}</span>
+                      <span style={{ flexShrink: 0, marginLeft: 8 }}>{getCell(row, "role")}</span>
+                    </div>
 
-                  {/* Fila principal: Sucursal, Ventas, Total Vendido, Chevron */}
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.8fr 1.5fr 1.5fr 0.6fr",
-                    padding: "12px 16px",
-                    alignItems: "center",
-                    gap: 8,
-                  }}>
                     {/* Sucursal */}
-                    <div style={{ fontSize: 13, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {row.branch || "—"}
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8, wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
+                      {row.branch || "Sin sucursal"}
                     </div>
 
                     {/* Ventas */}
-                    <div style={{ fontSize: 13, color: "#475569", textAlign: "center", fontWeight: 600 }}>
-                      {row.ventasCount} <span style={{ color: "var(--text-faint)", fontSize: 11 }}>vts</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>
+                      <Activity size={14} color="#2563eb" style={{ flexShrink: 0 }} />
+                      <span><strong>{row.ventasCount}</strong> ventas realizadas</span>
                     </div>
 
-                    {/* Total Vendido */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "right" }}>
-                      {getCell(row, "totalVendido")}
-                    </div>
-
-                    {/* Chevron */}
-                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
-                      <button
-                        onClick={() => toggleExpandSale(i)}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: "var(--surface)",
-                          border: "1px solid var(--border-strong)",
-                          borderRadius: 8,
-                          width: 34,
-                          height: 34,
-                          cursor: "pointer",
-                          color: "var(--text-muted)",
-                          padding: 0,
-                        }}
-                        className="active-tap"
-                      >
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                      </button>
+                    {/* Total vendido */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
+                      <TrendingUp size={14} color="#16a34a" style={{ flexShrink: 0 }} />
+                      <span>Total vendido: <strong>{getCell(row, "totalVendido")}</strong></span>
                     </div>
                   </div>
 
-                  {/* Detalle expandido */}
-                  {isExpanded && (
-                    <div style={{
-                      padding: "16px",
-                      margin: "0 16px 16px 16px",
-                      backgroundColor: "var(--surface-2)",
-                      borderRadius: "8px",
-                      border: "1px solid var(--border)",
-                    }}>
+                  {/* Chevron */}
+                  <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
+                    <button onClick={() => toggleExpandSale(i)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--surface)", border: "1px solid var(--border-strong)", borderRadius: 8, width: 38, height: 38, cursor: "pointer", color: "var(--accent)", padding: 0 }} className="active-tap">
+                      {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Detalle expandido */}
+                {isExpanded && (
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
+                    <div style={{ backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)", padding: 16 }}>
                       <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Métricas del Vendedor</h4>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Devoluciones:</span>
-                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{row.devolucionesCount}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Cancelaciones:</span>
-                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{row.canceladas}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Comisión Generada:</span>
-                        <span style={{ color: "#16a34a", fontWeight: 700 }}>{getCell(row, "comision")}</span>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Nombre:</span><span style={reportDetailValueStyle}>{row.name}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Sucursal:</span><span style={reportDetailValueStyle}>{row.branch || "—"}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Rol:</span><span style={reportDetailValueStyle}>{getCell(row, "role")}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Ventas:</span><span style={reportDetailValueStyle}>{row.ventasCount}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Devoluciones:</span><span style={reportDetailValueStyle}>{row.devolucionesCount}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Cancelaciones:</span><span style={reportDetailValueStyle}>{row.canceladas}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Comisión:</span><span style={{ ...reportDetailValueStyle, color: "#16a34a", fontWeight: 700 }}>{getCell(row, "comision")}</span></div>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 12 }}>
+                        <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>Total vendido:</span>
+                        <span style={{ fontSize: 18, fontWeight: 800, color: "var(--accent-strong)" }}>{getCell(row, "totalVendido")}</span>
                       </div>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : isMobile && def.key === "ventas-usuario" ? (
-        /* ── Mobile / Tablet: Card-based layout for Ventas del usuario report ── */
+        /* ── Mobile: Inventario-style card layout for Ventas del usuario ── */
         <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)" }}>
-          {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              Cargando información...
-            </div>
-          )}
-          {error && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
-              {error}
-            </div>
-          )}
-          {!loading && !error && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              Sin registros en el periodo seleccionado.
-            </div>
-          )}
+          {loading && <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>Cargando información...</div>}
+          {error && <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>{error}</div>}
+          {!loading && !error && rows.length === 0 && <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>Sin registros en el periodo seleccionado.</div>}
 
-          {!loading &&
-            !error &&
-            rows.map((row, i) => {
-              const isExpanded = expandedSales[i];
-              return (
-                <div
-                  key={i}
-                  style={{
-                    backgroundColor: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 12,
-                    marginBottom: 10,
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
-                    overflow: "hidden",
-                    textAlign: "left",
-                  }}
-                >
-                  {/* Header: Usuario y Rol */}
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "8px 16px 6px 16px",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: "var(--text-muted)",
-                    borderBottom: "1px solid #f1f5f9",
-                    backgroundColor: "var(--surface-2)",
-                    letterSpacing: "0.2px",
-                  }}>
-                    <span style={{ color: "var(--accent-strong)", fontWeight: 800, fontSize: 12 }}>{row.name}</span>
-                    {getCell(row, "role")}
-                  </div>
+          {!loading && !error && rows.map((row, i) => {
+            const isExpanded = expandedSales[i];
+            return (
+              <div key={i} style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border-soft)", borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)", textAlign: "left" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* Nombre & Rol */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <span style={{ fontWeight: 800, color: "var(--accent-strong)", fontSize: 13, wordBreak: "break-word", overflowWrap: "anywhere" }}>{row.name}</span>
+                      <span style={{ flexShrink: 0, marginLeft: 8 }}>{getCell(row, "role")}</span>
+                    </div>
 
-                  {/* Fila principal: Sucursal, Tickets, Importe Vendido, Chevron */}
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.8fr 1.5fr 1.5fr 0.6fr",
-                    padding: "12px 16px",
-                    alignItems: "center",
-                    gap: 8,
-                  }}>
                     {/* Sucursal */}
-                    <div style={{ fontSize: 13, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {row.branch || "—"}
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8, wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
+                      {row.branch || "Sin sucursal"}
                     </div>
 
                     {/* Tickets */}
-                    <div style={{ fontSize: 13, color: "#475569", textAlign: "center", fontWeight: 600 }}>
-                      {row.ventasCount} <span style={{ color: "var(--text-faint)", fontSize: 11 }}>tks</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>
+                      <Activity size={14} color="#2563eb" style={{ flexShrink: 0 }} />
+                      <span><strong>{row.ventasCount}</strong> tickets realizados</span>
                     </div>
 
-                    {/* Importe Vendido */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "right" }}>
-                      {getCell(row, "totalVendido")}
-                    </div>
-
-                    {/* Chevron */}
-                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
-                      <button
-                        onClick={() => toggleExpandSale(i)}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: "var(--surface)",
-                          border: "1px solid var(--border-strong)",
-                          borderRadius: 8,
-                          width: 34,
-                          height: 34,
-                          cursor: "pointer",
-                          color: "var(--text-muted)",
-                          padding: 0,
-                        }}
-                        className="active-tap"
-                      >
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                      </button>
+                    {/* Total vendido */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
+                      <TrendingUp size={14} color="#16a34a" style={{ flexShrink: 0 }} />
+                      <span>Importe: <strong>{getCell(row, "totalVendido")}</strong></span>
                     </div>
                   </div>
 
-                  {/* Detalle expandido */}
-                  {isExpanded && (
-                    <div style={{
-                      padding: "16px",
-                      margin: "0 16px 16px 16px",
-                      backgroundColor: "var(--surface-2)",
-                      borderRadius: "8px",
-                      border: "1px solid var(--border)",
-                    }}>
+                  {/* Chevron */}
+                  <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
+                    <button onClick={() => toggleExpandSale(i)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--surface)", border: "1px solid var(--border-strong)", borderRadius: 8, width: 38, height: 38, cursor: "pointer", color: "var(--accent)", padding: 0 }} className="active-tap">
+                      {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Detalle expandido */}
+                {isExpanded && (
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
+                    <div style={{ backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)", padding: 16 }}>
                       <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Resumen del Usuario</h4>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Promedio por ticket:</span>
-                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "ticketPromedio")}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Descuentos:</span>
-                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "descuentos")}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Cancelaciones:</span>
-                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "canceladas")}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-                        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Devoluciones:</span>
-                        <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{getCell(row, "devolucionesCount")}</span>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Nombre:</span><span style={reportDetailValueStyle}>{row.name}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Sucursal:</span><span style={reportDetailValueStyle}>{row.branch || "—"}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Rol:</span><span style={reportDetailValueStyle}>{getCell(row, "role")}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Tickets:</span><span style={reportDetailValueStyle}>{row.ventasCount}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Prom. ticket:</span><span style={reportDetailValueStyle}>{getCell(row, "ticketPromedio")}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Descuentos:</span><span style={reportDetailValueStyle}>{getCell(row, "descuentos")}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Cancelaciones:</span><span style={reportDetailValueStyle}>{getCell(row, "canceladas")}</span></div>
+                      <div style={reportDetailRowStyle}><span style={reportDetailLabelStyle}>Devoluciones:</span><span style={reportDetailValueStyle}>{getCell(row, "devolucionesCount")}</span></div>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 12 }}>
+                        <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>Importe vendido:</span>
+                        <span style={{ fontSize: 18, fontWeight: 800, color: "var(--accent-strong)" }}>{getCell(row, "totalVendido")}</span>
                       </div>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
         /* ── Standard Dynamic Table ── */
@@ -1259,7 +993,17 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                 rows.map((row, i) => (
                   <tr key={i}>
                     {cols.map((c) => (
-                      <td key={c.key} style={{ ...ui.td, textAlign: c.align ?? "left", whiteSpace: c.key === "name" || c.key === "product" || c.key === "reason" ? "normal" : "nowrap" }}>
+                      <td
+                        key={c.key}
+                        style={{
+                          ...ui.td,
+                          textAlign: c.align ?? "left",
+                          whiteSpace: "normal",
+                          overflowWrap: "anywhere",
+                          wordBreak: "break-word",
+                          maxWidth: c.width ? c.width : c.key === "reason" ? 240 : undefined,
+                        }}
+                      >
                         {renderCell(c, row)}
                       </td>
                     ))}

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, Eye, PackagePlus, Pencil, Plus, Power, Tags, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Eye, PackagePlus, Pencil, Plus, Power, Tags, X, Calendar } from "lucide-react";
 import api from "../../shared/services/api";
 import {
   collectRoundedDecimalMessages,
@@ -21,6 +21,33 @@ import {
   useMediaQuery,
   filterProductsBySearch,
 } from "./shared";
+
+const promoDetailRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-start",
+  alignItems: "flex-start",
+  gap: "8px",
+  fontSize: 13,
+  marginBottom: 6,
+};
+
+const promoDetailLabel: React.CSSProperties = {
+  flexShrink: 0,
+  fontWeight: 700,
+  color: "var(--text-muted)",
+  minWidth: "95px",
+  display: "inline-block",
+};
+
+const promoDetailValue: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
+  whiteSpace: "normal",
+  fontWeight: 600,
+  color: "var(--text-secondary)",
+};
 
 interface PromotionTypeOption {
   id: number;
@@ -771,25 +798,8 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
       )}
 
       {isMobile ? (
-        /* ── Mobile / Tablet: Card-based layout ── */
+        /* ── Mobile / Tablet: Card-based layout (DevolucionesView pattern with Inventario header) ── */
         <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
-          {/* Header row mirroring the fields */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "1.6fr 0.8fr 0.8fr 0.8fr",
-            padding: "12px 16px",
-            fontWeight: 700,
-            fontSize: 11,
-            color: "var(--text-muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.4px",
-          }}>
-            <div>Promoción</div>
-            <div style={{ textAlign: "right" }}>Valor</div>
-            <div style={{ textAlign: "center" }}>Estado</div>
-            <div style={{ textAlign: "right", paddingRight: 8 }}>Acciones</div>
-          </div>
-
           {loading && (
             <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
@@ -825,7 +835,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     overflow: "hidden",
                   }}
                 >
-                  {/* Header: Tipo de Promoción */}
+                  {/* Header: Vigencia y Estado (Diseño similar a Inventario) */}
                   <div style={{
                     display: "flex",
                     justifyContent: "space-between",
@@ -838,60 +848,73 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     backgroundColor: "var(--surface-2)",
                     letterSpacing: "0.2px",
                   }}>
-                    <span>{typeLabel(promotion.promotionType.name).toUpperCase()}</span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <Calendar size={12} color="var(--text-muted)" />
+                      {fmtDate(promotion.startDate)} — {fmtDate(promotion.endDate)}
+                    </span>
+                    <Badge tone={status.tone}>{status.label}</Badge>
                   </div>
 
                   {/* Fila principal */}
                   <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.6fr 0.8fr 0.8fr 0.8fr",
-                    padding: "12px 16px",
+                    display: "flex",
+                    justifyContent: "space-between",
                     alignItems: "center",
+                    padding: "12px 16px",
+                    gap: 12,
                   }}>
-                    {/* Promoción (Nombre) */}
-                    <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {promotion.name}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Nombre */}
+                      <div style={{
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: "var(--text)",
+                        wordBreak: "break-word",
+                        overflowWrap: "anywhere",
+                        whiteSpace: "normal",
+                      }}>
+                        {promotion.name}
+                      </div>
+
+                      {/* Tipo y Valor */}
+                      <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        fontSize: 13,
+                        color: "var(--text-secondary)",
+                        marginTop: 4,
+                        wordBreak: "break-word",
+                        overflowWrap: "anywhere",
+                        whiteSpace: "normal",
+                      }}>
+                        <Tags size={14} color="#2563eb" style={{ flexShrink: 0 }} />
+                        <span>
+                          {typeLabel(promotion.promotionType.name)} · <strong>{formatPromotionValue(promotion)}</strong>
+                        </span>
+                      </div>
+
+                      {/* Productos */}
+                      <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        fontSize: 12,
+                        color: "var(--text-secondary)",
+                        marginTop: 4,
+                        wordBreak: "break-word",
+                        overflowWrap: "anywhere",
+                        whiteSpace: "normal",
+                      }}>
+                        <PackagePlus size={14} color="#2563eb" style={{ flexShrink: 0 }} />
+                        <span>
+                          {promotion.products.length} producto{promotion.products.length === 1 ? "" : "s"} ({productSummary(promotion)})
+                        </span>
+                      </div>
                     </div>
 
-                    {/* Valor */}
-                    <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text)", textAlign: "right" }}>
-                      {formatPromotionValue(promotion)}
-                    </div>
-
-                    {/* Estado */}
-                    <div style={{ textAlign: "center" }}>
-                      <Badge tone={status.tone}>
-                        {status.label}
-                      </Badge>
-                    </div>
-
-                    {/* Botones de Acción */}
-                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
-                      {/* Ver */}
-                      <button
-                        onClick={() => openDetail(promotion)}
-                        disabled={busy}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: "var(--surface-3)",
-                          border: "1px solid var(--border-strong)",
-                          borderRadius: 8,
-                          width: 34,
-                          height: 34,
-                          cursor: "pointer",
-                          color: "var(--text-secondary)",
-                          padding: 0,
-                          opacity: busy ? 0.55 : 1,
-                        }}
-                        className="active-tap"
-                        title="Ver detalle"
-                      >
-                        <Eye size={14} />
-                      </button>
-
-                      {/* Chevron */}
+                    {/* Chevron Button */}
+                    <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
                       <button
                         onClick={() => toggleExpandPromotion(promotion.id)}
                         style={{
@@ -901,87 +924,126 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           backgroundColor: "var(--surface)",
                           border: "1px solid var(--border-strong)",
                           borderRadius: 8,
-                          width: 34,
-                          height: 34,
+                          width: 38,
+                          height: 38,
                           cursor: "pointer",
-                          color: "var(--text-muted)",
+                          color: "var(--accent)",
                           padding: 0,
                         }}
                         className="active-tap"
                       >
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                       </button>
                     </div>
                   </div>
 
-                  {/* Detalle expandido */}
+                  {/* Expanded Content */}
                   {isExpanded && (
                     <div style={{
                       padding: "16px",
                       margin: "0 16px 16px 16px",
                       backgroundColor: "var(--surface-2)",
-                      borderRadius: 8,
+                      borderRadius: "12px",
                       border: "1px solid var(--border)",
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-                      gap: 16,
-                      textAlign: "left",
                     }}>
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>ID de Promoción</div>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)" }}>{promotion.id}</div>
+                      {/* Ver detalle link */}
+                      <div style={{ marginBottom: 16 }}>
+                        <button
+                          onClick={() => openDetail(promotion)}
+                          disabled={busy}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "var(--accent)",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            padding: 0,
+                            fontSize: 13,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            opacity: busy ? 0.55 : 1,
+                          }}
+                          className="active-tap"
+                        >
+                          <Eye size={15} /> Ver detalle
+                        </button>
                       </div>
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Descripción</div>
-                        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{promotion.description || "Sin descripción"}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Vigencia</div>
-                        <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 700 }}>{fmtDate(promotion.startDate)} - {fmtDate(promotion.endDate)}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Cantidad de Productos</div>
-                        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{promotion.products.length} producto{promotion.products.length === 1 ? "" : "s"}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Productos incluidos</div>
-                        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{productSummary(promotion)}</div>
-                      </div>
-                      {promotion.minQuantity !== null && (
-                        <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Cantidad mínima</div>
-                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{promotion.minQuantity}</div>
-                        </div>
-                      )}
-                      {promotion.payQuantity !== null && (
-                        <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Cantidad a pagar</div>
-                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{promotion.payQuantity}</div>
-                        </div>
-                      )}
-                      {promotion.createdAt && (
-                        <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Fecha de creación</div>
-                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmtDate(promotion.createdAt)}</div>
-                        </div>
-                      )}
-                      {promotion.updatedAt && (
-                        <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Última actualización</div>
-                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmtDate(promotion.updatedAt)}</div>
-                        </div>
-                      )}
 
-                      {/* Acciones del desplegable */}
+                      {/* Detail box */}
                       <div style={{
-                        gridColumn: "1 / -1",
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                        gap: 16,
+                        textAlign: "left",
+                      }}>
+                        {/* Información General */}
+                        <div>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Información General</h4>
+                          <div style={promoDetailRow}>
+                            <span style={promoDetailLabel}>Tipo:</span>
+                            <span style={promoDetailValue}>{typeLabel(promotion.promotionType.name)}</span>
+                          </div>
+                          <div style={promoDetailRow}>
+                            <span style={promoDetailLabel}>Valor:</span>
+                            <span style={promoDetailValue}>{formatPromotionValue(promotion)}</span>
+                          </div>
+                          {promotion.description && (
+                            <div style={promoDetailRow}>
+                              <span style={promoDetailLabel}>Descripción:</span>
+                              <span style={promoDetailValue}>{promotion.description}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Vigencia */}
+                        <div>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Vigencia</h4>
+                          <div style={promoDetailRow}>
+                            <span style={promoDetailLabel}>Inicio:</span>
+                            <span style={promoDetailValue}>{fmtDate(promotion.startDate)}</span>
+                          </div>
+                          <div style={promoDetailRow}>
+                            <span style={promoDetailLabel}>Fin:</span>
+                            <span style={promoDetailValue}>{fmtDate(promotion.endDate)}</span>
+                          </div>
+                          {promotion.minQuantity !== null && (
+                            <div style={promoDetailRow}>
+                              <span style={promoDetailLabel}>Cant. mín.:</span>
+                              <span style={promoDetailValue}>{promotion.minQuantity}</span>
+                            </div>
+                          )}
+                          {promotion.payQuantity !== null && (
+                            <div style={promoDetailRow}>
+                              <span style={promoDetailLabel}>Cant. pago:</span>
+                              <span style={promoDetailValue}>{promotion.payQuantity}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Productos */}
+                        <div>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Productos</h4>
+                          <div style={promoDetailRow}>
+                            <span style={promoDetailLabel}>Incluidos:</span>
+                            <span style={promoDetailValue}>{productSummary(promotion)}</span>
+                          </div>
+                          <div style={promoDetailRow}>
+                            <span style={promoDetailLabel}>Cantidad:</span>
+                            <span style={promoDetailValue}>{promotion.products.length} producto{promotion.products.length === 1 ? "" : "s"}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Botones de acción */}
+                      <div style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: 12,
-                        marginTop: 8,
+                        gap: 10,
+                        marginTop: 14,
+                        flexWrap: "wrap",
                         borderTop: "1px solid var(--border)",
                         paddingTop: 14,
-                        flexWrap: "wrap",
                       }}>
                         {/* Editar */}
                         <button
@@ -1004,7 +1066,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           }}
                           className="active-tap"
                         >
-                          <Pencil size={13} /> Editar promoción
+                          <Pencil size={13} /> Editar
                         </button>
 
                         {/* Productos */}

@@ -38,27 +38,6 @@ import {
 } from "../../shared/utils/formValidation";
 import { Printer, AlertTriangle, Mail } from "lucide-react";
 
-interface Product {
-  id: number;
-  sku: string;
-  barcode: string;
-  name: string;
-  description: string;
-  costPrice: number;
-  sellPrice: number;
-  stock: number;
-  minStock: number;
-  activePromotion?: {
-    id: number;
-    name: string;
-    type: string;
-    value: number | null;
-    minQuantity: number | null;
-    payQuantity: number | null;
-    specialPrice: number | null;
-  } | null;
-}
-
 
 interface Sale {
   id: number;
@@ -387,63 +366,7 @@ const Dashboard: React.FC = () => {
   const [ticketEmailHtml, setTicketEmailHtml] = useState<string | null>(null);
 
 
-  // Función auxiliar para calcular las promociones de una línea del carrito
-  const calculateItemPromotion = (item: { product: Product; quantity: number }) => {
-    const promo = item.product.activePromotion;
-    const originalPrice = item.product.sellPrice;
-    const quantity = item.quantity;
-    const subtotalOriginal = originalPrice * quantity;
 
-    if (!promo) {
-      return { finalPrice: originalPrice, discountAmount: 0, label: "" };
-    }
-
-    let discountAmount = 0;
-    let finalPrice = originalPrice;
-
-    const minQty = promo.minQuantity || 1;
-
-    if (promo.type === "Percentage") {
-      if (quantity >= minQty) {
-        const val = promo.value || 0;
-        const discountPerUnit = originalPrice * (val / 100);
-        discountAmount = discountPerUnit * quantity;
-        finalPrice = originalPrice - discountPerUnit;
-      }
-    } else if (promo.type === "FixedAmount") {
-      if (quantity >= minQty) {
-        const val = promo.value || 0;
-        discountAmount = val * quantity;
-        finalPrice = Math.max(0, originalPrice - val);
-      }
-    } else if (promo.type === "BuyXPayY") {
-      const x = promo.minQuantity || 1;
-      const y = promo.payQuantity || 1;
-      if (quantity >= x) {
-        const groups = Math.floor(quantity / x);
-        const remainder = quantity % x;
-        const paidUnits = (groups * y) + remainder;
-        const lineCost = paidUnits * originalPrice;
-        discountAmount = subtotalOriginal - lineCost;
-        finalPrice = lineCost / quantity;
-      }
-    } else if (promo.type === "SpecialPrice") {
-      const special = promo.specialPrice || originalPrice;
-      if (quantity >= minQty) {
-        finalPrice = special;
-        discountAmount = (originalPrice - special) * quantity;
-      }
-    }
-
-    const promoApplied = discountAmount > 0;
-
-    return {
-      finalPrice,
-      discountAmount,
-      label: promoApplied ? promo.name : "",
-      promoApplied,
-    };
-  };
 
 
   // ---------------------------------------------------------------------------
