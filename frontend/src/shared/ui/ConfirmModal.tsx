@@ -112,7 +112,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           </button>
         </div>
         <div style={styles.modalBody}>
-          <p style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.5, margin: 0 }}>{message}</p>
+          <p style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.5, margin: 0, whiteSpace: "pre-line" }}>{message}</p>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24 }}>
             <button type="button" style={styles.ghostBtn} onClick={onClose}>
               {cancelLabel}
