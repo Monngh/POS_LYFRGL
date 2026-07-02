@@ -361,6 +361,7 @@ model StoreCredit {
   customerId Int?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
+  expiresAt  DateTime?
   customer   Customer? @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 

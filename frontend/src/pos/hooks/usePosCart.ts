@@ -138,6 +138,10 @@ export function usePosCart({
   const [qrChecking, setQrChecking] = useState(false);
   const [qrExpiresAt] = useState("");
 
+  const [storeCreditCodeInput, setStoreCreditCodeInput] = useState("");
+  const [appliedStoreCredit, setAppliedStoreCredit] = useState<{ code: string; amount: number; remaining: number } | null>(null);
+  const [storeCreditLoading, setStoreCreditLoading] = useState(false);
+
   // Valores calculados del carrito desde simulación
   const cartSubtotalOriginal: number = simulationData?.subtotal ?? 0;
   const cartDiscount: number = simulationData?.totalDiscount ?? 0;
@@ -147,7 +151,8 @@ export function usePosCart({
   const taxBreakdown: Record<string, number> = simulationData?.taxBreakdown ?? {};
 
   const pointsDiscount = (usePoints && selectedCustomer) ? Math.min(selectedCustomer.points, pointsToRedeem) : 0;
-  const netTotalToPay = Math.max(0, cartTotal - pointsDiscount);
+  const storeCreditDiscount = appliedStoreCredit ? appliedStoreCredit.amount : 0;
+  const netTotalToPay = Math.max(0, cartTotal - pointsDiscount - storeCreditDiscount);
 
   const parsedReceived = roundToTwoDecimals(Number(cashReceived) || 0);
   const parsedMixtoCash = roundToTwoDecimals(Number(mixtoCash) || 0);
@@ -157,6 +162,34 @@ export function usePosCart({
     : paymentMethod === "MIXTO"
     ? (parsedMixtoCard <= netTotalToPay && parsedMixtoCash >= (netTotalToPay - parsedMixtoCard) ? parsedMixtoCash - (netTotalToPay - parsedMixtoCard) : 0)
     : 0;
+
+  const handleValidateStoreCredit = async () => {
+    if (!storeCreditCodeInput.trim()) {
+      onToast("Ingrese un código de monedero.", "error");
+      return;
+    }
+    setStoreCreditLoading(true);
+    try {
+      const res = await api.get(`/api/sales/store-credit/${storeCreditCodeInput.trim()}`);
+      const credit = res.data.storeCredit;
+      const amountToApply = Math.min(credit.remaining, Math.max(0, cartTotal - pointsDiscount));
+      setAppliedStoreCredit({
+        code: credit.code,
+        amount: amountToApply,
+        remaining: credit.remaining
+      });
+      onToast("Monedero electrónico aplicado exitosamente.", "success");
+      setStoreCreditCodeInput("");
+    } catch (err: any) {
+      onToast(err.response?.data?.message || "Error al validar el código.", "error");
+    } finally {
+      setStoreCreditLoading(false);
+    }
+  };
+
+  const handleRemoveStoreCredit = () => {
+    setAppliedStoreCredit(null);
+  };
 
   const clearCartAndDraft = () => {
     setCart([]);
@@ -454,6 +487,8 @@ export function usePosCart({
           customerId: selectedCustomer ? selectedCustomer.id : undefined,
           pointsRedeemed: (usePoints && selectedCustomer) ? pointsToRedeem : undefined,
           invoiceRequested: selectedCustomer ? invoiceRequested : false,
+          storeCreditCode: appliedStoreCredit?.code,
+          storeCreditAmount: appliedStoreCredit?.amount,
         }, { timeout: LONG_OPERATION_TIMEOUT });
 
         const saleInvoice = res.data.invoiceNumber;
@@ -505,6 +540,8 @@ export function usePosCart({
         customerId: selectedCustomer ? selectedCustomer.id : undefined,
         pointsRedeemed: (usePoints && selectedCustomer) ? pointsToRedeem : undefined,
         invoiceRequested: selectedCustomer ? invoiceRequested : false,
+        storeCreditCode: appliedStoreCredit?.code,
+        storeCreditAmount: appliedStoreCredit?.amount,
       }, { timeout: LONG_OPERATION_TIMEOUT });
 
       try {
@@ -533,6 +570,7 @@ export function usePosCart({
           pointsEarned: res.data.pointsEarned || 0,
           pointsRedeemed: res.data.pointsRedeemed || 0,
           pointsDiscount: res.data.pointsDiscount || 0,
+          storeCreditAmount: res.data.storeCreditAmount || 0,
           customerPoints: res.data.customerPoints || 0,
           customerName: res.data.customerName || null,
           customerEmail: selectedCustomer?.email || null,
@@ -550,6 +588,8 @@ export function usePosCart({
       setCashReceived("");
       setMixtoCash("");
       setMixtoCard("");
+      setAppliedStoreCredit(null);
+      setStoreCreditCodeInput("");
       onSetActiveModal("ticket-view");
     } catch (err: any) {
       setCheckoutError(getCheckoutErrorMessage(err, "Error al completar el cobro."));
@@ -659,6 +699,14 @@ export function usePosCart({
     qrReference,
     setQrReference,
     qrChecking,
+    // Store credit
+    storeCreditCodeInput,
+    setStoreCreditCodeInput,
+    appliedStoreCredit,
+    setAppliedStoreCredit,
+    storeCreditLoading,
+    handleValidateStoreCredit,
+    handleRemoveStoreCredit,
     // Valores calculados
     cartSubtotalOriginal,
     cartDiscount,
@@ -667,6 +715,7 @@ export function usePosCart({
     cartTotal,
     taxBreakdown,
     pointsDiscount,
+    storeCreditDiscount,
     netTotalToPay,
     parsedReceived,
     parsedMixtoCash,

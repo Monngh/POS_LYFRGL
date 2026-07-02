@@ -13,6 +13,7 @@ export const calculateSaleCart = async (params: {
   salePaymentMethod: string;
   numericCashReceived: number;
   numericCardAmount: number;
+  storeCreditAmount?: number;
 }): Promise<{
   activeSession: any;
   itemsWithCosts: any[];
@@ -24,7 +25,7 @@ export const calculateSaleCart = async (params: {
   pointsEarned: number;
   finalPaidAmount: number;
 }> => {
-  const { normalizedItems, branchId, userId, customerId, ptsRedeemed, salePaymentMethod, numericCashReceived, numericCardAmount } = params;
+  const { normalizedItems, branchId, userId, customerId, ptsRedeemed, salePaymentMethod, numericCashReceived, numericCardAmount, storeCreditAmount = 0 } = params;
 
   const activeSession = await prisma.cashSession.findFirst({
     where: { userId, branchId, status: "ABIERTA", closedAt: null },
@@ -145,7 +146,7 @@ export const calculateSaleCart = async (params: {
     pointsEarned = Math.floor(Math.max(0, finalTotal - pointsDiscount) / 10);
   }
 
-  const finalPaidAmount = Number((finalTotal - pointsDiscount).toFixed(2));
+  const finalPaidAmount = Number(Math.max(0, finalTotal - pointsDiscount - storeCreditAmount).toFixed(2));
 
   if (salePaymentMethod === "EFECTIVO" && numericCashReceived < finalPaidAmount) {
     throw new AppError(`El efectivo recibido ($${numericCashReceived.toFixed(2)}) es menor al total a pagar ($${finalPaidAmount.toFixed(2)}).`, 400);
@@ -176,8 +177,9 @@ export const processSaleTransaction = async (params: {
   numericCashReceived: number;
   numericChangeGiven: number;
   pointsEarned: number;
-  ptsRedeemed: number;
   pointsDiscount: number;
+  storeCreditCode?: string;
+  storeCreditAmount?: number;
   itemsWithCosts: any[];
   activeSessionId: number;
 }) => {
@@ -185,7 +187,7 @@ export const processSaleTransaction = async (params: {
     invoiceNumber, branchId, userId, customerId, cashSessionId,
     finalPaidAmount, finalTax, discount, salePaymentMethod, cardType,
     numericCashReceived, numericChangeGiven, pointsEarned, ptsRedeemed,
-    pointsDiscount, itemsWithCosts, activeSessionId,
+    pointsDiscount, storeCreditCode, storeCreditAmount, itemsWithCosts, activeSessionId,
   } = params;
 
   return prisma.$transaction(async (tx) => {
@@ -218,6 +220,14 @@ export const processSaleTransaction = async (params: {
         const newPoints = customer.points - ptsRedeemed + pointsEarned;
         await tx.customer.update({ where: { id: customerId }, data: { points: newPoints } });
       }
+    }
+
+    // b2. Consumir Monedero Electrónico (Store Credit)
+    if (storeCreditCode && storeCreditAmount && storeCreditAmount > 0) {
+      await tx.storeCredit.update({
+        where: { code: storeCreditCode },
+        data: { remaining: { decrement: storeCreditAmount } }
+      });
     }
 
     // c. Procesar cada detalle del carrito, ajustar inventario y registrar Kardex

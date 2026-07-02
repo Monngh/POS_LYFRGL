@@ -183,7 +183,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
     return;
   }
 
-  const VALID_RETURN_METHODS = ['EFECTIVO', 'TARJETA', 'QR_MERCADOPAGO', 'CAMBIO_PRODUCTO'];
+  const VALID_RETURN_METHODS = ['EFECTIVO', 'TARJETA', 'QR_MERCADOPAGO', 'CAMBIO_PRODUCTO', 'VALE_DEVOLUCION'];
   if (!VALID_RETURN_METHODS.includes(paymentMethod)) {
     res.status(400).json({ message: "El método de reembolso seleccionado no es válido." });
     return;
@@ -607,12 +607,16 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
         const valSuffix = Math.floor(1000 + Math.random() * 9000);
         storeCreditCode = `VALE-${timestamp}${valSuffix}`;
 
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 90);
+
         await tx.storeCredit.create({
           data: {
             code: storeCreditCode,
             amount: refundTotal,
             remaining: refundTotal,
-            customerId: sale.customerId
+            customerId: sale.customerId,
+            expiresAt
           }
         });
 
@@ -739,12 +743,16 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
             const valSuffix = Math.floor(1000 + Math.random() * 9000);
             storeCreditCode = `VALE-${timestamp}${valSuffix}`;
 
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 90);
+
             await tx.storeCredit.create({
               data: {
                 code: storeCreditCode,
                 amount: absDiff,
                 remaining: absDiff,
-                customerId: sale.customerId
+                customerId: sale.customerId,
+                expiresAt
               }
             });
           }

@@ -709,19 +709,20 @@ export default function ReturnsModal({
                 <select
                   className="input-corporate"
                   value={returnPaymentMethod}
-                  disabled={returnSaleData?.paymentMethod !== "MIXTO"}
                   onChange={(e) => setReturnPaymentMethod(e.target.value)}
                 >
                   {returnSaleData?.paymentMethod === "MIXTO" ? (
                     <>
                       <option value="EFECTIVO">Efectivo</option>
                       <option value="TARJETA">Tarjeta</option>
+                      <option value="VALE_DEVOLUCION">Monedero Electrónico (Store Credit)</option>
                     </>
                   ) : (
                     <>
                       <option value="EFECTIVO">Efectivo</option>
                       <option value="TARJETA">Tarjeta</option>
                       <option value="QR_MERCADOPAGO">Mercado Pago</option>
+                      <option value="VALE_DEVOLUCION">Monedero Electrónico (Store Credit)</option>
                     </>
                   )}
                 </select>

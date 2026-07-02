@@ -225,7 +225,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     return;
   }
 
-  const { items, paymentMethod, cardType, cashReceived, changeGiven, customerId, pointsRedeemed, invoiceRequested, cardAmount } = req.body;
+  const { items, paymentMethod, cardType, cashReceived, changeGiven, customerId, pointsRedeemed, invoiceRequested, cardAmount, storeCreditCode, storeCreditAmount } = req.body;
 
   const normalizedResult = normalizeSaleItems(items);
   if (normalizedResult.error) {
@@ -304,6 +304,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       salePaymentMethod,
       numericCashReceived,
       numericCardAmount,
+      storeCreditAmount: storeCreditAmount ? Number(storeCreditAmount) : 0,
     });
 
     const timestamp = Date.now().toString().slice(-6);
@@ -326,6 +327,8 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       pointsEarned: cartData.pointsEarned,
       ptsRedeemed,
       pointsDiscount: cartData.pointsDiscount,
+      storeCreditCode,
+      storeCreditAmount: storeCreditAmount ? Number(storeCreditAmount) : 0,
       itemsWithCosts: cartData.itemsWithCosts,
       activeSessionId: cartData.activeSession.id,
     });
@@ -675,5 +678,54 @@ export const retryQrPayment = async (req: Request, res: Response): Promise<void>
   } catch (error: any) {
     console.error("Error al regenerar preferencia de Mercado Pago:", error);
     res.status(500).json({ message: "Error al regenerar el cobro QR en Mercado Pago", error: error.message });
+  }
+};
+
+/**
+ * Validar y consultar un código de Monedero Electrónico (Store Credit)
+ */
+export const validateStoreCredit = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { code } = req.params;
+    if (!code) {
+      res.status(400).json({ message: "Código de monedero no proporcionado." });
+      return;
+    }
+
+    const storeCredit = await prisma.storeCredit.findUnique({
+      where: { code }
+    });
+
+    if (!storeCredit) {
+      res.status(404).json({ message: "El código de monedero electrónico no existe." });
+      return;
+    }
+
+    if (!storeCredit.active) {
+      res.status(400).json({ message: "El monedero electrónico está inactivo." });
+      return;
+    }
+
+    if (storeCredit.expiresAt && new Date(storeCredit.expiresAt) < new Date()) {
+      res.status(400).json({ message: "El código de monedero electrónico ha expirado." });
+      return;
+    }
+
+    if (Number(storeCredit.remaining) <= 0) {
+      res.status(400).json({ message: "El monedero electrónico ya no tiene saldo." });
+      return;
+    }
+
+    res.json({
+      success: true,
+      storeCredit: {
+        code: storeCredit.code,
+        remaining: Number(storeCredit.remaining),
+        expiresAt: storeCredit.expiresAt
+      }
+    });
+  } catch (error: any) {
+    console.error("Error al validar monedero:", error);
+    res.status(500).json({ message: "Error al validar el monedero electrónico." });
   }
 };

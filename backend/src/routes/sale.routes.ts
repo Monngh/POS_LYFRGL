@@ -14,9 +14,10 @@ import {
   confirmDeposit,
   cancelDeposit,
   syncDepositStatus,
-  searchCustomers,
   registerCustomer,
-  getSaleDetailForCashier
+  searchCustomers,
+  getSaleDetailForCashier,
+  validateStoreCredit
 } from "../controllers/sale.controller";
 import { sendTicketByEmail } from "../controllers/ticketEmail.controller";
 import { authenticateJWT } from "../middlewares/auth.middleware";
@@ -48,5 +49,8 @@ router.post("/send-ticket-email", sendTicketByEmail);
 // Clientes y Lealtad para Cajero
 router.get("/customers/search", searchCustomers);
 router.post("/customers", registerCustomer);
+
+// Monedero Electrónico
+router.get("/store-credit/:code", validateStoreCredit);
 
 export default router;
