@@ -71,6 +71,12 @@ export default function MixedPaymentModal({
     }
 
     if (currentMethod === "STORE_CREDIT") {
+      const isAlreadyAdded = payments.some(p => p.method === "STORE_CREDIT" && p.reference === codeClean);
+      if (isAlreadyAdded) {
+        setError("Este vale ya fue agregado a la lista de pagos.");
+        return;
+      }
+
       setAddingPayment(true);
       setError(null);
       try {
