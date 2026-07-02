@@ -127,6 +127,14 @@ export default function CloseReceiptModal({
               <span>RETIROS CAJA (-):</span>
               <strong style={{ color: "#dc2626" }}>-${Number(lastClosedStats.cashOut || 0).toFixed(2)}</strong>
             </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>CANCELACIONES EFE (-):</span>
+              <strong style={{ color: "#dc2626" }}>-${Number(lastClosedStats.cancelledCashTotal || 0).toFixed(2)}</strong>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>DEVOLUCIONES EFE (-):</span>
+              <strong style={{ color: "#dc2626" }}>-${Number(lastClosedStats.returnedCashTotal || 0).toFixed(2)}</strong>
+            </div>
 
             <div className="dashed" style={{ borderTop: "1px dashed #cbd5e1", margin: "6px 0" }} />
 
@@ -156,12 +164,12 @@ export default function CloseReceiptModal({
               <strong>${Number(lastClosedStats.creditCardTotal || 0).toFixed(2)}</strong>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>CANCELACIONES:</span>
+              <span>TOTAL CANCELACIONES:</span>
               <strong>${Number(lastClosedStats.totalRefunds || 0).toFixed(2)}</strong>
             </div>
             {lastClosedStats.totalReturnsAmount !== undefined && (
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>DEVOLUCIONES DE PRODUCTO:</span>
+                <span>TOTAL DEVOLUCIONES:</span>
                 <strong style={{ color: "#dc2626" }}>-${Number(lastClosedStats.totalReturnsAmount).toFixed(2)}</strong>
               </div>
             )}

@@ -133,6 +133,21 @@ export const closeCashSession = async (
   const totalReturnsAmount = sessionReturns.reduce((acc, curr) => acc + Number(curr.totalRefunded), 0);
   const returnsCount = sessionReturns.length;
 
+  const returnedCashTotal = sessionReturns
+    .filter((r) => r.paymentMethod === "EFECTIVO")
+    .reduce((acc, curr) => acc + Number(curr.totalRefunded), 0);
+
+  const cancelledSales = sales.filter((s) => s.status === "CANCELADA");
+  const cancelledSalesCount = cancelledSales.length;
+  const cancelledCashTotal = cancelledSales.reduce((acc, sale) => {
+    const cashPortion = sale.paymentMethod === "EFECTIVO"
+      ? Number(sale.totalAmount)
+      : sale.paymentMethod === "MIXTO"
+      ? Number(sale.cashReceived || 0) - Number(sale.changeGiven || 0)
+      : 0;
+    return acc + Math.max(0, cashPortion);
+  }, 0);
+
   const closedSession = await prisma.$transaction(async (tx) =>
     tx.cashSession.update({
       where: { id: activeSession.id },
@@ -159,6 +174,9 @@ export const closeCashSession = async (
       totalRefunds,
       totalReturnsAmount,
       returnsCount,
+      returnedCashTotal,
+      cancelledSalesCount,
+      cancelledCashTotal,
       netTotal: netTotal - totalReturnsAmount,
       initialAmount: decInitial,
       cashIn: decCashIn,
@@ -216,6 +234,21 @@ export const getSessionStats = async (userId: number, branchId: number) => {
   const totalReturnsAmount = sessionReturns.reduce((acc, curr) => acc + Number(curr.totalRefunded), 0);
   const returnsCount = sessionReturns.length;
 
+  const returnedCashTotal = sessionReturns
+    .filter((r) => r.paymentMethod === "EFECTIVO")
+    .reduce((acc, curr) => acc + Number(curr.totalRefunded), 0);
+
+  const cancelledSales = sales.filter((s) => s.status === "CANCELADA");
+  const cancelledSalesCount = cancelledSales.length;
+  const cancelledCashTotal = cancelledSales.reduce((acc, sale) => {
+    const cashPortion = sale.paymentMethod === "EFECTIVO"
+      ? Number(sale.totalAmount)
+      : sale.paymentMethod === "MIXTO"
+      ? Number(sale.cashReceived || 0) - Number(sale.changeGiven || 0)
+      : 0;
+    return acc + Math.max(0, cashPortion);
+  }, 0);
+
   return {
     session: activeSession,
     salesCount,
@@ -223,6 +256,9 @@ export const getSessionStats = async (userId: number, branchId: number) => {
     totalRefunds,
     totalReturnsAmount,
     returnsCount,
+    returnedCashTotal,
+    cancelledSalesCount,
+    cancelledCashTotal,
     netTotal: netTotal - totalReturnsAmount,
     initialAmount: Number(activeSession.initialAmount),
     cashIn: Number(activeSession.cashIn),

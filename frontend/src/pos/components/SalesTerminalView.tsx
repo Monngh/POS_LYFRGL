@@ -1,5 +1,5 @@
 import React from "react";
-import { Menu, MapPin, User, Clock, LogOut, AlertTriangle, Banknote, CreditCard, ArrowLeftRight, QrCode, ExternalLink, Home, Ticket } from "lucide-react";
+import { Menu, MapPin, User, Clock, LogOut, AlertTriangle, Banknote, CreditCard, ArrowLeftRight, QrCode, ExternalLink, Home, Ticket, Lock as LockIcon } from "lucide-react";
 import { TICKET_PRINT_MEDIA_STYLES } from "../../shared/utils/ticketEmailDocument.util";
 import { DECIMAL_INPUT_REGEX, handleDecimalInputChange } from "../../shared/utils/decimalInput";
 import { useCashSession } from "../hooks/useCashSession";
@@ -205,7 +205,6 @@ export function SalesTerminalView({
               )}
             </div>
           </button>
-
           <button
             type="button"
             onClick={onLogout}
@@ -250,7 +249,6 @@ export function SalesTerminalView({
           />
         </div>
       </SalesLayoutView>
-
       <ParkedSalesModal
         isOpen={parkedModalOpen}
         onClose={() => setParkedModalOpen(false)}

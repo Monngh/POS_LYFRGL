@@ -19,15 +19,8 @@ export class BillingService {
       include: {
         saleDetails: {
           include: {
-            product: {
-              include: {
-                productTaxes: {
-                  include: {
-                    taxType: true
-                  }
-                }
-              }
-            }
+            product: true,
+            saleDetailTaxes: true
           }
         },
         branch: true
@@ -97,23 +90,38 @@ export class BillingService {
         "MIXTO": "01"     // Efectivo por defecto
       };
 
+      const saleNetBeforePoints = sale.saleDetails.reduce((acc, d) => {
+        const itemGross = Number(d.unitPrice) * d.quantity;
+        const itemDiscount = Number(d.discountAmount || 0);
+        return acc + (itemGross - itemDiscount);
+      }, 0);
+
       const facturapiItems = sale.saleDetails.map((detail) => {
         const unitPrice = Number(detail.unitPrice);
-        const applicableTaxes = detail.product.productTaxes.filter((pt) => pt.taxType.active);
+        const quantity = detail.quantity;
 
         let ivaRate = 0;
         let iepsRate = 0;
-        for (const pt of applicableTaxes) {
-          const nameUpper = pt.taxType.name.toUpperCase();
-          if (nameUpper.includes("IVA") && !nameUpper.includes("EXENTO")) ivaRate += Number(pt.taxType.rate);
-          if (nameUpper.includes("IEPS") && !nameUpper.includes("EXENTO")) iepsRate += Number(pt.taxType.rate);
+        for (const sdt of detail.saleDetailTaxes) {
+          const nameUpper = sdt.taxName.toUpperCase();
+          if (nameUpper.includes("IVA") && !nameUpper.includes("EXENTO")) ivaRate += Number(sdt.taxRate);
+          if (nameUpper.includes("IEPS") && !nameUpper.includes("EXENTO")) iepsRate += Number(sdt.taxRate);
         }
 
         const basePrice = unitPrice / ((1 + iepsRate) * (1 + ivaRate));
 
-        const mappedTaxes = applicableTaxes.map((pt) => {
-          const rateVal = Number(pt.taxType.rate);
-          const nameUpper = pt.taxType.name.toUpperCase();
+        // Proportional share of the global points discount
+        const lineNetBeforePoints = (unitPrice * quantity) - Number(detail.discountAmount || 0);
+        const pointsDiscountShare = (saleNetBeforePoints > 0 && Number(sale.pointsDiscount) > 0)
+          ? (Number(sale.pointsDiscount) * lineNetBeforePoints) / saleNetBeforePoints
+          : 0;
+
+        const totalLineDiscount = Number(detail.discountAmount || 0) + pointsDiscountShare;
+        const baseDiscountTotal = totalLineDiscount / ((1 + iepsRate) * (1 + ivaRate));
+
+        const mappedTaxes = detail.saleDetailTaxes.map((sdt) => {
+          const rateVal = Number(sdt.taxRate);
+          const nameUpper = sdt.taxName.toUpperCase();
 
           if (nameUpper.includes("EXENTO")) {
             return {
@@ -147,7 +155,7 @@ export class BillingService {
           });
         }
 
-        return {
+        const facturapiItem: any = {
           quantity: detail.quantity,
           product: {
             description: detail.product.name,
@@ -157,6 +165,12 @@ export class BillingService {
             taxes: mappedTaxes
           }
         };
+
+        if (baseDiscountTotal > 0) {
+          facturapiItem.discount = Number(baseDiscountTotal.toFixed(2));
+        }
+
+        return facturapiItem;
       });
 
       const requestBody = {
@@ -504,15 +518,8 @@ export class BillingService {
       include: {
         saleDetails: {
           include: {
-            product: {
-              include: {
-                productTaxes: {
-                  include: {
-                    taxType: true
-                  }
-                }
-              }
-            }
+            product: true,
+            saleDetailTaxes: true
           }
         }
       }
@@ -526,27 +533,38 @@ export class BillingService {
       const facturapiItems: any[] = [];
 
       for (const sale of sales) {
+        const saleNetBeforePoints = sale.saleDetails.reduce((acc, d) => {
+          const itemGross = Number(d.unitPrice) * d.quantity;
+          const itemDiscount = Number(d.discountAmount || 0);
+          return acc + (itemGross - itemDiscount);
+        }, 0);
+
         for (const detail of sale.saleDetails) {
           const unitPrice = Number(detail.unitPrice);
           const quantity = detail.quantity;
-          const discountPerUnit = Number(detail.discountAmount) / quantity;
-          const netUnitPrice = unitPrice - discountPerUnit;
 
-          const applicableTaxes = detail.product.productTaxes.filter((pt) => pt.taxType.active);
+          // Proportional share of the global points discount
+          const lineNetBeforePoints = (unitPrice * quantity) - Number(detail.discountAmount || 0);
+          const pointsDiscountShare = (saleNetBeforePoints > 0 && Number(sale.pointsDiscount) > 0)
+            ? (Number(sale.pointsDiscount) * lineNetBeforePoints) / saleNetBeforePoints
+            : 0;
+
+          const totalLineDiscount = Number(detail.discountAmount || 0) + pointsDiscountShare;
+          const netUnitPrice = Math.max(0, ((unitPrice * quantity) - totalLineDiscount) / quantity);
 
           let ivaRate = 0;
           let iepsRate = 0;
-          for (const pt of applicableTaxes) {
-            const nameUpper = pt.taxType.name.toUpperCase();
-            if (nameUpper.includes("IVA") && !nameUpper.includes("EXENTO")) ivaRate += Number(pt.taxType.rate);
-            if (nameUpper.includes("IEPS") && !nameUpper.includes("EXENTO")) iepsRate += Number(pt.taxType.rate);
+          for (const sdt of detail.saleDetailTaxes) {
+            const nameUpper = sdt.taxName.toUpperCase();
+            if (nameUpper.includes("IVA") && !nameUpper.includes("EXENTO")) ivaRate += Number(sdt.taxRate);
+            if (nameUpper.includes("IEPS") && !nameUpper.includes("EXENTO")) iepsRate += Number(sdt.taxRate);
           }
 
           const basePrice = netUnitPrice / ((1 + iepsRate) * (1 + ivaRate));
 
-          const mappedTaxes = applicableTaxes.map((pt) => {
-            const rateVal = Number(pt.taxType.rate);
-            const nameUpper = pt.taxType.name.toUpperCase();
+          const mappedTaxes = detail.saleDetailTaxes.map((sdt) => {
+            const rateVal = Number(sdt.taxRate);
+            const nameUpper = sdt.taxName.toUpperCase();
 
             if (nameUpper.includes("EXENTO")) {
               return {

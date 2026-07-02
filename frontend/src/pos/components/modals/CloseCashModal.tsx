@@ -135,8 +135,8 @@ export default function CloseCashModal({
           <span style={{ fontWeight: "600" }}>${sessionStats?.initialAmount?.toFixed(2) || "0.00"}</span>
         </div>
         <div style={summaryRow}>
-          <span>Ventas Acumuladas:</span>
-          <span style={{ fontWeight: "600" }}>${sessionStats?.cashIn?.toFixed(2) || "0.00"}</span>
+          <span>Ventas Efectivo (Bruto):</span>
+          <span style={{ fontWeight: "600" }}>${(sessionStats?.cashTotal || 0).toFixed(2)}</span>
         </div>
         <div style={summaryRow}>
           <span>Depósitos/Retiros:</span>
@@ -163,12 +163,20 @@ export default function CloseCashModal({
           <span style={{ fontWeight: "600", color: "#b91c1c" }}>${sessionStats?.cancelledDeposits?.toFixed(2) || "0.00"}</span>
         </div>
         <div style={summaryRow}>
-          <span>Reembolsos (x{sessionStats?.refundedSalesCount || 0}):</span>
-          <span style={{ fontWeight: "600", color: "var(--text-muted)" }}>${sessionStats?.refundedAmount?.toFixed(2) || "0.00"}</span>
+          <span>Cancelaciones en Efectivo (x{sessionStats?.cancelledSalesCount || 0}):</span>
+          <span style={{ fontWeight: "600", color: "#dc2626" }}>-${(sessionStats?.cancelledCashTotal || 0).toFixed(2)}</span>
         </div>
         <div style={summaryRow}>
-          <span>Devoluciones de Producto (-):</span>
-          <span style={{ fontWeight: "600", color: "#dc2626" }}>${sessionStats?.totalReturnsAmount?.toFixed(2) || "0.00"}</span>
+          <span>Devoluciones en Efectivo (x{sessionStats?.returnsCount || 0}):</span>
+          <span style={{ fontWeight: "600", color: "#dc2626" }}>-${(sessionStats?.returnedCashTotal || 0).toFixed(2)}</span>
+        </div>
+        <div style={summaryRow}>
+          <span>Total Cancelaciones (Monto Venta):</span>
+          <span style={{ fontWeight: "600", color: "var(--text-secondary)" }}>${(sessionStats?.totalRefunds || 0).toFixed(2)}</span>
+        </div>
+        <div style={summaryRow}>
+          <span>Total Devoluciones (Monto Producto):</span>
+          <span style={{ fontWeight: "600", color: "var(--text-secondary)" }}>${(sessionStats?.totalReturnsAmount || 0).toFixed(2)}</span>
         </div>
         <div style={{ ...summaryRow, borderBottom: "1px dashed #cbd5e1", paddingBottom: "10px" }}>
           <span>Efectivo Esperado en Caja:</span>
