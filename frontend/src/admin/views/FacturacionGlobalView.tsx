@@ -14,6 +14,8 @@ import {
   useMediaQuery,
 } from "./shared";
 import { type FieldErrors, normalizeIntegerInput, validateInteger } from "../../shared/utils/formValidation";
+import { useToast } from "../../shared/context/ToastContext";
+import { ConfirmModal } from "../../shared/ui";
 
 const PERIODICIDADES = [
   { value: "day", label: "Diario" },
@@ -38,6 +40,8 @@ const MESES = [
 ];
 
 const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+  const { showToast } = useToast();
+  const [confirmStampOpen, setConfirmStampOpen] = useState(false);
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [expandedTickets, setExpandedTickets] = useState<Record<number, boolean>>({});
 
@@ -123,20 +127,21 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
   }, [loadEligibleTickets]);
 
   // Ejecutar timbrado de Factura Global
-  const handleStampGlobal = async () => {
+  const handleStampGlobal = () => {
     const yearError = validateYear(year);
     setFieldErrors({ year: yearError });
     if (yearError) return;
 
     if (tickets.length === 0) {
-      alert("No hay tickets disponibles para facturar en este rango.");
+      showToast("No hay tickets disponibles para facturar en este rango.", "warning");
       return;
     }
 
-    if (!confirm(`¿Está seguro que desea timbrar la Factura Global de ${tickets.length} tickets? Esto enviará los datos al SAT de forma definitiva.`)) {
-      return;
-    }
+    setConfirmStampOpen(true);
+  };
 
+  const confirmStampGlobal = async () => {
+    setConfirmStampOpen(false);
     setStamping(true);
     setStampResult(null);
     setStampError(null);
@@ -561,6 +566,15 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
         </div>
 
       </div>
+
+      <ConfirmModal
+        isOpen={confirmStampOpen}
+        onClose={() => setConfirmStampOpen(false)}
+        onConfirm={confirmStampGlobal}
+        variant="danger"
+        title="Confirmar Factura Global"
+        message={`¿Está seguro que desea timbrar la Factura Global de ${tickets.length} tickets? Esto enviará los datos al SAT de forma definitiva.`}
+      />
     </div>
   );
 };

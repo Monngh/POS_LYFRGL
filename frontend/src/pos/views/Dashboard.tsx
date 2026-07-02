@@ -104,9 +104,9 @@ const Dashboard: React.FC = () => {
 
 
   // Estados para alertas personalizadas y cobro (Fase 3.5)
-  const [toast, setToast] = useState<{ message: string; type: "error" | "success" | "info" } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "error" | "success" | "info" | "warning" } | null>(null);
 
-  const showToast = (message: string, type: "error" | "success" | "info" = "error") => {
+  const showToast = (message: string, type: "error" | "success" | "info" | "warning" = "error") => {
     setToast({ message, type });
   };
 
@@ -310,9 +310,10 @@ const Dashboard: React.FC = () => {
     if (!toast) return null;
     const isError = toast.type === "error";
     const isSuccess = toast.type === "success";
-    const bg = isError ? "#fef2f2" : isSuccess ? "#f0fdf4" : "#f0f9ff";
-    const border = isError ? "#fca5a5" : isSuccess ? "#bbf7d0" : "#bae6fd";
-    const textColor = isError ? "#991b1b" : isSuccess ? "#166534" : "#075985";
+    const isWarning = toast.type === "warning";
+    const bg = isError ? "#fef2f2" : isSuccess ? "#f0fdf4" : isWarning ? "#fffbeb" : "#f0f9ff";
+    const border = isError ? "#fca5a5" : isSuccess ? "#bbf7d0" : isWarning ? "#fde68a" : "#bae6fd";
+    const textColor = isError ? "#991b1b" : isSuccess ? "#166534" : isWarning ? "#92400e" : "#075985";
     
     return (
       <div 
@@ -384,7 +385,7 @@ const Dashboard: React.FC = () => {
     const title = selectedSale?.invoiceNumber ? `Ticket ${selectedSale.invoiceNumber}` : "Ticket";
     const printed = printTicketElementById(title, "print-area");
     if (!printed) {
-      alert("Habilite las ventanas emergentes para imprimir el ticket.");
+      showToast("Habilite las ventanas emergentes para imprimir el ticket.", "warning");
     }
   };
 
@@ -1230,7 +1231,7 @@ const Dashboard: React.FC = () => {
         onClose={handleCloseModal_partialCut}
         onPrint={() => {
           const printed = printTicketElementById(`Corte Parcial #${partialCutData?.cutNumber}`, "partial-cut-thermal-receipt");
-          if (!printed) alert("Habilite las ventanas emergentes para imprimir el comprobante.");
+          if (!printed) showToast("Habilite las ventanas emergentes para imprimir el comprobante.", "warning");
         }}
         emailButton={partialCutData ? renderTicketEmailButton({
           subject: `Corte parcial #${partialCutData.cutNumber}`,
@@ -1276,7 +1277,7 @@ const Dashboard: React.FC = () => {
         onClose={() => setActiveModal(null)}
         onPrint={() => {
           const printed = printTicketElementById(`Comprobante de Retiro #${lastDeposit?.id}`, "deposit-thermal-receipt");
-          if (!printed) alert("Habilite las ventanas emergentes para imprimir el comprobante.");
+          if (!printed) showToast("Habilite las ventanas emergentes para imprimir el comprobante.", "warning");
         }}
         onSync={handleSyncDepositForReceipt}
         emailButton={lastDeposit ? renderTicketEmailButton({
@@ -1451,7 +1452,7 @@ const Dashboard: React.FC = () => {
         onClose={handleCloseModal_closeCash}
         onPrint={() => {
           const printed = printTicketElementById(`Corte Z - Sesion #${lastClosedStats?.session?.id}`, "close-thermal-receipt");
-          if (!printed) alert("Habilite las ventanas emergentes para imprimir el comprobante.");
+          if (!printed) showToast("Habilite las ventanas emergentes para imprimir el comprobante.", "warning");
         }}
         emailButton={lastClosedStats ? renderTicketEmailButton({
           subject: `Corte Z - Sesión #${lastClosedStats.session?.id}`,

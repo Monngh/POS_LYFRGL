@@ -11,6 +11,8 @@ import {
   validateDecimalField,
 } from "../../shared/utils/decimalInput";
 import { validateSafeText } from "../../shared/utils/formValidation";
+import { useToast } from "../../shared/context/ToastContext";
+import { ConfirmModal } from "../../shared/ui";
 import {
   ui,
   type ViewProps,
@@ -121,6 +123,8 @@ const getErrorMessage = (err: unknown, fallback: string) => {
 // ---------------------------------------------------------------------------
 
 const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
+  const { showToast } = useToast();
+  const [statusConfirmTarget, setStatusConfirmTarget] = useState<TaxRow | null>(null);
   const [expandedTaxes, setExpandedTaxes] = useState<Record<number, boolean>>({});
   const isMobile = useMediaQuery("(max-width: 1024px)");
 
@@ -268,7 +272,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
     setFieldErrors({});
     try {
       if (rateValue.roundedMessage) {
-        alert(rateValue.roundedMessage);
+        showToast(rateValue.roundedMessage, "warning");
       }
 
       if (editing === "create") {
@@ -300,11 +304,15 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
     }
   };
 
-  const toggleStatus = async (tax: TaxRow) => {
+  const toggleStatus = (tax: TaxRow) => {
+    setStatusConfirmTarget(tax);
+  };
+
+  const confirmToggleStatus = async () => {
+    const tax = statusConfirmTarget;
+    if (!tax) return;
+    setStatusConfirmTarget(null);
     const next = !tax.active;
-    const label = next ? "activar" : "desactivar";
-    const confirmed = window.confirm(`Desea ${label} el impuesto "${tax.name}"?`);
-    if (!confirmed) return;
 
     setStatusUpdatingId(tax.id);
     setMutationError(null);
@@ -1053,6 +1061,15 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={statusConfirmTarget !== null}
+        onClose={() => setStatusConfirmTarget(null)}
+        onConfirm={confirmToggleStatus}
+        variant="warning"
+        title="Cambiar estado de impuesto"
+        message={`¿Desea ${statusConfirmTarget?.active ? "desactivar" : "activar"} el impuesto "${statusConfirmTarget?.name}"?`}
+      />
     </div>
   );
 };

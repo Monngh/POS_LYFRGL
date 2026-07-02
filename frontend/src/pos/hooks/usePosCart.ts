@@ -52,7 +52,7 @@ const getCheckoutErrorMessage = (err: any, fallback: string): string => {
 interface UsePosCartProps {
   user: any;
   selectedCustomer: any;
-  onToast: (msg: string, type?: "error" | "success" | "info") => void;
+  onToast: (msg: string, type?: "error" | "success" | "info" | "warning") => void;
   onSetSelectedSale: (sale: any) => void;
   onSetSelectedCustomer: (customer: any) => void;
   onSetActiveModal: (modal: string | null) => void;
@@ -515,7 +515,7 @@ export function usePosCart({
         setCheckoutModalOpen(false);
         setQrModalOpen(true);
       } catch(err: any) {
-        alert(getCheckoutErrorMessage(err, "Error al procesar pago QR"));
+        onToast(getCheckoutErrorMessage(err, "Error al procesar pago QR"), "error");
       } finally {
         setCheckoutLoading(false);
       }
@@ -612,7 +612,7 @@ export function usePosCart({
           invoiceNumber: qrReference,
           paymentId: res.data.paymentId || `mock-${Date.now()}`
         }, { timeout: LONG_OPERATION_TIMEOUT });
-        alert("Pago aprobado exitosamente.");
+        onToast("Pago aprobado exitosamente.", "success");
         setQrModalOpen(false);
         setCart([]);
         setPaymentMethod("EFECTIVO");
@@ -629,12 +629,12 @@ export function usePosCart({
 
         onSetActiveModal("ticket-view");
       } else if (res.data.status === "rejected") {
-        alert("Pago rechazado.");
+        onToast("Pago rechazado.", "error");
       } else {
-        alert("El pago aún no ha sido completado. Estado: " + res.data.status);
+        onToast("El pago aún no ha sido completado. Estado: " + res.data.status, "warning");
       }
     } catch(err) {
-      alert("Error al verificar pago.");
+      onToast("Error al verificar pago.", "error");
     } finally {
       setQrChecking(false);
     }

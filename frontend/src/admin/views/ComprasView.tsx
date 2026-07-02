@@ -2,8 +2,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { Calendar, CheckCircle2, ChevronDown, ChevronUp, Package, Plus, Trash2 } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
-import { DataTable } from "../../shared/ui";
+import { DataTable, ConfirmModal } from "../../shared/ui";
 import type { Column } from "../../shared/ui";
+import { useToast } from "../../shared/context/ToastContext";
 import {
   collectRoundedDecimalMessages,
   DECIMAL_INPUT_REGEX,
@@ -93,6 +94,8 @@ const UNIT_OPTIONS = [
 ];
 
 const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
+  const { showToast } = useToast();
+  const [cancelConfirmId, setCancelConfirmId] = useState<number | null>(null);
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [expandedPurchases, setExpandedPurchases] = useState<Record<number, boolean>>({});
 
@@ -289,7 +292,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
     setLineErrors({});
     try {
       if (roundingMessages.length > 0) {
-        alert(roundingMessages.join("\n"));
+        showToast(roundingMessages.join(" | "), "warning");
       }
 
       const res = await api.post<PurchaseRow>("/api/admin/purchases", {
@@ -322,19 +325,25 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
       await api.put(`/api/admin/purchases/${purchaseId}/receive`);
       await refetchPurchases();
     } catch (err: any) {
-      alert(err.response?.data?.message || "Error al recibir la compra.");
+      showToast(err.response?.data?.message || "Error al recibir la compra.", "error");
     } finally {
       setReceiving(null);
     }
   };
 
-  const cancelPurchase = async (purchaseId: number) => {
-    if (!window.confirm("¿Seguro que deseas cancelar esta orden de compra?")) return;
+  const cancelPurchase = (purchaseId: number) => {
+    setCancelConfirmId(purchaseId);
+  };
+
+  const confirmCancelPurchase = async () => {
+    const purchaseId = cancelConfirmId;
+    if (!purchaseId) return;
+    setCancelConfirmId(null);
     try {
       await api.put(`/api/admin/purchases/${purchaseId}/cancel`);
       await refetchPurchases();
     } catch (err: any) {
-      alert(err.response?.data?.message || "Error al cancelar la compra.");
+      showToast(err.response?.data?.message || "Error al cancelar la compra.", "error");
     }
   };
 
@@ -1042,6 +1051,15 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={cancelConfirmId !== null}
+        onClose={() => setCancelConfirmId(null)}
+        onConfirm={confirmCancelPurchase}
+        variant="danger"
+        title="Cancelar orden de compra"
+        message="¿Seguro que deseas cancelar esta orden de compra?"
+      />
     </div>
   );
 };

@@ -290,7 +290,7 @@ export default function BankDepositModal({
         pinCode: depCancelPin,
         reason: depCancelReason.trim(),
       });
-      alert(res.data.message || "Depósito cancelado exitosamente.");
+      onToast(res.data.message || "Depósito cancelado exitosamente.", "success");
       setCancellingDep(null);
       setDepCancelPin("");
       setDepCancelReason("");
@@ -298,7 +298,7 @@ export default function BankDepositModal({
       await handleSearchDeposits();
       onActionComplete?.();
     } catch (err: any) {
-      alert(err.response?.data?.message || "Error al cancelar el depósito.");
+      onToast(err.response?.data?.message || "Error al cancelar el depósito.", "error");
     } finally {
       setDepCancelLoading(false);
     }

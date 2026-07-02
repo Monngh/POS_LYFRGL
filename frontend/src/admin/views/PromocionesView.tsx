@@ -8,6 +8,8 @@ import {
   validateDecimalField,
 } from "../../shared/utils/decimalInput";
 import { normalizeIntegerInput, validateInteger, validateSafeText } from "../../shared/utils/formValidation";
+import { useToast } from "../../shared/context/ToastContext";
+import { ConfirmModal } from "../../shared/ui";
 import {
   ui,
   type ViewProps,
@@ -341,6 +343,8 @@ const ProductSelector: React.FC<{
 };
 
 const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
+  const { showToast } = useToast();
+  const [statusConfirmTarget, setStatusConfirmTarget] = useState<PromotionRow | null>(null);
   const [rows, setRows] = useState<PromotionRow[]>([]);
   const [promotionTypes, setPromotionTypes] = useState<PromotionTypeOption[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
@@ -750,7 +754,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     setFieldErrors({});
     try {
       if (decimalValidation.value.roundingMessages.length > 0) {
-        alert(decimalValidation.value.roundingMessages.join("\n"));
+        showToast(decimalValidation.value.roundingMessages.join(" | "), "warning");
       }
 
       if (editing === "create") {
@@ -772,11 +776,15 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     }
   };
 
-  const toggleStatus = async (promotion: PromotionRow) => {
+  const toggleStatus = (promotion: PromotionRow) => {
+    setStatusConfirmTarget(promotion);
+  };
+
+  const confirmToggleStatus = async () => {
+    const promotion = statusConfirmTarget;
+    if (!promotion) return;
+    setStatusConfirmTarget(null);
     const next = !promotion.isActive;
-    const action = next ? "activar" : "desactivar";
-    const confirmed = window.confirm(`Desea ${action} la promocion "${promotion.name}"?`);
-    if (!confirmed) return;
 
     setLoadingActionId(promotion.id);
     setError(null);
@@ -1467,6 +1475,15 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
           </form>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={statusConfirmTarget !== null}
+        onClose={() => setStatusConfirmTarget(null)}
+        onConfirm={confirmToggleStatus}
+        variant="warning"
+        title="Cambiar estado de promoción"
+        message={`¿Desea ${statusConfirmTarget?.isActive ? "desactivar" : "activar"} la promoción "${statusConfirmTarget?.name}"?`}
+      />
     </div>
   );
 };
