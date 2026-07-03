@@ -1,6 +1,9 @@
 import { Request, Response } from "express";
 import { prisma } from "../app";
 import bcrypt from "bcryptjs";
+import { clientIp } from "../utils/authAudit";
+import { getRequestDeviceId } from "../middlewares/device.middleware";
+import { emitSecurityEvent } from "../utils/securityEvents";
 import { executeRefund } from "./mercadopago.controller";
 import { BillingService } from "../services/billing.service";
 import { PromotionService } from "../services/promotion.service";
@@ -211,6 +214,20 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
     }
 
     if (!approver) {
+      try {
+        await prisma.failedPinAttempt.create({
+          data: {
+            userId: req.user.userId,
+            branchId: req.user.branchId,
+            action: "RETURN",
+            ipAddress: clientIp(req),
+            deviceId: getRequestDeviceId(req),
+          },
+        });
+        emitSecurityEvent("failed-pin");
+      } catch (logErr) {
+        console.error("[FailedPinAttempt] Error al registrar intento fallido:", logErr);
+      }
       res.status(401).json({ message: "PIN de autorización incorrecto o el usuario no es Gerente/Admin." });
       return;
     }

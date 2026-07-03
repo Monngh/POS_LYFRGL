@@ -1,8 +1,9 @@
 import { Request } from "express";
 import { prisma } from "../app";
 import { getRequestDeviceId } from "../middlewares/device.middleware";
+import { emitSecurityEvent } from "./securityEvents";
 
-const clientIp = (req: Request): string =>
+export const clientIp = (req: Request): string =>
   (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
   req.ip ||
   req.socket.remoteAddress ||
@@ -29,6 +30,9 @@ export const recordLoginEvent = (
         ipAddress: clientIp(req),
         deviceId: getRequestDeviceId(req),
       },
+    })
+    .then(() => {
+      emitSecurityEvent("login");
     })
     .catch((err: unknown) => {
       console.error("[authAudit] Error al registrar acceso:", err);

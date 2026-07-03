@@ -8,6 +8,7 @@ import {
   clearFailedAttempts,
 } from "../utils/authSecurity";
 import { AppError } from "../utils/AppError";
+import { emitSecurityEvent } from "../utils/securityEvents";
 
 const lockMessage = (seconds: number): string => {
   const mins = Math.ceil(seconds / 60);
@@ -118,7 +119,11 @@ export const getCashiersByBranch = async (branchId: number) => {
   });
 };
 
-export const verifyManagerPin = async (pinCode: string, branchId?: number) => {
+export const verifyManagerPin = async (
+  pinCode: string,
+  branchId?: number,
+  requesterContext?: { userId: number; ipAddress: string; deviceId: string | null; action: string }
+) => {
   const managers = await prisma.user.findMany({
     where: {
       role: { in: ["ADMIN", "GERENTE"] },
@@ -139,6 +144,22 @@ export const verifyManagerPin = async (pinCode: string, branchId?: number) => {
   }
 
   if (!approver) {
+    if (requesterContext && branchId !== undefined) {
+      try {
+        await prisma.failedPinAttempt.create({
+          data: {
+            userId: requesterContext.userId,
+            branchId,
+            action: requesterContext.action,
+            ipAddress: requesterContext.ipAddress,
+            deviceId: requesterContext.deviceId,
+          },
+        });
+        emitSecurityEvent("failed-pin");
+      } catch (logErr) {
+        console.error("[FailedPinAttempt] Error al registrar intento fallido:", logErr);
+      }
+    }
     throw new AppError(
       "PIN de autorización incorrecto o el usuario no cuenta con privilegios de Administrador/Gerente.",
       401

@@ -54,10 +54,21 @@ import {
   createReturnCfdi,
 } from "../controllers/return.controller";
 import { createGlobalInvoiceController, getBillingHistoryController } from "../controllers/adminBilling.controller";
-import { getCashierAccessLogs, auditUnlock, getAdminAccessLogs } from "../controllers/securityAudit.controller";
-import { authenticateJWT, authorizeRoles } from "../middlewares/auth.middleware";
+import {
+  getCashierAccessLogs,
+  auditUnlock,
+  getAdminAccessLogs,
+  getFailedPinAttempts,
+  streamSecurityEvents,
+} from "../controllers/securityAudit.controller";
+import { authenticateJWT, authenticateSSE, authorizeRoles } from "../middlewares/auth.middleware";
 
 const router = Router();
+
+// Stream SSE de eventos de seguridad: se registra ANTES del router.use(authenticateJWT)
+// de abajo porque EventSource no puede mandar el header Authorization — el JWT viaja
+// como query param (?token=) y se valida con authenticateSSE, no con authenticateJWT.
+router.get("/security/events", authenticateSSE, authorizeRoles(["ADMIN"]), streamSecurityEvents);
 
 // Todos los módulos administrativos requieren JWT
 router.use(authenticateJWT);
@@ -133,6 +144,7 @@ router.get("/reports/audit-logs", authorizeRoles(["ADMIN"]), getReportAuditLogs)
 router.get("/security/cashier-access", authorizeRoles(["ADMIN"]), getCashierAccessLogs);
 router.post("/security/audit-unlock", authorizeRoles(["ADMIN"]), auditUnlock);
 router.post("/security/admin-access", authorizeRoles(["ADMIN"]), getAdminAccessLogs);
+router.get("/security/failed-pin-attempts", authorizeRoles(["ADMIN"]), getFailedPinAttempts);
 
 // Devoluciones (admin)
 router.get("/returns", authorizeRoles(["ADMIN", "GERENTE"]), getAdminReturns);

@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import { validateLuhn } from "../utils/luhn";
+import { clientIp } from "../utils/authAudit";
+import { getRequestDeviceId } from "../middlewares/device.middleware";
 import {
   createBankDeposit as createBankDepositService,
   getRecentDeposits as getRecentDepositsService,
@@ -126,7 +128,11 @@ export const cancelDeposit = async (req: Request, res: Response): Promise<void> 
     return;
   }
   try {
-    const updatedDeposit = await cancelDepositService(depositId, String(pinCode), String(reason));
+    const updatedDeposit = await cancelDepositService(depositId, String(pinCode), String(reason), {
+      userId: req.user.userId,
+      ipAddress: clientIp(req),
+      deviceId: getRequestDeviceId(req),
+    });
     res.status(200).json({
       message: "Depósito cancelado exitosamente. Los saldos de caja han sido actualizados.",
       deposit: updatedDeposit,

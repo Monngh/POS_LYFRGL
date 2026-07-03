@@ -8,7 +8,7 @@ import {
 } from "../utils/authSecurity";
 import { AppError } from "../utils/AppError";
 import { buildLoginSecondFactor } from "./webauthn.controller";
-import { recordLoginEvent } from "../utils/authAudit";
+import { recordLoginEvent, clientIp as auditClientIp } from "../utils/authAudit";
 import { getActiveSession, openSession, closeSession } from "../utils/sessionRegistry";
 import { getRequestDeviceId } from "../middlewares/device.middleware";
 import {
@@ -247,8 +247,14 @@ export const verifyManagerPin = async (req: Request, res: Response): Promise<voi
     res.status(400).json({ message: "El código PIN es requerido." });
     return;
   }
+  const action = typeof req.body.action === "string" && req.body.action.trim() ? req.body.action.trim() : "CART_ACTION";
   try {
-    const result = await verifyManagerPinService(pinCode, req.user!.branchId);
+    const result = await verifyManagerPinService(pinCode, req.user!.branchId, {
+      userId: req.user!.userId,
+      ipAddress: auditClientIp(req),
+      deviceId: getRequestDeviceId(req),
+      action,
+    });
     res.status(200).json(result);
   } catch (error) {
     handleAppError(error, res, "Error al validar el PIN.");

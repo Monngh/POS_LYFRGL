@@ -1,6 +1,7 @@
 import { prisma } from "../app";
 import { AppError } from "../utils/AppError";
 import bcrypt from "bcryptjs";
+import { emitSecurityEvent } from "../utils/securityEvents";
 import { createMercadoPagoCashPayment, syncMercadoPagoDepositStatus } from "./mercadopago.service";
 
 const mapDeposit = (d: any) => ({
@@ -202,7 +203,12 @@ export const confirmDeposit = async (depositId: number) => {
   });
 };
 
-export const cancelDeposit = async (depositId: number, pinCode: string, reason: string) => {
+export const cancelDeposit = async (
+  depositId: number,
+  pinCode: string,
+  reason: string,
+  requesterContext: { userId: number; ipAddress: string; deviceId: string | null }
+) => {
   const deposit = await prisma.bankDeposit.findUnique({ where: { id: depositId } });
   if (!deposit) throw new AppError("Depósito no encontrado.", 404);
   if (deposit.status === "CANCELLED") throw new AppError("Este depósito ya fue cancelado anteriormente.", 400);
@@ -219,6 +225,20 @@ export const cancelDeposit = async (depositId: number, pinCode: string, reason: 
     }
   }
   if (!approver) {
+    try {
+      await prisma.failedPinAttempt.create({
+        data: {
+          userId: requesterContext.userId,
+          branchId: deposit.branchId,
+          action: "CANCEL_DEPOSIT",
+          ipAddress: requesterContext.ipAddress,
+          deviceId: requesterContext.deviceId,
+        },
+      });
+      emitSecurityEvent("failed-pin");
+    } catch (logErr) {
+      console.error("[FailedPinAttempt] Error al registrar intento fallido:", logErr);
+    }
     throw new AppError("PIN de autorización incorrecto o el usuario no cuenta con privilegios de Administrador/Gerente.", 401);
   }
 

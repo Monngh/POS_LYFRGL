@@ -331,7 +331,8 @@ export function usePosCart({
     setCartPinLoading(true);
     setCartPinError("");
     try {
-      const res = await api.post("/api/auth/verify-pin", { pinCode: cartPin });
+      const action = pendingCartAction?.type === "cancel" ? "CLEAR_CART" : "REMOVE_ITEM";
+      const res = await api.post("/api/auth/verify-pin", { pinCode: cartPin, action });
       if (res.data.valid) {
         applyAuthorizedCartAction();
       } else {
