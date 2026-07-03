@@ -20,6 +20,7 @@ import adminPromotionRouter from "./routes/adminPromotion.routes";
 import adminCategoryRouter from "./routes/adminCategory.routes";
 import customerRouter from "./routes/customer.routes";
 import parkedSaleRouter from "./routes/parkedSale.routes";
+import adminPriceAdjustmentRoutes from "./routes/adminPriceAdjustment.routes";
 
 // Inicializar cliente de Prisma como Singleton
 export const prisma = new PrismaClient();
@@ -68,6 +69,7 @@ app.use("/api/admin-promotions", adminPromotionRouter);
 app.use("/api/admin-categories", adminCategoryRouter);
 app.use("/api/customers", customerRouter);
 app.use("/api/parked-sales", parkedSaleRouter);
+app.use("/api/admin-price-adjustments", adminPriceAdjustmentRoutes);
 
 // Ruta de healthcheck
 app.get("/health", async (_req: Request, res: Response) => {
