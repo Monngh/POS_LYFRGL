@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Store,
   BadgePercent,
+  DollarSign,
   Tags,
   RotateCcw,
   ShieldCheck,
@@ -45,6 +46,7 @@ import DepositosView from "./DepositosView";
 import ProveedoresView from "./ProveedoresView";
 import ImpuestosView from "./ImpuestosView";
 import PromocionesView from "./PromocionesView";
+import PriceAdjustmentsView from "./PriceAdjustmentsView";
 import DevolucionesView from "./DevolucionesView";
 import FacturacionGlobalView from "./FacturacionGlobalView";
 import ReportAuditLogView from "./ReportAuditLogView";
@@ -88,6 +90,7 @@ const NAV_ITEMS: { key: string; label: string; icon: LucideIcon; view: React.FC<
   { key: "proveedores", label: "Proveedores", icon: Building2, view: ProveedoresView, branchScoped: false },
   { key: "impuestos", label: "Impuestos", icon: BadgePercent, view: ImpuestosView, branchScoped: false },
   { key: "promociones", label: "Promociones", icon: Tags, view: PromocionesView, branchScoped: false },
+  { key: "ajustes-precios", label: "Ajustes de precios", icon: DollarSign, view: PriceAdjustmentsView, branchScoped: false, adminOnly: true },
   { key: "reportes", label: "Reportes", icon: BarChart3, view: ReportesView, branchScoped: true },
   { key: "facturacion-global", label: "Factura Global", icon: BadgePercent, view: FacturacionGlobalView, branchScoped: true },
   { key: "auditoria-reportes", label: "Auditoría Reportes", icon: ShieldCheck, view: ReportAuditLogView, branchScoped: false, adminOnly: true },
@@ -101,6 +104,7 @@ const RESTRICTED_KEYS_GERENTE = [
   "proveedores",
   "impuestos",
   "promociones",
+  "ajustes-precios",
   "facturacion-global",
   "auditoria-reportes",
   "caja-access",
@@ -121,7 +125,7 @@ const NAV_SECTIONS: { label: string; items: string[] }[] = [
   { label: "Caja y finanzas", items: ["cajas", "depositos", "facturacion-global"] },
   { label: "Inventario", items: ["inventario"] },
   { label: "Reportes", items: ["reportes"] },
-  { label: "Catálogos", items: ["clientes", "promociones", "proveedores", "empleados", "sucursales", "impuestos"] },
+  { label: "Catálogos", items: ["clientes", "promociones", "ajustes-precios", "proveedores", "empleados", "sucursales", "impuestos"] },
   { label: "Seguridad", items: ["auditoria-reportes", "caja-access", "admin-access"] },
 ];
 
