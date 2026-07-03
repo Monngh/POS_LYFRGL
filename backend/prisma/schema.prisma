@@ -618,8 +618,8 @@ model PriceAdjustment {
   appliedById Int
   categoryId  Int?
 
-  appliedBy User      @relation(fields: [appliedById], references: [id])
-  category  Category? @relation(fields: [categoryId], references: [id])
+  appliedBy User      @relation(fields: [appliedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  category  Category? @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   details PriceAdjustmentDetail[]
 
