@@ -79,6 +79,29 @@ export const ReportPage: React.FC<{
 };
 
 // ---------------------------------------------------------------------------
+// Campo de filtro estándar (label + control) para el panel de configuración.
+// ---------------------------------------------------------------------------
+export const ReportField: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div className="erp-field">
+    <label>{label}</label>
+    {children}
+  </div>
+);
+
+// Select estándar con una opción "todos/todas" por defecto.
+export const ReportSelect: React.FC<{
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  allLabel: string;
+}> = ({ value, onChange, options, allLabel }) => (
+  <select value={value} onChange={(e) => onChange(e.target.value)}>
+    <option value="">{allLabel}</option>
+    {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+  </select>
+);
+
+// ---------------------------------------------------------------------------
 // Título de sección con icono.
 // ---------------------------------------------------------------------------
 export const SectionTitle: React.FC<{ icon: LucideIcon; title: string; sub?: string }> = ({ icon: Icon, title, sub }) => (
