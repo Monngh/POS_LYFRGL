@@ -1,7 +1,10 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { ShieldAlert, Lock, ChevronDown, ChevronUp } from "lucide-react";
-import api from "../../shared/services/api";
+import { ShieldAlert, Lock, ChevronDown, ChevronUp, ShieldOff } from "lucide-react";
+import api, { API_BASE_URL } from "../../shared/services/api";
 import { validateDateRange, validateSearchText } from "../../shared/utils/formValidation";
+import { useAuth } from "../../auth";
+import { useToast } from "../../shared/context/ToastContext";
+import { ConfirmModal } from "../../shared/ui";
 import {
   ui,
   type ViewProps,
@@ -9,6 +12,8 @@ import {
   TableState,
   SectionHeader,
   useMediaQuery,
+  usePagination,
+  Pagination,
   fmtDate,
   fmtTime,
 } from "./shared";
@@ -26,8 +31,39 @@ interface AccessLogRow {
   branch: { id: number; name: string } | null;
 }
 
+interface ActiveSessionRow {
+  userId: number;
+  name: string;
+  email: string;
+  role: string;
+  branch: { id: number; name: string } | null;
+  ipAddress: string | null;
+  deviceId: string | null;
+  since: string;
+}
+
 const fmtDateTime = (iso: string) =>
   new Intl.DateTimeFormat("es-MX", { dateStyle: "short", timeStyle: "short" }).format(new Date(iso));
+
+const formatDevice = (deviceId: string | null): string => {
+  if (!deviceId) return "Desconocido";
+  if (deviceId.startsWith("dev-")) return "Navegador Web";
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}/i.test(deviceId)) return "App Móvil";
+  if (/^[0-9a-f]{8,}/i.test(deviceId)) return "Terminal POS";
+  return deviceId.slice(0, 8).toUpperCase();
+};
+
+const formatDeviceShort = (deviceId: string | null): string => {
+  if (!deviceId) return "";
+  return deviceId.slice(0, 8).toUpperCase() + "...";
+};
+
+const formatIP = (ip: string | null): string => {
+  if (!ip) return "—";
+  if (ip === "::1" || ip === "::ffff:127.0.0.1") return "Local";
+  if (ip.startsWith("::ffff:")) return ip.replace("::ffff:", "");
+  return ip;
+};
 
 const RoleBadge: React.FC<{ role: string }> = ({ role }) => {
   const c = role === "ADMIN" ? { bg: "#fee2e2", color: "#b91c1c" } : { bg: "#ede9fe", color: "#5b21b6" };
@@ -49,7 +85,10 @@ const RoleBadge: React.FC<{ role: string }> = ({ role }) => {
 };
 
 const AdminAccessLogView: React.FC<ViewProps> = () => {
+  const { user, logout } = useAuth();
+  const { showToast } = useToast();
   const isMobile = useMediaQuery("(max-width: 1024px)");
+  const [activeTab, setActiveTab] = useState<"logins" | "active-sessions">("logins");
   const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
   const [unlocked, setUnlocked] = useState(false);
   const [auditToken, setAuditToken] = useState<string | null>(null);
@@ -141,6 +180,88 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
     )
     : filteredByDate;
 
+  // ── Tab "Sesiones Activas" ──
+  const [sessionRows, setSessionRows] = useState<ActiveSessionRow[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<ActiveSessionRow | null>(null);
+  const [revoking, setRevoking] = useState(false);
+
+  const loadActiveSessions = useCallback(async () => {
+    setSessionsLoading(true);
+    setSessionsError(null);
+    try {
+      const res = await api.get<{ sessions: ActiveSessionRow[] }>("/api/admin/security/active-sessions");
+      setSessionRows(res.data.sessions);
+    } catch (err: any) {
+      setSessionsError(err.response?.data?.message || "No se pudieron cargar las sesiones activas.");
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (unlocked && activeTab === "active-sessions") {
+      loadActiveSessions();
+    }
+  }, [unlocked, activeTab, loadActiveSessions]);
+
+  const sessionsPagination = usePagination(sessionRows, { pageSize: 20, resetKey: activeTab });
+
+  const confirmRevokeSession = async () => {
+    if (!revokeTarget || revoking) return;
+    setRevoking(true);
+    try {
+      await api.post(`/api/admin/security/revoke-session/${revokeTarget.userId}`);
+      showToast(`Sesión de ${revokeTarget.name} cerrada correctamente.`, "success");
+      setRevokeTarget(null);
+      await loadActiveSessions();
+    } catch (err: any) {
+      showToast(err.response?.data?.message || "No se pudo cerrar la sesión.", "error");
+    } finally {
+      setRevoking(false);
+    }
+  };
+
+  // Actualización en tiempo real vía SSE, solo activa una vez pasado el gate de
+  // contraseña: si a este mismo usuario le revocan la sesión desde otro lugar, lo
+  // desconectamos de inmediato; si es la sesión de otro admin, refrescamos la lista.
+  useEffect(() => {
+    if (!unlocked) return;
+    const token = sessionStorage.getItem("fmb_pos_token");
+    if (!token) return;
+
+    const eventSource = new EventSource(
+      `${API_BASE_URL}/api/admin/security/events?token=${encodeURIComponent(token)}`
+    );
+
+    eventSource.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data) as { type?: string; userId?: number };
+        if (payload.type === "login") {
+          loadActiveSessions();
+        } else if (payload.type === "session-revoked") {
+          if (payload.userId != null && user && Number(payload.userId) === user.id) {
+            sessionStorage.setItem("fmb_pos_logout_reason", "Tu sesión fue cerrada por un administrador.");
+            logout();
+          } else {
+            loadActiveSessions();
+          }
+        }
+      } catch (err) {
+        console.error("[AdminAccessLogView] Evento SSE inválido:", err);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.warn("[AdminAccessLogView] Conexión SSE interrumpida, reintentando...", err);
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [unlocked, loadActiveSessions, user, logout]);
+
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
     if (unlockLoading) return;
@@ -229,9 +350,41 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
     <div>
       <SectionHeader
         title="Accesos Administrativos"
-        subtitle="Historial de inicios de sesión de administradores y gerentes"
+        subtitle={
+          activeTab === "logins"
+            ? "Historial de inicios de sesión de administradores y gerentes"
+            : "Sesiones de administrador/gerente activas en este momento"
+        }
       />
 
+      <div style={{ display: "flex", gap: 0, marginBottom: 18, borderBottom: "1px solid var(--border)" }}>
+        {(["logins", "active-sessions"] as const).map((tab) => {
+          const isActive = activeTab === tab;
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                background: "none",
+                border: "none",
+                borderBottom: isActive ? "2px solid var(--accent)" : "2px solid transparent",
+                marginBottom: -1,
+                padding: "8px 20px",
+                fontSize: 14,
+                fontWeight: isActive ? 700 : 500,
+                color: isActive ? "var(--accent-strong)" : "var(--text-muted)",
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {tab === "logins" ? "Accesos" : "Sesiones Activas"}
+            </button>
+          );
+        })}
+      </div>
+
+      {activeTab === "logins" && (
+      <>
       {isMobile ? (
         <div style={{
           display: "flex",
@@ -579,6 +732,216 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
             </tbody>
           </table>
         </div>
+      )}
+      </>
+      )}
+
+      {activeTab === "active-sessions" && (
+      <>
+      {isMobile ? (
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 4px" }}>
+          {sessionsLoading && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+              Cargando información...
+            </div>
+          )}
+          {sessionsError && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
+              {sessionsError}
+            </div>
+          )}
+          {!sessionsLoading && !sessionsError && sessionsPagination.pageItems.length === 0 && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+              No hay sesiones de administrador/gerente activas.
+            </div>
+          )}
+
+          {!sessionsLoading &&
+            !sessionsError &&
+            sessionsPagination.pageItems.map((s) => {
+              const isSelf = user?.id === s.userId;
+              return (
+                <div
+                  key={s.userId}
+                  style={{
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 12,
+                    marginBottom: 10,
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "8px 12px 6px 12px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "var(--text-muted)",
+                    borderBottom: "1px solid var(--surface-3)",
+                    backgroundColor: "var(--surface-2)",
+                    letterSpacing: "0.2px",
+                    textTransform: "uppercase"
+                  }}>
+                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "60%" }}>
+                      {s.name}{isSelf ? " (tú)" : ""}
+                    </span>
+                    <RoleBadge role={s.role} />
+                  </div>
+                  <div style={{ padding: "12px", display: "grid", gap: "6px" }}>
+                    <div style={detailRowStyle}>
+                      <span style={detailLabelStyle}>Correo:</span>
+                      <span style={detailValueStyle}>{s.email}</span>
+                    </div>
+                    <div style={detailRowStyle}>
+                      <span style={detailLabelStyle}>Sucursal:</span>
+                      <span style={detailValueStyle}>{s.branch?.name ?? "—"}</span>
+                    </div>
+                    <div style={detailRowStyle}>
+                      <span style={detailLabelStyle}>Desde:</span>
+                      <span style={detailValueStyle}>{fmtDateTime(s.since)}</span>
+                    </div>
+                    <div style={detailRowStyle}>
+                      <span style={detailLabelStyle}>Dispositivo:</span>
+                      <span style={detailValueStyle}>
+                        <div style={{ fontWeight: 600, fontSize: 12 }}>{formatDevice(s.deviceId)}</div>
+                        <div style={{ fontFamily: "monospace", fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>
+                          {formatDeviceShort(s.deviceId)}
+                        </div>
+                      </span>
+                    </div>
+                    <div style={detailRowStyle}>
+                      <span style={detailLabelStyle}>IP:</span>
+                      <span style={{ ...detailValueStyle, fontFamily: "monospace", fontSize: 11 }}>{formatIP(s.ipAddress)}</span>
+                    </div>
+                    {!isSelf && (
+                      <button
+                        onClick={() => setRevokeTarget(s)}
+                        style={{
+                          marginTop: 6,
+                          padding: "8px 14px",
+                          borderRadius: 8,
+                          border: "1px solid #fca5a5",
+                          backgroundColor: "#fef2f2",
+                          color: "#b91c1c",
+                          fontWeight: 700,
+                          fontSize: 13,
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 6,
+                        }}
+                        className="active-tap"
+                      >
+                        <ShieldOff size={14} /> Cerrar sesión
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          <Pagination {...sessionsPagination} onPage={sessionsPagination.setPage} itemLabel="sesiones" />
+        </div>
+      ) : (
+        <div
+          className="table-sticky-head"
+          style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}
+        >
+          <table style={ui.table}>
+            <thead>
+              <tr style={ui.theadRow}>
+                <th style={ui.th}>Usuario</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Rol</th>
+                <th style={ui.th}>Sucursal</th>
+                <th style={ui.th}>Activo desde</th>
+                <th style={ui.th}>Dispositivo</th>
+                <th style={{ ...ui.th, fontFamily: "monospace" }}>IP</th>
+                <th style={{ ...ui.th, textAlign: "right" }}>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              <TableState
+                colSpan={7}
+                loading={sessionsLoading}
+                error={sessionsError}
+                empty={!sessionsLoading && sessionsPagination.pageItems.length === 0}
+                emptyText="No hay sesiones de administrador/gerente activas."
+              />
+              {!sessionsLoading &&
+                !sessionsError &&
+                sessionsPagination.pageItems.map((s) => {
+                  const isSelf = user?.id === s.userId;
+                  return (
+                    <tr key={s.userId}>
+                      <td style={ui.td}>
+                        <div style={{ fontWeight: 700, color: "var(--text)" }}>{s.name}{isSelf ? " (tú)" : ""}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{s.email}</div>
+                      </td>
+                      <td style={{ ...ui.td, textAlign: "center" }}>
+                        <RoleBadge role={s.role} />
+                      </td>
+                      <td style={{ ...ui.td, color: "var(--text-muted)" }}>
+                        {s.branch?.name ?? <span style={{ color: "var(--border-strong)" }}>—</span>}
+                      </td>
+                      <td style={{ ...ui.td, whiteSpace: "nowrap", color: "var(--text-secondary)" }}>{fmtDateTime(s.since)}</td>
+                      <td style={ui.td}>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)" }}>
+                          {formatDevice(s.deviceId)}
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, fontFamily: "monospace" }}>
+                          {formatDeviceShort(s.deviceId)}
+                        </div>
+                      </td>
+                      <td style={{ ...ui.td, fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                        {formatIP(s.ipAddress)}
+                      </td>
+                      <td style={{ ...ui.td, textAlign: "right" }}>
+                        {!isSelf && (
+                          <button
+                            onClick={() => setRevokeTarget(s)}
+                            style={{
+                              padding: "6px 12px",
+                              borderRadius: 8,
+                              border: "1px solid #fca5a5",
+                              backgroundColor: "#fef2f2",
+                              color: "#b91c1c",
+                              fontWeight: 700,
+                              fontSize: 12,
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 5,
+                            }}
+                            className="active-tap"
+                          >
+                            <ShieldOff size={13} /> Cerrar sesión
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+          <div style={{ padding: "0 4px" }}>
+            <Pagination {...sessionsPagination} onPage={sessionsPagination.setPage} itemLabel="sesiones" />
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        isOpen={revokeTarget !== null}
+        onClose={() => !revoking && setRevokeTarget(null)}
+        onConfirm={confirmRevokeSession}
+        variant="danger"
+        title="Cerrar sesión activa"
+        message={`¿Seguro que deseas cerrar la sesión de "${revokeTarget?.name}"? Se cerrará de inmediato y deberá volver a iniciar sesión.`}
+        confirmLabel={revoking ? "Cerrando..." : "Cerrar sesión"}
+      />
+      </>
       )}
     </div>
   );

@@ -1,7 +1,8 @@
 import { Request, Response } from "express";
 import { prisma } from "../app";
 import { comparePassword, generateAuditToken, verifyToken } from "../utils/auth";
-import { onSecurityEvent, offSecurityEvent, type SecurityEventPayload } from "../utils/securityEvents";
+import { emitSecurityEvent, onSecurityEvent, offSecurityEvent, type SecurityEventPayload } from "../utils/securityEvents";
+import { getAllActiveSessions, revokeSessionForcefully } from "../utils/sessionRegistry";
 
 /** Construye el filtro de rango de fechas para createdAt. */
 const buildDateWhere = (from: unknown, to: unknown) => {
@@ -184,4 +185,82 @@ export const streamSecurityEvents = (req: Request, res: Response): void => {
     offSecurityEvent(sendEvent);
     res.end();
   });
+};
+
+/**
+ * Lista las sesiones activas (ADMIN/GERENTE) registradas en memoria (sessionRegistry),
+ * enriquecidas con nombre/email/rol/sucursal del usuario. Solo ADMIN.
+ */
+export const getActiveSessions = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    // Excluye entradas expiradas y las "envenenadas" por revokeSessionForcefully (quedan
+    // en el registro a propósito para que isCurrentSession rechace el token viejo, pero
+    // no representan una sesión real que deba listarse aquí).
+    const entries = getAllActiveSessions().filter(
+      ([, entry]) => entry.exp > Date.now() && !entry.jti.startsWith("revoked-")
+    );
+    const userIds = entries.map(([userId]) => userId);
+
+    const users = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, name: true, email: true, role: true, branch: { select: { id: true, name: true } } },
+    });
+    const usersById = new Map(users.map((u) => [u.id, u]));
+
+    const sessions = entries
+      .map(([userId, entry]) => {
+        const user = usersById.get(userId);
+        if (!user) return null;
+        return {
+          userId,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          branch: user.branch,
+          ipAddress: entry.ip ?? null,
+          deviceId: entry.device ?? null,
+          since: new Date(entry.since).toISOString(),
+        };
+      })
+      .filter((s): s is NonNullable<typeof s> => s !== null)
+      .sort((a, b) => b.since.localeCompare(a.since));
+
+    res.json({ sessions });
+  } catch (err) {
+    console.error("[getActiveSessions]", err);
+    res.status(500).json({ message: "Error al obtener las sesiones activas." });
+  }
+};
+
+/**
+ * Revoca (cierra) la sesión activa de un ADMIN/GERENTE. El siguiente request de ese
+ * usuario será rechazado con SESION_DESPLAZADA por authenticateJWT; adicionalmente se
+ * emite un evento SSE "session-revoked" para desconectarlo en tiempo real si tiene la
+ * app abierta. Solo ADMIN. No permite auto-revocación (usar "Cerrar sesión" para eso).
+ */
+export const revokeSession = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  const targetUserId = Number(req.params.userId);
+  if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
+    res.status(400).json({ message: "ID de usuario inválido." });
+    return;
+  }
+
+  if (targetUserId === req.user.userId) {
+    res.status(400).json({ message: "No puedes revocar tu propia sesión desde aquí. Usa \"Cerrar sesión\"." });
+    return;
+  }
+
+  try {
+    revokeSessionForcefully(targetUserId);
+    emitSecurityEvent("session-revoked", { userId: targetUserId });
+    res.json({ message: "Sesión revocada correctamente." });
+  } catch (err) {
+    console.error("[revokeSession]", err);
+    res.status(500).json({ message: "Error al revocar la sesión." });
+  }
 };

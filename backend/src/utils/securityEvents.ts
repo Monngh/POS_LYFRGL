@@ -1,23 +1,25 @@
 import { EventEmitter } from "events";
 
-export type SecurityEventType = "login" | "failed-pin";
+export type SecurityEventType = "login" | "failed-pin" | "session-revoked";
 
 export interface SecurityEventPayload {
   type: SecurityEventType;
+  /** Para "session-revoked": el userId de la sesión que fue cerrada. */
+  userId?: number;
 }
 
 const SECURITY_EVENT_CHANNEL = "security-event";
 
 class SecurityEventEmitter extends EventEmitter {}
 
-/** Singleton interno: emisor de eventos de seguridad (login / intento fallido de PIN). */
+/** Singleton interno: emisor de eventos de seguridad (login / intento fallido de PIN / revocación). */
 export const securityEvents = new SecurityEventEmitter();
 // Varios admins pueden tener la vista de seguridad abierta en simultáneo (varias pestañas SSE).
 securityEvents.setMaxListeners(50);
 
 /** Notifica a los suscriptores SSE que ocurrió un evento de seguridad. Fire-and-forget. */
-export const emitSecurityEvent = (type: SecurityEventType): void => {
-  securityEvents.emit(SECURITY_EVENT_CHANNEL, { type } satisfies SecurityEventPayload);
+export const emitSecurityEvent = (type: SecurityEventType, extra?: { userId?: number }): void => {
+  securityEvents.emit(SECURITY_EVENT_CHANNEL, { type, ...extra } satisfies SecurityEventPayload);
 };
 
 /** Suscribirse a los eventos de seguridad (usado por el endpoint SSE). */

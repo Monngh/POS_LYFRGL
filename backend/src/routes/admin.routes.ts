@@ -69,6 +69,8 @@ import {
   getAdminAccessLogs,
   getFailedPinAttempts,
   streamSecurityEvents,
+  getActiveSessions,
+  revokeSession,
 } from "../controllers/securityAudit.controller";
 import { authenticateJWT, authenticateSSE, authorizeRoles } from "../middlewares/auth.middleware";
 
@@ -163,6 +165,8 @@ router.get("/security/cashier-access", authorizeRoles(["ADMIN"]), getCashierAcce
 router.post("/security/audit-unlock", authorizeRoles(["ADMIN"]), auditUnlock);
 router.post("/security/admin-access", authorizeRoles(["ADMIN"]), getAdminAccessLogs);
 router.get("/security/failed-pin-attempts", authorizeRoles(["ADMIN"]), getFailedPinAttempts);
+router.get("/security/active-sessions", authorizeRoles(["ADMIN"]), getActiveSessions);
+router.post("/security/revoke-session/:userId", authorizeRoles(["ADMIN"]), revokeSession);
 
 // Devoluciones (admin)
 router.get("/returns", authorizeRoles(["ADMIN", "GERENTE"]), getAdminReturns);

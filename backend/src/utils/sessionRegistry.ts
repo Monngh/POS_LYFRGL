@@ -73,3 +73,26 @@ export const closeSession = (userId: number, jti?: string): void => {
     sessions.delete(userId);
   }
 };
+
+/**
+ * Revoca forzosamente la sesión del usuario (acción de un administrador).
+ *
+ * A diferencia de closeSession, esta función NO borra el registro: lo reemplaza
+ * por un jti-marcador que ningún token real podrá tener. Esto es intencional.
+ * isCurrentSession() es permisiva cuando NO hay registro para el usuario (pensado
+ * para tolerar un reinicio del servidor sin expulsar sesiones legítimas) — si esta
+ * función simplemente borrara la entrada (como closeSession), el token que se
+ * quiere revocar caería en ese mismo modo permisivo y seguiría siendo aceptado,
+ * anulando la revocación. Dejar una entrada "envenenada" fuerza el rechazo
+ * inmediato del jti anterior en la siguiente petición (SESION_DESPLAZADA).
+ */
+export const revokeSessionForcefully = (userId: number): void => {
+  sessions.set(userId, {
+    jti: `revoked-${crypto.randomUUID()}`,
+    exp: Date.now() + SESSION_TTL_MS,
+    since: Date.now(),
+  });
+};
+
+/** Todas las sesiones activas registradas (incluye posibles entradas ya expiradas). */
+export const getAllActiveSessions = (): [number, SessionEntry][] => Array.from(sessions.entries());
