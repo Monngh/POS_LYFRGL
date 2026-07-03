@@ -33,7 +33,7 @@
     "jsonwebtoken": "^9.0.2",
     "mercadopago": "^3.1.0",
     "nodemailer": "^8.0.10",
-    "puppeteer": "^25.3.0"
+    "puppeteer": "^23.11.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
