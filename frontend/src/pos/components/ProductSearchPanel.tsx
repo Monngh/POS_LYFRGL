@@ -45,7 +45,6 @@ interface ProductSearchPanelProps {
   customerData: ReturnType<typeof usePosCustomer>;
   cartData: ReturnType<typeof usePosCart>;
   onToast: (msg: string, type?: "error" | "success" | "info") => void;
-  isAnyModalOpen?: boolean;
 }
 
 const styles: { [key: string]: React.CSSProperties } = {
@@ -74,7 +73,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   fieldError: { color: "#b91c1c", fontSize: "12px", fontWeight: "600", marginTop: "5px", marginBottom: 0 },
 };
 
-export function ProductSearchPanel({ searchData, customerData, cartData, onToast, isAnyModalOpen = false }: ProductSearchPanelProps) {
+export function ProductSearchPanel({ searchData, customerData, cartData, onToast }: ProductSearchPanelProps) {
   const {
     barcodeSearch, setBarcodeSearch, handleProductBarcodeSearch, barcodeSearchError,
     searchResults, setSearchResults,
@@ -82,43 +81,9 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const phoneInputRef = useRef<HTMLInputElement | null>(null);
+  const confirmInputRef = useRef<HTMLInputElement | null>(null);
   const searchResultsRef = useRef<HTMLDivElement | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
-
-  useEffect(() => {
-    if (confirmOpen) {
-      const timer = window.setTimeout(() => {
-        const input = document.querySelector('.pos-cashier-modal input[type="text"]') as HTMLInputElement | null;
-        input?.focus();
-      }, 0);
-      return () => window.clearTimeout(timer);
-    }
-    return;
-    const handleShortcut = (e: KeyboardEvent) => {
-      if (isAnyModalOpen) return;
-      const active = document.activeElement;
-      // allow Alt+letter shortcuts even when focus is in an input
-      if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || (active as HTMLElement).isContentEditable) && !e.altKey) return;
-      if (e.key === "F2") {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-      } else if (e.altKey && e.key.toLowerCase() === "r") {
-        // Registrar cliente rápido cuando el buscador indica no encontrado (Alt+R)
-        if (searchStatus === "not_found") {
-          e.preventDefault();
-          setConfirmInput("");
-          setConfirmError("");
-          setConfirmOpen(true);
-        }
-      } else if (e.key === "F6") {
-        e.preventDefault();
-        phoneInputRef.current?.focus();
-      }
-    };
-
-    window.addEventListener("keydown", handleShortcut);
-    return () => window.removeEventListener("keydown", handleShortcut);
-  }, [isAnyModalOpen]);
 
   const handleSearchInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (searchResults.length === 0) return;
@@ -169,6 +134,12 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
   const [confirmInput, setConfirmInput] = useState("");
   const [confirmError, setConfirmError] = useState("");
   const [confirmShowPhone, setConfirmShowPhone] = useState(false);
+
+  useEffect(() => {
+    if (!confirmOpen) return;
+    const timer = window.setTimeout(() => confirmInputRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [confirmOpen]);
 
   // Silent search on 10 digits
   useEffect(() => {
@@ -390,7 +361,8 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
                     type="text"
                     required
                     className="input-corporate"
-                    placeholder="Ingrese el teléfono nuevamente"
+                    placeholder="Ingrese el telefono nuevamente"
+                    ref={confirmInputRef}
                     value={confirmShowPhone ? confirmInput : maskPhoneLast2(confirmInput)}
                     onChange={(e) => {
                       const next = getNextRealPhone(e.target.value, confirmInput);
@@ -401,6 +373,8 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
                   />
                   <button
                     type="button"
+                    data-shortcut-letter="V"
+                    title="Mostrar u ocultar telefono (Alt+V)"
                     onClick={() => setConfirmShowPhone(!confirmShowPhone)}
                     style={{ position: "absolute", right: "12px", top: "11px", border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
                   >
@@ -413,6 +387,8 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
               <div style={{ display: "flex", gap: "10px", marginTop: "16px" }} className="pos-cashier-modal-actions">
                 <button
                   type="button"
+                  data-shortcut="cancel"
+                  data-shortcut-letter="X"
                   onClick={() => {
                     setConfirmOpen(false);
                     setConfirmInput("");
@@ -427,6 +403,8 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
                 </button>
                 <button
                   type="submit"
+                  data-shortcut="confirm"
+                  data-shortcut-letter="R"
                   style={{
                     flex: 1, padding: "10px", borderRadius: "6px", border: "none",
                     fontWeight: "700", cursor: "pointer", backgroundColor: "#059669", color: "white"

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { X } from 'lucide-react';
 
 export interface PosModalProps {
@@ -24,41 +24,6 @@ export function PosModal({
   children,
   footer
 }: PosModalProps) {
-  const modalRef = React.useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    return;
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
-
-  useEffect(() => {
-    return;
-    if (!isOpen) return;
-    const handleEnter = (e: KeyboardEvent) => {
-      if (e.key !== "Enter") return;
-      const active = document.activeElement;
-      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || (active as HTMLElement).isContentEditable)) return;
-      if (modalRef.current && active && !modalRef.current.contains(active as Node)) return;
-      const btn = modalRef.current?.querySelector('[data-shortcut="confirm"]') as HTMLButtonElement | null;
-      if (btn && !btn.disabled) {
-        e.preventDefault();
-        btn.click();
-      }
-    };
-
-    window.addEventListener('keydown', handleEnter);
-    return () => window.removeEventListener('keydown', handleEnter);
-  }, [isOpen, onClose]);
-
   if (!isOpen) return null;
 
   const overlayStyle: React.CSSProperties = {
@@ -154,7 +119,7 @@ export function PosModal({
 
   return (
     <div style={overlayStyle}>
-      <div data-pos-modal ref={modalRef} style={modalStyle}>
+      <div data-pos-modal style={modalStyle}>
         <div style={headerStyle}>
           <div style={titleArea}>
             {icon && <div style={iconContainer}>{icon}</div>}

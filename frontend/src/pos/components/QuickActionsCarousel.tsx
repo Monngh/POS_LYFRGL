@@ -31,14 +31,14 @@ export function QuickActionsCarousel({ onOpenModal, onGoHome }: QuickActionsCaro
 
   const pages = [
     [
-      { id: "price-lookup", label: "Consultar precio", icon: Search, color: "var(--accent-strong)", shortcutLetter: "C" },
+      { id: "price-lookup", label: "Consultar precio", icon: Search, color: "var(--accent-strong)", shortcutLetter: "Q" },
       { id: "bank-deposit", label: "Deposito Banco", icon: PiggyBank, color: "#0d9488", shortcutLetter: "D" },
       { id: "cancel-sale", label: "Cancelar venta", icon: XCircle, color: "#dc2626", shortcutLetter: "V" },
       { id: "returns", label: "Devoluciones", icon: RotateCcw, color: "#dc2626", shortcutLetter: "E" },
     ],
     [
-      { id: "ticket-history", label: "Reimprimir ticket", icon: Printer, color: "var(--accent-strong)", shortcutLetter: "R" },
-      { id: "partial-cut-summary", label: "Corte Parcial", icon: FileText, color: "#d97706", shortcutLetter: "P" },
+      { id: "ticket-history", label: "Reimprimir ticket", icon: Printer, color: "var(--accent-strong)", shortcutLetter: "H" },
+      { id: "partial-cut-summary", label: "Corte Parcial", icon: FileText, color: "#d97706", shortcutLetter: "U" },
       { id: "autofacturacion", label: "Facturacion", icon: ExternalLink, color: "#0d9488", shortcutLetter: "I" },
     ],
   ];

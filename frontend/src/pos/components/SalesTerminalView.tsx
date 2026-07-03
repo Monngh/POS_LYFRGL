@@ -119,8 +119,6 @@ export function SalesTerminalView({
   const [parkedModalOpen, setParkedModalOpen] = React.useState(false);
   const [mixedModalOpen, setMixedModalOpen] = React.useState(false);
 
-  const isAnyModalOpen = checkoutModalOpen || qrModalOpen || isNewCustomerModalOpen || parkedModalOpen || mixedModalOpen;
-
   React.useEffect(() => {
     if (user?.branch?.id) {
       fetchParkedSales();
@@ -262,8 +260,7 @@ export function SalesTerminalView({
           customerData={customerData}
           cartData={cartData}
           onToast={onToast}
-          isAnyModalOpen={isAnyModalOpen}
-        />
+            />
 
         <div className="card-premium pos-cashier-cart-card" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "20px" }}>
           <h3 className="pos-cashier-cart-mobile-title">Detalle de Productos</h3>
