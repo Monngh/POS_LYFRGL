@@ -1,5 +1,5 @@
 import { useState, useEffect, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { CreditCard, Banknote, HelpCircle, CheckCircle2 } from "lucide-react";
+import { CreditCard, Banknote, HelpCircle, X, CheckCircle2 } from "lucide-react";
 import { PosModal } from "./shared";
 import { validateStoreCredit } from "../../../facturacion/facturacion.service";
 import { useModalInitialFocus } from "../../hooks/useModalInitialFocus";

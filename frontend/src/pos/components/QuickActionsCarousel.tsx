@@ -11,7 +11,7 @@ import {
   ExternalLink,
   Home,
 } from "lucide-react";
-import { GLOBAL_QUICK_ACTIONS, type GlobalQuickActionLetter } from "../constants/posShortcuts";
+import { type GlobalQuickActionLetter } from "../constants/posShortcuts";
 
 interface QuickActionsCarouselProps {
   onOpenModal: (modal: string) => void;
@@ -45,7 +45,6 @@ export function QuickActionsCarousel({ onOpenModal, onGoHome }: QuickActionsCaro
   ];
 
   const currentPageActions = pages[page];
-  const allActions = pages.flat();
 
   return (
     <div className="pos-quick-actions-container">
