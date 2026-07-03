@@ -23,22 +23,23 @@ export interface SummaryFilters {
 
 const num = (v: any) => Number(v ?? 0);
 
-const vary = (value: number, prev: number) => ({
+// Helpers reutilizables por otros reportes de ventas (p. ej. salesReport.service).
+export const vary = (value: number, prev: number) => ({
   value,
   prev,
   delta: value - prev,
   pct: prev !== 0 ? ((value - prev) / Math.abs(prev)) * 100 : value > 0 ? 100 : 0,
 });
 
-const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-const dayEnd = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
-const isoDay = (d: Date) => {
+export const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+export const dayEnd = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+export const isoDay = (d: Date) => {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 };
 
 // Cláusula where de ventas a partir de los filtros (sin el rango de fechas).
-const buildSaleWhere = (f: SummaryFilters): any => {
+export const buildSaleWhere = (f: SummaryFilters): any => {
   const where: any = {};
   if (f.branchId) where.branchId = f.branchId;
   if (f.sellerId) where.userId = f.sellerId;
@@ -217,7 +218,7 @@ async function loadPeriod(from: Date, to: Date, f: SummaryFilters): Promise<Peri
 }
 
 // Ventas brutas completadas en un rango, respetando los filtros no temporales.
-async function salesTotal(from: Date, to: Date, f: SummaryFilters): Promise<number> {
+export async function salesTotal(from: Date, to: Date, f: SummaryFilters): Promise<number> {
   const base = buildSaleWhere(f);
   delete base.status; // los comparativos miden ventas efectivas (completadas)
   const agg = await prisma.sale.aggregate({
@@ -225,6 +226,51 @@ async function salesTotal(from: Date, to: Date, f: SummaryFilters): Promise<numb
     _sum: { totalAmount: true },
   });
   return num(agg._sum.totalAmount);
+}
+
+// Comparativo por marco temporal (ayer, últimos 7 días, mes en curso, año en
+// curso) contra su periodo anterior equivalente. Reutilizable por cualquier
+// reporte de ventas — mide ventas efectivas (completadas).
+export async function getSalesTimeframes(f: SummaryFilters) {
+  const now = new Date();
+  const ref = f.to.getTime() > now.getTime() ? now : f.to;
+  const d0 = dayStart(ref);
+  const prevMonthDays = new Date(d0.getFullYear(), d0.getMonth(), 0).getDate();
+
+  const frames: { key: string; label: string; a: [Date, Date]; b: [Date, Date] }[] = [
+    {
+      key: "dia", label: "Ayer vs. día previo",
+      a: [dayStart(new Date(d0.getTime() - 864e5)), dayEnd(new Date(d0.getTime() - 864e5))],
+      b: [dayStart(new Date(d0.getTime() - 2 * 864e5)), dayEnd(new Date(d0.getTime() - 2 * 864e5))],
+    },
+    {
+      key: "semana", label: "Últimos 7 días vs. 7 previos",
+      a: [dayStart(new Date(d0.getTime() - 6 * 864e5)), dayEnd(ref)],
+      b: [dayStart(new Date(d0.getTime() - 13 * 864e5)), dayEnd(new Date(d0.getTime() - 7 * 864e5))],
+    },
+    {
+      key: "mes", label: "Mes en curso vs. mes anterior",
+      a: [new Date(d0.getFullYear(), d0.getMonth(), 1), dayEnd(ref)],
+      b: [
+        new Date(d0.getFullYear(), d0.getMonth() - 1, 1),
+        dayEnd(new Date(d0.getFullYear(), d0.getMonth() - 1, Math.min(d0.getDate(), prevMonthDays))),
+      ],
+    },
+    {
+      key: "anio", label: "Año en curso vs. año anterior",
+      a: [new Date(d0.getFullYear(), 0, 1), dayEnd(ref)],
+      b: [new Date(d0.getFullYear() - 1, 0, 1), dayEnd(new Date(d0.getFullYear() - 1, d0.getMonth(), d0.getDate()))],
+    },
+  ];
+
+  const frameTotals = await Promise.all(
+    frames.flatMap((fr) => [salesTotal(fr.a[0], fr.a[1], f), salesTotal(fr.b[0], fr.b[1], f)])
+  );
+  return frames.map((fr, i) => {
+    const actual = frameTotals[i * 2];
+    const anterior = frameTotals[i * 2 + 1];
+    return { key: fr.key, label: fr.label, actual, anterior, ...vary(actual, anterior) };
+  });
 }
 
 export async function getExecutiveSummary(f: SummaryFilters) {
@@ -383,45 +429,7 @@ export async function getExecutiveSummary(f: SummaryFilters) {
   };
 
   // ---------------- Comparativo por marco temporal ----------------
-  const now = new Date();
-  const ref = to.getTime() > now.getTime() ? now : to;
-  const d0 = dayStart(ref);
-  const prevMonthDays = new Date(d0.getFullYear(), d0.getMonth(), 0).getDate();
-
-  const frames: { key: string; label: string; a: [Date, Date]; b: [Date, Date] }[] = [
-    {
-      key: "dia", label: "Ayer vs. día previo",
-      a: [dayStart(new Date(d0.getTime() - 864e5)), dayEnd(new Date(d0.getTime() - 864e5))],
-      b: [dayStart(new Date(d0.getTime() - 2 * 864e5)), dayEnd(new Date(d0.getTime() - 2 * 864e5))],
-    },
-    {
-      key: "semana", label: "Últimos 7 días vs. 7 previos",
-      a: [dayStart(new Date(d0.getTime() - 6 * 864e5)), dayEnd(ref)],
-      b: [dayStart(new Date(d0.getTime() - 13 * 864e5)), dayEnd(new Date(d0.getTime() - 7 * 864e5))],
-    },
-    {
-      key: "mes", label: "Mes en curso vs. mes anterior",
-      a: [new Date(d0.getFullYear(), d0.getMonth(), 1), dayEnd(ref)],
-      b: [
-        new Date(d0.getFullYear(), d0.getMonth() - 1, 1),
-        dayEnd(new Date(d0.getFullYear(), d0.getMonth() - 1, Math.min(d0.getDate(), prevMonthDays))),
-      ],
-    },
-    {
-      key: "anio", label: "Año en curso vs. año anterior",
-      a: [new Date(d0.getFullYear(), 0, 1), dayEnd(ref)],
-      b: [new Date(d0.getFullYear() - 1, 0, 1), dayEnd(new Date(d0.getFullYear() - 1, d0.getMonth(), d0.getDate()))],
-    },
-  ];
-
-  const frameTotals = await Promise.all(
-    frames.flatMap((fr) => [salesTotal(fr.a[0], fr.a[1], f), salesTotal(fr.b[0], fr.b[1], f)])
-  );
-  const timeframes = frames.map((fr, i) => {
-    const actual = frameTotals[i * 2];
-    const anterior = frameTotals[i * 2 + 1];
-    return { key: fr.key, label: fr.label, actual, anterior, ...vary(actual, anterior) };
-  });
+  const timeframes = await getSalesTimeframes(f);
 
   // ---------------- Datos para alertas ----------------
   const invWhere: any = { product: { active: true } };

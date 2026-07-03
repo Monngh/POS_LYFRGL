@@ -7,6 +7,7 @@ import {
   getReceivablesReport,
 } from "../services/reports.service";
 import { getExecutiveSummary, getReportFilterOptions } from "../services/executiveSummary.service";
+import { getSalesReport as getSalesReportDocument } from "../services/salesReport.service";
 import { renderHtmlToPdf } from "../services/pdf.service";
 
 const parseBranchId = (req: Request): number | undefined => {
@@ -168,6 +169,34 @@ export const reportExecutiveSummary = async (req: Request, res: Response): Promi
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ message: "Error al generar el resumen ejecutivo." });
+  }
+};
+
+export const reportSalesDocument = async (req: Request, res: Response): Promise<void> => {
+  const branchId = parseBranchId(req);
+  const range = parseReportDateRange(req.query);
+  if (range.errorStatus) {
+    res.status(range.errorStatus).json({ success: false, message: range.errorMessage });
+    return;
+  }
+  try {
+    const result = await getSalesReportDocument({
+      from: range.from,
+      to: range.to,
+      branchId,
+      sellerId: parseOptionalInt(req.query.sellerId),
+      categoryId: parseOptionalInt(req.query.categoryId),
+      cashSessionId: parseOptionalInt(req.query.cashSessionId),
+      paymentMethod: parseOptionalText(req.query.paymentMethod, 40),
+      status: parseOptionalText(req.query.status, 20),
+      customerSearch: parseOptionalText(req.query.customer),
+      productSearch: parseOptionalText(req.query.product),
+      search: parseOptionalText(req.query.search),
+    });
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ message: "Error al generar el reporte de ventas." });
   }
 };
 
