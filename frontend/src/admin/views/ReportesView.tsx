@@ -4,7 +4,7 @@ import api from "../../shared/services/api";
 import { ui, type ViewProps, SectionHeader, Badge } from "./shared";
 import { REPORTS, REPORT_CATEGORIES, type ReportDef } from "./reports/reportConfig";
 import ReportRunner from "./reports/ReportRunner";
-import ResumenReport from "./reports/ResumenReport";
+import ExecutiveSummaryReport from "./reports/ExecutiveSummaryReport";
 import HistorialFacturasView from "./HistorialFacturasView";
 import { useAuth } from "../../auth";
 
@@ -48,7 +48,7 @@ const ReportesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         {selected.key === "historial-facturas" ? (
           <HistorialFacturasView branchId={branchId} refreshToken={refreshToken} />
         ) : selected.kind === "summary" ? (
-          <ResumenReport branchId={branchId} branchLabel={branchLabel} />
+          <ExecutiveSummaryReport branchId={branchId} branchLabel={branchLabel} />
         ) : (
           <ReportRunner def={selected} branchId={branchId} branchLabel={branchLabel} />
         )}
