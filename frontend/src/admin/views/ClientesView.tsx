@@ -28,7 +28,9 @@ import {
   SectionHeader,
   money,
   fmtDate,
-  useMediaQuery
+  useMediaQuery,
+  usePagination,
+  Pagination,
 } from "./shared";
 
 interface CustomerRow {
@@ -267,6 +269,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     { params: debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {} }
   );
   const rows = data?.customers ?? [];
+  const paged = usePagination(rows, { resetKey: debouncedSearch });
 
   const isFirstRender = useRef(true);
   useEffect(() => {
@@ -523,7 +526,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
           )}
 
           {!loading &&
-            rows.map((c) => {
+            paged.pageItems.map((c) => {
               const isExpanded = expandedCustomers[c.id];
               return (
                 <div
@@ -704,12 +707,16 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
         <div className="table-sticky-head">
           <DataTable
             columns={columns}
-            data={rows}
+            data={paged.pageItems}
             loading={loading}
             error={error}
             keyExtractor={(c) => c.id}
           />
         </div>
+      )}
+
+      {!loading && !error && (
+        <Pagination page={paged.page} pageCount={paged.pageCount} total={paged.total} from={paged.from} to={paged.to} onPage={paged.setPage} itemLabel="clientes" />
       )}
 
       <ActionModal

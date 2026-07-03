@@ -62,6 +62,8 @@ import {
   roleTone,
   statusTone,
   useMediaQuery,
+  usePagination,
+  Pagination,
 } from "./shared";
 
 interface EmployeeRow {
@@ -222,6 +224,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     { params: employeeParams }
   );
   const rows = data?.employees ?? [];
+  const paged = usePagination(rows, { resetKey: `${branchId}|${roleFilter}|${debouncedSearch}` });
 
   const { data: branchesData } = useAdminData<{ branches: BranchOption[] }>("/api/auth/branches");
   const branches = branchesData?.branches ?? [];
@@ -886,7 +889,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
       {!loading &&
         !error &&
-        rows.map((u) => {
+        paged.pageItems.map((u) => {
           const isExpanded = expandedEmployees[u.id];
           return (
             <div
@@ -1076,8 +1079,12 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
       {isMobile ? renderMobileView() : (
         <div className="table-sticky-head">
-          <DataTable columns={columns} data={rows} loading={loading} error={error} keyExtractor={(u) => u.id} />
+          <DataTable columns={columns} data={paged.pageItems} loading={loading} error={error} keyExtractor={(u) => u.id} />
         </div>
+      )}
+
+      {!loading && !error && (
+        <Pagination page={paged.page} pageCount={paged.pageCount} total={paged.total} from={paged.from} to={paged.to} onPage={paged.setPage} itemLabel="empleados" />
       )}
 
       {/* MODAL DE EMPLEADO */}

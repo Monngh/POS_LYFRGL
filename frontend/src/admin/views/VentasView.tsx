@@ -20,7 +20,9 @@ import {
   statusTone,
   payTone,
   printTicketHtml,
-  useMediaQuery
+  useMediaQuery,
+  usePagination,
+  Pagination,
 } from "./shared";
 
 interface SaleRow {
@@ -192,6 +194,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     { params: filterParams }
   );
   const rows = data?.sales ?? [];
+  const paged = usePagination(rows, { resetKey: `${branchId}|${status}|${debouncedSearch}|${dateFrom}|${dateTo}` });
 
   const isFirstRender = useRef(true);
   useEffect(() => {
@@ -396,7 +399,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
           {!loading &&
             !error &&
-            rows.map((s) => {
+            paged.pageItems.map((s) => {
               const isExpanded = expandedSales[s.id];
               const formattedMethod = s.paymentMethod ? (s.paymentMethod.charAt(0).toUpperCase() + s.paymentMethod.slice(1).toLowerCase()) : "";
               const formattedStatus = s.status ? (s.status.charAt(0).toUpperCase() + s.status.slice(1).toLowerCase()) : "";
@@ -569,12 +572,16 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       ) : (
         <DataTable
           columns={columns}
-          data={rows}
+          data={paged.pageItems}
           loading={loading}
           error={error}
           emptyMessage="No hay ventas con los filtros seleccionados."
           keyExtractor={(s) => s.id}
         />
+      )}
+
+      {!loading && !error && (
+        <Pagination page={paged.page} pageCount={paged.pageCount} total={paged.total} from={paged.from} to={paged.to} onPage={paged.setPage} itemLabel="ventas" />
       )}
 
       {/* Sub-modal: autorización por PIN para cancelar */}

@@ -18,6 +18,8 @@ import {
   statusTone,
   printTicketHtml,
   useMediaQuery,
+  usePagination,
+  Pagination,
 } from "./shared";
 
 interface SessionRow {
@@ -74,6 +76,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [to, setTo] = useState("");
   const [filterUserId, setFilterUserId] = useState("");
   const [employees, setEmployees] = useState<{ id: number; name: string }[]>([]);
+  const paged = usePagination(rows, { resetKey: `${branchId}|${status}|${from}|${to}|${filterUserId}` });
 
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
 
@@ -387,7 +390,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
           {!loading &&
             !error &&
-            rows.map((s) => {
+            paged.pageItems.map((s) => {
               const isExpanded = expandedSessions[s.id];
               return (
                 <div
@@ -559,7 +562,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               <TableState colSpan={11} loading={loading} error={error} empty={!loading && rows.length === 0} />
               {!loading &&
                 !error &&
-                rows.map((s) => (
+                paged.pageItems.map((s) => (
                   <tr
                     key={s.id}
                     onClick={() => openDetail(s.id)}
@@ -599,6 +602,10 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </tbody>
           </table>
         </div>
+      )}
+
+      {!loading && !error && (
+        <Pagination page={paged.page} pageCount={paged.pageCount} total={paged.total} from={paged.from} to={paged.to} onPage={paged.setPage} itemLabel="sesiones" />
       )}
 
       {/* ===================== MODAL DETALLE DE CAJA ===================== */}

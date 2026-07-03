@@ -27,6 +27,8 @@ import {
   fmtTime,
   useMediaQuery,
   filterProductsBySearch,
+  usePagination,
+  Pagination,
 } from "./shared";
 
 interface BranchOption {
@@ -352,6 +354,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
     if (filterSupplierId !== "all" && String(p.supplier.id) !== filterSupplierId) return false;
     return true;
   });
+  const paged = usePagination(filteredPurchases, { resetKey: `${filterStatus}|${filterSupplierId}` });
 
   const purchaseColumns: Column<PurchaseRow>[] = [
     {
@@ -735,7 +738,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
           )}
 
           {!purchasesLoading &&
-            filteredPurchases.map((p) => {
+            paged.pageItems.map((p) => {
               const isExpanded = expandedPurchases[p.id];
               return (
                 <div
@@ -881,11 +884,15 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
       ) : (
         <DataTable
           columns={purchaseColumns}
-          data={filteredPurchases}
+          data={paged.pageItems}
           loading={purchasesLoading}
           emptyMessage="No hay órdenes de compra con los filtros seleccionados."
           keyExtractor={(p) => p.id}
         />
+      )}
+
+      {!purchasesLoading && (
+        <Pagination page={paged.page} pageCount={paged.pageCount} total={paged.total} from={paged.from} to={paged.to} onPage={paged.setPage} itemLabel="órdenes" />
       )}
 
       {/* MODAL SELECCION PROVEEDOR */}

@@ -412,7 +412,7 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     }));
   };
 
-  const LIMIT = 20;
+  const LIMIT = 50;
 
   const load = useCallback(async () => {
     setLoading(true);

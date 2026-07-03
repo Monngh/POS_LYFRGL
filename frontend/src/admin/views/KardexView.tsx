@@ -13,6 +13,8 @@ import {
   fmtTime,
   printTicketHtml,
   useMediaQuery,
+  usePagination,
+  Pagination,
 } from "./shared";
 
 interface KardexRow {
@@ -125,6 +127,8 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     const t = setTimeout(load, 300);
     return () => clearTimeout(t);
   }, [load]);
+
+  const paged = usePagination(rows, { resetKey: `${branchId}|${movementType}|${search}|${from}|${to}` });
 
   // Imprime el comprobante de un movimiento individual
   const printMovement = (k: KardexRow) => {
@@ -241,7 +245,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
           {!loading &&
             !error &&
-            rows.map((k) => {
+            paged.pageItems.map((k) => {
               const isExpanded = expandedKardex[k.id];
               const balanceBefore = k.balanceAfter - k.quantityChange;
               return (
@@ -444,7 +448,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               />
               {!loading &&
                 !error &&
-                rows.map((k) => {
+                paged.pageItems.map((k) => {
                   const balanceBefore = k.balanceAfter - k.quantityChange;
                   return (
                     <tr key={k.id}>
@@ -504,6 +508,10 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </tbody>
           </table>
         </div>
+      )}
+
+      {!loading && !error && (
+        <Pagination page={paged.page} pageCount={paged.pageCount} total={paged.total} from={paged.from} to={paged.to} onPage={paged.setPage} itemLabel="movimientos" />
       )}
     </div>
   );

@@ -23,7 +23,9 @@ import {
 } from "../utils/phone";
 import { ui, type ViewProps, SectionHeader, Badge,
   useMediaQuery,
-  fmtDate
+  fmtDate,
+  usePagination,
+  Pagination,
 } from "./shared";
 
 // =========================
@@ -171,6 +173,7 @@ const supDetailValue: React.CSSProperties = {
 const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
   const { data, loading, error, refetch } = useAdminData<Supplier[]>("/api/admin/suppliers");
   const suppliers = data ?? [];
+  const paged = usePagination(suppliers);
 
   const isFirstRender = useRef(true);
   useEffect(() => {
@@ -525,7 +528,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
 
           {!loading &&
             !error &&
-            suppliers.map((s) => {
+            paged.pageItems.map((s) => {
               const isExpanded = expandedSuppliers[s.id];
               return (
                 <div
@@ -750,13 +753,17 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
         <div className="table-sticky-head">
           <DataTable
             columns={columns}
-            data={suppliers}
+            data={paged.pageItems}
             loading={loading}
             error={error}
             emptyMessage="Aún no hay proveedores registrados."
             keyExtractor={(s) => s.id}
           />
         </div>
+      )}
+
+      {!loading && !error && (
+        <Pagination page={paged.page} pageCount={paged.pageCount} total={paged.total} from={paged.from} to={paged.to} onPage={paged.setPage} itemLabel="proveedores" />
       )}
 
       {/* Modal alta / edición de proveedor */}

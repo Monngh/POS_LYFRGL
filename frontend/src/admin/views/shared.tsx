@@ -228,6 +228,102 @@ export const TableState: React.FC<{
   );
 };
 
+// ---------------------------------------------------------------------------
+// Paginación de tablas (lado cliente) — 50 registros por página por defecto.
+// No elimina el scroll de la tabla: solo acota los registros renderizados y
+// añade una barra de navegación. `resetKey` regresa a la página 1 cuando
+// cambian los filtros/búsqueda.
+// ---------------------------------------------------------------------------
+export function usePagination<T>(
+  items: T[],
+  options?: { pageSize?: number; resetKey?: unknown }
+) {
+  const pageSize = options?.pageSize ?? 50;
+  const resetKey = options?.resetKey;
+  const [page, setPage] = React.useState(1);
+  React.useEffect(() => {
+    setPage(1);
+  }, [resetKey]);
+  const total = items.length;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const current = Math.min(page, pageCount);
+  const start = (current - 1) * pageSize;
+  const pageItems = React.useMemo(() => items.slice(start, start + pageSize), [items, start, pageSize]);
+  return {
+    page: current,
+    setPage,
+    pageCount,
+    pageSize,
+    total,
+    pageItems,
+    from: total === 0 ? 0 : start + 1,
+    to: Math.min(total, start + pageSize),
+  };
+}
+
+const buildPageList = (page: number, pageCount: number): (number | "…")[] => {
+  const out: (number | "…")[] = [];
+  for (let p = 1; p <= pageCount; p++) {
+    if (p === 1 || p === pageCount || (p >= page - 1 && p <= page + 1)) out.push(p);
+    else if (out[out.length - 1] !== "…") out.push("…");
+  }
+  return out;
+};
+
+export const Pagination: React.FC<{
+  page: number;
+  pageCount: number;
+  total: number;
+  from: number;
+  to: number;
+  onPage: (p: number) => void;
+  itemLabel?: string;
+}> = ({ page, pageCount, total, from, to, onPage, itemLabel = "registros" }) => {
+  if (pageCount <= 1) return null;
+  const pages = buildPageList(page, pageCount);
+  const navBtn: React.CSSProperties = {
+    minWidth: 32,
+    height: 32,
+    padding: "0 9px",
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    backgroundColor: "var(--surface)",
+    color: "var(--text-secondary)",
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: "pointer",
+    fontFamily: "inherit",
+  };
+  const disabled: React.CSSProperties = { opacity: 0.45, cursor: "not-allowed" };
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginTop: 14 }}>
+      <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
+        Mostrando <strong style={{ color: "var(--text-secondary)" }}>{from}–{to}</strong> de{" "}
+        <strong style={{ color: "var(--text-secondary)" }}>{total}</strong> {itemLabel}
+      </span>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+        <button style={{ ...navBtn, ...(page <= 1 ? disabled : {}) }} onClick={() => page > 1 && onPage(page - 1)} disabled={page <= 1} aria-label="Página anterior" className="active-tap">‹</button>
+        {pages.map((p, i) =>
+          p === "…" ? (
+            <span key={`e${i}`} style={{ color: "var(--text-faint)", fontSize: 13, padding: "0 2px" }}>…</span>
+          ) : (
+            <button
+              key={p}
+              onClick={() => onPage(p)}
+              className="active-tap"
+              style={{ ...navBtn, ...(p === page ? { backgroundColor: "var(--accent)", borderColor: "var(--accent)", color: "#ffffff" } : {}) }}
+              aria-current={p === page ? "page" : undefined}
+            >
+              {p}
+            </button>
+          )
+        )}
+        <button style={{ ...navBtn, ...(page >= pageCount ? disabled : {}) }} onClick={() => page < pageCount && onPage(page + 1)} disabled={page >= pageCount} aria-label="Página siguiente" className="active-tap">›</button>
+      </div>
+    </div>
+  );
+};
+
 // Encabezado de cada sección
 export const SectionHeader: React.FC<{ title: string; subtitle?: string; right?: React.ReactNode }> = ({
   title,
