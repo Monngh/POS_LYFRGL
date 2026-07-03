@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import api, { API_BASE_URL } from "../../shared/services/api";
+import api from "../../shared/services/api";
 import { validateDateRange, validateSearchText } from "../../shared/utils/formValidation";
+import { useSecurityEvents } from "../context/SecurityEventsContext";
 import {
   ui,
   type ViewProps,
@@ -222,38 +223,21 @@ const CajaAccessLogView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setPinPage(1);
   }, [branchId]);
 
-  // Actualización en tiempo real vía SSE: cuando ocurre un login o un intento fallido
-  // de PIN en cualquier terminal, refresca la tabla correspondiente sin recargar la página.
-  useEffect(() => {
-    const token = sessionStorage.getItem("fmb_pos_token");
-    if (!token) return;
-
-    const eventSource = new EventSource(
-      `${API_BASE_URL}/api/admin/security/events?token=${encodeURIComponent(token)}`
-    );
-
-    eventSource.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data) as { type?: string };
+  // Actualización en tiempo real: se suscribe a la conexión SSE global (ver
+  // SecurityEventsProvider en AdminDashboard.tsx) en vez de abrir una conexión propia,
+  // para no duplicarla con la que ya mantiene ese provider para toda el área de admin.
+  useSecurityEvents(
+    useCallback(
+      (payload) => {
         if (payload.type === "login") {
           load();
         } else if (payload.type === "failed-pin") {
           loadFailedPinAttempts();
         }
-      } catch (err) {
-        console.error("[CajaAccessLogView] Evento SSE inválido:", err);
-      }
-    };
-
-    eventSource.onerror = (err) => {
-      // EventSource reintenta la reconexión automáticamente; solo lo dejamos registrado.
-      console.warn("[CajaAccessLogView] Conexión SSE interrumpida, reintentando...", err);
-    };
-
-    return () => {
-      eventSource.close();
-    };
-  }, [load, loadFailedPinAttempts]);
+      },
+      [load, loadFailedPinAttempts]
+    )
+  );
 
   const clearFilters = () => {
     setFrom("");

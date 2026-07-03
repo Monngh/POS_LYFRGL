@@ -54,6 +54,7 @@ import CajaAccessLogView from "./CajaAccessLogView";
 import AdminAccessLogView from "./AdminAccessLogView";
 import type { ViewProps } from "./shared";
 import { ui } from "./shared";
+import { SecurityEventsProvider } from "../context/SecurityEventsContext";
 
 interface BranchOption {
   id: number;
@@ -307,6 +308,7 @@ const AdminDashboard: React.FC = () => {
     : { ...styles.sidebar, width: collapsed ? 72 : 248 };
 
   return (
+    <SecurityEventsProvider>
     <div style={styles.shell} className={`theme-aware${theme === "dark" ? " theme-dark" : ""}`}>
       <style>{ADMIN_CSS}</style>
       {/* Backdrop del cajón en móvil */}
@@ -641,6 +643,7 @@ const AdminDashboard: React.FC = () => {
         </div>
       )}
     </div>
+    </SecurityEventsProvider>
   );
 };
 

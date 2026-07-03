@@ -1,10 +1,11 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { ShieldAlert, Lock, ChevronDown, ChevronUp, ShieldOff } from "lucide-react";
-import api, { API_BASE_URL } from "../../shared/services/api";
+import api from "../../shared/services/api";
 import { validateDateRange, validateSearchText } from "../../shared/utils/formValidation";
 import { useAuth } from "../../auth";
 import { useToast } from "../../shared/context/ToastContext";
 import { ConfirmModal } from "../../shared/ui";
+import { useSecurityEvents } from "../context/SecurityEventsContext";
 import {
   ui,
   type ViewProps,
@@ -85,7 +86,7 @@ const RoleBadge: React.FC<{ role: string }> = ({ role }) => {
 };
 
 const AdminAccessLogView: React.FC<ViewProps> = () => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { showToast } = useToast();
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [activeTab, setActiveTab] = useState<"logins" | "active-sessions">("logins");
@@ -223,44 +224,23 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
     }
   };
 
-  // Actualización en tiempo real vía SSE, solo activa una vez pasado el gate de
-  // contraseña: si a este mismo usuario le revocan la sesión desde otro lugar, lo
-  // desconectamos de inmediato; si es la sesión de otro admin, refrescamos la lista.
-  useEffect(() => {
-    if (!unlocked) return;
-    const token = sessionStorage.getItem("fmb_pos_token");
-    if (!token) return;
-
-    const eventSource = new EventSource(
-      `${API_BASE_URL}/api/admin/security/events?token=${encodeURIComponent(token)}`
-    );
-
-    eventSource.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data) as { type?: string; userId?: number };
-        if (payload.type === "login") {
+  // Actualización en tiempo real: se suscribe a la conexión SSE global (ver
+  // SecurityEventsProvider en AdminDashboard.tsx) en vez de abrir una conexión propia,
+  // para no duplicar el EventSource. La expulsión por revocación de la sesión propia
+  // ya la maneja ese provider globalmente; aquí solo refrescamos la lista cuando hay
+  // un nuevo login o se revoca la sesión de OTRO admin/gerente, y solo si ya pasamos
+  // el gate de contraseña de esta vista.
+  useSecurityEvents(
+    useCallback(
+      (payload) => {
+        if (!unlocked) return;
+        if (payload.type === "login" || payload.type === "session-revoked") {
           loadActiveSessions();
-        } else if (payload.type === "session-revoked") {
-          if (payload.userId != null && user && Number(payload.userId) === user.id) {
-            sessionStorage.setItem("fmb_pos_logout_reason", "Tu sesión fue cerrada por un administrador.");
-            logout();
-          } else {
-            loadActiveSessions();
-          }
         }
-      } catch (err) {
-        console.error("[AdminAccessLogView] Evento SSE inválido:", err);
-      }
-    };
-
-    eventSource.onerror = (err) => {
-      console.warn("[AdminAccessLogView] Conexión SSE interrumpida, reintentando...", err);
-    };
-
-    return () => {
-      eventSource.close();
-    };
-  }, [unlocked, loadActiveSessions, user, logout]);
+      },
+      [unlocked, loadActiveSessions]
+    )
+  );
 
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
