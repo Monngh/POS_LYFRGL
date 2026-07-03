@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { SkeletonTable } from "./SkeletonTable";
+import { LoadingSpinner } from "./LoadingSpinner";
 
 export interface Column<T> {
   key: string;
@@ -28,6 +30,18 @@ export function DataTable<T>({
   maxHeight = "62vh",
 }: DataTableProps<T>) {
   const colSpan = columns.length;
+  const isInitialLoad = loading && data.length === 0;
+  const [showOverlay, setShowOverlay] = useState(false);
+
+  useEffect(() => {
+    let timer: number;
+    if (loading && !isInitialLoad) {
+      timer = window.setTimeout(() => setShowOverlay(true), 200);
+    } else {
+      setShowOverlay(false);
+    }
+    return () => clearTimeout(timer);
+  }, [loading, isInitialLoad]);
 
   const tdState: React.CSSProperties = {
     textAlign: "center",
@@ -36,9 +50,14 @@ export function DataTable<T>({
     fontWeight: 500,
   };
 
+  if (isInitialLoad) {
+    return <SkeletonTable columns={columns.length} rows={5} />;
+  }
+
   return (
     <div
       style={{
+        position: "relative",
         overflowX: "auto",
         overflowY: "auto",
         maxHeight,
@@ -49,6 +68,26 @@ export function DataTable<T>({
         width: "100%",
       }}
     >
+      {showOverlay && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(255, 255, 255, 0.4)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10,
+            backdropFilter: "blur(1px)",
+            borderRadius: 12,
+          }}
+        >
+          <LoadingSpinner size="lg" />
+        </div>
+      )}
       <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
         <thead>
           <tr style={{ backgroundColor: "var(--surface-3)", borderBottom: "1px solid var(--border)" }}>
@@ -74,13 +113,6 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody>
-          {loading && (
-            <tr>
-              <td colSpan={colSpan} style={{ ...tdState, color: "var(--text-muted)" }}>
-                Cargando...
-              </td>
-            </tr>
-          )}
           {!loading && error && (
             <tr>
               <td colSpan={colSpan} style={{ ...tdState, color: "var(--color-danger)" }}>
@@ -95,8 +127,7 @@ export function DataTable<T>({
               </td>
             </tr>
           )}
-          {!loading &&
-            !error &&
+          {!error &&
             data.map((row, index) => (
               <tr key={keyExtractor(row, index)}>
                 {columns.map((col) => (

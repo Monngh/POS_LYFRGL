@@ -223,7 +223,7 @@ const cliDetailLabel: React.CSSProperties = {
   flexShrink: 0,
   fontWeight: 700,
   color: "var(--text-muted)",
-  minWidth: "95px",
+  minWidth: "70px",
   display: "inline-block",
 };
 
@@ -231,13 +231,16 @@ const cliDetailValue: React.CSSProperties = {
   flex: 1,
   minWidth: 0,
   overflowWrap: "anywhere",
+  wordBreak: "break-word",
   fontWeight: 600,
   color: "var(--text-secondary)",
 };
 
 const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
   const { showToast } = useToast();
-  const isMobile = useMediaQuery("(max-width: 1024px)");
+  const isMobile = useMediaQuery("(max-width: 768px)");
+  const isSmallDesktop = useMediaQuery("(max-width: 850px)");
+  const isMediumDesktop = useMediaQuery("(max-width: 1100px)");
   const [expandedCustomers, setExpandedCustomers] = useState<Record<number, boolean>>({});
 
   const toggleExpandCustomer = (id: number) => {
@@ -275,8 +278,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
       return;
     }
     refetch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshToken]);
+  }, [refreshToken, refetch]);
 
   const openCreate = () => {
     setForm({ ...emptyForm });
@@ -389,7 +391,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     }
   };
 
-  const columns: Column<CustomerRow>[] = [
+  const allColumns: Column<CustomerRow>[] = [
     {
       key: "name",
       header: "Nombre / Razón Social",
@@ -432,13 +434,13 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     {
       key: "creditLimit",
       header: "Crédito",
-      align: "right",
+      align: "right" as const,
       render: (c) => <>{money(c.creditLimit)}</>,
     },
     {
       key: "balance",
       header: "Saldo",
-      align: "right",
+      align: "right" as const,
       render: (c) => (
         <span style={{ fontWeight: 700, color: c.balance > 0 ? "var(--color-danger)" : "var(--text-secondary)" }}>
           {money(c.balance)}
@@ -448,7 +450,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     {
       key: "salesCount",
       header: "Compras",
-      align: "center",
+      align: "center" as const,
       render: (c) => <span style={{ fontWeight: 700 }}>{c.salesCount}</span>,
     },
     {
@@ -459,7 +461,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     {
       key: "edit",
       header: "",
-      align: "center",
+      align: "center" as const,
       render: (c) => (
         <button
           onClick={() => openEdit(c)}
@@ -472,8 +474,14 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     },
   ];
 
+  const columns = allColumns.filter((col) => {
+    if (isSmallDesktop && (col.key === "taxId" || col.key === "createdAt")) return false;
+    if (isMediumDesktop && col.key === "cfdi") return false;
+    return true;
+  });
+
   return (
-    <div>
+    <div style={{ maxWidth: "100%", overflowX: "hidden" }}>
       <SectionHeader
         title="Clientes"
         subtitle="Directorio de clientes — incluye datos CFDI 4.0 para facturación"
@@ -485,30 +493,31 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
       />
 
       <Toolbar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre, RFC, correo o teléfono" />
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
-          {rows.length} cliente{rows.length === 1 ? "" : "s"}
-        </span>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px", width: "100%" }}>
+          <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre, RFC, correo o teléfono" />
+          <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600, whiteSpace: "nowrap" }}>
+            {rows.length} cliente{rows.length === 1 ? "" : "s"}
+          </span>
+        </div>
       </Toolbar>
 
       {isMobile ? (
-        /* ── Mobile / Tablet: Card-based layout ── */
-        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
-          {/* Header row mirroring the fields */}
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 4px" }}>
           <div style={{
             display: "grid",
-            gridTemplateColumns: "1.2fr 1fr 2fr 1.6fr",
-            padding: "12px 16px",
+            gridTemplateColumns: "1fr 0.6fr 1.2fr auto",
+            padding: "8px 4px",
             fontWeight: 700,
-            fontSize: 11,
+            fontSize: "clamp(9px, 2.5vw, 10px)",
             color: "var(--text-muted)",
             textTransform: "uppercase",
             letterSpacing: "0.4px",
+            gap: 4,
           }}>
             <div>Saldo</div>
             <div style={{ textAlign: "center" }}>Compras</div>
             <div>Contacto</div>
-            <div style={{ textAlign: "right", paddingRight: 8 }}>Acción</div>
+            <div style={{ textAlign: "right" }}>Acción</div>
           </div>
 
           {loading && (
@@ -533,52 +542,50 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     border: "1px solid var(--border)",
                     borderRadius: 12,
                     marginBottom: 10,
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
                     overflow: "hidden",
+                    transition: "box-shadow 0.2s ease",
                   }}
                 >
-                  {/* Header: Nombre y RFC */}
                   <div style={{
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    padding: "8px 16px 6px 16px",
-                    fontSize: 11,
+                    padding: "6px 10px 4px 10px",
+                    fontSize: "clamp(9px, 2.3vw, 10px)",
                     fontWeight: 700,
                     color: "var(--text-muted)",
                     borderBottom: "1px solid var(--border-soft)",
                     backgroundColor: "var(--surface-2)",
-                    letterSpacing: "0.2px",
+                    flexWrap: "wrap",
+                    gap: "2px",
                   }}>
-                    <span>{c.name.toUpperCase()}</span>
-                    <span style={{ fontFamily: "monospace" }}>{c.taxId || "SIN RFC"}</span>
+                    <span style={{ wordBreak: "break-word" }}>{c.name.toUpperCase()}</span>
+                    <span style={{ fontFamily: "monospace", fontSize: "inherit" }}>{c.taxId || "SIN RFC"}</span>
                   </div>
 
-                  {/* Fila principal */}
                   <div style={{
                     display: "grid",
-                    gridTemplateColumns: "1.2fr 1fr 2fr 1.6fr",
-                    padding: "12px 16px",
+                    gridTemplateColumns: "1fr 0.6fr 1.2fr auto",
+                    padding: "8px 4px",
                     alignItems: "center",
+                    gap: 4,
                   }}>
-                    {/* Saldo */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: c.balance > 0 ? "var(--color-danger)" : "var(--text-secondary)" }}>
+                    <div style={{ fontSize: "clamp(12px, 3.2vw, 13px)", fontWeight: 700, color: c.balance > 0 ? "var(--color-danger)" : "var(--text-secondary)" }}>
                       {money(c.balance)}
                     </div>
-
-                    {/* Compras */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "center" }}>
+                    <div style={{ fontSize: "clamp(12px, 3.2vw, 13px)", fontWeight: 700, color: "var(--text)", textAlign: "center" }}>
                       {c.salesCount}
                     </div>
-
-                    {/* Contacto */}
-                    <div style={{ fontSize: 12, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{
+                      fontSize: "clamp(10px, 2.8vw, 11px)",
+                      color: "var(--text-secondary)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}>
                       {c.phone || c.email || "—"}
                     </div>
-
-                    {/* Botones de Acción */}
-                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
-                      {/* Pencil/Editar */}
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
                       <button
                         onClick={() => openEdit(c)}
                         style={{
@@ -588,19 +595,18 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           backgroundColor: "var(--accent-soft)",
                           border: "1px solid var(--accent-soft)",
                           borderRadius: 8,
-                          width: 34,
-                          height: 34,
+                          minWidth: 40,
+                          minHeight: 40,
                           cursor: "pointer",
                           color: "var(--accent-strong)",
                           padding: 0,
+                          transition: "background-color 0.15s",
                         }}
                         className="active-tap"
                         title="Editar cliente"
                       >
                         <Pencil size={14} />
                       </button>
-
-                      {/* Chevron */}
                       <button
                         onClick={() => toggleExpandCustomer(c.id)}
                         style={{
@@ -610,11 +616,12 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           backgroundColor: "var(--surface)",
                           border: "1px solid var(--border-strong)",
                           borderRadius: 8,
-                          width: 34,
-                          height: 34,
+                          minWidth: 40,
+                          minHeight: 40,
                           cursor: "pointer",
                           color: "var(--text-muted)",
                           padding: 0,
+                          transition: "background-color 0.15s",
                         }}
                         className="active-tap"
                       >
@@ -623,22 +630,22 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     </div>
                   </div>
 
-                  {/* Detalle expandido */}
-                  {isExpanded && (
-                    <div style={{
-                      padding: "16px",
-                      margin: "0 16px 16px 16px",
+                  <div
+                    style={{
+                      maxHeight: isExpanded ? "600px" : "0px",
+                      opacity: isExpanded ? 1 : 0,
+                      overflow: "hidden",
+                      transition: "max-height 0.35s ease, opacity 0.25s ease",
+                      padding: isExpanded ? "12px 10px" : "0 10px",
+                      margin: isExpanded ? "0 10px 10px 10px" : "0 10px",
                       backgroundColor: "var(--surface-2)",
                       borderRadius: "8px",
-                      border: "1px solid var(--border)",
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                      gap: "16px",
-                      textAlign: "left",
-                    }}>
-                      {/* Datos Fiscales */}
+                      border: isExpanded ? "1px solid var(--border)" : "1px solid transparent",
+                    }}
+                  >
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Datos CFDI</h4>
+                        <h4 style={{ fontSize: 12, fontWeight: 800, color: "var(--text)", marginBottom: 8 }}>Datos CFDI</h4>
                         <div style={cliDetailRow}>
                           <span style={cliDetailLabel}>RFC:</span>
                           <span style={{ ...cliDetailValue, fontFamily: "monospace" }}>{c.taxId || "—"}</span>
@@ -656,10 +663,8 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           <span style={cliDetailValue}>{c.cfdiUse || "—"}</span>
                         </div>
                       </div>
-
-                      {/* Información de Contacto */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Contacto y Alta</h4>
+                        <h4 style={{ fontSize: 12, fontWeight: 800, color: "var(--text)", marginBottom: 8 }}>Contacto y Alta</h4>
                         <div style={cliDetailRow}>
                           <span style={cliDetailLabel}>Correo:</span>
                           <span style={cliDetailValue}>{c.email || "—"}</span>
@@ -677,10 +682,8 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           <span style={cliDetailValue}>{fmtDate(c.createdAt)}</span>
                         </div>
                       </div>
-
-                      {/* Límites de Crédito */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Crédito y Historial</h4>
+                        <h4 style={{ fontSize: 12, fontWeight: 800, color: "var(--text)", marginBottom: 8 }}>Crédito y Historial</h4>
                         <div style={cliDetailRow}>
                           <span style={cliDetailLabel}>Límite Crédito:</span>
                           <span style={cliDetailValue}>{money(c.creditLimit)}</span>
@@ -695,13 +698,13 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                         </div>
                       </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               );
             })}
         </div>
       ) : (
-        <div className="table-sticky-head">
+        <div style={{ overflowX: "auto", maxWidth: "100%" }}>
           <DataTable
             columns={columns}
             data={rows}
@@ -718,21 +721,23 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
         title={editingId !== null ? "Editar cliente" : "Registrar nuevo cliente"}
         size="md"
       >
-        <form onSubmit={submit}>
-
-          {/* Nombre */}
+        <form onSubmit={submit} style={{ maxWidth: "100%" }}>
           <div style={{ marginBottom: 14 }}>
             <label style={ui.fieldLabel}>Nombre / Razón Social *</label>
-            <input style={ui.input} value={form.name} onChange={set("name")} placeholder="Nombre del cliente" autoFocus />
+            <input style={{ ...ui.input, width: "100%", boxSizing: "border-box" }} value={form.name} onChange={set("name")} placeholder="Nombre del cliente" autoFocus />
             {fieldErrors.name && <p style={fieldErrorStyle}>{fieldErrors.name}</p>}
           </div>
 
-          {/* RFC + Teléfono */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 14 }}>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: 12,
+            marginBottom: 14
+          }}>
             <div>
               <label style={ui.fieldLabel}>RFC</label>
               <input
-                style={{ ...ui.input, fontFamily: "monospace", textTransform: "uppercase" }}
+                style={{ ...ui.input, width: "100%", boxSizing: "border-box", fontFamily: "monospace", textTransform: "uppercase" }}
                 value={form.taxId}
                 onChange={set("taxId")}
                 placeholder="XAXX010101000"
@@ -767,30 +772,33 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
             </div>
           </div>
 
-          {/* Email + Dirección */}
           <div style={{ marginBottom: 14 }}>
             <label style={ui.fieldLabel}>Correo electrónico</label>
-            <input type="email" style={ui.input} value={form.email} onChange={set("email")} placeholder="correo@dominio.com" />
+            <input type="email" style={{ ...ui.input, width: "100%", boxSizing: "border-box" }} value={form.email} onChange={set("email")} placeholder="correo@dominio.com" />
             {fieldErrors.email && <p style={fieldErrorStyle}>{fieldErrors.email}</p>}
           </div>
           <div style={{ marginBottom: 14 }}>
             <label style={ui.fieldLabel}>Dirección</label>
-            <input style={ui.input} value={form.address} onChange={set("address")} placeholder="Calle, número, colonia" />
+            <input style={{ ...ui.input, width: "100%", boxSizing: "border-box" }} value={form.address} onChange={set("address")} placeholder="Calle, número, colonia" />
             {fieldErrors.address && <p style={fieldErrorStyle}>{fieldErrors.address}</p>}
           </div>
 
-          {/* Límite crédito + CP */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: 12,
+            marginBottom: 14
+          }}>
             <div>
               <label style={ui.fieldLabel}>Límite de crédito ($)</label>
-              <input type="text" inputMode="decimal" style={ui.input} value={form.creditLimit} onChange={setCreditLimit} placeholder="0.00" />
+              <input type="text" inputMode="decimal" style={{ ...ui.input, width: "100%", boxSizing: "border-box" }} value={form.creditLimit} onChange={setCreditLimit} placeholder="0.00" />
               {fieldErrors.creditLimit && <p style={fieldErrorStyle}>{fieldErrors.creditLimit}</p>}
             </div>
             <div>
               <label style={ui.fieldLabel}>Código Postal fiscal</label>
               <input
                 inputMode="numeric"
-                style={ui.input}
+                style={{ ...ui.input, width: "100%", boxSizing: "border-box" }}
                 value={form.zipCode}
                 onChange={set("zipCode")}
                 placeholder="12345"
@@ -800,15 +808,18 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
             </div>
           </div>
 
-          {/* Sección CFDI */}
           <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "12px 14px", backgroundColor: "var(--surface-2)", marginBottom: 8 }}>
             <p style={{ fontSize: 12, fontWeight: 700, color: "var(--accent-strong)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
               Datos CFDI 4.0
             </p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+              gap: 12
+            }}>
               <div>
                 <label style={ui.fieldLabel}>Régimen Fiscal</label>
-                <select style={{ ...ui.input, cursor: "pointer" }} value={form.taxRegime} onChange={set("taxRegime")}>
+                <select style={{ ...ui.input, width: "100%", boxSizing: "border-box", cursor: "pointer" }} value={form.taxRegime} onChange={set("taxRegime")}>
                   <option value="">— Sin especificar —</option>
                   {TAX_REGIMES.map((r) => (
                     <option key={r.value} value={r.value}>{r.label}</option>
@@ -818,7 +829,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
               </div>
               <div>
                 <label style={ui.fieldLabel}>Uso de CFDI</label>
-                <select style={{ ...ui.input, cursor: "pointer" }} value={form.cfdiUse} onChange={set("cfdiUse")}>
+                <select style={{ ...ui.input, width: "100%", boxSizing: "border-box", cursor: "pointer" }} value={form.cfdiUse} onChange={set("cfdiUse")}>
                   <option value="">— Sin especificar —</option>
                   {CFDI_USES.map((u) => (
                     <option key={u.value} value={u.value}>{u.label}</option>
@@ -833,11 +844,11 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
             <p style={{ color: "var(--color-danger)", fontSize: 13, fontWeight: 600, marginTop: 4 }}>{formError}</p>
           )}
 
-          <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-            <button type="button" disabled={saving} style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={closeForm}>
+          <div style={{ display: "flex", gap: 10, marginTop: 20, flexWrap: "wrap" }}>
+            <button type="button" disabled={saving} style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center", minWidth: "120px" }} onClick={closeForm}>
               Cancelar
             </button>
-            <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
+            <button type="submit" disabled={saving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center", minWidth: "120px" }}>
               {saving ? "Guardando..." : editingId !== null ? "Actualizar cliente" : "Guardar cliente"}
             </button>
           </div>
