@@ -56,6 +56,9 @@ export function TicketEmailModal({
     <div style={{ display: "flex", gap: "10px", width: "100%" }} className="pos-cashier-modal-actions">
       <button
         type="button"
+        data-shortcut="cancel"
+        data-shortcut-letter="X"
+        title="Cancelar"
         onClick={onCancel}
         style={{ ...styles.modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
         disabled={emailLoading}
@@ -64,6 +67,10 @@ export function TicketEmailModal({
       </button>
       <button
         type="button"
+        data-shortcut="confirm"
+        data-shortcut-action="send-email"
+        data-shortcut-letter="S"
+        title="Enviar correo (Alt+S, Enter)"
         onClick={onSend}
         style={{ ...styles.modalBtn, backgroundColor: "#2563eb", color: "white" }}
         disabled={emailLoading || !emailInput}

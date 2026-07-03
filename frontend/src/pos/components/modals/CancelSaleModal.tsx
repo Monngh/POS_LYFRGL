@@ -61,14 +61,20 @@ export default function CancelSaleModal({
   const footer = (
     <>
       <button 
-        type="button" 
+        type="button"
+        title={currentStep === 0 ? "Cancelar (Esc)" : "Atrás"}
+        data-shortcut={currentStep === 0 ? "cancel" : undefined}
+        data-shortcut-letter={currentStep === 0 ? "X" : undefined}
         onClick={currentStep === 0 ? onClose : handlePrev} 
         style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
       >
         {currentStep === 0 ? "Cancelar" : "Atrás"}
       </button>
       <button 
-        type="button" 
+        type="button"
+        title={cancelLoading ? "Procesando..." : currentStep === 2 ? "Confirmar cancelación" : "Siguiente"}
+        data-shortcut="confirm"
+        data-shortcut-letter="C"
         onClick={handleFormSubmit} 
         disabled={
           cancelLoading || 

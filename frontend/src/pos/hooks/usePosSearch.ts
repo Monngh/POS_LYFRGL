@@ -33,6 +33,7 @@ export function usePosSearch({ view, activeModal, onProductFound }: UsePosSearch
   const [lookupQuery, setLookupQuery] = useState("");
   const [lookupCategory, setLookupCategory] = useState<string>("");
   const [lookupResults, setLookupResults] = useState<Product[]>([]);
+  const [lookupSelectionIndex, setLookupSelectionIndex] = useState<number>(-1);
   const [barcodeSearch, setBarcodeSearch] = useState("");
   const [barcodeSearchError, setBarcodeSearchError] = useState("");
   const [searchResults, setSearchResults] = useState<Product[]>([]);
@@ -62,8 +63,27 @@ export function usePosSearch({ view, activeModal, onProductFound }: UsePosSearch
   };
 
   const handleLookupKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setLookupSelectionIndex((prev) => Math.min(prev + 1, lookupResults.length - 1));
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setLookupSelectionIndex((prev) => Math.max(prev - 1, 0));
+      return;
+    }
     if (e.key === "Enter") {
       e.preventDefault();
+      // If there's a selection, choose it
+      if (lookupSelectionIndex >= 0 && lookupSelectionIndex < lookupResults.length) {
+        const prod = lookupResults[lookupSelectionIndex];
+        onProductFound(prod);
+        setLookupResults([]);
+        setLookupSelectionIndex(-1);
+        setLookupQuery("");
+        return;
+      }
       handleLookupSearch();
     }
   };
@@ -169,6 +189,8 @@ export function usePosSearch({ view, activeModal, onProductFound }: UsePosSearch
     lastSearchQueryRef,
     handleLookupSearch,
     handleLookupKeyDown,
+    lookupSelectionIndex,
+    setLookupSelectionIndex,
     handleProductBarcodeSearch,
     resetLookup,
     resetSearch,

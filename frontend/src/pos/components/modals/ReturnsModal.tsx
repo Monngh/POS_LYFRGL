@@ -363,12 +363,17 @@ export default function ReturnsModal({
         <>
           <button
             onClick={onClose}
+            data-shortcut="cancel"
+            data-shortcut-letter="X"
+            title="Cerrar (Esc)"
             style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
           >
             Cerrar
           </button>
           <button
             onClick={handleReturnSearch}
+            data-shortcut="confirm"
+            data-shortcut-letter="C"
             disabled={returnLoading}
             style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer", opacity: returnLoading ? 0.7 : 1 }}
           >
@@ -382,12 +387,18 @@ export default function ReturnsModal({
         <>
           <button 
             onClick={() => { setReturnStep("search"); setReturnSaleData(null); setReturnItems([]); }} 
+            data-shortcut="cancel"
+            data-shortcut-letter="X"
+            title="Atrás"
             style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
           >
             ← Atrás
           </button>
           <button 
-            onClick={handleReturnProceed} 
+            onClick={handleReturnProceed}
+            data-shortcut="confirm"
+            data-shortcut-letter="C"
+            title="Continuar (Alt+C)"
             style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer" }}
           >
             Continuar →
@@ -400,12 +411,18 @@ export default function ReturnsModal({
         <>
           <button 
             onClick={() => setReturnStep("select")} 
+            data-shortcut="cancel"
+            data-shortcut-letter="X"
+            title="Atrás"
             style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
           >
             ← Atrás
           </button>
           <button
             onClick={handleReturnProcess}
+            data-shortcut="confirm"
+            data-shortcut-letter="C"
+            title="Procesar devolución (Alt+C)"
             disabled={returnProcessing}
             style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer", opacity: returnProcessing ? 0.7 : 1 }}
           >
@@ -418,6 +435,10 @@ export default function ReturnsModal({
       return (
         <>
           <button
+            type="button"
+            data-shortcut-action="send-email"
+            data-shortcut-letter="S"
+            title="Enviar por Correo (Alt+S)"
             onClick={() => onOpenEmailModal({
               subject: `Comprobante de devolución ${returnReceipt?.returnNumber}`,
               htmlContent: buildReturnReceiptHtml(),
@@ -434,13 +455,18 @@ export default function ReturnsModal({
               const printed = openTicketPrintWindow(title, html);
               if (!printed) alert("Habilite las ventanas emergentes para imprimir el comprobante.");
             }}
+            data-shortcut="confirm"
+            data-shortcut-letter="C"
+            title="Imprimir (Alt+C)"
             style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
           >
             Imprimir
           </button>
           <button 
-            onClick={onClose} 
-            style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer" }}
+            onClick={onClose}
+            data-shortcut="cancel"
+            data-shortcut-letter="X"
+            title="Cerrar (Esc)"
           >
             Cerrar
           </button>

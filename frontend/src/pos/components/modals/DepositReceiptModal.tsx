@@ -63,6 +63,9 @@ export default function DepositReceiptModal({
   const renderFooter = () => (
     <div style={{ display: "flex", gap: "10px", width: "100%" }} className="pos-cashier-modal-actions no-print" data-no-ticket-print="true">
       <button
+        title="Imprimir (Alt+C)"
+        data-shortcut="confirm"
+        data-shortcut-letter="C"
         onClick={onPrint}
         style={{ ...modalBtn, backgroundColor: "var(--accent-strong)", color: "white" }}
       >
@@ -72,6 +75,9 @@ export default function DepositReceiptModal({
       {lastDeposit.status === "PENDING" && lastDeposit.paymentType?.startsWith("MERCADOPAGO_") && (
         <button
           type="button"
+          title="Verificar pago (Alt+W)"
+          data-shortcut-action="verify-payment"
+          data-shortcut-letter="W"
           onClick={async () => {
             setSyncingDepositId(lastDeposit.id);
             try { await onSync(lastDeposit.id); } finally { setSyncingDepositId(null); }
@@ -88,7 +94,13 @@ export default function DepositReceiptModal({
           {syncingDepositId === lastDeposit.id ? "SINCRONIZANDO..." : "VERIFICAR PAGO"}
         </button>
       )}
-      <button onClick={onClose} style={{ ...modalBtn, backgroundColor: "#059669", color: "white" }}>
+      <button
+        title="Cerrar (Esc)"
+        data-shortcut="cancel"
+        data-shortcut-letter="X"
+        onClick={onClose}
+        style={{ ...modalBtn, backgroundColor: "#059669", color: "white" }}
+      >
         CERRAR
       </button>
     </div>

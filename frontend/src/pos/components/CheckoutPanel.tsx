@@ -53,10 +53,11 @@ export function CheckoutPanel({
             <div className="pos-cashier-inline-table-scroll">
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                 <tbody>
-                  {pendingQrSales.slice(-3).reverse().map((sale) => {
+                  {pendingQrSales.slice(-3).reverse().map((sale, index) => {
                     const isChecking = pendingQrChecking === sale.invoiceNumber;
                     const isApproved = sale.status === "approved";
                     const isRejected = sale.status === "rejected";
+                    const isFirstPending = index === 0 && !isApproved && !isRejected;
                     return (
                       <tr key={sale.id} style={{ borderBottom: "1px solid var(--surface-3)", backgroundColor: isApproved ? "var(--icon-bg-green)" : isRejected ? "var(--icon-bg-red)" : "transparent" }}>
                         <td style={{ padding: "5px 6px", fontWeight: "600", color: "var(--text-secondary)", whiteSpace: "nowrap" }} title={sale.invoiceNumber}>
@@ -75,7 +76,8 @@ export function CheckoutPanel({
                           <div style={{ display: "inline-flex", gap: "4px" }}>
                             <button
                               onClick={(e) => { e.stopPropagation(); setPendingCancelFieldErrors({}); setViewingPendingQrSale(sale); }}
-                              title="Ver QR"
+                              title={isFirstPending ? "Ver QR (Alt+J)" : "Ver QR"}
+                              {...(isFirstPending ? { "data-shortcut-letter": "J" } : {})}
                               style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: "#dbeafe", color: "#1e40af", border: "1px solid #93c5fd", cursor: "pointer" }}
                             >
                               QR
@@ -83,7 +85,10 @@ export function CheckoutPanel({
                             <button
                               onClick={(e) => { e.stopPropagation(); checkPendingQrStatus(sale.invoiceNumber); }}
                               disabled={isChecking}
-                              title="Verificar pago — si está aprobado muestra el ticket"
+                              title={isFirstPending ? "Verificar pago (Alt+W)" : "Verificar pago — si está aprobado muestra el ticket"}
+                              {...(isFirstPending
+                                ? { "data-shortcut-action": "verify-payment", "data-shortcut-letter": "W" }
+                                : {})}
                               style={{ padding: "3px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "700", backgroundColor: isChecking ? "#6b7280" : "var(--accent-strong)", color: "white", border: "none", cursor: isChecking ? "default" : "pointer" }}
                             >
                               {isChecking ? "..." : "Verificar"}
@@ -147,6 +152,7 @@ export function CheckoutPanel({
           <button
             onClick={handleCancelCurrentPurchase}
             className="active-tap"
+            title="Cancelar compra"
             style={{ ...styles.terminalBtn, flex: 1, minWidth: "120px", backgroundColor: "#dc2626", color: "white" }}
           >
             CANCELAR COMPRA
@@ -155,6 +161,8 @@ export function CheckoutPanel({
             onClick={onParkSale}
             disabled={cart.length === 0}
             className="active-tap"
+            data-shortcut-letter="P"
+            title="Pausar venta"
             style={{ ...styles.terminalBtn, flex: 1, minWidth: "120px", backgroundColor: "#d97706", color: "white", opacity: cart.length === 0 ? 0.5 : 1 }}
           >
             PAUSAR VENTA
@@ -163,6 +171,8 @@ export function CheckoutPanel({
             disabled={cart.length === 0}
             onClick={onOpenCheckout}
             className="active-tap"
+            data-shortcut-key="F4"
+            title="Cobrar (F4)"
             style={{ ...styles.terminalBtn, flex: 1, backgroundColor: "#059669", color: "white" }}
           >
             COBRAR

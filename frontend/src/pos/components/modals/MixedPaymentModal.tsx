@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
-import { CreditCard, Banknote, HelpCircle, X, CheckCircle2 } from "lucide-react";
+import { useState, useEffect, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { CreditCard, Banknote, HelpCircle, CheckCircle2 } from "lucide-react";
 import { PosModal } from "./shared";
 import { validateStoreCredit } from "../../../facturacion/facturacion.service";
+import { useModalInitialFocus } from "../../hooks/useModalInitialFocus";
 
 interface PaymentEntry {
   id: string;
@@ -52,6 +53,9 @@ export default function MixedPaymentModal({
   }, [remaining, currentAmount]);
 
   const [addingPayment, setAddingPayment] = useState(false);
+  const keyboardContainerRef = useModalInitialFocus(isOpen, {
+    preferSelector: 'input[type="number"], input[inputmode="decimal"]',
+  });
 
   const handleAddPayment = async () => {
     if (addingPayment) return;
@@ -127,15 +131,41 @@ export default function MixedPaymentModal({
 
   const formatCurrency = (val: number) => `$${val.toFixed(2)}`;
 
+  const handleKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      const order = ["EFECTIVO", "TARJETA", "STORE_CREDIT"] as const;
+      const idx = order.indexOf(currentMethod);
+      const next = e.key === "ArrowRight" ? Math.min(idx + 1, order.length - 1) : Math.max(idx - 1, 0);
+      setCurrentMethod(order[next]);
+      return;
+    }
+
+    if (e.key === "Enter") {
+      const active = document.activeElement;
+      if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || (active as HTMLElement).isContentEditable)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      handleAddPayment();
+      return;
+    }
+  };
+
   const footer = (
     <>
-      <button 
+      <button
+        title="Cancelar (X)"
+        data-shortcut="cancel"
+        data-shortcut-letter="X"
         onClick={onClose} 
         style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid #cbd5e1", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
       >
         Cancelar
       </button>
       <button 
+        title="Procesar Cobro (C)"
+        data-shortcut="confirm"
+        data-shortcut-letter="C"
         onClick={handleConfirm}
         disabled={totalAdded < totalToPay}
         style={{ 
@@ -167,7 +197,7 @@ export default function MixedPaymentModal({
       size="md"
       footer={footer}
     >
-      <div style={{ display: "flex", gap: "24px", padding: "16px 0" }}>
+      <div ref={keyboardContainerRef} style={{ display: "flex", gap: "24px", padding: "16px 0" }} onKeyDown={handleKeyDown} tabIndex={-1}>
         
         {/* Left column: Add payments */}
         <div style={{ flex: "1 1 50%" }}>

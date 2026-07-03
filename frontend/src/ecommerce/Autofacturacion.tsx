@@ -182,6 +182,15 @@ const Autofacturacion: React.FC = () => {
 
   const hasErrors = (errors: FieldErrors) => Object.values(errors).some(Boolean);
 
+  const formatMoney = (value: number | null | undefined) =>
+    `$${Number(value || 0).toFixed(2)}`;
+
+  const getTicketSubtotal = (currentTicket: TicketData) =>
+    currentTicket.subtotalAmount ?? Number((currentTicket.totalAmount + (currentTicket.pointsDiscount || 0) - currentTicket.taxAmount).toFixed(2));
+
+  const getTicketTotalBeforePoints = (currentTicket: TicketData) =>
+    currentTicket.totalBeforePoints ?? Number((currentTicket.totalAmount + (currentTicket.pointsDiscount || 0)).toFixed(2));
+
   const ALLOWED_TAX_SYSTEMS = REGIMENES_FISCALES.map((r) => r.code);
   const ALLOWED_CFDI_USES = USOS_CFDI.map((u) => u.code);
 
@@ -953,7 +962,7 @@ const Autofacturacion: React.FC = () => {
                     <div>
                       <strong>Total Compra:</strong>
                       <span style={{ color: "#1e3a8a", fontWeight: "800", marginLeft: "6px" }}>
-                        ${ticket.totalAmount.toFixed(2)}
+                        {formatMoney(ticket.totalAmount)}
                       </span>
                     </div>
                   </div>
@@ -965,20 +974,123 @@ const Autofacturacion: React.FC = () => {
                           <th style={styles.th}>Producto</th>
                           <th style={styles.th}>Cant.</th>
                           <th style={styles.th}>P. Unitario</th>
+                          <th style={styles.th}>Desc.</th>
                           <th style={styles.th}>Total</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {ticket.items.map((item, idx) => (
-                          <tr key={idx} style={styles.tr}>
-                            <td style={styles.td}>{item.name}</td>
-                            <td style={styles.td}>{item.quantity}</td>
-                            <td style={styles.td}>${item.unitPrice.toFixed(2)}</td>
-                            <td style={{ ...styles.td, fontWeight: "600" }}>${item.total.toFixed(2)}</td>
-                          </tr>
-                        ))}
+                        {ticket.items.map((item, idx) => {
+                          const lineDiscount = Number(item.discountAmount || 0);
+                          const hasLineDiscount = lineDiscount > 0;
+                          const displayUnitPrice = item.unitPriceAfterDiscount ?? item.unitPrice;
+                          return (
+                            <tr key={idx} style={styles.tr}>
+                              <td style={styles.td}>
+                                <div style={{ fontWeight: "700", color: "#0f172a" }}>{item.name}</div>
+                                {item.promotionLabel && (
+                                  <div style={styles.promoLabel}>{item.promotionLabel}</div>
+                                )}
+                              </td>
+                              <td style={styles.td}>{item.quantity}</td>
+                              <td style={styles.td}>
+                                {hasLineDiscount ? (
+                                  <div style={styles.priceStack}>
+                                    <span style={styles.strikePrice}>{formatMoney(item.unitPrice)}</span>
+                                    <span>{formatMoney(displayUnitPrice)}</span>
+                                  </div>
+                                ) : (
+                                  formatMoney(item.unitPrice)
+                                )}
+                              </td>
+                              <td style={{ ...styles.td, color: hasLineDiscount ? "#047857" : "#94a3b8", fontWeight: hasLineDiscount ? "700" : "500" }}>
+                                {hasLineDiscount ? `-${formatMoney(lineDiscount)}` : "—"}
+                              </td>
+                              <td style={{ ...styles.td, fontWeight: "700" }}>
+                                {hasLineDiscount && item.grossTotal !== undefined && (
+                                  <div style={styles.strikePrice}>{formatMoney(item.grossTotal)}</div>
+                                )}
+                                {formatMoney(item.total)}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
+                  </div>
+
+                  <div style={styles.ticketSummaryBox}>
+                    {/* Desglose claro de descuentos y ajustes para que coincida con la factura */}
+                    <div style={styles.summaryRow}>
+                      <span>Subtotal</span>
+                      <span>{formatMoney(getTicketSubtotal(ticket))}</span>
+                    </div>
+
+                    {Number(ticket.discountAmount || 0) > 0 && (
+                      <div style={{ ...styles.summaryRow, color: "#047857", fontWeight: "700" }}>
+                        <span>Descuentos / Promociones</span>
+                        <span>-{formatMoney(ticket.discountAmount)}</span>
+                      </div>
+                    )}
+
+                    {Number(ticket.pointsDiscount || 0) > 0 && (
+                      <div style={styles.summaryRow}>
+                        <span>Total antes de puntos</span>
+                        <span>{formatMoney(getTicketTotalBeforePoints(ticket))}</span>
+                      </div>
+                    )}
+
+                    {Number(ticket.pointsDiscount || 0) > 0 && (
+                      <div style={{ ...styles.summaryRow, color: "#047857", fontWeight: "700" }}>
+                        <span>Puntos canjeados{ticket.pointsRedeemed ? ` (${ticket.pointsRedeemed} pts)` : ""}</span>
+                        <span>-{formatMoney(ticket.pointsDiscount)}</span>
+                      </div>
+                    )}
+
+                    {ticket.taxBreakdown && ticket.taxBreakdown.length > 0 ? (
+                      ticket.taxBreakdown
+                        .filter((tax) => Number(tax.amount) > 0)
+                        .map((tax) => (
+                          <div key={tax.name} style={styles.summaryRow}>
+                            <span>{tax.name}</span>
+                            <span>{formatMoney(tax.amount)}</span>
+                          </div>
+                        ))
+                    ) : (
+                      <div style={styles.summaryRow}>
+                        <span>Impuestos</span>
+                        <span>{formatMoney(ticket.taxAmount)}</span>
+                      </div>
+                    )}
+
+                    <div style={styles.summaryTotalRow}>
+                      <span>Total pagado / a facturar</span>
+                      <span>{formatMoney(ticket.totalAmount)}</span>
+                    </div>
+
+                    {/* Mostrar efectivo recibido y cambio si aplica (ayuda a conciliar) */}
+                    {ticket.cashReceived !== null && ticket.cashReceived !== undefined && (
+                      <div style={styles.summaryRow}>
+                        <span>Efectivo recibido</span>
+                        <span>{formatMoney(ticket.cashReceived)}</span>
+                      </div>
+                    )}
+                    {ticket.changeGiven !== null && ticket.changeGiven !== undefined && Number(ticket.changeGiven) > 0 && (
+                      <div style={styles.summaryRow}>
+                        <span>Cambio entregado</span>
+                        <span>-{formatMoney(ticket.changeGiven)}</span>
+                      </div>
+                    )}
+
+                    {ticket.payments && ticket.payments.length > 0 && (
+                      <div style={styles.paymentSummary}>
+                        {ticket.payments.map((payment, index) => (
+                          <div key={`${payment.method}-${index}`} style={styles.summaryRow}>
+                            <span>{payment.method}</span>
+                            <span>{formatMoney(payment.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -2059,6 +2171,62 @@ const styles = {
     padding: "10px 6px",
     color: "#334155",
     verticalAlign: "middle"
+  },
+  promoLabel: {
+    display: "inline-block",
+    marginTop: "4px",
+    color: "#047857",
+    fontSize: "11px",
+    fontWeight: "700",
+    overflowWrap: "anywhere" as const
+  },
+  priceStack: {
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: "2px"
+  },
+  strikePrice: {
+    color: "#94a3b8",
+    fontSize: "11px",
+    textDecoration: "line-through"
+  },
+  ticketSummaryBox: {
+    marginTop: "16px",
+    marginLeft: "auto",
+    maxWidth: "360px",
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: "7px",
+    borderTop: "1px solid #dbe4ef",
+    paddingTop: "12px"
+  },
+  summaryRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: "16px",
+    fontSize: "13px",
+    color: "#334155"
+  },
+  summaryTotalRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: "16px",
+    color: "#0f172a",
+    fontSize: "15px",
+    fontWeight: "800",
+    borderTop: "1px solid #cbd5e1",
+    paddingTop: "10px",
+    marginTop: "3px"
+  },
+  paymentSummary: {
+    marginTop: "6px",
+    paddingTop: "8px",
+    borderTop: "1px dashed #cbd5e1",
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: "6px"
   },
   billingForm: {
     display: "flex",

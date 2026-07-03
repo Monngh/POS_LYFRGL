@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Search, Eye, EyeOff } from "lucide-react";
 import { usePosSearch } from "../hooks/usePosSearch";
 import { usePosCustomer } from "../hooks/usePosCustomer";
@@ -79,6 +79,44 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
     searchResults, setSearchResults,
   } = searchData;
 
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const phoneInputRef = useRef<HTMLInputElement | null>(null);
+  const confirmInputRef = useRef<HTMLInputElement | null>(null);
+  const searchResultsRef = useRef<HTMLDivElement | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+
+  const handleSearchInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (searchResults.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex((prev) => Math.min(prev + 1, searchResults.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex((prev) => Math.max(prev - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const idx = selectedIndex >= 0 ? selectedIndex : 0;
+      const prod = searchResults[idx];
+      if (prod) {
+        addProductToCart(prod);
+        setSearchResults([]);
+        setBarcodeSearch("");
+        setSelectedIndex(-1);
+      }
+    }
+  };
+
+  // Scroll the selected search result into view when selection changes
+  useEffect(() => {
+    if (selectedIndex < 0) return;
+    const container = searchResultsRef.current;
+    if (!container) return;
+    const child = container.children[selectedIndex] as HTMLElement | undefined;
+    if (child) {
+      child.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [selectedIndex]);
+
   const {
     selectedCustomer, setSelectedCustomer,
     handleSearchCustomerByPhone,
@@ -96,6 +134,12 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
   const [confirmInput, setConfirmInput] = useState("");
   const [confirmError, setConfirmError] = useState("");
   const [confirmShowPhone, setConfirmShowPhone] = useState(false);
+
+  useEffect(() => {
+    if (!confirmOpen) return;
+    const timer = window.setTimeout(() => confirmInputRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [confirmOpen]);
 
   // Silent search on 10 digits
   useEffect(() => {
@@ -140,16 +184,20 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
           <div style={{ flex: 1, position: "relative" }}>
             <Search size={18} color="#94a3b8" style={{ position: "absolute", left: "12px", top: "12px" }} />
             <input
+              ref={searchInputRef}
               type="text"
               className="input-corporate"
               style={{ paddingLeft: "38px" }}
               placeholder="Ingrese código o nombre del producto..."
+              data-shortcut-key="F2"
+              title="Buscar producto (F2)"
               value={barcodeSearch}
               onChange={(e) => setBarcodeSearch(validateTextInput(e.target.value))}
+              onKeyDown={handleSearchInputKeyDown}
             />
             {barcodeSearchError && <p style={styles.fieldError}>{barcodeSearchError}</p>}
           </div>
-          <button type="submit" className="btn-primary">Buscar</button>
+          <button type="submit" className="btn-primary" data-shortcut-letter="B" title="Buscar (Alt+B)">Buscar</button>
         </form>
 
         <div style={{ flex: "1 1 40%", display: "flex", gap: "10px", position: "relative" }} className="pos-cashier-customer-search">
@@ -188,9 +236,11 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
                 <div style={{ flex: 1, position: "relative" }}>
                   <input
                     type="text"
+                    ref={phoneInputRef}
                     className="input-corporate"
                     style={{ paddingRight: "40px" }}
                     placeholder="Teléfono del cliente (10 dígitos)"
+                    data-shortcut-key="F6"
                     value={localShowPhone ? localPhone : maskPhoneLast2(localPhone)}
                     onChange={(e) => {
                       const next = getNextRealPhone(e.target.value, localPhone);
@@ -233,9 +283,11 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
                       setConfirmOpen(true);
                     }}
                     className="btn-primary"
+                    data-shortcut-letter="R"
+                    title="Registrar cliente (Alt+R)"
                     style={{ fontSize: "11px", padding: "4px 8px", backgroundColor: "var(--text)", border: "none", borderRadius: "4px", color: "white", cursor: "pointer" }}
                   >
-                    + Registrar
+                    + Registrar (R)
                   </button>
                 </div>
               )}
@@ -246,16 +298,21 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
 
       {/* Dropdown de búsqueda multi-producto */}
       {searchResults.length > 0 && (
-        <div style={styles.searchResultsDropdown}>
-          {searchResults.map((p) => (
+        <div style={styles.searchResultsDropdown} ref={searchResultsRef}>
+          {searchResults.map((p, idx) => (
             <div
               key={p.id}
+              onMouseEnter={() => setSelectedIndex(idx)}
               onClick={() => {
                 addProductToCart(p);
                 setSearchResults([]);
                 setBarcodeSearch("");
+                setSelectedIndex(-1);
               }}
-              style={styles.dropdownItem}
+              style={{
+                ...styles.dropdownItem,
+                backgroundColor: idx === selectedIndex ? "var(--surface-2)" : "transparent",
+              }}
             >
               <span>{p.name}</span>
               <span style={{ fontWeight: "700", color: "#0d9488" }}>${p.sellPrice.toFixed(2)}</span>
@@ -304,7 +361,8 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
                     type="text"
                     required
                     className="input-corporate"
-                    placeholder="Ingrese el teléfono nuevamente"
+                    placeholder="Ingrese el telefono nuevamente"
+                    ref={confirmInputRef}
                     value={confirmShowPhone ? confirmInput : maskPhoneLast2(confirmInput)}
                     onChange={(e) => {
                       const next = getNextRealPhone(e.target.value, confirmInput);
@@ -315,6 +373,8 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
                   />
                   <button
                     type="button"
+                    data-shortcut-letter="M"
+                    title="Mostrar u ocultar telefono (Alt+M)"
                     onClick={() => setConfirmShowPhone(!confirmShowPhone)}
                     style={{ position: "absolute", right: "12px", top: "11px", border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
                   >
@@ -327,6 +387,8 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
               <div style={{ display: "flex", gap: "10px", marginTop: "16px" }} className="pos-cashier-modal-actions">
                 <button
                   type="button"
+                  data-shortcut="cancel"
+                  data-shortcut-letter="X"
                   onClick={() => {
                     setConfirmOpen(false);
                     setConfirmInput("");
@@ -341,6 +403,8 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
                 </button>
                 <button
                   type="submit"
+                  data-shortcut="confirm"
+                  data-shortcut-letter="R"
                   style={{
                     flex: 1, padding: "10px", borderRadius: "6px", border: "none",
                     fontWeight: "700", cursor: "pointer", backgroundColor: "#059669", color: "white"

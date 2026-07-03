@@ -29,6 +29,7 @@ import { useCashSession } from "../hooks/useCashSession";
 import { usePosCustomer } from "../hooks/usePosCustomer";
 import { usePosCart } from "../hooks/usePosCart";
 import { usePosSearch } from "../hooks/usePosSearch";
+import { useModalInitialFocus } from "../hooks/useModalInitialFocus";
 import { printTicketElementById, ticketPdfFilename } from "../../shared/utils/ticketEmailDocument.util";
 import { generateTicketPdfBase64 } from "../../shared/utils/ticketPdf.util";
 import {
@@ -86,7 +87,7 @@ const Dashboard: React.FC = () => {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
-  
+
   // Vistas del Cajero: "dashboard" | "apertura" | "sales-terminal"
   const [view, setView] = useState<"dashboard" | "apertura" | "sales-terminal">("dashboard");
   // Bloqueo: el turno de caja del usuario está abierto en otro equipo
@@ -134,6 +135,9 @@ const Dashboard: React.FC = () => {
     setDeclaredCashError,
     closingLoading,
     calculatedDifference,
+    blockedByOtherTab,
+    blockedSession,
+    handleClaimSessionHere,
     loadDashboardData,
     handleCloseShift,
     handleSavePartialCut,
@@ -197,6 +201,10 @@ const Dashboard: React.FC = () => {
     addProductToCart,
   } = cartData;
 
+  const draftModalRef = useModalInitialFocus(showDraftConfirm, {
+    preferSelector: '[data-shortcut="confirm"]',
+  });
+
   const searchData = usePosSearch({
     view,
     activeModal,
@@ -210,6 +218,8 @@ const Dashboard: React.FC = () => {
     lookupResults,
     handleLookupSearch,
     handleLookupKeyDown,
+    lookupSelectionIndex,
+    setLookupSelectionIndex,
     resetLookup,
     resetSearch,
   } = searchData;
@@ -455,6 +465,10 @@ const Dashboard: React.FC = () => {
     defaultEmail?: string | null;
   }) => (
     <button
+      type="button"
+      data-shortcut-action="send-email"
+      data-shortcut-letter="S"
+      title="Enviar por Correo (Alt+S)"
       onClick={() => openTicketEmailModal(emailConfig)}
       style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
     >
@@ -475,11 +489,23 @@ const Dashboard: React.FC = () => {
     };
   }) => (
     <>
-      <button onClick={options.onClose} style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}>
+      <button
+        title="Cerrar (Esc)"
+        data-shortcut="cancel"
+        data-shortcut-letter="X"
+        onClick={options.onClose}
+        style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
+      >
         {options.closeLabel || "Cerrar"}
       </button>
       {renderTicketEmailButton(options.emailConfig)}
-      <button onClick={options.onPrint} style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>
+      <button
+        title="Imprimir (Alt+C)"
+        data-shortcut="confirm"
+        data-shortcut-letter="C"
+        onClick={options.onPrint}
+        style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
+      >
         <Printer size={16} /> {options.printLabel || "Imprimir"}
       </button>
     </>
@@ -1075,6 +1101,49 @@ const Dashboard: React.FC = () => {
   }
 
   // ===========================================================================
+  // RENDER BLOQUEO: TURNO DE CAJA ABIERTO EN OTRA PESTAÑA DEL MISMO DISPOSITIVO
+  // ===========================================================================
+  if (blockedByOtherTab && blockedSession) {
+    return (
+      <>
+        <div id="tab-conflict-screen" style={styles.conflictScreen}>
+          <div style={styles.conflictCardWide}>
+            <div style={styles.conflictIconContainer}>
+              <AlertTriangle size={36} color="#f97316" />
+            </div>
+            <h2 style={styles.conflictTitle}>Caja abierta en otra pestaña</h2>
+            <p style={styles.conflictTextWide}>
+              Ya existe una sesión de caja abierta en otra pestaña de este mismo navegador. Solo puede usar la sesión en una pestaña a la vez.
+            </p>
+            <p style={styles.conflictTextWide}>
+              Si desea continuar en esta pestaña, presione <strong>Usar aquí</strong>. La otra pestaña dejará de poder operar la caja.
+            </p>
+            <div style={styles.conflictActionRow}>
+              <button
+                type="button"
+                onClick={handleClaimSessionHere}
+                className="btn-primary active-tap"
+                style={styles.conflictButton}
+              >
+                Usar aquí
+              </button>
+              <button
+                type="button"
+                onClick={logout}
+                className="btn-secondary active-tap"
+                style={styles.conflictSecondaryButton}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+        {forcedCloseModal}
+      </>
+    );
+  }
+
+  // ===========================================================================
   // RENDER B: APERTURA DE CAJA OBLIGATORIA (Mockup 8)
   // ===========================================================================
   if (view === "apertura") {
@@ -1156,6 +1225,8 @@ const Dashboard: React.FC = () => {
         }}
         lookupResults={lookupResults}
         onLookupKeyDown={handleLookupKeyDown}
+        lookupSelectionIndex={lookupSelectionIndex}
+        setLookupSelectionIndex={setLookupSelectionIndex}
       />
 
       {/* MODAL: AUTORIZACIÓN PIN GERENTE/ADMIN PARA CARRITO (Fase 3.0) */}
@@ -1487,15 +1558,18 @@ const Dashboard: React.FC = () => {
 
             {/* MODAL: CONFIRMACIÓN DE BORRADOR DE VENTA */}
       {showDraftConfirm && (
-        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-          <div style={{ ...styles.cancelModal, width: "400px" }} className="pos-cashier-modal">
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center" data-pos-modal>
+          <div ref={draftModalRef} style={{ ...styles.cancelModal, width: "400px" }} className="pos-cashier-modal" tabIndex={-1}>
             <h3 style={styles.modalTitle}>Venta en borrador encontrada</h3>
             <p style={{ fontSize: "13px", color: "var(--text-secondary)", margin: "12px 0 20px 0", textAlign: "center", lineHeight: "1.5" }}>
               Existe una venta en borrador con <strong>{cart.length > 0 ? cart.length : loadDraft().length} producto(s)</strong> en el carrito.
               ¿Desea continuar con la venta guardada o iniciar una nueva?
             </p>
-            <div style={{ display: "flex", gap: "10px" }}>
+            <div style={{ display: "flex", gap: "10px" }} data-pos-modal-footer>
               <button
+                data-shortcut="cancel"
+                data-shortcut-letter="X"
+                title="Nueva venta (Esc)"
                 onClick={() => {
                   // Descartar borrador e iniciar nueva venta
                   setCart([]);
@@ -1508,6 +1582,9 @@ const Dashboard: React.FC = () => {
                 NUEVA VENTA
               </button>
               <button
+                data-shortcut="confirm"
+                data-shortcut-letter="C"
+                title="Continuar borrador (Enter, Alt+C)"
                 onClick={() => {
                   // Restaurar borrador y continuar
                   const draft = loadDraft();
@@ -2115,6 +2192,67 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: "center",
     border: "1px solid var(--surface-3)",
   },
+  conflictCardWide: {
+    width: "560px",
+    maxWidth: "100%",
+    backgroundColor: "var(--surface)",
+    borderRadius: "16px",
+    padding: "48px 32px 36px 32px",
+    boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+    textAlign: "center",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    border: "1px solid var(--surface-3)",
+  },
+  conflictTextWide: {
+    color: "var(--text-secondary)",
+    fontSize: "14px",
+    lineHeight: "1.8",
+    margin: "0 0 32px 0",
+    fontFamily: "'Inter', sans-serif",
+    maxWidth: "520px",
+  },
+  conflictActionRow: {
+    display: "flex",
+    gap: "12px",
+    width: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  conflictButton: {
+    flex: 1,
+    width: "auto",
+    minWidth: "180px",
+    maxWidth: "240px",
+    padding: "14px 20px",
+    fontSize: "15px",
+    fontWeight: "600",
+    borderRadius: "10px",
+    backgroundColor: "#598ffbff",
+    color: "#ffffff",
+    border: "none",
+    cursor: "pointer",
+    transition: "background-color 0.2s, transform 0.1s",
+    boxShadow: "0 4px 6px -1px rgba(89, 143, 251, 0.2)",
+  },
+  conflictSecondaryButton: {
+    flex: 1,
+    width: "auto",
+    minWidth: "180px",
+    maxWidth: "240px",
+    padding: "14px 20px",
+    fontSize: "15px",
+    fontWeight: "600",
+    borderRadius: "10px",
+    backgroundColor: "transparent",
+    color: "#111827",
+    border: "1px solid #d1d5db",
+    cursor: "pointer",
+    transition: "background-color 0.2s, transform 0.1s",
+    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.08)",
+  },
   conflictIconContainer: {
     width: "72px",
     height: "72px",
@@ -2141,19 +2279,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontFamily: "'Inter', sans-serif",
     maxWidth: "340px",
   },
-  conflictButton: {
-    width: "100%",
-    padding: "14px 20px",
-    fontSize: "15px",
-    fontWeight: "600",
-    borderRadius: "10px",
-    backgroundColor: "#598ffbff",
-    color: "#ffffff",
-    border: "none",
-    cursor: "pointer",
-    transition: "background-color 0.2s, transform 0.1s",
-    boxShadow: "0 4px 6px -1px rgba(89, 143, 251, 0.2)",
-  },
+  
   select: {
     width: "100%",
     padding: "10px 14px",

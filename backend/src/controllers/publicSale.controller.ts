@@ -111,6 +111,7 @@ export const getTicketDetails = async (req: Request, res: Response): Promise<voi
       include: {
         saleDetails: {
           include: {
+            saleDetailTaxes: true,
             product: {
               select: { name: true, sku: true }
             }
@@ -118,7 +119,8 @@ export const getTicketDetails = async (req: Request, res: Response): Promise<voi
         },
         branch: {
           select: { name: true }
-        }
+        },
+        payments: true
       }
     });
 
@@ -153,21 +155,65 @@ export const getTicketDetails = async (req: Request, res: Response): Promise<voi
       return;
     }
 
+    const taxBreakdownMap: Record<string, { rate: number; amount: number }> = {};
+    for (const detail of sale.saleDetails) {
+      for (const tax of detail.saleDetailTaxes) {
+        if (!taxBreakdownMap[tax.taxName]) {
+          taxBreakdownMap[tax.taxName] = { rate: Number(tax.taxRate), amount: 0 };
+        }
+        taxBreakdownMap[tax.taxName].amount += Number(tax.taxAmount);
+      }
+    }
+
+    const taxBreakdown = Object.entries(taxBreakdownMap).map(([name, data]) => ({
+      name,
+      rate: data.rate,
+      amount: Number(data.amount.toFixed(2)),
+    }));
+
+    const totalBeforePoints = Number(sale.totalAmount) + Number(sale.pointsDiscount || 0);
+    const subtotalAmount = totalBeforePoints - Number(sale.taxAmount);
+
     res.status(200).json({
       id: sale.id,
       invoiceNumber: sale.invoiceNumber,
       createdAt: sale.createdAt,
       invoiceDeadline: formatDateOnly(invoiceDeadline),
       totalAmount: Number(sale.totalAmount),
+      totalBeforePoints: Number(totalBeforePoints.toFixed(2)),
+      subtotalAmount: Number(subtotalAmount.toFixed(2)),
       taxAmount: Number(sale.taxAmount),
+      discountAmount: Number(sale.discountAmount || 0),
+      pointsRedeemed: sale.pointsRedeemed,
+      pointsDiscount: Number(sale.pointsDiscount || 0),
+      paymentMethod: sale.paymentMethod,
+      cashReceived: sale.cashReceived ? Number(sale.cashReceived) : null,
+      changeGiven: sale.changeGiven ? Number(sale.changeGiven) : 0,
       branchName: sale.branch.name,
-      items: sale.saleDetails.map(d => ({
-        name: d.product.name,
-        sku: d.product.sku,
-        quantity: d.quantity,
-        unitPrice: Number(d.unitPrice),
-        total: Number(d.unitPrice) * d.quantity
-      }))
+      taxBreakdown,
+      payments: sale.payments.map((payment) => ({
+        method: payment.paymentMethod,
+        amount: Number(payment.amount),
+        reference: payment.reference,
+      })),
+      items: sale.saleDetails.map(d => {
+        const unitPrice = Number(d.unitPrice);
+        const discountAmount = Number(d.discountAmount || 0);
+        const grossTotal = unitPrice * d.quantity;
+        const total = grossTotal - discountAmount;
+        return {
+          name: d.product.name,
+          sku: d.product.sku,
+          quantity: d.quantity,
+          unitPrice,
+          unitPriceAfterDiscount: d.quantity > 0 ? Number((total / d.quantity).toFixed(2)) : unitPrice,
+          grossTotal: Number(grossTotal.toFixed(2)),
+          discountAmount,
+          promotionLabel: d.promotionLabel,
+          taxAmount: Number(d.taxAmount || 0),
+          total: Number(total.toFixed(2))
+        };
+      })
     });
   } catch (error: any) {
     console.error(error);

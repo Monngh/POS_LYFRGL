@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import api from "../../shared/services/api";
 
 interface UseLockScreenProps {
@@ -44,24 +44,6 @@ export function useLockScreen({ user }: UseLockScreenProps) {
     },
     [user]
   );
-
-  // Keyboard shortcut listener for Ctrl+L
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl + L (ignore if already locked or user not logged in)
-      if (e.ctrlKey && (e.key === "l" || e.key === "L")) {
-        if (user && !isLocked) {
-          e.preventDefault();
-          lock();
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [user, isLocked, lock]);
 
   return {
     isLocked,
