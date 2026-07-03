@@ -127,38 +127,28 @@ export const exportExcel = async (filename: string, sheets: ExportSheet[], meta?
 };
 
 // ----------------------------- PDF (Print CSS nativo) ----------------------
+// AMBAS salidas (Imprimir y Descargar PDF) usan el MISMO layout de impresión:
+// @media print de reportTheme.css aísla el documento (.erp-doc), fija @page A4
+// y pagina por .erp-page. El motor de render del navegador produce un PDF
+// vectorial: texto nítido y seleccionable, fuentes e iconos SVG conservados,
+// archivo ligero y generación inmediata — sin capturas del DOM ni duplicar
+// el árbol. Un solo diseño para pantalla, papel y PDF.
 export const printReport = () => {
-  // @media print de reportTheme.css aísla el documento (.erp-doc), fija @page
-  // A4 y pagina por .erp-page → PDF idéntico al diseño, con texto seleccionable.
   window.print();
 };
 
-// ----------------------------- PDF (descarga directa) ----------------------
-// Renderiza cada página A4 a un lienzo de alta resolución (2x) y lo compone en
-// un PDF multipágina que se descarga automáticamente. Complementa al flujo de
-// impresión: mismo diseño, sin pasar por el diálogo del navegador.
-export const downloadPdfFromPages = async (
-  pageEls: HTMLElement[],
-  filename: string,
-  onProgress?: (done: number, total: number) => void,
-) => {
-  const [h2cMod, pdfMod] = await Promise.all([import("html2canvas"), import("jspdf")]);
-  const html2canvas: any = (h2cMod as any).default ?? h2cMod;
-  const JsPdf: any = (pdfMod as any).jsPDF ?? (pdfMod as any).default;
-  const pdf = new JsPdf({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
-
-  for (let i = 0; i < pageEls.length; i++) {
-    const canvas = await html2canvas(pageEls[i], {
-      scale: 2,
-      backgroundColor: "#ffffff",
-      logging: false,
-      useCORS: true,
-    });
-    const img = canvas.toDataURL("image/jpeg", 0.93);
-    const h = (canvas.height * 210) / canvas.width; // conserva la proporción A4
-    if (i > 0) pdf.addPage();
-    pdf.addImage(img, "JPEG", 0, 0, 210, Math.min(297, h), undefined, "FAST");
-    onProgress?.(i + 1, pageEls.length);
-  }
-  pdf.save(filename.endsWith(".pdf") ? filename : `${filename}.pdf`);
+// Descarga como PDF reutilizando la misma plantilla de impresión. Chrome/Edge
+// usan document.title como nombre de archivo sugerido al elegir el destino
+// «Guardar como PDF» (el navegador recuerda el último destino seleccionado).
+export const downloadReportPdf = (filename: string) => {
+  const prevTitle = document.title;
+  document.title = filename.replace(/\.pdf$/i, "");
+  const restore = () => {
+    document.title = prevTitle;
+    window.removeEventListener("afterprint", restore);
+  };
+  window.addEventListener("afterprint", restore);
+  window.print();
+  // Red de seguridad por si el motor no emite afterprint (restaurar es idempotente)
+  setTimeout(restore, 60000);
 };

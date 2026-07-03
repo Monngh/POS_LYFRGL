@@ -338,9 +338,6 @@
   .erp-pageind { min-width: 74px; }
 }
 
-/* Durante la captura a PDF: sin sombras ni márgenes que ensucien el lienzo */
-.erp-capturing .erp-page { box-shadow: none !important; margin: 0 auto !important; border-radius: 0 !important; }
-
 /* ------------------------------ Impresión (PDF nativo) --------------------- */
 @media print {
   body * { visibility: hidden !important; }

@@ -18,7 +18,7 @@ import {
   ReportPage, SectionTitle, KpiCard, Semaforo, InsightsPanel, AlertsPanel,
   ChartCard, DonutCard, RankingCard, type ReportDocMeta, type AlertItem, type RankingRow,
 } from "./framework/components";
-import { exportExcel, exportCsv, printReport, downloadPdfFromPages, type ExportSheet } from "./framework/exports";
+import { exportExcel, exportCsv, printReport, downloadReportPdf, type ExportSheet } from "./framework/exports";
 import "./framework/reportTheme.css";
 
 // ============================================================================
@@ -263,8 +263,6 @@ const ExecutiveSummaryReport: React.FC<{ branchId: string; branchLabel: string }
   const [zoom, setZoom] = useState(1);
   const [manualZoom, setManualZoom] = useState(false);
   const [current, setCurrent] = useState(0);
-  const [downloading, setDownloading] = useState(false);
-  const [capturing, setCapturing] = useState(false);
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -280,12 +278,12 @@ const ExecutiveSummaryReport: React.FC<{ branchId: string; branchLabel: string }
     if (w > 0) setZoom(Math.min(1, Math.max(0.55, Math.floor(((w - 44) / 794) * 100) / 100)));
   }, []);
   useEffect(() => {
-    if (!data || manualZoom || capturing) return;
+    if (!data || manualZoom) return;
     fitZoom();
     const onResize = () => fitZoom();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [data, manualZoom, capturing, fitZoom]);
+  }, [data, manualZoom, fitZoom]);
 
   // Página visible según el scroll del visor (resalta el índice lateral).
   const onDocScroll = () => {
@@ -443,30 +441,11 @@ const ExecutiveSummaryReport: React.FC<{ branchId: string; branchLabel: string }
     ], buildResumenRows(data));
   };
 
-  // ---- Descarga directa de PDF (alta resolución, mismo diseño) ----
-  const onDownloadPdf = async () => {
-    if (downloading) return;
-    setDownloading(true);
-    const prevZoom = zoom;
-    const prevManual = manualZoom;
-    // Captura a escala real (zoom 1) y sin sombras de página.
-    setManualZoom(true);
-    setZoom(1);
-    setCapturing(true);
-    await new Promise((r) => setTimeout(r, 450));
-    try {
-      const els = pageRefs.current
-        .map((w) => (w?.querySelector(".erp-page") as HTMLElement | null))
-        .filter((x): x is HTMLElement => !!x);
-      await downloadPdfFromPages(els, `Reporte_Ejecutivo_${new Date().toISOString().slice(0, 10)}.pdf`);
-    } catch {
-      setError(null); // la impresión nativa queda como alternativa
-    } finally {
-      setCapturing(false);
-      setZoom(prevZoom);
-      setManualZoom(prevManual);
-      setDownloading(false);
-    }
+  // ---- Descargar PDF: reutiliza EXACTAMENTE la plantilla de impresión ----
+  // (PDF vectorial del motor del navegador: texto seleccionable, fuentes e
+  // iconos nítidos, archivo ligero; mismo documento que «Imprimir».)
+  const onDownloadPdf = () => {
+    downloadReportPdf(`Reporte_Ejecutivo_${new Date().toISOString().slice(0, 10)}`);
   };
 
   // ---- Navegación de páginas ----
@@ -967,7 +946,7 @@ const ExecutiveSummaryReport: React.FC<{ branchId: string; branchLabel: string }
   const activeToc = [...tocEntries].reverse().find((t) => t.index <= current)?.index ?? 0;
 
   return (
-    <div className={`erp-doc${capturing ? " erp-capturing" : ""}`}>
+    <div className="erp-doc">
       {configPanel}
 
       {/* Barra de la vista previa */}
@@ -980,10 +959,14 @@ const ExecutiveSummaryReport: React.FC<{ branchId: string; branchLabel: string }
         <span className="erp-pageind">Página {current + 1} de {pages.length}</span>
         <button className="erp-btn erp-btn-ghost erp-btn-icon" onClick={() => goPage(current + 1, pages.length)} title="Página siguiente"><ChevronRight size={15} /></button>
         <div className="erp-toolbar-actions" style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button className="erp-btn erp-btn-primary" onClick={onDownloadPdf} disabled={downloading}>
-            <Download size={15} /> {downloading ? "Generando PDF…" : "Descargar PDF"}
+          <button
+            className="erp-btn erp-btn-primary"
+            onClick={onDownloadPdf}
+            title="Guarda el documento como PDF vectorial (elija el destino «Guardar como PDF»)"
+          >
+            <Download size={15} /> Descargar PDF
           </button>
-          <button className="erp-btn erp-btn-ghost" onClick={printReport} title="Imprimir o guardar como PDF con texto seleccionable"><Printer size={15} /> Imprimir</button>
+          <button className="erp-btn erp-btn-ghost" onClick={printReport} title="Enviar el mismo documento a la impresora"><Printer size={15} /> Imprimir</button>
           <button className="erp-btn erp-btn-ghost" onClick={onExcel}><Sheet size={15} /> Excel</button>
           <button className="erp-btn erp-btn-ghost" onClick={onCsv}><FileDown size={15} /> CSV</button>
         </div>
