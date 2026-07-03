@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
+import { getFocusableElements } from '../../../hooks/useModalInitialFocus';
 
 export interface PosModalProps {
   isOpen: boolean;
@@ -24,6 +25,66 @@ export function PosModal({
   children,
   footer
 }: PosModalProps) {
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    const timer = window.setTimeout(() => {
+      const modal = modalRef.current;
+      if (!modal) return;
+
+      const firstInput = modal.querySelector<HTMLElement>(
+        'input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), select:not([disabled])'
+      );
+      if (firstInput) {
+        firstInput.focus();
+        if (firstInput instanceof HTMLInputElement && firstInput.type === "text") {
+          firstInput.select();
+        }
+        return;
+      }
+
+      modal.focus();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+      previousFocusRef.current?.focus();
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || !modalRef.current) return;
+
+      const focusable = getFocusableElements(modalRef.current);
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      if (e.shiftKey) {
+        if (active === first || !modalRef.current.contains(active)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const overlayStyle: React.CSSProperties = {
@@ -67,6 +128,7 @@ export function PosModal({
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
+    outline: 'none',
   };
 
   const headerStyle: React.CSSProperties = {
@@ -119,7 +181,7 @@ export function PosModal({
 
   return (
     <div style={overlayStyle}>
-      <div data-pos-modal style={modalStyle}>
+      <div ref={modalRef} data-pos-modal style={modalStyle} tabIndex={-1}>
         <div style={headerStyle}>
           <div style={titleArea}>
             {icon && <div style={iconContainer}>{icon}</div>}
@@ -134,7 +196,7 @@ export function PosModal({
               )}
             </div>
           </div>
-          <button style={closeBtn} onClick={onClose} aria-label="Cerrar modal" data-shortcut="cancel" data-shortcut-letter="X" title="Cerrar modal (Esc, Alt+X)">
+          <button style={closeBtn} onClick={onClose} aria-label="Cerrar modal" data-shortcut="dismiss" title="Cerrar modal (Esc)">
             <X size={20} />
           </button>
         </div>
@@ -144,7 +206,7 @@ export function PosModal({
         </div>
 
         {footer && (
-          <div style={footerStyle}>
+          <div style={footerStyle} data-pos-modal-footer>
             {footer}
           </div>
         )}

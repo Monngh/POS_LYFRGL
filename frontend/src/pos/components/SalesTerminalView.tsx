@@ -13,6 +13,8 @@ import { SalesLayoutView } from "./SalesLayoutView";
 import { useParkedSales } from "../hooks/useParkedSales";
 import { ParkedSalesModal, MixedPaymentModal } from "./modals";
 import KeyboardShortcutsManager from "./KeyboardShortcutsManager";
+import { useModalInitialFocus } from "../hooks/useModalInitialFocus";
+import { GLOBAL_QUICK_ACTIONS, type GlobalQuickActionLetter } from "../constants/posShortcuts";
 
 interface SalesTerminalUser {
   name: string;
@@ -118,6 +120,15 @@ export function SalesTerminalView({
   const { parkedSales, fetchParkedSales, parkSale, deleteParkedSale, loading: parkedLoading } = useParkedSales(user?.branch?.id);
   const [parkedModalOpen, setParkedModalOpen] = React.useState(false);
   const [mixedModalOpen, setMixedModalOpen] = React.useState(false);
+  const checkoutModalRef = useModalInitialFocus(checkoutModalOpen);
+
+  const handleGlobalQuickAction = (actionId: string) => {
+    if (actionId === "autofacturacion") {
+      window.open("/autofacturacion", "_blank");
+      return;
+    }
+    onOpenModal(actionId);
+  };
 
   React.useEffect(() => {
     if (user?.branch?.id) {
@@ -162,6 +173,7 @@ export function SalesTerminalView({
       const active = document.activeElement;
       if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || (active as HTMLElement).isContentEditable)) return;
       e.preventDefault();
+      e.stopPropagation();
       if (paymentMethod === "MIXTO") {
         setMixedModalOpen(true);
       } else {
@@ -173,6 +185,17 @@ export function SalesTerminalView({
   return (
     <div style={styles.appContainer} className="pos-cashier-app" data-pos-view="sales-terminal">
       <KeyboardShortcutsManager />
+      <div className="pos-shortcut-registry" aria-hidden="true">
+        {(Object.entries(GLOBAL_QUICK_ACTIONS) as [GlobalQuickActionLetter, string][]).map(([letter, actionId]) => (
+          <button
+            key={letter}
+            type="button"
+            tabIndex={-1}
+            data-shortcut-global={letter}
+            onClick={() => handleGlobalQuickAction(actionId)}
+          />
+        ))}
+      </div>
       <style>{TICKET_PRINT_MEDIA_STYLES}</style>
 
       {/* Header Terminal — nuevo diseño de Fer */}
@@ -182,7 +205,8 @@ export function SalesTerminalView({
             type="button"
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
             className="pos-terminal-menu-btn active-tap"
-            title={isSidebarCollapsed ? "Mostrar panel" : "Ocultar panel"}
+            data-shortcut-key="F7"
+            title={isSidebarCollapsed ? "Mostrar panel (F7)" : "Ocultar panel (F7)"}
             aria-label="Alternar panel lateral"
           >
             <Menu size={20} />
@@ -321,7 +345,7 @@ export function SalesTerminalView({
       {/* COBRO MODAL */}
       {checkoutModalOpen && (
         <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center" data-pos-modal>
-          <div style={styles.checkoutModal} className="pos-cashier-modal" onKeyDown={handleCheckoutModalKeyDown} tabIndex={-1}>
+          <div ref={checkoutModalRef} style={styles.checkoutModal} className="pos-cashier-modal" onKeyDown={handleCheckoutModalKeyDown} tabIndex={-1}>
             <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "var(--text-secondary)", fontWeight: "700" }}>COBRO</h3>
             <div style={styles.checkoutTotalBox} className="pos-cashier-checkout-total">
               $ {(cartTotal - pointsDiscount).toFixed(2)}
@@ -592,7 +616,9 @@ export function SalesTerminalView({
                   disabled={qrChecking}
                   onClick={checkQrStatus}
                   data-shortcut="confirm"
-                  data-shortcut-letter="C"
+                  data-shortcut-action="verify-payment"
+                  data-shortcut-letter="W"
+                  title="Verificar estado (Alt+W, Enter)"
                   style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
                 >
                   {qrChecking && <div className="pos-cashier-loading-spinner" style={{ width: "14px", height: "14px", borderWidth: "2px", borderColor: "rgba(255,255,255,0.4)", borderTopColor: "#ffffff", flexShrink: 0 }} />}

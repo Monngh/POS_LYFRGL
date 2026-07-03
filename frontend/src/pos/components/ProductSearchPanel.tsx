@@ -373,8 +373,8 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
                   />
                   <button
                     type="button"
-                    data-shortcut-letter="V"
-                    title="Mostrar u ocultar telefono (Alt+V)"
+                    data-shortcut-letter="M"
+                    title="Mostrar u ocultar telefono (Alt+M)"
                     onClick={() => setConfirmShowPhone(!confirmShowPhone)}
                     style={{ position: "absolute", right: "12px", top: "11px", border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
                   >

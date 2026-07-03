@@ -29,6 +29,7 @@ import { useCashSession } from "../hooks/useCashSession";
 import { usePosCustomer } from "../hooks/usePosCustomer";
 import { usePosCart } from "../hooks/usePosCart";
 import { usePosSearch } from "../hooks/usePosSearch";
+import { useModalInitialFocus } from "../hooks/useModalInitialFocus";
 import { printTicketElementById, ticketPdfFilename } from "../../shared/utils/ticketEmailDocument.util";
 import { generateTicketPdfBase64 } from "../../shared/utils/ticketPdf.util";
 import {
@@ -199,6 +200,10 @@ const Dashboard: React.FC = () => {
     handleCartPinSubmit,
     addProductToCart,
   } = cartData;
+
+  const draftModalRef = useModalInitialFocus(showDraftConfirm, {
+    preferSelector: '[data-shortcut="confirm"]',
+  });
 
   const searchData = usePosSearch({
     view,
@@ -460,7 +465,10 @@ const Dashboard: React.FC = () => {
     defaultEmail?: string | null;
   }) => (
     <button
-      title="Enviar por Correo"
+      type="button"
+      data-shortcut-action="send-email"
+      data-shortcut-letter="S"
+      title="Enviar por Correo (Alt+S)"
       onClick={() => openTicketEmailModal(emailConfig)}
       style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
     >
@@ -482,7 +490,9 @@ const Dashboard: React.FC = () => {
   }) => (
     <>
       <button
-        title="Cerrar"
+        title="Cerrar (Esc)"
+        data-shortcut="cancel"
+        data-shortcut-letter="X"
         onClick={options.onClose}
         style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
       >
@@ -490,7 +500,9 @@ const Dashboard: React.FC = () => {
       </button>
       {renderTicketEmailButton(options.emailConfig)}
       <button
-        title="Imprimir"
+        title="Imprimir (Alt+C)"
+        data-shortcut="confirm"
+        data-shortcut-letter="C"
         onClick={options.onPrint}
         style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
       >
@@ -1546,15 +1558,18 @@ const Dashboard: React.FC = () => {
 
             {/* MODAL: CONFIRMACIÓN DE BORRADOR DE VENTA */}
       {showDraftConfirm && (
-        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-          <div style={{ ...styles.cancelModal, width: "400px" }} className="pos-cashier-modal">
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center" data-pos-modal>
+          <div ref={draftModalRef} style={{ ...styles.cancelModal, width: "400px" }} className="pos-cashier-modal" tabIndex={-1}>
             <h3 style={styles.modalTitle}>Venta en borrador encontrada</h3>
             <p style={{ fontSize: "13px", color: "var(--text-secondary)", margin: "12px 0 20px 0", textAlign: "center", lineHeight: "1.5" }}>
               Existe una venta en borrador con <strong>{cart.length > 0 ? cart.length : loadDraft().length} producto(s)</strong> en el carrito.
               ¿Desea continuar con la venta guardada o iniciar una nueva?
             </p>
-            <div style={{ display: "flex", gap: "10px" }}>
+            <div style={{ display: "flex", gap: "10px" }} data-pos-modal-footer>
               <button
+                data-shortcut="cancel"
+                data-shortcut-letter="X"
+                title="Nueva venta (Esc)"
                 onClick={() => {
                   // Descartar borrador e iniciar nueva venta
                   setCart([]);
@@ -1567,6 +1582,9 @@ const Dashboard: React.FC = () => {
                 NUEVA VENTA
               </button>
               <button
+                data-shortcut="confirm"
+                data-shortcut-letter="C"
+                title="Continuar borrador (Enter, Alt+C)"
                 onClick={() => {
                   // Restaurar borrador y continuar
                   const draft = loadDraft();

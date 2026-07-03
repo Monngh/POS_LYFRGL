@@ -60,7 +60,9 @@ export default function PriceLookupModal({
     <>
       <button
         onClick={onClose} 
-        title="Cancelar / Cerrar"
+        data-shortcut="cancel"
+        data-shortcut-letter="X"
+        title="Cancelar / Cerrar (Esc)"
         style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
       >
         Cerrar

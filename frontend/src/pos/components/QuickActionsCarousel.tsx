@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Home,
 } from "lucide-react";
+import { GLOBAL_QUICK_ACTIONS, type GlobalQuickActionLetter } from "../constants/posShortcuts";
 
 interface QuickActionsCarouselProps {
   onOpenModal: (modal: string) => void;
@@ -31,19 +32,20 @@ export function QuickActionsCarousel({ onOpenModal, onGoHome }: QuickActionsCaro
 
   const pages = [
     [
-      { id: "price-lookup", label: "Consultar precio", icon: Search, color: "var(--accent-strong)", shortcutLetter: "Q" },
-      { id: "bank-deposit", label: "Deposito Banco", icon: PiggyBank, color: "#0d9488", shortcutLetter: "D" },
-      { id: "cancel-sale", label: "Cancelar venta", icon: XCircle, color: "#dc2626", shortcutLetter: "V" },
-      { id: "returns", label: "Devoluciones", icon: RotateCcw, color: "#dc2626", shortcutLetter: "E" },
+      { id: "price-lookup", label: "Consultar precio", icon: Search, color: "var(--accent-strong)", shortcutLetter: "Q" as GlobalQuickActionLetter },
+      { id: "bank-deposit", label: "Deposito Banco", icon: PiggyBank, color: "#0d9488", shortcutLetter: "G" as GlobalQuickActionLetter },
+      { id: "cancel-sale", label: "Cancelar venta", icon: XCircle, color: "#dc2626", shortcutLetter: "N" as GlobalQuickActionLetter },
+      { id: "returns", label: "Devoluciones", icon: RotateCcw, color: "#dc2626", shortcutLetter: "E" as GlobalQuickActionLetter },
     ],
     [
-      { id: "ticket-history", label: "Reimprimir ticket", icon: Printer, color: "var(--accent-strong)", shortcutLetter: "H" },
-      { id: "partial-cut-summary", label: "Corte Parcial", icon: FileText, color: "#d97706", shortcutLetter: "U" },
-      { id: "autofacturacion", label: "Facturacion", icon: ExternalLink, color: "#0d9488", shortcutLetter: "I" },
+      { id: "ticket-history", label: "Reimprimir ticket", icon: Printer, color: "var(--accent-strong)", shortcutLetter: "H" as GlobalQuickActionLetter },
+      { id: "partial-cut-summary", label: "Corte Parcial", icon: FileText, color: "#d97706", shortcutLetter: "U" as GlobalQuickActionLetter },
+      { id: "autofacturacion", label: "Facturacion", icon: ExternalLink, color: "#0d9488", shortcutLetter: "I" as GlobalQuickActionLetter },
     ],
   ];
 
   const currentPageActions = pages[page];
+  const allActions = pages.flat();
 
   return (
     <div className="pos-quick-actions-container">

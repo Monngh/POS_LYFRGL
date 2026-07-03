@@ -123,7 +123,9 @@ export default function TicketHistoryModal({
   const renderFooter = () => (
     <div style={{ display: "flex", width: "100%" }}>
       <button
-        title="Cerrar"
+        title="Cerrar (Esc)"
+        data-shortcut="cancel"
+        data-shortcut-letter="X"
         onClick={onClose}
         style={{
           padding: "10px",
@@ -247,7 +249,7 @@ export default function TicketHistoryModal({
                   </td>
                 </tr>
               ) : (
-                filteredSales.map((sale) => (
+                filteredSales.map((sale, index) => (
                   <tr key={sale.id} style={tableRow}>
                     <td style={td}>
                       <div style={{ fontWeight: "600", color: "var(--text)" }}>{sale.invoiceNumber}</div>
@@ -283,6 +285,13 @@ export default function TicketHistoryModal({
                         }}
                         className="btn-primary"
                         style={{ padding: "6px 10px", fontSize: "12px" }}
+                        {...(index === 0
+                          ? {
+                              "data-shortcut": "confirm",
+                              "data-shortcut-letter": "C",
+                              title: "Reimprimir (Enter, Alt+C)",
+                            }
+                          : { title: "Reimprimir" })}
                       >
                         Reimprimir
                       </button>

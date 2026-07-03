@@ -1,7 +1,8 @@
 import { useState, useEffect, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { CreditCard, Banknote, HelpCircle, X, CheckCircle2 } from "lucide-react";
+import { CreditCard, Banknote, HelpCircle, CheckCircle2 } from "lucide-react";
 import { PosModal } from "./shared";
 import { validateStoreCredit } from "../../../facturacion/facturacion.service";
+import { useModalInitialFocus } from "../../hooks/useModalInitialFocus";
 
 interface PaymentEntry {
   id: string;
@@ -52,6 +53,9 @@ export default function MixedPaymentModal({
   }, [remaining, currentAmount]);
 
   const [addingPayment, setAddingPayment] = useState(false);
+  const keyboardContainerRef = useModalInitialFocus(isOpen, {
+    preferSelector: 'input[type="number"], input[inputmode="decimal"]',
+  });
 
   const handleAddPayment = async () => {
     if (addingPayment) return;
@@ -135,19 +139,9 @@ export default function MixedPaymentModal({
       const active = document.activeElement;
       if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || (active as HTMLElement).isContentEditable)) return;
       e.preventDefault();
+      e.stopPropagation();
       handleAddPayment();
       return;
-    }
-
-    if (e.altKey && e.key.toLowerCase() === "c") {
-      e.preventDefault();
-      handleConfirm();
-      return;
-    }
-
-    if (e.altKey && e.key.toLowerCase() === "x") {
-      e.preventDefault();
-      onClose();
     }
   };
 
@@ -197,7 +191,7 @@ export default function MixedPaymentModal({
       size="md"
       footer={footer}
     >
-      <div style={{ display: "flex", gap: "24px", padding: "16px 0" }} onKeyDown={handleKeyDown} tabIndex={-1}>
+      <div ref={keyboardContainerRef} style={{ display: "flex", gap: "24px", padding: "16px 0" }} onKeyDown={handleKeyDown} tabIndex={-1}>
         
         {/* Left column: Add payments */}
         <div style={{ flex: "1 1 50%" }}>

@@ -364,6 +364,8 @@ export default function BankDepositModal({
           <button
             type="button"
             title="Volver al historial"
+            data-shortcut="cancel"
+            data-shortcut-letter="X"
             onClick={() => {
               setCancellingDep(null);
               setDepCancelPin("");
@@ -376,7 +378,9 @@ export default function BankDepositModal({
           </button>
           <button
             type="button"
-            title="Cancelar resguardo"
+            title="Cancelar resguardo (Alt+C)"
+            data-shortcut="confirm"
+            data-shortcut-letter="C"
             onClick={(e) => handleCancelDepositSubmit(e as any)}
             disabled={depCancelLoading}
             style={{ ...modalBtn, backgroundColor: "#dc2626", color: "white" }}
@@ -391,7 +395,9 @@ export default function BankDepositModal({
         <div style={{ display: "flex", width: "100%", gap: "10px" }} className="pos-cashier-modal-actions">
           <button
             type="button"
-            title="Cerrar"
+            title="Cerrar (Esc)"
+            data-shortcut="cancel"
+            data-shortcut-letter="X"
             onClick={onClose}
             style={{ ...modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
           >
@@ -399,7 +405,9 @@ export default function BankDepositModal({
           </button>
           <button
             type="button"
-            title="Registrar resguardo"
+            title="Registrar resguardo (Alt+C)"
+            data-shortcut="confirm"
+            data-shortcut-letter="C"
             onClick={(e) => handleDepositSubmit(e as any)}
             disabled={depLoading}
             style={{ ...modalBtn, backgroundColor: "#2563eb", color: "white" }}
@@ -414,7 +422,9 @@ export default function BankDepositModal({
         <div style={{ display: "flex", width: "100%" }}>
           <button
             type="button"
-            title="Cerrar historial"
+            title="Cerrar historial (Esc)"
+            data-shortcut="cancel"
+            data-shortcut-letter="X"
             onClick={onClose}
             style={{ ...modalBtn, backgroundColor: "var(--text-muted)", color: "white", width: "100%" }}
           >

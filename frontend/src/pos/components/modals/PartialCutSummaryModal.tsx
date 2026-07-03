@@ -56,13 +56,17 @@ export default function PartialCutSummaryModal({
     <div style={{ display: "flex", gap: "10px", width: "100%" }} className="pos-cashier-modal-actions">
       <button
         title="Volver"
+        data-shortcut="cancel"
+        data-shortcut-letter="X"
         onClick={onBack}
         style={{ ...modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
       >
         VOLVER
       </button>
       <button
-        title="Guardar corte"
+        title="Guardar corte (Alt+C)"
+        data-shortcut="confirm"
+        data-shortcut-letter="C"
         disabled={partialCutLoading}
         onClick={onSave}
         style={{ ...modalBtn, backgroundColor: "#2563eb", color: "white" }}

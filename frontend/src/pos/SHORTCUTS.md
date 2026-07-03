@@ -2,100 +2,147 @@
 
 Fuente de verdad del teclado del POS.
 
-## Reglas
+## Reglas globales
 
-- `Esc` cierra el modal visible.
-- `Enter` confirma la accion primaria del modal visible si no estas escribiendo en un campo.
-- `Alt+Letra` activa botones visibles con `data-shortcut-letter`.
-- `F1` a `F8` activan focos o navegacion visibles con `data-shortcut-key`.
-- `Ctrl+L` bloquea la pantalla.
+- `Esc` cierra o cancela la acción del modal visible (botón con `data-shortcut="cancel"` en el footer).
+- `Enter` confirma la acción primaria del modal visible si no estás escribiendo en un campo.
+- `Alt+Letra` activa botones con `data-shortcut-letter` dentro del scope activo (modal o vista).
+- `F1` a `F10` activan focos o navegación con `data-shortcut-key`.
+- Los accesos rápidos `Alt+Q/G/N/E/H/U/I` funcionan **siempre** en terminal de ventas, aunque el carrusel esté en otra página.
 - Si hay un modal abierto, el POS prioriza ese modal sobre la vista de fondo.
+- Al abrir un modal, el foco va al primer input disponible (y se selecciona el texto en inputs de texto).
+- `Tab` / `Shift+Tab` ciclan el foco dentro del modal (focus trap en `PosModal`).
+- Con pantalla bloqueada, todos los atajos del POS quedan desactivados.
 
-## Atajos globales
+## Atajos globales (teclas función)
 
-| Shortcut | Accion | Aplica en | Implementacion |
+| Shortcut | Acción | Aplica en | Implementación |
 | --- | --- | --- | --- |
-| `F1` | Ir al inicio | Terminal de ventas | [SalesTerminalView.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/SalesTerminalView.tsx) |
-| `F2` | Enfocar buscador de productos | POS de ventas | [ProductSearchPanel.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/ProductSearchPanel.tsx) |
-| `F3` | Ir a ventas desde dashboard | Dashboard | [DashboardHomeView.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/DashboardHomeView.tsx) |
-| `F4` | Abrir cobro | Terminal de ventas | [CheckoutPanel.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/CheckoutPanel.tsx) |
-| `F6` | Enfocar telefono del cliente | POS de ventas | [ProductSearchPanel.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/ProductSearchPanel.tsx) |
-| `F8` | Abrir cierre de turno | Modal de opciones de cierre | [CloseOptionsModal.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/modals/CloseOptionsModal.tsx) |
-| `Ctrl+L` | Bloquear pantalla | Dashboard y terminal | [SalesLayoutView.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/SalesLayoutView.tsx) |
+| `F1` | Ir al inicio (dashboard) | Terminal de ventas | [SalesTerminalView.tsx](components/SalesTerminalView.tsx) |
+| `F2` | Enfocar buscador de productos | Terminal de ventas | [ProductSearchPanel.tsx](components/ProductSearchPanel.tsx) |
+| `F3` | Ir a ventas | Dashboard | [DashboardHomeView.tsx](components/DashboardHomeView.tsx) |
+| `F4` | Abrir cobro | Terminal de ventas | [CheckoutPanel.tsx](components/CheckoutPanel.tsx) |
+| `F6` | Enfocar teléfono del cliente | Terminal de ventas | [ProductSearchPanel.tsx](components/ProductSearchPanel.tsx) |
+| `F7` | Abrir / cerrar menú lateral (hamburguesa) | Terminal de ventas | [SalesTerminalView.tsx](components/SalesTerminalView.tsx) |
+| `F8` | Abrir opciones de cierre de caja | Terminal / modal cierre | [SalesLayoutView.tsx](components/SalesLayoutView.tsx), [CloseOptionsModal.tsx](components/modals/CloseOptionsModal.tsx) |
+| `F10` | Bloquear pantalla | Terminal de ventas | [SalesLayoutView.tsx](components/SalesLayoutView.tsx) |
 
-## Accesos rapidos del terminal
+## Accesos rápidos del terminal (siempre activos)
 
-| Shortcut | Accion | Aplica en | Implementacion |
+| Shortcut | Acción | Modal destino |
+| --- | --- | --- |
+| `Alt+Q` | Consultar precio | price-lookup |
+| `Alt+G` | Depósito banco | bank-deposit |
+| `Alt+N` | Cancelar venta | cancel-sale |
+| `Alt+E` | Devoluciones | returns |
+| `Alt+H` | Reimprimir ticket | ticket-history |
+| `Alt+U` | Corte parcial | partial-cut-summary |
+| `Alt+I` | Autofacturación (nueva pestaña) | autofacturacion |
+
+Implementación: registro oculto en [SalesTerminalView.tsx](components/SalesTerminalView.tsx) con `data-shortcut-global` + [posShortcuts.ts](constants/posShortcuts.ts).
+
+## Accesos rápidos contextuales
+
+| Shortcut | Acción | Aplica en | Implementación |
 | --- | --- | --- | --- |
-| `Alt+B` | Buscar producto | Buscador POS | [ProductSearchPanel.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/ProductSearchPanel.tsx) |
-| `Alt+R` | Registrar cliente rapido y seleccionar | Buscador POS / modal de confirmacion de telefono | [ProductSearchPanel.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/ProductSearchPanel.tsx) |
-| `Alt+V` | Mostrar u ocultar telefono | Buscador POS / modal de confirmacion de telefono | [ProductSearchPanel.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/ProductSearchPanel.tsx) |
-| `Alt+K` | Abrir ventas en espera | Terminal de ventas | [SalesTerminalView.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/SalesTerminalView.tsx) |
-| `Alt+T` | Abrir opciones de cierre de caja | Sidebar POS | [SalesLayoutView.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/SalesLayoutView.tsx) |
-| `Alt+P` | Pausar venta | Panel de cobro / cierre | [CheckoutPanel.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/CheckoutPanel.tsx) |
-| `Alt+X` | Cancelar o cerrar | Modales y acciones criticas | [PosModal.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/modals/shared/PosModal.tsx) |
-| `Alt+C` | Confirmar, cobrar o guardar | Modales y cobro | [PosModal.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/modals/shared/PosModal.tsx) |
+| `Alt+B` | Buscar producto | Buscador POS | [ProductSearchPanel.tsx](components/ProductSearchPanel.tsx) |
+| `Alt+R` | Registrar / confirmar cliente | Buscador / modales cliente | [ProductSearchPanel.tsx](components/ProductSearchPanel.tsx) |
+| `Alt+M` | Mostrar u ocultar teléfono | Modal confirmación teléfono | [ProductSearchPanel.tsx](components/ProductSearchPanel.tsx) |
+| `Alt+K` | Ventas en espera | Terminal | [SalesTerminalView.tsx](components/SalesTerminalView.tsx) |
+| `Alt+T` | Opciones cierre de caja | Sidebar | [SalesLayoutView.tsx](components/SalesLayoutView.tsx) |
+| `Alt+P` | Pausar venta | Panel de cobro | [CheckoutPanel.tsx](components/CheckoutPanel.tsx) |
+| `Alt+X` | Cancelar / cerrar modal | Modales (footer) | Botones `data-shortcut="cancel"` |
+| `Alt+C` | Confirmar acción primaria | Modales y cobro | Botones `data-shortcut="confirm"` |
+| `Alt+S` | Enviar por correo | Modales con email | `data-shortcut-action="send-email"` |
+| `Alt+W` | Verificar pago pendiente | QR / depósito MP | `data-shortcut-action="verify-payment"` |
+| `Alt+J` | Ver QR del primer pago pendiente | Panel de cobro | [CheckoutPanel.tsx](components/CheckoutPanel.tsx) |
+| `Alt+Z` | Eliminar venta en espera seleccionada | Ventas en espera | [ParkedSalesModal.tsx](components/modals/ParkedSalesModal.tsx) |
 
-## Accesos rapidos de acciones rapidas
-
-| Shortcut | Accion | Aplica en | Implementacion |
-| --- | --- | --- | --- |
-| `Alt+Q` | Consultar precio | Accesos rapidos | [QuickActionsCarousel.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/QuickActionsCarousel.tsx) |
-| `Alt+D` | Deposito banco | Accesos rapidos | [QuickActionsCarousel.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/QuickActionsCarousel.tsx) |
-| `Alt+V` | Cancelar venta | Accesos rapidos | [QuickActionsCarousel.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/QuickActionsCarousel.tsx) |
-| `Alt+E` | Devoluciones | Accesos rapidos | [QuickActionsCarousel.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/QuickActionsCarousel.tsx) |
-| `Alt+H` | Reimprimir ticket | Accesos rapidos | [QuickActionsCarousel.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/QuickActionsCarousel.tsx) |
-| `Alt+U` | Corte parcial | Accesos rapidos | [QuickActionsCarousel.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/QuickActionsCarousel.tsx) |
-| `Alt+I` | Autofacturacion | Accesos rapidos | [QuickActionsCarousel.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/QuickActionsCarousel.tsx) |
-
-## Navegacion por contexto
+## Navegación por contexto
 
 ### Buscador de productos
 
-- `ArrowUp` / `ArrowDown`: mover seleccion de resultados.
+- `↑` / `↓`: mover selección de resultados.
 - `Enter`: tomar el resultado seleccionado.
-- `F2`: enfocar el input de busqueda.
-- `Alt+B`: activar el boton Buscar.
+- `F2`: enfocar búsqueda.
+- `Alt+B`: buscar.
 
 ### Carrito
 
-- `ArrowUp` / `ArrowDown` en cantidad: subir o bajar cantidad.
-- `Enter` en cantidad: confirmar edicion.
+- `↑` / `↓` en cantidad: ajustar cantidad.
+- `Enter` en cantidad: confirmar edición.
 
 ### Cobro
 
-- `ArrowLeft` / `ArrowRight`: cambiar metodo de pago.
+- `←` / `→`: cambiar método de pago (foco automático al abrir).
 - `Enter`: cobrar o abrir cobro mixto.
-- `Alt+C`: cobrar desde el modal de cobro.
-- `Alt+X`: cancelar modal de cobro.
+- `Alt+C` / `Alt+X`: cobrar / cancelar modal.
 - `Alt+P`: pausar venta.
+- `Alt+J` / `Alt+W`: ver QR / verificar primer pago QR pendiente en la tabla.
 
 ### Cobro mixto
 
-- `ArrowLeft` / `ArrowRight`: cambiar entre efectivo, tarjeta y saldo a favor.
-- `Enter`: agregar pago actual.
-- `Alt+C`: procesar cobro mixto.
-- `Alt+X`: cancelar.
+- `←` / `→`: cambiar método de pago parcial.
+- `Enter`: agregar pago.
+- `Alt+C` / `Alt+X`: procesar / cancelar.
 
-### Modal QR
+### Modal QR (cobro)
 
-- `Alt+C`: verificar estado.
+- `Alt+W` / `Enter`: verificar estado.
 - `Alt+X`: cerrar y dejar pendiente.
 
-### Registro rapido de cliente
+### Ventas en espera
 
-- `Alt+R`: abrir el modal de confirmacion o registrar y seleccionar.
-- `Alt+V`: mostrar u ocultar telefono.
-- `Alt+X`: cancelar.
+- `↑` / `↓`: seleccionar venta.
+- `Enter` / `Alt+C`: recuperar venta seleccionada.
+- `Alt+Z`: eliminar venta seleccionada.
+- `Esc`: cerrar modal.
 
-### Cierre de turno
+### Reimprimir ticket (historial)
 
-- `F8`: abrir cierre de turno.
-- `Alt+P`: corte parcial.
-- `Alt+X`: cancelar.
+- `Enter` / `Alt+C`: reimprimir primera venta filtrada.
+- `Esc`: cerrar.
 
-## Implementacion
+### Envío de ticket por correo
 
-- [KeyboardShortcutsManager.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/KeyboardShortcutsManager.tsx) centraliza la resolucion de `F`, `Alt+letra`, `Enter`, `Esc` y `Ctrl+L`.
-- Los modales usan [PosModal.tsx](/C:/Users/mafer/newpos/POS_LYFRGL/frontend/src/pos/components/modals/shared/PosModal.tsx) para cerrar.
-- Si se agrega un boton nuevo visible en el POS, debe recibir `data-shortcut-letter` o `data-shortcut-key` y quedar documentado aqui.
+- `Alt+S` / `Enter`: enviar (si hay email válido).
+- `Alt+X` / `Esc`: cancelar.
+
+## Inventario de modales
+
+| Modal | Esc | Enter | Alt+S | Alt+W | Otros |
+| --- | --- | --- | --- | --- | --- |
+| Cobro | Sí | Cobrar | — | — | ←→ métodos |
+| Cobro mixto | Sí | Agregar pago | — | — | Alt+C procesar |
+| QR pendiente | Sí | Verificar | — | Verificar | Alt+X cerrar |
+| Nuevo cliente | Sí | Registrar | — | — | Alt+R, Alt+X |
+| Confirmación teléfono | Sí | Continuar | — | — | Alt+M, Alt+R |
+| Borrador de venta | Sí | Continuar | — | — | Alt+X nueva |
+| Cancelar venta | Sí | Siguiente / Confirmar | — | — | Alt+X paso 1 |
+| Autorización gerente | Sí | Autorizar | — | — | Alt+C |
+| Consultar precio | Sí | — | — | — | ↑↓ resultados |
+| Depósito banco | Sí | Registrar | — | — | Alt+C |
+| Comprobante depósito | Sí | Imprimir | Abrir email | Verificar MP | Alt+C imprimir |
+| Devoluciones | Sí | Buscar / Continuar / Procesar | Abrir email | — | Alt+C |
+| Ventas en espera | Sí | Recuperar | — | — | Alt+Z, ↑↓ |
+| Reimprimir ticket | Sí | Reimprimir (1ª fila) | — | — | — |
+| Enviar correo | Sí | Enviar | Enviar | — | Alt+X |
+| Comprobantes impresión | Sí | Imprimir | Abrir email | — | Alt+C / Alt+X |
+
+## Atajos del navegador evitados
+
+No se usan:
+
+- `Ctrl+L`, `Alt+D` (barra de direcciones)
+- `Ctrl+T`, `Ctrl+W`, `Ctrl+N`, `Ctrl+R`, `Ctrl+F`, `Ctrl+P`
+- `F5` (recargar), `F11` (pantalla completa)
+
+Depósito banco usa **`Alt+G`** (no `Alt+D`).
+
+## Implementación técnica
+
+- [KeyboardShortcutsManager.tsx](components/KeyboardShortcutsManager.tsx): listener en fase capture; resuelve `F*`, `Alt+letra`, `Enter`, `Esc`, acciones `send-email` y `verify-payment`.
+- [posShortcuts.ts](constants/posShortcuts.ts): mapa de accesos rápidos globales.
+- [PosModal.tsx](components/modals/shared/PosModal.tsx): focus trap, foco inicial, footer `data-pos-modal-footer`.
+- [useModalInitialFocus.ts](hooks/useModalInitialFocus.ts): foco en modales inline.
+- Botones nuevos: `data-shortcut-letter`, `data-shortcut-key`, `data-shortcut="confirm|cancel"`, o `data-shortcut-action` según corresponda.

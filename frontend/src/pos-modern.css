@@ -908,3 +908,27 @@
     padding-top: 12px;
   }
 }
+
+/* Registro oculto de atajos globales (siempre en DOM, fuera del sidebar colapsado) */
+.pos-shortcut-registry {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.pos-shortcut-registry button {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}

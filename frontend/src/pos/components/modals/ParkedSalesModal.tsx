@@ -1,6 +1,8 @@
+import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Clock, ShoppingCart, Trash2 } from "lucide-react";
 import type { ParkedSale } from "../../hooks/useParkedSales";
 import { PosModal } from "./shared";
+import { useModalInitialFocus } from "../../hooks/useModalInitialFocus";
 
 interface ParkedSalesModalProps {
   isOpen: boolean;
@@ -27,6 +29,10 @@ const styles = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  cardSelected: {
+    border: "2px solid var(--accent-strong)",
+    boxShadow: "0 0 0 1px var(--accent-soft)",
   },
   cardInfo: {
     display: "flex",
@@ -80,16 +86,44 @@ const styles = {
     color: "var(--text-muted)",
     padding: "32px 0",
     fontSize: "14px",
-  }
+  },
+  hint: {
+    fontSize: "11px",
+    color: "var(--text-muted)",
+    marginBottom: "8px",
+  },
 };
 
 export function ParkedSalesModal({ isOpen, onClose, parkedSales, loading, onRecover, onDelete }: ParkedSalesModalProps) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const listRef = useModalInitialFocus(isOpen);
+
+  useEffect(() => {
+    if (isOpen) setSelectedIndex(0);
+  }, [isOpen, parkedSales.length]);
+
   if (!isOpen) return null;
+
+  const safeIndex = parkedSales.length > 0 ? Math.min(selectedIndex, parkedSales.length - 1) : 0;
+
+  const handleListKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (parkedSales.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex((i) => Math.min(i + 1, parkedSales.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex((i) => Math.max(i - 1, 0));
+    }
+  };
 
   const renderFooter = () => (
     <div style={{ display: "flex", width: "100%" }}>
       <button
         onClick={onClose}
+        data-shortcut="cancel"
+        data-shortcut-letter="X"
+        title="Cerrar (Esc)"
         style={{
           padding: "10px",
           borderRadius: "6px",
@@ -100,7 +134,7 @@ export function ParkedSalesModal({ isOpen, onClose, parkedSales, loading, onReco
           cursor: "pointer",
           fontSize: "12px",
           textAlign: "center",
-          flex: 1
+          flex: 1,
         }}
       >
         CERRAR
@@ -119,7 +153,12 @@ export function ParkedSalesModal({ isOpen, onClose, parkedSales, loading, onReco
       size="md"
       footer={renderFooter()}
     >
-      <div style={styles.list}>
+      {parkedSales.length > 0 && (
+        <p style={styles.hint}>
+          ↑↓ seleccionar · Enter / Alt+C recuperar · Alt+Z eliminar
+        </p>
+      )}
+      <div ref={listRef} style={styles.list} onKeyDown={handleListKeyDown} tabIndex={-1}>
         {loading && parkedSales.length === 0 ? (
           <p style={{ textAlign: "center", padding: "20px" }}>Cargando...</p>
         ) : parkedSales.length === 0 ? (
@@ -128,30 +167,63 @@ export function ParkedSalesModal({ isOpen, onClose, parkedSales, loading, onReco
             <p>No tienes ninguna venta en espera.</p>
           </div>
         ) : (
-          parkedSales.map(sale => {
+          parkedSales.map((sale, index) => {
             const date = new Date(sale.createdAt);
-            const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            
-            // Intentar leer cuántos items hay en el JSON
+            const timeString = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+            const isSelected = index === safeIndex;
+
             let itemsCount = 0;
             try {
               const cart = JSON.parse(sale.cartData);
               itemsCount = Array.isArray(cart) ? cart.length : 0;
-            } catch (e) {}
+            } catch {
+              itemsCount = 0;
+            }
 
             return (
-              <div key={sale.id} style={styles.card}>
+              <div
+                key={sale.id}
+                style={{ ...styles.card, ...(isSelected ? styles.cardSelected : {}) }}
+                onClick={() => setSelectedIndex(index)}
+              >
                 <div style={styles.cardInfo}>
-                  <span style={styles.time}><Clock size={12} /> {timeString}</span>
+                  <span style={styles.time}>
+                    <Clock size={12} /> {timeString}
+                  </span>
                   <span style={styles.customer}>{sale.customer?.name || "Público en General"}</span>
                   <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>{itemsCount} artículos</span>
                   <span style={styles.total}>${Number(sale.total).toFixed(2)}</span>
                 </div>
                 <div style={styles.actions}>
-                  <button style={styles.deleteBtn} onClick={() => onDelete(sale.id)} title="Eliminar">
+                  <button
+                    style={styles.deleteBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(sale.id);
+                    }}
+                    {...(isSelected
+                      ? {
+                          "data-shortcut-letter": "Z",
+                          title: "Eliminar (Alt+Z)",
+                        }
+                      : { title: "Eliminar" })}
+                  >
                     <Trash2 size={16} />
                   </button>
-                  <button style={styles.recoverBtn} onClick={() => onRecover(sale)}>
+                  <button
+                    style={styles.recoverBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRecover(sale);
+                    }}
+                    {...(isSelected
+                      ? {
+                          "data-shortcut": "confirm",
+                          "data-shortcut-letter": "C",
+                          title: "Recuperar (Enter, Alt+C)",
+                        }
+                      : { title: "Recuperar" })}
+                  >
                     RECUPERAR
                   </button>
                 </div>

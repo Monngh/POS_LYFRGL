@@ -56,6 +56,8 @@ export function CartAuthorizationModal({
       <button
         type="button"
         title="Cancelar"
+        data-shortcut="cancel"
+        data-shortcut-letter="X"
         onClick={onCancel}
         style={{ ...styles.modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
       >
@@ -63,7 +65,9 @@ export function CartAuthorizationModal({
       </button>
       <button
         type="button"
-        title="Autorizar"
+        title="Autorizar (Alt+C)"
+        data-shortcut="confirm"
+        data-shortcut-letter="C"
         onClick={(e) => onSubmit(e as any)}
         disabled={cartPinLoading || !cartPin}
         style={{

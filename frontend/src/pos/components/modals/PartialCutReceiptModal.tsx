@@ -54,7 +54,9 @@ export default function PartialCutReceiptModal({
   const renderFooter = () => (
     <div style={{ display: "flex", gap: "10px", width: "100%" }} className="pos-cashier-modal-actions no-print" data-no-ticket-print="true">
       <button
-        title="Imprimir"
+        title="Imprimir (Alt+C)"
+        data-shortcut="confirm"
+        data-shortcut-letter="C"
         onClick={onPrint}
         style={{ ...modalBtn, backgroundColor: "#2563eb", color: "white" }}
       >
@@ -62,7 +64,9 @@ export default function PartialCutReceiptModal({
       </button>
       {emailButton}
       <button
-        title="Cerrar"
+        title="Cerrar (Esc)"
+        data-shortcut="cancel"
+        data-shortcut-letter="X"
         onClick={onClose}
         style={{ ...modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
       >
