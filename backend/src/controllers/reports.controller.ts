@@ -6,6 +6,7 @@ import {
   getSellerReport,
   getReceivablesReport,
 } from "../services/reports.service";
+import { getExecutiveSummary, getReportFilterOptions } from "../services/executiveSummary.service";
 
 const parseBranchId = (req: Request): number | undefined => {
   if (req.user && req.user.role === "GERENTE") {
@@ -126,6 +127,56 @@ export const reportBySeller = async (req: Request, res: Response): Promise<void>
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ message: "Error al generar el reporte por vendedor." });
+  }
+};
+
+const parseOptionalInt = (v: unknown): number | undefined => {
+  if (typeof v !== "string" || !v || v === "all") return undefined;
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : undefined;
+};
+
+const parseOptionalText = (v: unknown, max = 120): string | undefined => {
+  if (typeof v !== "string") return undefined;
+  const t = v.trim();
+  return t && t.length <= max ? t : undefined;
+};
+
+export const reportExecutiveSummary = async (req: Request, res: Response): Promise<void> => {
+  const branchId = parseBranchId(req);
+  const range = parseReportDateRange(req.query);
+  if (range.errorStatus) {
+    res.status(range.errorStatus).json({ success: false, message: range.errorMessage });
+    return;
+  }
+  try {
+    const result = await getExecutiveSummary({
+      from: range.from,
+      to: range.to,
+      branchId,
+      sellerId: parseOptionalInt(req.query.sellerId),
+      categoryId: parseOptionalInt(req.query.categoryId),
+      cashSessionId: parseOptionalInt(req.query.cashSessionId),
+      paymentMethod: parseOptionalText(req.query.paymentMethod, 40),
+      status: parseOptionalText(req.query.status, 20),
+      customerSearch: parseOptionalText(req.query.customer),
+      productSearch: parseOptionalText(req.query.product),
+      search: parseOptionalText(req.query.search),
+    });
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ message: "Error al generar el resumen ejecutivo." });
+  }
+};
+
+export const reportFilterOptions = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await getReportFilterOptions();
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ message: "Error al cargar las opciones de filtros." });
   }
 };
 
