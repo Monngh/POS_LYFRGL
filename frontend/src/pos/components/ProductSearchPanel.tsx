@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Search, Eye, EyeOff } from "lucide-react";
 import { usePosSearch } from "../hooks/usePosSearch";
 import { usePosCustomer } from "../hooks/usePosCustomer";
@@ -45,6 +45,7 @@ interface ProductSearchPanelProps {
   customerData: ReturnType<typeof usePosCustomer>;
   cartData: ReturnType<typeof usePosCart>;
   onToast: (msg: string, type?: "error" | "success" | "info") => void;
+  isAnyModalOpen?: boolean;
 }
 
 const styles: { [key: string]: React.CSSProperties } = {
@@ -73,11 +74,83 @@ const styles: { [key: string]: React.CSSProperties } = {
   fieldError: { color: "#b91c1c", fontSize: "12px", fontWeight: "600", marginTop: "5px", marginBottom: 0 },
 };
 
-export function ProductSearchPanel({ searchData, customerData, cartData, onToast }: ProductSearchPanelProps) {
+export function ProductSearchPanel({ searchData, customerData, cartData, onToast, isAnyModalOpen = false }: ProductSearchPanelProps) {
   const {
     barcodeSearch, setBarcodeSearch, handleProductBarcodeSearch, barcodeSearchError,
     searchResults, setSearchResults,
   } = searchData;
+
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const phoneInputRef = useRef<HTMLInputElement | null>(null);
+  const searchResultsRef = useRef<HTMLDivElement | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+
+  useEffect(() => {
+    if (confirmOpen) {
+      const timer = window.setTimeout(() => {
+        const input = document.querySelector('.pos-cashier-modal input[type="text"]') as HTMLInputElement | null;
+        input?.focus();
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+    return;
+    const handleShortcut = (e: KeyboardEvent) => {
+      if (isAnyModalOpen) return;
+      const active = document.activeElement;
+      // allow Alt+letter shortcuts even when focus is in an input
+      if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || (active as HTMLElement).isContentEditable) && !e.altKey) return;
+      if (e.key === "F2") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      } else if (e.altKey && e.key.toLowerCase() === "r") {
+        // Registrar cliente rápido cuando el buscador indica no encontrado (Alt+R)
+        if (searchStatus === "not_found") {
+          e.preventDefault();
+          setConfirmInput("");
+          setConfirmError("");
+          setConfirmOpen(true);
+        }
+      } else if (e.key === "F6") {
+        e.preventDefault();
+        phoneInputRef.current?.focus();
+      }
+    };
+
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  }, [isAnyModalOpen]);
+
+  const handleSearchInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (searchResults.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex((prev) => Math.min(prev + 1, searchResults.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex((prev) => Math.max(prev - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const idx = selectedIndex >= 0 ? selectedIndex : 0;
+      const prod = searchResults[idx];
+      if (prod) {
+        addProductToCart(prod);
+        setSearchResults([]);
+        setBarcodeSearch("");
+        setSelectedIndex(-1);
+      }
+    }
+  };
+
+  // Scroll the selected search result into view when selection changes
+  useEffect(() => {
+    if (selectedIndex < 0) return;
+    const container = searchResultsRef.current;
+    if (!container) return;
+    const child = container.children[selectedIndex] as HTMLElement | undefined;
+    if (child) {
+      child.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [selectedIndex]);
 
   const {
     selectedCustomer, setSelectedCustomer,
@@ -140,16 +213,20 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
           <div style={{ flex: 1, position: "relative" }}>
             <Search size={18} color="#94a3b8" style={{ position: "absolute", left: "12px", top: "12px" }} />
             <input
+              ref={searchInputRef}
               type="text"
               className="input-corporate"
               style={{ paddingLeft: "38px" }}
               placeholder="Ingrese código o nombre del producto..."
+              data-shortcut-key="F2"
+              title="Buscar producto (F2)"
               value={barcodeSearch}
               onChange={(e) => setBarcodeSearch(validateTextInput(e.target.value))}
+              onKeyDown={handleSearchInputKeyDown}
             />
             {barcodeSearchError && <p style={styles.fieldError}>{barcodeSearchError}</p>}
           </div>
-          <button type="submit" className="btn-primary">Buscar</button>
+          <button type="submit" className="btn-primary" data-shortcut-letter="B" title="Buscar (Alt+B)">Buscar</button>
         </form>
 
         <div style={{ flex: "1 1 40%", display: "flex", gap: "10px", position: "relative" }} className="pos-cashier-customer-search">
@@ -188,9 +265,11 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
                 <div style={{ flex: 1, position: "relative" }}>
                   <input
                     type="text"
+                    ref={phoneInputRef}
                     className="input-corporate"
                     style={{ paddingRight: "40px" }}
                     placeholder="Teléfono del cliente (10 dígitos)"
+                    data-shortcut-key="F6"
                     value={localShowPhone ? localPhone : maskPhoneLast2(localPhone)}
                     onChange={(e) => {
                       const next = getNextRealPhone(e.target.value, localPhone);
@@ -233,9 +312,11 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
                       setConfirmOpen(true);
                     }}
                     className="btn-primary"
+                    data-shortcut-letter="R"
+                    title="Registrar cliente (Alt+R)"
                     style={{ fontSize: "11px", padding: "4px 8px", backgroundColor: "var(--text)", border: "none", borderRadius: "4px", color: "white", cursor: "pointer" }}
                   >
-                    + Registrar
+                    + Registrar (R)
                   </button>
                 </div>
               )}
@@ -246,16 +327,21 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
 
       {/* Dropdown de búsqueda multi-producto */}
       {searchResults.length > 0 && (
-        <div style={styles.searchResultsDropdown}>
-          {searchResults.map((p) => (
+        <div style={styles.searchResultsDropdown} ref={searchResultsRef}>
+          {searchResults.map((p, idx) => (
             <div
               key={p.id}
+              onMouseEnter={() => setSelectedIndex(idx)}
               onClick={() => {
                 addProductToCart(p);
                 setSearchResults([]);
                 setBarcodeSearch("");
+                setSelectedIndex(-1);
               }}
-              style={styles.dropdownItem}
+              style={{
+                ...styles.dropdownItem,
+                backgroundColor: idx === selectedIndex ? "var(--surface-2)" : "transparent",
+              }}
             >
               <span>{p.name}</span>
               <span style={{ fontWeight: "700", color: "#0d9488" }}>${p.sellPrice.toFixed(2)}</span>

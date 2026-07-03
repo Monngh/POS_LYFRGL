@@ -101,10 +101,13 @@ export default function CloseCashModal({
 
   const renderFooter = () => (
     <div style={{ display: "flex", gap: "10px", width: "100%" }}>
-      <button onClick={onClose} style={{ ...modalBtn, backgroundColor: "#dc2626", color: "white" }}>
+      <button title="Cancelar" data-shortcut="cancel" data-shortcut-letter="X" onClick={onClose} style={{ ...modalBtn, backgroundColor: "#dc2626", color: "white" }}>
         CANCELAR
       </button>
       <button
+        data-shortcut="confirm"
+        data-shortcut-letter="C"
+        title="Cerrar turno"
         disabled={closingLoading}
         onClick={handleConfirm}
         style={{ ...modalBtn, backgroundColor: "#059669", color: "white" }}

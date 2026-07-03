@@ -24,24 +24,22 @@ export function QuickActionsCarousel({ onOpenModal, onGoHome }: QuickActionsCaro
   const handleAction = (action: string) => {
     if (action === "autofacturacion") {
       window.open("/autofacturacion", "_blank");
-    } else {
-      onOpenModal(action);
+      return;
     }
+    onOpenModal(action);
   };
 
   const pages = [
-    // Page 1
     [
-      { id: "price-lookup", label: "Consultar precio", icon: Search, color: "var(--accent-strong)" },
-      { id: "bank-deposit", label: "Depósito Banco", icon: PiggyBank, color: "#0d9488" },
-      { id: "cancel-sale", label: "Cancelar venta", icon: XCircle, color: "#dc2626" },
-      { id: "returns", label: "Devoluciones", icon: RotateCcw, color: "#dc2626" },
+      { id: "price-lookup", label: "Consultar precio", icon: Search, color: "var(--accent-strong)", shortcutLetter: "C" },
+      { id: "bank-deposit", label: "Deposito Banco", icon: PiggyBank, color: "#0d9488", shortcutLetter: "D" },
+      { id: "cancel-sale", label: "Cancelar venta", icon: XCircle, color: "#dc2626", shortcutLetter: "V" },
+      { id: "returns", label: "Devoluciones", icon: RotateCcw, color: "#dc2626", shortcutLetter: "E" },
     ],
-    // Page 2
     [
-      { id: "ticket-history", label: "Reimprimir ticket", icon: Printer, color: "var(--accent-strong)" },
-      { id: "partial-cut-summary", label: "Corte Parcial", icon: FileText, color: "#d97706" },
-      { id: "autofacturacion", label: "Facturación", icon: ExternalLink, color: "#0d9488" },
+      { id: "ticket-history", label: "Reimprimir ticket", icon: Printer, color: "var(--accent-strong)", shortcutLetter: "R" },
+      { id: "partial-cut-summary", label: "Corte Parcial", icon: FileText, color: "#d97706", shortcutLetter: "P" },
+      { id: "autofacturacion", label: "Facturacion", icon: ExternalLink, color: "#0d9488", shortcutLetter: "I" },
     ],
   ];
 
@@ -50,7 +48,7 @@ export function QuickActionsCarousel({ onOpenModal, onGoHome }: QuickActionsCaro
   return (
     <div className="pos-quick-actions-container">
       <div className="pos-quick-actions-header">
-        <h4 className="pos-sidebar-title">ACCESOS RÁPIDOS</h4>
+        <h4 className="pos-sidebar-title">ACCESOS RAPIDOS</h4>
       </div>
 
       <div className="pos-quick-actions-grid">
@@ -62,6 +60,8 @@ export function QuickActionsCarousel({ onOpenModal, onGoHome }: QuickActionsCaro
               onClick={() => handleAction(action.id)}
               className="pos-quick-action-btn active-tap"
               type="button"
+              data-shortcut-letter={action.shortcutLetter}
+              title={`${action.label} (Alt+${action.shortcutLetter})`}
             >
               <div className="pos-quick-action-icon-wrapper" style={{ color: action.color }}>
                 <Icon size={20} />
@@ -73,38 +73,21 @@ export function QuickActionsCarousel({ onOpenModal, onGoHome }: QuickActionsCaro
       </div>
 
       <div className="pos-carousel-controls">
-        <button
-          type="button"
-          className="pos-carousel-arrow"
-          onClick={() => setPage((prev) => Math.max(0, prev - 1))}
-          disabled={page === 0}
-          aria-label="Anterior"
-        >
+        <button type="button" className="pos-carousel-arrow" onClick={() => setPage((prev) => Math.max(0, prev - 1))} disabled={page === 0} aria-label="Anterior">
           <ChevronLeft size={16} />
         </button>
         <span className="pos-carousel-indicator">
           {page + 1}/{totalPages}
         </span>
-        <button
-          type="button"
-          className="pos-carousel-arrow"
-          onClick={() => setPage((prev) => Math.min(totalPages - 1, prev + 1))}
-          disabled={page === totalPages - 1}
-          aria-label="Siguiente"
-        >
+        <button type="button" className="pos-carousel-arrow" onClick={() => setPage((prev) => Math.min(totalPages - 1, prev + 1))} disabled={page === totalPages - 1} aria-label="Siguiente">
           <ChevronRight size={16} />
         </button>
       </div>
 
-      {/* Link to main dashboard */}
       <div className="pos-quick-actions-footer" style={{ marginTop: "4px" }}>
-        <button
-          type="button"
-          className="pos-carousel-link-btn pos-go-home-link"
-          onClick={onGoHome}
-        >
+        <button type="button" className="pos-carousel-link-btn pos-go-home-link" onClick={onGoHome}>
           <Home size={14} />
-          <span>Ir a menú principal</span>
+          <span>Ir a menu principal</span>
         </button>
       </div>
     </div>

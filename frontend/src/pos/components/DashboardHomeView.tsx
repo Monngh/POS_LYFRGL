@@ -21,6 +21,7 @@ import {
 import { TICKET_PRINT_MEDIA_STYLES } from "../../shared/utils/ticketEmailDocument.util";
 import { useCashSession } from "../hooks/useCashSession";
 import { usePosTheme, togglePosTheme } from "../../shared/hooks/usePosTheme";
+import KeyboardShortcutsManager from "./KeyboardShortcutsManager";
 
 interface Sale {
   id: number;
@@ -110,7 +111,8 @@ export function DashboardHomeView({
   });
 
   return (
-    <div style={styles.appContainer} className="pos-cashier-app">
+    <div style={styles.appContainer} className="pos-cashier-app" data-pos-view="dashboard">
+      <KeyboardShortcutsManager />
       <style>{TICKET_PRINT_MEDIA_STYLES}</style>
       {/* Navbar */}
       <header className="pos-terminal-navbar">
@@ -144,6 +146,7 @@ export function DashboardHomeView({
           <button
             onClick={onNuevaVenta}
             className="pos-terminal-home-btn active-tap"
+            data-shortcut-key="F3"
             title="Ir a Ventas"
             aria-label="Ir a Ventas"
             type="button"
@@ -266,35 +269,35 @@ export function DashboardHomeView({
           <div style={{ marginTop: "24px" }}>
             <h4 style={styles.sectionSubtitle}>ACCIONES RÁPIDAS</h4>
             <div style={styles.actionsGrid} className="pos-cashier-actions-grid">
-              <button onClick={onNuevaVenta} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
+              <button onClick={onNuevaVenta} style={styles.actionBtn} className="active-tap pos-cashier-action-btn" title="Nueva Venta">
                 <BadgePercent size={28} color="#1e3a8a" />
                 <span>Nueva Venta</span>
               </button>
-              <button onClick={() => onOpenModal("price-lookup")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
+              <button onClick={() => onOpenModal("price-lookup")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn" title="Consultar precio">
                 <Search size={28} color="#1e3a8a" />
                 <span>Consultar precio</span>
               </button>
-              <button onClick={() => onOpenModal("ticket-history")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
+              <button onClick={() => onOpenModal("ticket-history")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn" title="Reimprimir ticket">
                 <Printer size={28} color="#1e3a8a" />
                 <span>Reimprimir ticket</span>
               </button>
-              <button onClick={() => onOpenModal("cancel-sale")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
+              <button onClick={() => onOpenModal("cancel-sale")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn" title="Solicitar cancelación">
                 <XCircle size={28} color="#1e3a8a" />
                 <span>Solicitar Cancelación</span>
               </button>
-              <button onClick={() => onOpenModal("close-options")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
+              <button onClick={() => onOpenModal("close-options")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn" title="Cerrar caja">
                 <Store size={28} color="#dc2626" />
                 <span>Cerrar Caja</span>
               </button>
-              <button onClick={() => onOpenModal("bank-deposit")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
+              <button onClick={() => onOpenModal("bank-deposit")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn" title="Depósito banco">
                 <PiggyBank size={28} color="#0d9488" />
                 <span>Depósito Banco</span>
               </button>
-              <button onClick={() => onOpenModal("returns")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
+              <button onClick={() => onOpenModal("returns")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn" title="Devoluciones">
                 <RotateCcw size={28} color="#dc2626" />
                 <span>Devoluciones</span>
               </button>
-              <button onClick={() => window.open("/autofacturacion", "_blank")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn">
+              <button onClick={() => window.open("/autofacturacion", "_blank")} style={styles.actionBtn} className="active-tap pos-cashier-action-btn" title="Autofacturación">
                 <FileText size={28} color="#0d9488" />
                 <span>Autofacturación</span>
               </button>

@@ -54,6 +54,8 @@ export function SalesLayoutView({
               type="button"
               onClick={() => onOpenModal("close-options")}
               className="pos-sidebar-close-cash-btn active-tap"
+              data-shortcut-letter="T"
+              title="Cerrar caja"
             >
               <Store size={16} />
               <span>CERRAR CAJA</span>
@@ -66,6 +68,8 @@ export function SalesLayoutView({
               type="button"
               onClick={onLock}
               className="pos-sidebar-lock-btn active-tap"
+              data-shortcut-key="Ctrl+L"
+              title="Bloquear pantalla (Ctrl+L)"
             >
               <Lock size={16} />
               <span>BLOQUEAR PANTALLA</span>

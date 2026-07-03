@@ -12,6 +12,7 @@ import { CheckoutPanel } from "./CheckoutPanel";
 import { SalesLayoutView } from "./SalesLayoutView";
 import { useParkedSales } from "../hooks/useParkedSales";
 import { ParkedSalesModal, MixedPaymentModal } from "./modals";
+import KeyboardShortcutsManager from "./KeyboardShortcutsManager";
 
 interface SalesTerminalUser {
   name: string;
@@ -118,6 +119,8 @@ export function SalesTerminalView({
   const [parkedModalOpen, setParkedModalOpen] = React.useState(false);
   const [mixedModalOpen, setMixedModalOpen] = React.useState(false);
 
+  const isAnyModalOpen = checkoutModalOpen || qrModalOpen || isNewCustomerModalOpen || parkedModalOpen || mixedModalOpen;
+
   React.useEffect(() => {
     if (user?.branch?.id) {
       fetchParkedSales();
@@ -144,8 +147,34 @@ export function SalesTerminalView({
     ? currentTime.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", hour12: true })
     : "";
 
+  const handleCheckoutModalKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      const active = document.activeElement;
+      if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || (active as HTMLElement).isContentEditable)) return;
+      e.preventDefault();
+      const methods = ["EFECTIVO", "TARJETA", "STORE_CREDIT", "MIXTO", "QR_MERCADOPAGO"];
+      const idx = methods.indexOf(paymentMethod as string);
+      if (idx === -1) return;
+      const next = e.key === "ArrowRight" ? Math.min(idx + 1, methods.length - 1) : Math.max(idx - 1, 0);
+      setPaymentMethod(methods[next] as any);
+      return;
+    }
+
+    if (e.key === "Enter") {
+      const active = document.activeElement;
+      if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || (active as HTMLElement).isContentEditable)) return;
+      e.preventDefault();
+      if (paymentMethod === "MIXTO") {
+        setMixedModalOpen(true);
+      } else {
+        handleCheckoutSubmit();
+      }
+    }
+  };
+
   return (
-    <div style={styles.appContainer} className="pos-cashier-app">
+    <div style={styles.appContainer} className="pos-cashier-app" data-pos-view="sales-terminal">
+      <KeyboardShortcutsManager />
       <style>{TICKET_PRINT_MEDIA_STYLES}</style>
 
       {/* Header Terminal — nuevo diseño de Fer */}
@@ -181,7 +210,8 @@ export function SalesTerminalView({
               type="button"
               onClick={onGoHome}
               className="pos-terminal-home-btn active-tap"
-              title="Ir al inicio"
+              data-shortcut-key="F1"
+              title="Ir al inicio (F1)"
               aria-label="Ir al dashboard"
             >
               <Home size={16} />
@@ -192,6 +222,7 @@ export function SalesTerminalView({
             type="button"
             onClick={() => setParkedModalOpen(true)}
             className="pos-terminal-home-btn active-tap"
+            data-shortcut-letter="K"
             title="Ventas en Espera"
             aria-label="Ver ventas pausadas"
           >
@@ -231,6 +262,7 @@ export function SalesTerminalView({
           customerData={customerData}
           cartData={cartData}
           onToast={onToast}
+          isAnyModalOpen={isAnyModalOpen}
         />
 
         <div className="card-premium pos-cashier-cart-card" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "20px" }}>
@@ -291,8 +323,8 @@ export function SalesTerminalView({
 
       {/* COBRO MODAL */}
       {checkoutModalOpen && (
-        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-          <div style={styles.checkoutModal} className="pos-cashier-modal">
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center" data-pos-modal>
+          <div style={styles.checkoutModal} className="pos-cashier-modal" onKeyDown={handleCheckoutModalKeyDown} tabIndex={-1}>
             <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "var(--text-secondary)", fontWeight: "700" }}>COBRO</h3>
             <div style={styles.checkoutTotalBox} className="pos-cashier-checkout-total">
               $ {(cartTotal - pointsDiscount).toFixed(2)}
@@ -422,6 +454,7 @@ export function SalesTerminalView({
                 </p>
                 <button
                   type="button"
+                  title="Configurar pagos mixtos"
                   onClick={() => setMixedModalOpen(true)}
                   style={{ ...styles.modalBtn, backgroundColor: "#2563eb", color: "white" }}
                 >
@@ -505,10 +538,13 @@ export function SalesTerminalView({
             )}
 
             <div style={{ display: "flex", gap: "10px", marginTop: "24px" }} className="pos-cashier-modal-actions">
-              <button disabled={checkoutLoading} onClick={() => setCheckoutModalOpen(false)} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
+              <button title="Cancelar (X)" data-shortcut="cancel" data-shortcut-letter="X" disabled={checkoutLoading} onClick={() => setCheckoutModalOpen(false)} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
                 CANCELAR
               </button>
               <button
+                title="Cobrar (C)"
+                data-shortcut="confirm"
+                data-shortcut-letter="C"
                 disabled={checkoutLoading}
                 onClick={() => {
                   if (paymentMethod === "MIXTO") {
@@ -531,7 +567,7 @@ export function SalesTerminalView({
 
       {/* MODAL QR MERCADO PAGO */}
       {qrModalOpen && (
-        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center" data-pos-modal>
           <div style={styles.checkoutModal} className="pos-cashier-modal">
             <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "var(--text-secondary)", fontWeight: "700" }}>PAGO QR MERCADO PAGO</h3>
             <div style={{ textAlign: "center", padding: "20px 0" }}>
@@ -552,17 +588,19 @@ export function SalesTerminalView({
               <p style={{ marginTop: "12px", fontSize: "12px", color: "var(--text-muted)" }}>Ref: {qrReference}</p>
             </div>
             <div style={{ display: "flex", gap: "10px", marginTop: "24px" }} className="pos-cashier-modal-actions">
-              <button disabled={qrChecking} onClick={addPendingQrSale} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
-                CERRAR (PAGO PENDIENTE)
-              </button>
-              <button
-                disabled={qrChecking}
-                onClick={checkQrStatus}
-                style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
-              >
-                {qrChecking && <div className="pos-cashier-loading-spinner" style={{ width: "14px", height: "14px", borderWidth: "2px", borderColor: "rgba(255,255,255,0.4)", borderTopColor: "#ffffff", flexShrink: 0 }} />}
-                {qrChecking ? "VERIFICANDO..." : "VERIFICAR ESTADO"}
-              </button>
+                <button disabled={qrChecking} onClick={addPendingQrSale} data-shortcut="cancel" data-shortcut-letter="X" style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
+                  CERRAR (PAGO PENDIENTE)
+                </button>
+                <button
+                  disabled={qrChecking}
+                  onClick={checkQrStatus}
+                  data-shortcut="confirm"
+                  data-shortcut-letter="C"
+                  style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+                >
+                  {qrChecking && <div className="pos-cashier-loading-spinner" style={{ width: "14px", height: "14px", borderWidth: "2px", borderColor: "rgba(255,255,255,0.4)", borderTopColor: "#ffffff", flexShrink: 0 }} />}
+                  {qrChecking ? "VERIFICANDO..." : "VERIFICAR ESTADO"}
+                </button>
             </div>
           </div>
         </div>
@@ -570,7 +608,7 @@ export function SalesTerminalView({
 
       {/* MODAL: REGISTRO RÁPIDO DE CLIENTE */}
       {isNewCustomerModalOpen && (
-        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center" data-pos-modal>
           <div style={styles.checkoutModal} className="pos-cashier-modal">
             <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "var(--text-secondary)", fontWeight: "700" }}>
               REGISTRO RÁPIDO DE CLIENTE
@@ -600,10 +638,10 @@ export function SalesTerminalView({
               )}
 
               <div style={{ display: "flex", gap: "10px", marginTop: "16px" }} className="pos-cashier-modal-actions">
-                <button type="button" onClick={() => { setIsNewCustomerModalOpen(false); setNewCustomerFieldErrors({}); }} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
-                  CANCELAR
-                </button>
-                <button type="submit" disabled={newCustomerLoading} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
+              <button title="Cancelar (X)" data-shortcut="cancel" data-shortcut-letter="X" type="button" onClick={() => { setIsNewCustomerModalOpen(false); setNewCustomerFieldErrors({}); }} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
+                CANCELAR
+              </button>
+              <button title="Registrar y seleccionar (R)" data-shortcut="confirm" data-shortcut-letter="R" type="submit" disabled={newCustomerLoading} style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}>
                   {newCustomerLoading ? "Registrando..." : "REGISTRAR Y SELECCIONAR"}
                 </button>
               </div>

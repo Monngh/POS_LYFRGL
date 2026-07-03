@@ -147,6 +147,8 @@ export function CheckoutPanel({
           <button
             onClick={handleCancelCurrentPurchase}
             className="active-tap"
+            data-shortcut-letter="X"
+            title="Cancelar compra"
             style={{ ...styles.terminalBtn, flex: 1, minWidth: "120px", backgroundColor: "#dc2626", color: "white" }}
           >
             CANCELAR COMPRA
@@ -155,6 +157,8 @@ export function CheckoutPanel({
             onClick={onParkSale}
             disabled={cart.length === 0}
             className="active-tap"
+            data-shortcut-letter="P"
+            title="Pausar venta"
             style={{ ...styles.terminalBtn, flex: 1, minWidth: "120px", backgroundColor: "#d97706", color: "white", opacity: cart.length === 0 ? 0.5 : 1 }}
           >
             PAUSAR VENTA
@@ -163,6 +167,8 @@ export function CheckoutPanel({
             disabled={cart.length === 0}
             onClick={onOpenCheckout}
             className="active-tap"
+            data-shortcut-key="F4"
+            title="Cobrar (F4)"
             style={{ ...styles.terminalBtn, flex: 1, backgroundColor: "#059669", color: "white" }}
           >
             COBRAR

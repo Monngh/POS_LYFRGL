@@ -123,6 +123,7 @@ export default function TicketHistoryModal({
   const renderFooter = () => (
     <div style={{ display: "flex", width: "100%" }}>
       <button
+        title="Cerrar"
         onClick={onClose}
         style={{
           padding: "10px",

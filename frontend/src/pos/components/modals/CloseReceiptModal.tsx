@@ -53,13 +53,18 @@ export default function CloseReceiptModal({
   const renderFooter = () => (
     <div style={{ display: "flex", gap: "10px", width: "100%" }} className="pos-cashier-modal-actions no-print" data-no-ticket-print="true">
       <button
+        title="Imprimir"
         onClick={onPrint}
         style={{ ...modalBtn, backgroundColor: "var(--accent-strong)", color: "white" }}
       >
         IMPRIMIR
       </button>
       {emailButton}
-      <button onClick={onClose} style={{ ...modalBtn, backgroundColor: "#059669", color: "white" }}>
+      <button
+        title="Salir"
+        onClick={onClose}
+        style={{ ...modalBtn, backgroundColor: "#059669", color: "white" }}
+      >
         SALIR
       </button>
     </div>

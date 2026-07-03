@@ -86,7 +86,7 @@ const Dashboard: React.FC = () => {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
-  
+
   // Vistas del Cajero: "dashboard" | "apertura" | "sales-terminal"
   const [view, setView] = useState<"dashboard" | "apertura" | "sales-terminal">("dashboard");
   // Bloqueo: el turno de caja del usuario está abierto en otro equipo
@@ -213,6 +213,8 @@ const Dashboard: React.FC = () => {
     lookupResults,
     handleLookupSearch,
     handleLookupKeyDown,
+    lookupSelectionIndex,
+    setLookupSelectionIndex,
     resetLookup,
     resetSearch,
   } = searchData;
@@ -458,6 +460,7 @@ const Dashboard: React.FC = () => {
     defaultEmail?: string | null;
   }) => (
     <button
+      title="Enviar por Correo"
       onClick={() => openTicketEmailModal(emailConfig)}
       style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
     >
@@ -478,11 +481,19 @@ const Dashboard: React.FC = () => {
     };
   }) => (
     <>
-      <button onClick={options.onClose} style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}>
+      <button
+        title="Cerrar"
+        onClick={options.onClose}
+        style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
+      >
         {options.closeLabel || "Cerrar"}
       </button>
       {renderTicketEmailButton(options.emailConfig)}
-      <button onClick={options.onPrint} style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>
+      <button
+        title="Imprimir"
+        onClick={options.onPrint}
+        style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
+      >
         <Printer size={16} /> {options.printLabel || "Imprimir"}
       </button>
     </>
@@ -1202,6 +1213,8 @@ const Dashboard: React.FC = () => {
         }}
         lookupResults={lookupResults}
         onLookupKeyDown={handleLookupKeyDown}
+        lookupSelectionIndex={lookupSelectionIndex}
+        setLookupSelectionIndex={setLookupSelectionIndex}
       />
 
       {/* MODAL: AUTORIZACIÓN PIN GERENTE/ADMIN PARA CARRITO (Fase 3.0) */}

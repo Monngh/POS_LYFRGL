@@ -21,6 +21,9 @@ export default function CloseOptionsModal({
   const renderFooter = () => (
     <div style={{ display: "flex", width: "100%" }}>
       <button
+        data-shortcut="cancel"
+        data-shortcut-letter="X"
+        title="Cancelar"
         onClick={onClose}
         style={{
           padding: "10px",
@@ -53,6 +56,8 @@ export default function CloseOptionsModal({
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%", marginTop: "14px" }}>
         <button
+          data-shortcut-letter="P"
+          title="Corte Parcial"
           onClick={onPartialCut}
           style={{
             padding: "14px",
@@ -71,6 +76,8 @@ export default function CloseOptionsModal({
           Corte Parcial (Cut de Caja)
         </button>
         <button
+          data-shortcut-key="F8"
+          title="Cierre de Turno (F8)"
           onClick={onCloseCash}
           style={{
             padding: "14px",

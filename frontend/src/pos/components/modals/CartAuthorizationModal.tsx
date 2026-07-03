@@ -55,6 +55,7 @@ export function CartAuthorizationModal({
     <div style={{ display: "flex", gap: "10px", width: "100%" }}>
       <button
         type="button"
+        title="Cancelar"
         onClick={onCancel}
         style={{ ...styles.modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
       >
@@ -62,6 +63,7 @@ export function CartAuthorizationModal({
       </button>
       <button
         type="button"
+        title="Autorizar"
         onClick={(e) => onSubmit(e as any)}
         disabled={cartPinLoading || !cartPin}
         style={{

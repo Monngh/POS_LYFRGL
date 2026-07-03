@@ -19,6 +19,8 @@ interface PriceLookupModalProps {
   onCategoryChange: (value: string) => void;
   lookupResults: LookupProduct[];
   onLookupKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  lookupSelectionIndex?: number;
+  setLookupSelectionIndex?: (n: number) => void;
 }
 
 export default function PriceLookupModal({
@@ -30,7 +32,10 @@ export default function PriceLookupModal({
   onCategoryChange,
   lookupResults,
   onLookupKeyDown,
+  lookupSelectionIndex,
+  setLookupSelectionIndex,
 }: PriceLookupModalProps) {
+  const tbodyRef = React.useRef<HTMLTableSectionElement | null>(null);
   const [categories, setCategories] = useState<{id: number, name: string}[]>([]);
 
   useEffect(() => {
@@ -40,10 +45,22 @@ export default function PriceLookupModal({
       }).catch(err => console.error("Error cargando categorias", err));
     }
   }, [isOpen]);
+
+  // Keep the highlighted result visible while navigating with arrows.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (lookupSelectionIndex == null || lookupSelectionIndex < 0) return;
+    const tbody = tbodyRef.current;
+    if (!tbody) return;
+    const row = tbody.children[lookupSelectionIndex] as HTMLElement | undefined;
+    if (row) row.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [isOpen, lookupSelectionIndex, lookupResults]);
+
   const footer = (
     <>
-      <button 
+      <button
         onClick={onClose} 
+        title="Cancelar / Cerrar"
         style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
       >
         Cerrar
@@ -102,15 +119,15 @@ export default function PriceLookupModal({
                   <th style={{ padding: "12px 16px", fontSize: "12px", fontWeight: "600", color: "var(--text-secondary)" }}>Existencia</th>
                 </tr>
               </thead>
-              <tbody>
-                {lookupResults.map((p) => (
-                  <tr key={p.id} style={{ borderBottom: "1px solid var(--border-strong)" }}>
-                    <td style={{ padding: "12px 16px", fontSize: "14px", color: "var(--text)", fontWeight: "500" }}>{p.name}</td>
-                    <td style={{ padding: "12px 16px", fontSize: "14px", color: "var(--text)", fontWeight: "600" }}>${p.sellPrice.toFixed(2)}</td>
-                    <td style={{ padding: "12px 16px", fontSize: "14px", color: "var(--text)" }}>{p.stock}</td>
-                  </tr>
-                ))}
-              </tbody>
+              <tbody ref={tbodyRef}>
+                    {lookupResults.map((p, idx) => (
+                      <tr key={p.id} style={{ borderBottom: "1px solid var(--border-strong)", backgroundColor: lookupSelectionIndex === idx ? "var(--surface-2)" : "transparent" }} onMouseEnter={() => setLookupSelectionIndex?.(idx)}>
+                        <td style={{ padding: "12px 16px", fontSize: "14px", color: "var(--text)", fontWeight: "500" }}>{p.name}</td>
+                        <td style={{ padding: "12px 16px", fontSize: "14px", color: "var(--text)", fontWeight: "600" }}>${p.sellPrice.toFixed(2)}</td>
+                        <td style={{ padding: "12px 16px", fontSize: "14px", color: "var(--text)" }}>{p.stock}</td>
+                      </tr>
+                    ))}
+                  </tbody>
             </table>
           </div>
         )}

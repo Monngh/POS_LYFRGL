@@ -55,12 +55,14 @@ export default function PartialCutSummaryModal({
   const renderFooter = () => (
     <div style={{ display: "flex", gap: "10px", width: "100%" }} className="pos-cashier-modal-actions">
       <button
+        title="Volver"
         onClick={onBack}
         style={{ ...modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
       >
         VOLVER
       </button>
       <button
+        title="Guardar corte"
         disabled={partialCutLoading}
         onClick={onSave}
         style={{ ...modalBtn, backgroundColor: "#2563eb", color: "white" }}
