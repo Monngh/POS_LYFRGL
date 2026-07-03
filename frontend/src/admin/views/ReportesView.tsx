@@ -4,7 +4,13 @@ import api from "../../shared/services/api";
 import { ui, type ViewProps, SectionHeader, Badge } from "./shared";
 import { REPORTS, REPORT_CATEGORIES, type ReportDef } from "./reports/reportConfig";
 import ReportRunner from "./reports/ReportRunner";
-import ResumenReport from "./reports/ResumenReport";
+import ExecutiveSummaryReport from "./reports/ExecutiveSummaryReport";
+import SalesReport from "./reports/SalesReport";
+import ArticulosReport from "./reports/ArticulosReport";
+import ExistenciasReport from "./reports/ExistenciasReport";
+import KardexReport from "./reports/KardexReport";
+import ComprasReport from "./reports/ComprasReport";
+import PersonnelReport from "./reports/PersonnelReport";
 import HistorialFacturasView from "./HistorialFacturasView";
 import { useAuth } from "../../auth";
 
@@ -47,8 +53,22 @@ const ReportesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         />
         {selected.key === "historial-facturas" ? (
           <HistorialFacturasView branchId={branchId} refreshToken={refreshToken} />
+        ) : selected.key === "ventas" ? (
+          <SalesReport branchId={branchId} branchLabel={branchLabel} />
+        ) : selected.key === "articulos" ? (
+          <ArticulosReport branchId={branchId} branchLabel={branchLabel} />
+        ) : selected.key === "existencias" ? (
+          <ExistenciasReport branchId={branchId} branchLabel={branchLabel} />
+        ) : selected.key === "kardex" ? (
+          <KardexReport branchId={branchId} branchLabel={branchLabel} />
+        ) : selected.key === "compras" ? (
+          <ComprasReport branchId={branchId} branchLabel={branchLabel} />
+        ) : selected.key === "operaciones" ? (
+          <PersonnelReport variant="operaciones" branchId={branchId} branchLabel={branchLabel} />
+        ) : selected.key === "ventas-usuario" ? (
+          <PersonnelReport variant="usuario" branchId={branchId} branchLabel={branchLabel} />
         ) : selected.kind === "summary" ? (
-          <ResumenReport branchId={branchId} branchLabel={branchLabel} />
+          <ExecutiveSummaryReport branchId={branchId} branchLabel={branchLabel} />
         ) : (
           <ReportRunner def={selected} branchId={branchId} branchLabel={branchLabel} />
         )}

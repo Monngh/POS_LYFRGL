@@ -15,7 +15,9 @@ import {
   payTone,
   FilterSelect,
   printTicketHtml,
-  useMediaQuery
+  useMediaQuery,
+  usePagination,
+  Pagination,
 } from "./shared";
 
 interface DepositRow {
@@ -108,6 +110,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     { params: filterParams }
   );
   const rows = data?.deposits ?? [];
+  const paged = usePagination(rows, { resetKey: `${branchId}|${from}|${to}|${account}` });
 
   const isFirstRender = useRef(true);
   useEffect(() => {
@@ -367,7 +370,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
           {!loading &&
             !loadError &&
-            rows.map((d) => {
+            paged.pageItems.map((d) => {
               const isExpanded = expandedDeposits[d.id];
               return (
                 <div
@@ -574,13 +577,17 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         <div className="table-sticky-head">
           <DataTable
             columns={columns}
-            data={rows}
+            data={paged.pageItems}
             loading={loading}
             error={loadError || mutationError}
             emptyMessage="No hay depósitos bancarios registrados."
             keyExtractor={(d) => d.id}
           />
         </div>
+      )}
+
+      {!loading && !loadError && (
+        <Pagination page={paged.page} pageCount={paged.pageCount} total={paged.total} from={paged.from} to={paged.to} onPage={paged.setPage} itemLabel="depósitos" />
       )}
 
       <ActionModal

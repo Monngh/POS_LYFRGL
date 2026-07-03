@@ -29,6 +29,8 @@ import {
   printHtml,
   useMediaQuery,
   normalizeProductSearchText,
+  usePagination,
+  Pagination,
 } from "./shared";
 
 interface ProductCategorySummary {
@@ -1298,6 +1300,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     return true;
   });
 
+  const paged = usePagination(filteredRows, { resetKey: `${branchId}|${search}|${statusFilter}` });
+
   const lowCount = filteredRows.filter((r) => r.low).length;
   const scope = branchId !== "all" ? "en la sucursal seleccionada" : "consolidado de todas las sucursales";
 
@@ -1417,7 +1421,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               )}
 
               {!loading &&
-                filteredRows.map((p) => {
+                paged.pageItems.map((p) => {
                   const isExpanded = expandedProducts[p.id];
                   return (
                     <div
@@ -1621,7 +1625,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   />
                   {!loading &&
                     !error &&
-                    filteredRows.map((p) => (
+                    paged.pageItems.map((p) => (
                       <tr
                         key={p.id}
                         onClick={() => openProductDetail(p.id)}
@@ -1666,6 +1670,10 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 </tbody>
               </table>
             </div>
+          )}
+
+          {!loading && !error && (
+            <Pagination page={paged.page} pageCount={paged.pageCount} total={paged.total} from={paged.from} to={paged.to} onPage={paged.setPage} itemLabel="productos" />
           )}
         </>
       )}

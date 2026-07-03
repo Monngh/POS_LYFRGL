@@ -46,6 +46,15 @@ import {
   reportProductsSold,
   reportBySeller,
   reportReceivables,
+  reportExecutiveSummary,
+  reportSalesDocument,
+  reportProductsDocument,
+  reportInventoryDocument,
+  reportKardexDocument,
+  reportPurchaseDocument,
+  reportPersonnelDocument,
+  reportFilterOptions,
+  reportPdf,
 } from "../controllers/reports.controller";
 import {
   getAdminReturns,
@@ -134,6 +143,15 @@ router.put("/branches/:id", authorizeRoles(["ADMIN"]), updateBranch);
 
 // Reportes
 router.get("/reports", authorizeRoles(["ADMIN", "GERENTE"]), auditReport("Resumen Ejecutivo", "VENTAS"), getReports);
+router.get("/reports/executive-summary", authorizeRoles(["ADMIN", "GERENTE"]), auditReport("Resumen Ejecutivo", "VENTAS"), reportExecutiveSummary);
+router.get("/reports/sales-report", authorizeRoles(["ADMIN", "GERENTE"]), auditReport("Reporte de Ventas", "VENTAS"), reportSalesDocument);
+router.get("/reports/products-report", authorizeRoles(["ADMIN", "GERENTE"]), auditReport("Artículos Vendidos", "VENTAS"), reportProductsDocument);
+router.get("/reports/inventory-report", authorizeRoles(["ADMIN", "GERENTE"]), auditReport("Existencias", "INVENTARIO"), reportInventoryDocument);
+router.get("/reports/kardex-report", authorizeRoles(["ADMIN", "GERENTE"]), auditReport("Kardex", "INVENTARIO"), reportKardexDocument);
+router.get("/reports/purchase-report", authorizeRoles(["ADMIN", "GERENTE"]), auditReport("Compras", "COMPRAS"), reportPurchaseDocument);
+router.get("/reports/personnel-report", authorizeRoles(["ADMIN", "GERENTE"]), auditReport("Operaciones del Vendedor", "PERSONAL"), reportPersonnelDocument);
+router.get("/reports/filter-options", authorizeRoles(["ADMIN", "GERENTE"]), reportFilterOptions);
+router.post("/reports/pdf", authorizeRoles(["ADMIN", "GERENTE"]), reportPdf);
 router.get("/reports/sales", authorizeRoles(["ADMIN", "GERENTE"]), auditReport("Venta", "VENTAS"), reportSales);
 router.get("/reports/products-sold", authorizeRoles(["ADMIN", "GERENTE"]), auditReport("Artículos Vendidos", "VENTAS"), reportProductsSold);
 router.get("/reports/by-seller", authorizeRoles(["ADMIN", "GERENTE"]), auditReport("Operaciones por Vendedor", "PERSONAL"), reportBySeller);
