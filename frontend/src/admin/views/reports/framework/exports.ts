@@ -1,7 +1,11 @@
 // ============================================================================
 // Exportación de reportes: CSV, Excel con estilos (ExcelJS, carga diferida)
-// y PDF mediante impresión nativa (Print CSS A4 — sin html2canvas).
+// y PDF. El PDF reutiliza la MISMA plantilla de impresión (Print CSS A4): la
+// descarga lo renderiza en el servidor con el motor de Chromium; «Imprimir»
+// usa el motor local. Un solo diseño, sin capturas del DOM.
 // ============================================================================
+import api from "../../../../shared/services/api";
+import reportCss from "./reportTheme.css?raw";
 
 export type ColType = "text" | "money" | "number" | "int" | "pct";
 
@@ -126,29 +130,34 @@ export const exportExcel = async (filename: string, sheets: ExportSheet[], meta?
   );
 };
 
-// ----------------------------- PDF (Print CSS nativo) ----------------------
-// AMBAS salidas (Imprimir y Descargar PDF) usan el MISMO layout de impresión:
+// ----------------------------- Imprimir (motor local) ----------------------
 // @media print de reportTheme.css aísla el documento (.erp-doc), fija @page A4
-// y pagina por .erp-page. El motor de render del navegador produce un PDF
-// vectorial: texto nítido y seleccionable, fuentes e iconos SVG conservados,
-// archivo ligero y generación inmediata — sin capturas del DOM ni duplicar
-// el árbol. Un solo diseño para pantalla, papel y PDF.
+// y pagina por .erp-page. Produce un PDF vectorial con texto seleccionable a
+// través del diálogo de impresión del navegador.
 export const printReport = () => {
   window.print();
 };
 
-// Descarga como PDF reutilizando la misma plantilla de impresión. Chrome/Edge
-// usan document.title como nombre de archivo sugerido al elegir el destino
-// «Guardar como PDF» (el navegador recuerda el último destino seleccionado).
-export const downloadReportPdf = (filename: string) => {
-  const prevTitle = document.title;
-  document.title = filename.replace(/\.pdf$/i, "");
-  const restore = () => {
-    document.title = prevTitle;
-    window.removeEventListener("afterprint", restore);
-  };
-  window.addEventListener("afterprint", restore);
-  window.print();
-  // Red de seguridad por si el motor no emite afterprint (restaurar es idempotente)
-  setTimeout(restore, 60000);
+// ----------------------------- Descargar PDF (servidor) --------------------
+// Serializa el documento ya renderizado (.erp-zoom) + la MISMA hoja de estilos
+// de impresión, y lo envía al backend, que lo compone con Chromium y devuelve
+// el PDF como descarga. Resultado: archivo real y automático, vectorial,
+// texto seleccionable, ligero — idéntico a «Imprimir», sin capturas del DOM.
+export const downloadReportPdf = async (filename: string) => {
+  const zoom = document.querySelector(".erp-doc .erp-zoom");
+  if (!zoom) throw new Error("No hay documento para exportar.");
+
+  // Clon sin el zoom de la vista previa (el PDF va siempre a escala real).
+  const clone = zoom.cloneNode(true) as HTMLElement;
+  clone.style.zoom = "";
+  clone.style.transform = "";
+
+  const html =
+    `<!doctype html><html lang="es"><head><meta charset="utf-8">` +
+    `<style>${reportCss}</style></head>` +
+    `<body><div class="erp-doc">${clone.outerHTML}</div></body></html>`;
+
+  const finalName = filename.toLowerCase().endsWith(".pdf") ? filename : `${filename}.pdf`;
+  const res = await api.post("/api/admin/reports/pdf", { html, filename: finalName }, { responseType: "blob" });
+  saveBlob(res.data as Blob, finalName);
 };

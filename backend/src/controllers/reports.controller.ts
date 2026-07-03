@@ -7,6 +7,7 @@ import {
   getReceivablesReport,
 } from "../services/reports.service";
 import { getExecutiveSummary, getReportFilterOptions } from "../services/executiveSummary.service";
+import { renderHtmlToPdf } from "../services/pdf.service";
 
 const parseBranchId = (req: Request): number | undefined => {
   if (req.user && req.user.role === "GERENTE") {
@@ -167,6 +168,26 @@ export const reportExecutiveSummary = async (req: Request, res: Response): Promi
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ message: "Error al generar el resumen ejecutivo." });
+  }
+};
+
+export const reportPdf = async (req: Request, res: Response): Promise<void> => {
+  const { html, filename } = req.body ?? {};
+  if (typeof html !== "string" || html.length < 40 || html.length > 14_000_000) {
+    res.status(400).json({ message: "HTML del reporte inválido." });
+    return;
+  }
+  try {
+    const pdf = await renderHtmlToPdf(html);
+    const safeName = (typeof filename === "string" ? filename : "Reporte").replace(/[^\w.-]/g, "_").slice(0, 120);
+    const finalName = safeName.toLowerCase().endsWith(".pdf") ? safeName : `${safeName}.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${finalName}"`);
+    res.setHeader("Content-Length", pdf.length);
+    res.status(200).end(pdf);
+  } catch (error: any) {
+    console.error("Error al generar PDF del reporte:", error?.message ?? error);
+    res.status(500).json({ message: "No se pudo generar el PDF en el servidor." });
   }
 };
 

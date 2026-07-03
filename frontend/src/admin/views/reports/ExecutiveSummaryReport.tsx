@@ -263,6 +263,7 @@ const ExecutiveSummaryReport: React.FC<{ branchId: string; branchLabel: string }
   const [zoom, setZoom] = useState(1);
   const [manualZoom, setManualZoom] = useState(false);
   const [current, setCurrent] = useState(0);
+  const [downloading, setDownloading] = useState(false);
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -441,11 +442,19 @@ const ExecutiveSummaryReport: React.FC<{ branchId: string; branchLabel: string }
     ], buildResumenRows(data));
   };
 
-  // ---- Descargar PDF: reutiliza EXACTAMENTE la plantilla de impresión ----
-  // (PDF vectorial del motor del navegador: texto seleccionable, fuentes e
-  // iconos nítidos, archivo ligero; mismo documento que «Imprimir».)
-  const onDownloadPdf = () => {
-    downloadReportPdf(`Reporte_Ejecutivo_${new Date().toISOString().slice(0, 10)}`);
+  // ---- Descargar PDF: render vectorial en el servidor (mismo layout) ----
+  const onDownloadPdf = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      await downloadReportPdf(`Reporte_Ejecutivo_${new Date().toISOString().slice(0, 10)}`);
+    } catch {
+      // Respaldo: si el render del servidor no está disponible, se abre la
+      // impresión nativa (destino «Guardar como PDF»), mismo documento.
+      printReport();
+    } finally {
+      setDownloading(false);
+    }
   };
 
   // ---- Navegación de páginas ----
@@ -962,9 +971,10 @@ const ExecutiveSummaryReport: React.FC<{ branchId: string; branchLabel: string }
           <button
             className="erp-btn erp-btn-primary"
             onClick={onDownloadPdf}
-            title="Guarda el documento como PDF vectorial (elija el destino «Guardar como PDF»)"
+            disabled={downloading}
+            title="Descargar el documento como PDF vectorial"
           >
-            <Download size={15} /> Descargar PDF
+            <Download size={15} /> {downloading ? "Generando PDF…" : "Descargar PDF"}
           </button>
           <button className="erp-btn erp-btn-ghost" onClick={printReport} title="Enviar el mismo documento a la impresora"><Printer size={15} /> Imprimir</button>
           <button className="erp-btn erp-btn-ghost" onClick={onExcel}><Sheet size={15} /> Excel</button>
