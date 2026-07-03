@@ -7,6 +7,10 @@ import ReportRunner from "./reports/ReportRunner";
 import ExecutiveSummaryReport from "./reports/ExecutiveSummaryReport";
 import SalesReport from "./reports/SalesReport";
 import ArticulosReport from "./reports/ArticulosReport";
+import ExistenciasReport from "./reports/ExistenciasReport";
+import KardexReport from "./reports/KardexReport";
+import ComprasReport from "./reports/ComprasReport";
+import PersonnelReport from "./reports/PersonnelReport";
 import HistorialFacturasView from "./HistorialFacturasView";
 import { useAuth } from "../../auth";
 
@@ -53,6 +57,16 @@ const ReportesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           <SalesReport branchId={branchId} branchLabel={branchLabel} />
         ) : selected.key === "articulos" ? (
           <ArticulosReport branchId={branchId} branchLabel={branchLabel} />
+        ) : selected.key === "existencias" ? (
+          <ExistenciasReport branchId={branchId} branchLabel={branchLabel} />
+        ) : selected.key === "kardex" ? (
+          <KardexReport branchId={branchId} branchLabel={branchLabel} />
+        ) : selected.key === "compras" ? (
+          <ComprasReport branchId={branchId} branchLabel={branchLabel} />
+        ) : selected.key === "operaciones" ? (
+          <PersonnelReport variant="operaciones" branchId={branchId} branchLabel={branchLabel} />
+        ) : selected.key === "ventas-usuario" ? (
+          <PersonnelReport variant="usuario" branchId={branchId} branchLabel={branchLabel} />
         ) : selected.kind === "summary" ? (
           <ExecutiveSummaryReport branchId={branchId} branchLabel={branchLabel} />
         ) : (

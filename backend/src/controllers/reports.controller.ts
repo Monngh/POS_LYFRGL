@@ -9,6 +9,10 @@ import {
 import { getExecutiveSummary, getReportFilterOptions } from "../services/executiveSummary.service";
 import { getSalesReport as getSalesReportDocument } from "../services/salesReport.service";
 import { getProductsReport } from "../services/productsReport.service";
+import { getInventoryReport } from "../services/inventoryReport.service";
+import { getKardexReport } from "../services/kardexReport.service";
+import { getPurchaseReport } from "../services/purchaseReport.service";
+import { getPersonnelReport } from "../services/personnelReport.service";
 import { renderHtmlToPdf } from "../services/pdf.service";
 
 const parseBranchId = (req: Request): number | undefined => {
@@ -225,6 +229,81 @@ export const reportProductsDocument = async (req: Request, res: Response): Promi
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ message: "Error al generar el reporte de artículos vendidos." });
+  }
+};
+
+export const reportInventoryDocument = async (req: Request, res: Response): Promise<void> => {
+  const branchId = parseBranchId(req);
+  try {
+    const result = await getInventoryReport({
+      branchId,
+      categoryId: parseOptionalInt(req.query.categoryId),
+      search: parseOptionalText(req.query.search),
+    });
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ message: "Error al generar el reporte de existencias." });
+  }
+};
+
+export const reportKardexDocument = async (req: Request, res: Response): Promise<void> => {
+  const branchId = parseBranchId(req);
+  const range = parseReportDateRange(req.query);
+  if (range.errorStatus) {
+    res.status(range.errorStatus).json({ success: false, message: range.errorMessage });
+    return;
+  }
+  try {
+    const result = await getKardexReport({
+      from: range.from,
+      to: range.to,
+      branchId,
+      movementType: parseOptionalText(req.query.movementType, 30),
+      search: parseOptionalText(req.query.search),
+    });
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ message: "Error al generar el reporte de kardex." });
+  }
+};
+
+export const reportPurchaseDocument = async (req: Request, res: Response): Promise<void> => {
+  const branchId = parseBranchId(req);
+  const range = parseReportDateRange(req.query);
+  if (range.errorStatus) {
+    res.status(range.errorStatus).json({ success: false, message: range.errorMessage });
+    return;
+  }
+  try {
+    const result = await getPurchaseReport({
+      from: range.from,
+      to: range.to,
+      branchId,
+      status: parseOptionalText(req.query.status, 20),
+      search: parseOptionalText(req.query.search),
+    });
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ message: "Error al generar el reporte de compras." });
+  }
+};
+
+export const reportPersonnelDocument = async (req: Request, res: Response): Promise<void> => {
+  const branchId = parseBranchId(req);
+  const range = parseReportDateRange(req.query);
+  if (range.errorStatus) {
+    res.status(range.errorStatus).json({ success: false, message: range.errorMessage });
+    return;
+  }
+  try {
+    const result = await getPersonnelReport({ from: range.from, to: range.to, branchId });
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ message: "Error al generar el reporte de personal." });
   }
 };
 
