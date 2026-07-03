@@ -48,6 +48,7 @@ import {
   reportReceivables,
   reportExecutiveSummary,
   reportSalesDocument,
+  reportProductsDocument,
   reportFilterOptions,
   reportPdf,
 } from "../controllers/reports.controller";
@@ -129,6 +130,7 @@ router.put("/branches/:id", authorizeRoles(["ADMIN"]), updateBranch);
 router.get("/reports", authorizeRoles(["ADMIN", "GERENTE"]), auditReport("Resumen Ejecutivo", "VENTAS"), getReports);
 router.get("/reports/executive-summary", authorizeRoles(["ADMIN", "GERENTE"]), auditReport("Resumen Ejecutivo", "VENTAS"), reportExecutiveSummary);
 router.get("/reports/sales-report", authorizeRoles(["ADMIN", "GERENTE"]), auditReport("Reporte de Ventas", "VENTAS"), reportSalesDocument);
+router.get("/reports/products-report", authorizeRoles(["ADMIN", "GERENTE"]), auditReport("Artículos Vendidos", "VENTAS"), reportProductsDocument);
 router.get("/reports/filter-options", authorizeRoles(["ADMIN", "GERENTE"]), reportFilterOptions);
 router.post("/reports/pdf", authorizeRoles(["ADMIN", "GERENTE"]), reportPdf);
 router.get("/reports/sales", authorizeRoles(["ADMIN", "GERENTE"]), auditReport("Venta", "VENTAS"), reportSales);

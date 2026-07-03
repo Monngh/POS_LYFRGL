@@ -114,12 +114,12 @@ export const VBars: React.FC<{
 export const HBars: React.FC<{
   data: any[]; categoryKey: string; valueKey: string; name?: string;
   height?: number; color?: string; barSize?: number; yWidth?: number; yFontSize?: number;
-  formatValue?: (v: number) => string;
-}> = ({ data, categoryKey, valueKey, name = "", height = 158, color = CHART.navy, barSize = 12, yWidth = 86, yFontSize = 8, formatValue = kMoney }) => (
+  formatValue?: (v: number) => string; formatX?: (v: number) => string;
+}> = ({ data, categoryKey, valueKey, name = "", height = 158, color = CHART.navy, barSize = 12, yWidth = 86, yFontSize = 8, formatValue = kMoney, formatX = kMoney }) => (
   <ResponsiveContainer width="100%" height={height}>
     <BarChart data={data} layout="vertical" margin={{ top: 2, right: 14, left: 4, bottom: 0 }}>
       <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} {...gridProps("x")} />
-      <XAxis type="number" tick={CHART.tick} tickFormatter={kMoney} axisLine={false} tickLine={false} />
+      <XAxis type="number" tick={CHART.tick} tickFormatter={formatX} axisLine={false} tickLine={false} />
       <YAxis type="category" dataKey={categoryKey} tick={{ ...CHART.tick, fontSize: yFontSize }} width={yWidth} axisLine={false} tickLine={false} />
       <Tooltip formatter={(v: any) => [formatValue(Number(v)), name]} />
       <Bar dataKey={valueKey} fill={color} radius={[0, 3, 3, 0]} barSize={barSize} isAnimationActive={false} />
