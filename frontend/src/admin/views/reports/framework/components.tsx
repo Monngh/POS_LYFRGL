@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   type LucideIcon,
 } from "lucide-react";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { COMPANY, ReportLogo } from "./companyInfo";
 
 // ============================================================================
@@ -89,7 +90,7 @@ export const SectionTitle: React.FC<{ icon: LucideIcon; title: string; sub?: str
 );
 
 // ---------------------------------------------------------------------------
-// Variación e indicador de tendencia (↑ verde mejora / ↓ rojo empeora).
+// Variación (píldora): ▲ verde mejora / ▼ roja empeora / neutra estable.
 // ---------------------------------------------------------------------------
 export interface KpiVariation { value: number; prev: number; delta: number; pct: number; }
 
@@ -104,11 +105,11 @@ export const DeltaBadge: React.FC<{ variation: KpiVariation; higherIsBetter?: bo
   const cls = flat ? "flat" : improved ? "up" : "down";
   const Arrow = flat ? Minus : pct > 0 ? TrendingUp : TrendingDown;
   return (
-    <div>
-      <span className={`erp-kpi-delta ${cls}`}>
-        <Arrow size={11} />
-        {flat ? "0.0%" : `${pct > 0 ? "▲ +" : "▼ "}${pct.toFixed(1)}%`}
-      </span>{" "}
+    <div className="erp-kpi-foot">
+      <span className={`erp-kpi-pill ${cls}`}>
+        <Arrow size={10} />
+        {flat ? "0.0%" : `${pct > 0 ? "+" : ""}${pct.toFixed(1)}%`}
+      </span>
       <span className="erp-kpi-delta-note">{note}</span>
     </div>
   );
@@ -123,8 +124,8 @@ export const KpiCard: React.FC<{
 }> = ({ icon: Icon, label, display, variation, higherIsBetter = true }) => (
   <div className="erp-kpi">
     <div className="erp-kpi-head">
-      <span className="erp-kpi-ico"><Icon size={14} /></span>
       <span className="erp-kpi-label">{label}</span>
+      <span className="erp-kpi-ico"><Icon size={16} /></span>
     </div>
     <div className="erp-kpi-value">{display}</div>
     {variation && <DeltaBadge variation={variation} higherIsBetter={higherIsBetter} />}
@@ -206,6 +207,82 @@ export const ChartCard: React.FC<{ question: string; sub?: string; full?: boolea
     {children}
   </div>
 );
+
+// ---------------------------------------------------------------------------
+// Dona con leyenda lateral propia. Las etiquetas viven FUERA del lienzo de la
+// gráfica (lista HTML), por lo que nunca se cortan ni se enciman; si hay más
+// segmentos que `maxSlices`, el excedente se agrupa automáticamente en «Otros».
+// ---------------------------------------------------------------------------
+export interface DonutSlice { name: string; value: number; color: string; }
+
+export const DonutCard: React.FC<{
+  question: string;
+  sub?: string;
+  data: DonutSlice[];
+  format: (v: number) => string;
+  centerTitle?: string;
+  maxSlices?: number;
+  full?: boolean;
+}> = ({ question, sub, data, format, centerTitle = "Total", maxSlices = 5, full }) => {
+  const sorted = [...data].filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
+  let slices = sorted;
+  if (sorted.length > maxSlices) {
+    const kept = sorted.slice(0, maxSlices - 1);
+    const rest = sorted.slice(maxSlices - 1);
+    slices = [...kept, { name: "Otros", value: rest.reduce((a, s) => a + s.value, 0), color: "#94a3b8" }];
+  }
+  const total = slices.reduce((a, s) => a + s.value, 0);
+
+  return (
+    <div className={`erp-chart-card${full ? " full" : ""}`}>
+      <div className="erp-chart-q">{question}</div>
+      {sub && <div className="erp-chart-sub">{sub}</div>}
+      <div className="erp-donut">
+        <div className="erp-donut-plot">
+          {total > 0 && (
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
+                <Pie
+                  data={slices}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius="62%"
+                  outerRadius="96%"
+                  stroke="#ffffff"
+                  strokeWidth={2}
+                  isAnimationActive={false}
+                >
+                  {slices.map((s, i) => <Cell key={i} fill={s.color} />)}
+                </Pie>
+                <Tooltip formatter={(v: any, n: any) => [format(Number(v)), n]} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+          <div className="erp-donut-center">
+            <span className="t">{centerTitle}</span>
+            <span className="v">{total > 0 ? format(total) : "—"}</span>
+          </div>
+        </div>
+        {total > 0 ? (
+          <div className="erp-donut-legend">
+            {slices.map((s) => (
+              <div className="erp-donut-row" key={s.name}>
+                <span className="erp-donut-swatch" style={{ background: s.color }} />
+                <span className="erp-donut-name" title={s.name}>{s.name}</span>
+                <span className="erp-donut-pct">{((s.value / total) * 100).toFixed(1)}%</span>
+                <span className="erp-donut-val">{format(s.value)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="erp-donut-empty">Sin datos en el periodo.</div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 // ---------------------------------------------------------------------------
 // Tarjeta de ranking (Top N) con barra de participación relativa.

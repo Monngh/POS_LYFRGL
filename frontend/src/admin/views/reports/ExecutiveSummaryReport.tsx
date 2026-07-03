@@ -1,14 +1,14 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3, Boxes, CalendarRange, ClipboardCheck, Coins, CreditCard, DollarSign,
-  FileDown, GitCompareArrows, Landmark, LineChart as LineIcon, Package,
+  Download, FileDown, GitCompareArrows, Landmark, LineChart as LineIcon, Package,
   Printer, Receipt, RotateCcw, Settings2, Sheet, ShoppingCart, Store, Tag,
   TrendingUp, Trophy, UserCheck, UserPlus, Users, XCircle, ZoomIn, ZoomOut,
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Award, AlertTriangle,
 } from "lucide-react";
 import {
-  ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, LineChart, Line, BarChart, Bar,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
 import api from "../../../shared/services/api";
 import { useAuth } from "../../../auth";
@@ -16,9 +16,9 @@ import { money, fmtDate } from "../shared";
 import { COMPANY, ReportLogo, buildFolio, REPORT_VERSION } from "./framework/companyInfo";
 import {
   ReportPage, SectionTitle, KpiCard, Semaforo, InsightsPanel, AlertsPanel,
-  ChartCard, RankingCard, type ReportDocMeta, type AlertItem, type RankingRow,
+  ChartCard, DonutCard, RankingCard, type ReportDocMeta, type AlertItem, type RankingRow,
 } from "./framework/components";
-import { exportExcel, exportCsv, printReport, type ExportSheet } from "./framework/exports";
+import { exportExcel, exportCsv, printReport, downloadPdfFromPages, type ExportSheet } from "./framework/exports";
 import "./framework/reportTheme.css";
 
 // ============================================================================
@@ -261,13 +261,43 @@ const ExecutiveSummaryReport: React.FC<{ branchId: string; branchLabel: string }
 
   // ---- Vista previa ----
   const [zoom, setZoom] = useState(1);
+  const [manualZoom, setManualZoom] = useState(false);
   const [current, setCurrent] = useState(0);
+  const [downloading, setDownloading] = useState(false);
+  const [capturing, setCapturing] = useState(false);
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     api.get<FilterOptions>("/api/admin/reports/filter-options").then((r) => setOptions(r.data)).catch(() => {});
   }, []);
   useEffect(() => { setFBranch(branchId); }, [branchId]);
+
+  // Zoom automático al ancho disponible (responsive 1024–1920); el usuario
+  // puede fijarlo manualmente con los botones +/− hasta regenerar.
+  const fitZoom = useCallback(() => {
+    const w = scrollRef.current?.clientWidth ?? 0;
+    if (w > 0) setZoom(Math.min(1, Math.max(0.55, Math.floor(((w - 44) / 794) * 100) / 100)));
+  }, []);
+  useEffect(() => {
+    if (!data || manualZoom || capturing) return;
+    fitZoom();
+    const onResize = () => fitZoom();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [data, manualZoom, capturing, fitZoom]);
+
+  // Página visible según el scroll del visor (resalta el índice lateral).
+  const onDocScroll = () => {
+    const cont = scrollRef.current;
+    if (!cont) return;
+    const top = cont.getBoundingClientRect().top;
+    let idx = 0;
+    pageRefs.current.forEach((el, i) => {
+      if (el && el.getBoundingClientRect().top - top <= 150) idx = i;
+    });
+    setCurrent(idx);
+  };
 
   const generate = async () => {
     setLoading(true);
@@ -291,6 +321,8 @@ const ExecutiveSummaryReport: React.FC<{ branchId: string; branchLabel: string }
       setMeta({ folio: buildFolio("RPT-EJEC"), generatedAt: new Date() });
       setConfigOpen(false);
       setCurrent(0);
+      setManualZoom(false);
+      scrollRef.current?.scrollTo({ top: 0 });
     } catch (e: any) {
       setError(e?.response?.data?.message || "No se pudo generar el reporte.");
     } finally {
@@ -411,6 +443,32 @@ const ExecutiveSummaryReport: React.FC<{ branchId: string; branchLabel: string }
     ], buildResumenRows(data));
   };
 
+  // ---- Descarga directa de PDF (alta resolución, mismo diseño) ----
+  const onDownloadPdf = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    const prevZoom = zoom;
+    const prevManual = manualZoom;
+    // Captura a escala real (zoom 1) y sin sombras de página.
+    setManualZoom(true);
+    setZoom(1);
+    setCapturing(true);
+    await new Promise((r) => setTimeout(r, 450));
+    try {
+      const els = pageRefs.current
+        .map((w) => (w?.querySelector(".erp-page") as HTMLElement | null))
+        .filter((x): x is HTMLElement => !!x);
+      await downloadPdfFromPages(els, `Reporte_Ejecutivo_${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch {
+      setError(null); // la impresión nativa queda como alternativa
+    } finally {
+      setCapturing(false);
+      setZoom(prevZoom);
+      setManualZoom(prevManual);
+      setDownloading(false);
+    }
+  };
+
   // ---- Navegación de páginas ----
   const goPage = (i: number, total: number) => {
     const idx = Math.max(0, Math.min(total - 1, i));
@@ -430,7 +488,7 @@ const ExecutiveSummaryReport: React.FC<{ branchId: string; branchLabel: string }
 
   const configPanel = (
     <div className="erp-config erp-no-print">
-      <div className="erp-config-head">
+      <div className={`erp-config-head${configOpen ? " open" : ""}`}>
         <div className="erp-config-title">
           <span className="ico"><Settings2 size={16} /></span>
           Configuración del reporte
@@ -757,48 +815,24 @@ const ExecutiveSummaryReport: React.FC<{ branchId: string; branchLabel: string }
     {
       id: "tend-3",
       render: (page, dm) => {
-        const payData = data.series.metodosPago.map((m) => ({ ...m, fill: payColor(m.metodo) }));
-        const cliData = data.series.clientesNuevosVsRecurrentes;
-        const cliTotal = cliData.reduce((a, x) => a + x.cantidad, 0);
         return (
           <ReportPage meta={dm} page={page}>
             <SectionTitle icon={CreditCard} title="Tendencias — Pagos, clientes y productos" />
             <div className="erp-charts-grid">
-              <ChartCard question="¿Qué métodos de pago usan los clientes?" sub="Participación por importe">
-                <ResponsiveContainer width="100%" height={168}>
-                  <PieChart>
-                    <Pie
-                      data={payData} dataKey="total" nameKey="metodo" cx="50%" cy="46%"
-                      innerRadius={34} outerRadius={56} stroke="#ffffff" strokeWidth={2}
-                      isAnimationActive={false}
-                      label={(e: any) => `${((e.percent ?? 0) * 100).toFixed(0)}%`}
-                      labelLine={false}
-                    >
-                      {payData.map((m, i) => <Cell key={i} fill={m.fill} />)}
-                    </Pie>
-                    <Tooltip formatter={(v: any, n: any) => [money(Number(v)), n]} />
-                    <Legend verticalAlign="bottom" height={26} iconType="circle" iconSize={7} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </ChartCard>
-              <ChartCard question="¿Atendemos clientes nuevos o recurrentes?" sub={cliTotal > 0 ? "Clientes identificados del periodo" : "Sin clientes identificados en el periodo"}>
-                <ResponsiveContainer width="100%" height={168}>
-                  <PieChart>
-                    <Pie
-                      data={cliData} dataKey="cantidad" nameKey="tipo" cx="50%" cy="46%"
-                      innerRadius={34} outerRadius={56} stroke="#ffffff" strokeWidth={2}
-                      isAnimationActive={false}
-                      label={(e: any) => (cliTotal > 0 ? `${((e.percent ?? 0) * 100).toFixed(0)}%` : "")}
-                      labelLine={false}
-                    >
-                      <Cell fill={CAT[0]} />
-                      <Cell fill={CAT[2]} />
-                    </Pie>
-                    <Tooltip formatter={(v: any, n: any) => [fmtInt(Number(v)), n]} />
-                    <Legend verticalAlign="bottom" height={26} iconType="circle" iconSize={7} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </ChartCard>
+              <DonutCard
+                question="¿Qué métodos de pago usan los clientes?"
+                sub="Participación por importe · segmentos menores se agrupan en «Otros»"
+                data={data.series.metodosPago.map((m) => ({ name: m.metodo, value: m.total, color: payColor(m.metodo) }))}
+                format={(v) => money(v)}
+                centerTitle="Total"
+              />
+              <DonutCard
+                question="¿Atendemos clientes nuevos o recurrentes?"
+                sub="Clientes identificados del periodo"
+                data={data.series.clientesNuevosVsRecurrentes.map((c, i) => ({ name: c.tipo, value: c.cantidad, color: i === 0 ? CAT[0] : CAT[2] }))}
+                format={(v) => fmtInt(v)}
+                centerTitle="Clientes"
+              />
             </div>
             <div style={{ height: 11 }} />
             <ChartCard question="¿Qué productos impulsan el ingreso?" sub="Top 10 productos por importe" full>
@@ -933,20 +967,23 @@ const ExecutiveSummaryReport: React.FC<{ branchId: string; branchLabel: string }
   const activeToc = [...tocEntries].reverse().find((t) => t.index <= current)?.index ?? 0;
 
   return (
-    <div className="erp-doc">
+    <div className={`erp-doc${capturing ? " erp-capturing" : ""}`}>
       {configPanel}
 
       {/* Barra de la vista previa */}
       <div className="erp-previewbar erp-no-print">
-        <button className="erp-btn erp-btn-ghost erp-btn-icon" onClick={() => setZoom((z) => Math.max(0.6, +(z - 0.1).toFixed(2)))} title="Alejar"><ZoomOut size={15} /></button>
+        <button className="erp-btn erp-btn-ghost erp-btn-icon" onClick={() => { setManualZoom(true); setZoom((z) => Math.max(0.55, +(z - 0.1).toFixed(2))); }} title="Alejar"><ZoomOut size={15} /></button>
         <span style={{ fontSize: 12, fontWeight: 800, color: "var(--text-secondary)", minWidth: 42, textAlign: "center" }}>{Math.round(zoom * 100)}%</span>
-        <button className="erp-btn erp-btn-ghost erp-btn-icon" onClick={() => setZoom((z) => Math.min(1.4, +(z + 0.1).toFixed(2)))} title="Acercar"><ZoomIn size={15} /></button>
+        <button className="erp-btn erp-btn-ghost erp-btn-icon" onClick={() => { setManualZoom(true); setZoom((z) => Math.min(1.4, +(z + 0.1).toFixed(2))); }} title="Acercar"><ZoomIn size={15} /></button>
         <div className="sep" />
         <button className="erp-btn erp-btn-ghost erp-btn-icon" onClick={() => goPage(current - 1, pages.length)} title="Página anterior"><ChevronLeft size={15} /></button>
         <span className="erp-pageind">Página {current + 1} de {pages.length}</span>
         <button className="erp-btn erp-btn-ghost erp-btn-icon" onClick={() => goPage(current + 1, pages.length)} title="Página siguiente"><ChevronRight size={15} /></button>
         <div className="erp-toolbar-actions" style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button className="erp-btn erp-btn-primary" onClick={printReport}><Printer size={15} /> Imprimir / PDF</button>
+          <button className="erp-btn erp-btn-primary" onClick={onDownloadPdf} disabled={downloading}>
+            <Download size={15} /> {downloading ? "Generando PDF…" : "Descargar PDF"}
+          </button>
+          <button className="erp-btn erp-btn-ghost" onClick={printReport} title="Imprimir o guardar como PDF con texto seleccionable"><Printer size={15} /> Imprimir</button>
           <button className="erp-btn erp-btn-ghost" onClick={onExcel}><Sheet size={15} /> Excel</button>
           <button className="erp-btn erp-btn-ghost" onClick={onCsv}><FileDown size={15} /> CSV</button>
         </div>
@@ -964,10 +1001,10 @@ const ExecutiveSummaryReport: React.FC<{ branchId: string; branchLabel: string }
           ))}
         </nav>
 
-        {/* Documento */}
+        {/* Documento — visor con scroll vertical propio */}
         <div className="erp-main">
-          <div className="erp-doc-scroll">
-            <div className="erp-zoom" style={{ transform: `scale(${zoom})` }}>
+          <div className="erp-doc-scroll" ref={scrollRef} onScroll={onDocScroll}>
+            <div className="erp-zoom" style={{ zoom } as React.CSSProperties}>
               {pages.map((p, i) => (
                 <div key={p.id} ref={(el) => { pageRefs.current[i] = el; }}>
                   {p.render(i + 1, docMeta)}

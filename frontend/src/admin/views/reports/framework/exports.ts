@@ -132,3 +132,33 @@ export const printReport = () => {
   // A4 y pagina por .erp-page → PDF idéntico al diseño, con texto seleccionable.
   window.print();
 };
+
+// ----------------------------- PDF (descarga directa) ----------------------
+// Renderiza cada página A4 a un lienzo de alta resolución (2x) y lo compone en
+// un PDF multipágina que se descarga automáticamente. Complementa al flujo de
+// impresión: mismo diseño, sin pasar por el diálogo del navegador.
+export const downloadPdfFromPages = async (
+  pageEls: HTMLElement[],
+  filename: string,
+  onProgress?: (done: number, total: number) => void,
+) => {
+  const [h2cMod, pdfMod] = await Promise.all([import("html2canvas"), import("jspdf")]);
+  const html2canvas: any = (h2cMod as any).default ?? h2cMod;
+  const JsPdf: any = (pdfMod as any).jsPDF ?? (pdfMod as any).default;
+  const pdf = new JsPdf({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
+
+  for (let i = 0; i < pageEls.length; i++) {
+    const canvas = await html2canvas(pageEls[i], {
+      scale: 2,
+      backgroundColor: "#ffffff",
+      logging: false,
+      useCORS: true,
+    });
+    const img = canvas.toDataURL("image/jpeg", 0.93);
+    const h = (canvas.height * 210) / canvas.width; // conserva la proporción A4
+    if (i > 0) pdf.addPage();
+    pdf.addImage(img, "JPEG", 0, 0, 210, Math.min(297, h), undefined, "FAST");
+    onProgress?.(i + 1, pageEls.length);
+  }
+  pdf.save(filename.endsWith(".pdf") ? filename : `${filename}.pdf`);
+};
