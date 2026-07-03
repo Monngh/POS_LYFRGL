@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { AppError } from "../utils/AppError";
 import { getRequestDeviceId } from "../middlewares/device.middleware";
 import { comparePassword } from "../utils/auth";
+import { clientIp } from "../utils/authAudit";
 import { prisma } from "../app";
 import {
   getSessionStatus as getSessionStatusService,
@@ -108,6 +109,19 @@ export const closeSession = async (req: Request, res: Response): Promise<void> =
   }
 
   if (!authorized) {
+    try {
+      await prisma.failedPinAttempt.create({
+        data: {
+          userId: req.user.userId,
+          branchId: req.user.branchId,
+          action: "CLOSE_CASH",
+          ipAddress: clientIp(req),
+          deviceId: getRequestDeviceId(req),
+        },
+      });
+    } catch (logErr) {
+      console.error("[FailedPinAttempt] Error al registrar intento fallido:", logErr);
+    }
     res.status(403).json({
       code: "PIN_INVALIDO",
       message: "PIN de autorización incorrecto.",

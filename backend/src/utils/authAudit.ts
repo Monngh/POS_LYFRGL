@@ -2,7 +2,7 @@ import { Request } from "express";
 import { prisma } from "../app";
 import { getRequestDeviceId } from "../middlewares/device.middleware";
 
-const clientIp = (req: Request): string =>
+export const clientIp = (req: Request): string =>
   (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
   req.ip ||
   req.socket.remoteAddress ||

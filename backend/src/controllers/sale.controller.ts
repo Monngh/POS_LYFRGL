@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../app";
 import bcrypt from "bcryptjs";
+import { clientIp } from "../utils/authAudit";
+import { getRequestDeviceId } from "../middlewares/device.middleware";
 import { executeRefund } from "../services/mercadopago.service";
 import { searchCustomers as searchCustomersService, registerCustomerFromPos } from "../services/posCustomer.service";
 import { PromotionService } from "../services/promotion.service";
@@ -468,6 +470,19 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
       }
     }
     if (!approver) {
+      try {
+        await prisma.failedPinAttempt.create({
+          data: {
+            userId: req.user.userId,
+            branchId: req.user.branchId,
+            action: "CANCEL_SALE",
+            ipAddress: clientIp(req),
+            deviceId: getRequestDeviceId(req),
+          },
+        });
+      } catch (logErr) {
+        console.error("[FailedPinAttempt] Error al registrar intento fallido:", logErr);
+      }
       res.status(401).json({ message: "PIN de autorización incorrecto o el usuario no cuenta con privilegios de Administrador/Gerente." });
       return;
     }
