@@ -5,13 +5,6 @@ import { useAdminData } from "../../shared/hooks";
 import { DataTable, ActionModal } from "../../shared/ui";
 import type { Column } from "../../shared/ui";
 import { useToast } from "../../shared/context/ToastContext";
-import {
-  collectRoundedDecimalMessages,
-  DECIMAL_INPUT_REGEX,
-  getDecimalValidationValue,
-  handleDecimalInputChange,
-  validateDecimalField,
-} from "../../shared/utils/decimalInput";
 import { PhoneField } from "../components/PhoneField";
 import {
   DEFAULT_PHONE_COUNTRY_ISO,
@@ -82,7 +75,6 @@ const emptyForm = {
   phone: "",
   phoneCountryIso: DEFAULT_PHONE_COUNTRY_ISO,
   address: "",
-  creditLimit: "",
   zipCode: "",
   taxRegime: "",
   cfdiUse: "",
@@ -98,7 +90,6 @@ type CustomerPayload = {
   phone?: string;
   phoneCountryCode?: string;
   address?: string;
-  creditLimit: number;
   zipCode?: string;
   taxRegime?: string;
   cfdiUse?: string;
@@ -162,17 +153,6 @@ const validateCustomerForm = (form: FormState): {
     }
   }
 
-  const creditLimitText = form.creditLimit.trim();
-  const creditLimitValidation = validateDecimalField(creditLimitText || "0", "El limite de credito", {
-    invalidMessage: "El limite de credito debe ser numerico con maximo 3 decimales.",
-  });
-  const creditLimitValue = getDecimalValidationValue(creditLimitValidation);
-  if (!creditLimitValidation.ok) {
-    errors.creditLimit = creditLimitValidation.error;
-  } else {
-    roundingMessages.push(...collectRoundedDecimalMessages([creditLimitValue]));
-  }
-
   const zipCode = form.zipCode.trim();
   if (zipCode && !ZIP_CODE_PATTERN.test(zipCode)) {
     errors.zipCode = "El codigo postal debe tener exactamente 5 digitos.";
@@ -201,7 +181,6 @@ const validateCustomerForm = (form: FormState): {
       phone: phone || undefined,
       phoneCountryCode: phone ? phoneCountry.code : undefined,
       address: address || undefined,
-      creditLimit: creditLimitValue?.value ?? 0,
       zipCode: zipCode || undefined,
       taxRegime: taxRegime || undefined,
       cfdiUse: cfdiUse || undefined,
@@ -294,7 +273,6 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
       phone: phoneToAdminFormValue(c.phone),
       phoneCountryIso: DEFAULT_PHONE_COUNTRY_ISO,
       address: c.address || "",
-      creditLimit: String(c.creditLimit),
       zipCode: c.zipCode || "",
       taxRegime: c.taxRegime || "",
       cfdiUse: c.cfdiUse || "",
@@ -335,18 +313,6 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     (k: keyof typeof emptyForm) =>
       (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
         updateFormField(k, e.target.value);
-
-  const setCreditLimit = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value.trim();
-    if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
-      setFieldErrors((prev) => ({
-        ...prev,
-        creditLimit: "El limite de credito debe ser numerico con maximo 3 decimales.",
-      }));
-      return;
-    }
-    handleDecimalInputChange(rawValue, (nextValue) => updateFormField("creditLimit", nextValue));
-  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -428,12 +394,6 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
           <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{c.phone || ""}</div>
         </div>
       ),
-    },
-    {
-      key: "creditLimit",
-      header: "Crédito",
-      align: "right",
-      render: (c) => <>{money(c.creditLimit)}</>,
     },
     {
       key: "balance",
@@ -678,13 +638,9 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                         </div>
                       </div>
 
-                      {/* Límites de Crédito */}
+                      {/* Historial */}
                       <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Crédito y Historial</h4>
-                        <div style={cliDetailRow}>
-                          <span style={cliDetailLabel}>Límite Crédito:</span>
-                          <span style={cliDetailValue}>{money(c.creditLimit)}</span>
-                        </div>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Historial</h4>
                         <div style={cliDetailRow}>
                           <span style={cliDetailLabel}>Saldo Actual:</span>
                           <span style={{ ...cliDetailValue, color: c.balance > 0 ? "var(--color-danger)" : "var(--text-secondary)" }}>{money(c.balance)}</span>
@@ -779,25 +735,18 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
             {fieldErrors.address && <p style={fieldErrorStyle}>{fieldErrors.address}</p>}
           </div>
 
-          {/* Límite crédito + CP */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-            <div>
-              <label style={ui.fieldLabel}>Límite de crédito ($)</label>
-              <input type="text" inputMode="decimal" style={ui.input} value={form.creditLimit} onChange={setCreditLimit} placeholder="0.00" />
-              {fieldErrors.creditLimit && <p style={fieldErrorStyle}>{fieldErrors.creditLimit}</p>}
-            </div>
-            <div>
-              <label style={ui.fieldLabel}>Código Postal fiscal</label>
-              <input
-                inputMode="numeric"
-                style={ui.input}
-                value={form.zipCode}
-                onChange={set("zipCode")}
-                placeholder="12345"
-                maxLength={5}
-              />
-              {fieldErrors.zipCode && <p style={fieldErrorStyle}>{fieldErrors.zipCode}</p>}
-            </div>
+          {/* Código Postal fiscal */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={ui.fieldLabel}>Código Postal fiscal</label>
+            <input
+              inputMode="numeric"
+              style={ui.input}
+              value={form.zipCode}
+              onChange={set("zipCode")}
+              placeholder="12345"
+              maxLength={5}
+            />
+            {fieldErrors.zipCode && <p style={fieldErrorStyle}>{fieldErrors.zipCode}</p>}
           </div>
 
           {/* Sección CFDI */}
