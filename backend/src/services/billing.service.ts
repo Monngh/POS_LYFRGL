@@ -83,6 +83,19 @@ export class BillingService {
 
     // --- MODO REAL: Facturapi REST API ---
     try {
+      // DEBUG: dump raw sale details from DB to inspect stored prices/discounts
+      try {
+        const rawDetails = sale.saleDetails.map(d => ({
+          id: d.id,
+          productName: d.product?.name,
+          unitPrice: Number(d.unitPrice),
+          discountAmount: Number(d.discountAmount || 0),
+          quantity: d.quantity,
+        }));
+        console.debug("[BillingService] Raw sale details:", JSON.stringify(rawDetails, null, 2));
+      } catch (dbgErr) {
+        console.error("[BillingService] Error logging raw sale details:", dbgErr);
+      }
       const paymentFormMap: Record<string, string> = {
         "EFECTIVO": "01", // Efectivo
         "TARJETA": "04",  // Tarjeta de crédito o débito
@@ -108,16 +121,27 @@ export class BillingService {
           if (nameUpper.includes("IEPS") && !nameUpper.includes("EXENTO")) iepsRate += Number(sdt.taxRate);
         }
 
-        const basePrice = unitPrice / ((1 + iepsRate) * (1 + ivaRate));
+        // unitPrice in DB is stored as gross (incl. taxes). We need to send
+        // Facturapi the net unit price (without taxes) and the per-unit
+        // discount also net of taxes. To avoid mismatches caused by
+        // sending line-level values or rounding incorrectly, compute per-unit
+        // gross discount and apply tax division per unit.
+        const baseUnitGross = unitPrice; // gross unit price (includes taxes)
 
-        // Proportional share of the global points discount
-        const lineNetBeforePoints = (unitPrice * quantity) - Number(detail.discountAmount || 0);
+        // Proportional share of the global points discount applied to this line
+        const lineGrossBeforePoints = (unitPrice * quantity) - Number(detail.discountAmount || 0);
         const pointsDiscountShare = (saleNetBeforePoints > 0 && Number(sale.pointsDiscount) > 0)
-          ? (Number(sale.pointsDiscount) * lineNetBeforePoints) / saleNetBeforePoints
+          ? (Number(sale.pointsDiscount) * lineGrossBeforePoints) / saleNetBeforePoints
           : 0;
 
-        const totalLineDiscount = Number(detail.discountAmount || 0) + pointsDiscountShare;
-        const baseDiscountTotal = totalLineDiscount / ((1 + iepsRate) * (1 + ivaRate));
+        const totalLineDiscountGross = Number(detail.discountAmount || 0) + pointsDiscountShare;
+        const perUnitDiscountGross = quantity > 0 ? (totalLineDiscountGross / quantity) : 0;
+
+        // IMPORTANT: `detail.unitPrice` in DB is stored as the sale price WITHOUT taxes.
+        // Treat `unitPrice` as net price (already excluding taxes). Do not divide
+        // by tax multipliers. Compute per-unit discount as stored (also net).
+        const baseUnitPriceBeforeDiscount = baseUnitGross; // already net
+        const basePerUnitDiscount = perUnitDiscountGross; // already net
 
         const mappedTaxes = detail.saleDetailTaxes.map((sdt) => {
           const rateVal = Number(sdt.taxRate);
@@ -159,15 +183,37 @@ export class BillingService {
           quantity: detail.quantity,
           product: {
             description: detail.product.name,
-            price: Number(basePrice.toFixed(2)),
+              // unit price net of taxes BEFORE discounts (so invoice shows original unit price)
+              price: Number(baseUnitPriceBeforeDiscount.toFixed(6)),
             product_key: detail.product.satProductKey || "01010101",
             unit_key: detail.product.satUnitKey || "H87",
             taxes: mappedTaxes
           }
         };
 
+        // Send discount as the total line discount (net of taxes). Some PACs
+        // / Facturapi interpretations expect the discount to be a line total
+        // rather than a per-unit amount. Provide the line-level net discount
+        // to avoid ambiguity.
+        const baseDiscountTotal = Number((basePerUnitDiscount * quantity).toFixed(6));
         if (baseDiscountTotal > 0) {
-          facturapiItem.discount = Number(baseDiscountTotal.toFixed(2));
+          facturapiItem.discount = baseDiscountTotal;
+        }
+
+        // DEBUG: log original gross/unit values so we can cross-check with DB/ticket
+        try {
+          console.debug("[BillingService] Line debug:", JSON.stringify({
+            productId: detail.product.id,
+            productName: detail.product.name,
+            unitPriceGross: baseUnitGross,
+            unitPriceNetBeforeDiscount: baseUnitPriceBeforeDiscount,
+            perUnitDiscountGross,
+            perUnitDiscountNet: basePerUnitDiscount,
+            lineDiscountNet: baseDiscountTotal,
+            quantity
+          }, null, 2));
+        } catch (ld) {
+          /* ignore */
         }
 
         return facturapiItem;
@@ -189,7 +235,24 @@ export class BillingService {
       };
 
       const authHeader = "Bearer " + apiKey;
-      
+
+      // DEBUG: log computed values and payload to help investigate mismatches
+      try {
+        console.debug("[BillingService] Preparing Facturapi request for sale:", sale.id);
+        // Log per-item computed pricing for easier inspection
+        const computedLines = facturapiItems.map((it: any, idx: number) => ({
+          index: idx,
+          quantity: it.quantity,
+          price: it.product?.price,
+          discount: it.discount ?? 0,
+          taxes: it.product?.taxes
+        }));
+        console.debug("[BillingService] Computed lines:", JSON.stringify(computedLines, null, 2));
+        console.debug("[BillingService] Facturapi request body:", JSON.stringify(requestBody, null, 2));
+      } catch (logErr) {
+        console.error("[BillingService] Error logging Facturapi payload:", logErr);
+      }
+
       const response = await fetch("https://www.facturapi.io/v2/invoices", {
         method: "POST",
         headers: {

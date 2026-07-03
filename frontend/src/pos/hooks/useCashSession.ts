@@ -63,6 +63,47 @@ export function useCashSession({
   const [declaredCash, setDeclaredCash] = useState("");
   const [declaredCashError, setDeclaredCashError] = useState("");
   const [closingLoading, setClosingLoading] = useState(false);
+  const [blockedByOtherTab, setBlockedByOtherTab] = useState(false);
+  const [blockedSession, setBlockedSession] = useState<CashSession | null>(null);
+  const [currentTabId] = useState<string>(() => {
+    const KEY = "fmb_pos_tab_id";
+    const existingTabId = sessionStorage.getItem(KEY);
+    if (existingTabId) return existingTabId;
+    const generatedTabId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `tab-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    sessionStorage.setItem(KEY, generatedTabId);
+    return generatedTabId;
+  });
+
+  const CASH_SESSION_OWNER_KEY = "fmb_pos_cash_session_owner";
+
+  const getSessionOwner = () => {
+    const raw = localStorage.getItem(CASH_SESSION_OWNER_KEY);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as { sessionId: number; tabId: string; claimedAt: string };
+    } catch {
+      return null;
+    }
+  };
+
+  const claimSessionOwnership = (session: CashSession) => {
+    localStorage.setItem(
+      CASH_SESSION_OWNER_KEY,
+      JSON.stringify({ sessionId: session.id, tabId: currentTabId, claimedAt: new Date().toISOString() })
+    );
+  };
+
+  const isSessionOwnedByOtherTab = (session: CashSession) => {
+    const owner = getSessionOwner();
+    return owner ? owner.sessionId === session.id && owner.tabId !== currentTabId : false;
+  };
+
+  const isSessionOwnedByThisTab = (session: CashSession) => {
+    const owner = getSessionOwner();
+    return owner ? owner.sessionId === session.id && owner.tabId === currentTabId : false;
+  };
 
   const loadDashboardData = async () => {
     try {
@@ -92,13 +133,39 @@ export function useCashSession({
       if (resStatus.data.isOpen) {
         if (resStatus.data.isOwnedByThisDevice === false) {
           setSession(null);
+          setBlockedByOtherTab(false);
+          setBlockedSession(null);
           onSetCajaLockedByOtherDevice(true);
           return;
         }
         onSetCajaLockedByOtherDevice(false);
-        setSession(resStatus.data.session);
-        onSetView("dashboard");
-        await loadDashboardData();
+
+        const sessionFromServer = resStatus.data.session;
+        if (sessionFromServer) {
+          if (isSessionOwnedByOtherTab(sessionFromServer)) {
+            setSession(null);
+            setBlockedByOtherTab(true);
+            setBlockedSession(sessionFromServer);
+            onSetView("apertura");
+            return;
+          }
+
+          if (!isSessionOwnedByThisTab(sessionFromServer)) {
+            claimSessionOwnership(sessionFromServer);
+          }
+
+          setBlockedByOtherTab(false);
+          setBlockedSession(null);
+          setSession(sessionFromServer);
+          onSetView("dashboard");
+          await loadDashboardData();
+          return;
+        }
+
+        setSession(null);
+        setBlockedByOtherTab(false);
+        setBlockedSession(null);
+        onSetView("apertura");
       } else {
         const alreadyAcknowledged = localStorage.getItem("forcedCloseAcknowledged") === "true";
         if (resStatus.data.lastClosed?.forceCloseReason && !alreadyAcknowledged) {
@@ -119,6 +186,11 @@ export function useCashSession({
   };
 
   const handleOpenCash = async (pinCode?: string) => {
+    if (blockedByOtherTab) {
+      onToast("Ya hay una sesión de caja abierta en otra pestaña. Selecciona 'Usar aquí' o cierra esta pantalla.");
+      return;
+    }
+
     localStorage.removeItem("forcedCloseAcknowledged");
     const initialFundValidation = validateDecimalField(initialFund, "El fondo inicial", {
       invalidMessage: "El fondo inicial debe ser un monto valido con maximo 3 decimales.",
@@ -139,6 +211,9 @@ export function useCashSession({
         initialAmount: initialFundValue.value,
         pinCode: pinCode,
       });
+      if (res.data.session) {
+        claimSessionOwnership(res.data.session);
+      }
       setSession(res.data.session);
       onToast(res.data.message || "Caja abierta exitosamente.", "success");
       onSetView("sales-terminal");
@@ -238,6 +313,33 @@ export function useCashSession({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, user]);
 
+  const handleClaimSessionHere = async () => {
+    if (!blockedSession) return;
+    claimSessionOwnership(blockedSession);
+    setSession(blockedSession);
+    setBlockedByOtherTab(false);
+    setBlockedSession(null);
+    onSetView("dashboard");
+    await loadDashboardData();
+  };
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== CASH_SESSION_OWNER_KEY) return;
+      const owner = getSessionOwner();
+      if (!owner) return;
+      if (session && owner.sessionId === session.id && owner.tabId !== currentTabId) {
+        setSession(null);
+        setBlockedByOtherTab(true);
+        setBlockedSession(session);
+        onSetView("apertura");
+      }
+    };
+
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [currentTabId, onSetView, session]);
+
   const clearForcedClose = () => {
     setForcedCloseData(null);
     localStorage.setItem("forcedCloseAcknowledged", "true");
@@ -268,6 +370,9 @@ export function useCashSession({
     setDeclaredCashError,
     closingLoading,
     calculatedDifference,
+    blockedByOtherTab,
+    blockedSession,
+    handleClaimSessionHere,
     loadDashboardData,
     handleOpenCash,
     handleCloseShift,

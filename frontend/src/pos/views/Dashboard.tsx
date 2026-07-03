@@ -134,6 +134,9 @@ const Dashboard: React.FC = () => {
     setDeclaredCashError,
     closingLoading,
     calculatedDifference,
+    blockedByOtherTab,
+    blockedSession,
+    handleClaimSessionHere,
     loadDashboardData,
     handleCloseShift,
     handleSavePartialCut,
@@ -1067,6 +1070,49 @@ const Dashboard: React.FC = () => {
             >
               Regresar al Login
             </button>
+          </div>
+        </div>
+        {forcedCloseModal}
+      </>
+    );
+  }
+
+  // ===========================================================================
+  // RENDER BLOQUEO: TURNO DE CAJA ABIERTO EN OTRA PESTAÑA DEL MISMO DISPOSITIVO
+  // ===========================================================================
+  if (blockedByOtherTab && blockedSession) {
+    return (
+      <>
+        <div id="tab-conflict-screen" style={styles.conflictScreen}>
+          <div style={styles.conflictCardWide}>
+            <div style={styles.conflictIconContainer}>
+              <AlertTriangle size={36} color="#f97316" />
+            </div>
+            <h2 style={styles.conflictTitle}>Caja abierta en otra pestaña</h2>
+            <p style={styles.conflictTextWide}>
+              Ya existe una sesión de caja abierta en otra pestaña de este mismo navegador. Solo puede usar la sesión en una pestaña a la vez.
+            </p>
+            <p style={styles.conflictTextWide}>
+              Si desea continuar en esta pestaña, presione <strong>Usar aquí</strong>. La otra pestaña dejará de poder operar la caja.
+            </p>
+            <div style={styles.conflictActionRow}>
+              <button
+                type="button"
+                onClick={handleClaimSessionHere}
+                className="btn-primary active-tap"
+                style={styles.conflictButton}
+              >
+                Usar aquí
+              </button>
+              <button
+                type="button"
+                onClick={logout}
+                className="btn-secondary active-tap"
+                style={styles.conflictSecondaryButton}
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
         {forcedCloseModal}
@@ -2115,6 +2161,67 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: "center",
     border: "1px solid var(--surface-3)",
   },
+  conflictCardWide: {
+    width: "560px",
+    maxWidth: "100%",
+    backgroundColor: "var(--surface)",
+    borderRadius: "16px",
+    padding: "48px 32px 36px 32px",
+    boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+    textAlign: "center",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    border: "1px solid var(--surface-3)",
+  },
+  conflictTextWide: {
+    color: "var(--text-secondary)",
+    fontSize: "14px",
+    lineHeight: "1.8",
+    margin: "0 0 32px 0",
+    fontFamily: "'Inter', sans-serif",
+    maxWidth: "520px",
+  },
+  conflictActionRow: {
+    display: "flex",
+    gap: "12px",
+    width: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  conflictButton: {
+    flex: 1,
+    width: "auto",
+    minWidth: "180px",
+    maxWidth: "240px",
+    padding: "14px 20px",
+    fontSize: "15px",
+    fontWeight: "600",
+    borderRadius: "10px",
+    backgroundColor: "#598ffbff",
+    color: "#ffffff",
+    border: "none",
+    cursor: "pointer",
+    transition: "background-color 0.2s, transform 0.1s",
+    boxShadow: "0 4px 6px -1px rgba(89, 143, 251, 0.2)",
+  },
+  conflictSecondaryButton: {
+    flex: 1,
+    width: "auto",
+    minWidth: "180px",
+    maxWidth: "240px",
+    padding: "14px 20px",
+    fontSize: "15px",
+    fontWeight: "600",
+    borderRadius: "10px",
+    backgroundColor: "transparent",
+    color: "#111827",
+    border: "1px solid #d1d5db",
+    cursor: "pointer",
+    transition: "background-color 0.2s, transform 0.1s",
+    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.08)",
+  },
   conflictIconContainer: {
     width: "72px",
     height: "72px",
@@ -2141,19 +2248,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontFamily: "'Inter', sans-serif",
     maxWidth: "340px",
   },
-  conflictButton: {
-    width: "100%",
-    padding: "14px 20px",
-    fontSize: "15px",
-    fontWeight: "600",
-    borderRadius: "10px",
-    backgroundColor: "#598ffbff",
-    color: "#ffffff",
-    border: "none",
-    cursor: "pointer",
-    transition: "background-color 0.2s, transform 0.1s",
-    boxShadow: "0 4px 6px -1px rgba(89, 143, 251, 0.2)",
-  },
+  
   select: {
     width: "100%",
     padding: "10px 14px",
