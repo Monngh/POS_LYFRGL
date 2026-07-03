@@ -1,6 +1,7 @@
 import { prisma } from "../app";
 import { AppError } from "../utils/AppError";
 import bcrypt from "bcryptjs";
+import { emitSecurityEvent } from "../utils/securityEvents";
 import { createMercadoPagoCashPayment, syncMercadoPagoDepositStatus } from "./mercadopago.service";
 
 const mapDeposit = (d: any) => ({
@@ -234,6 +235,7 @@ export const cancelDeposit = async (
           deviceId: requesterContext.deviceId,
         },
       });
+      emitSecurityEvent("failed-pin");
     } catch (logErr) {
       console.error("[FailedPinAttempt] Error al registrar intento fallido:", logErr);
     }

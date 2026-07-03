@@ -4,6 +4,7 @@ import { prisma } from "../app";
 import bcrypt from "bcryptjs";
 import { clientIp } from "../utils/authAudit";
 import { getRequestDeviceId } from "../middlewares/device.middleware";
+import { emitSecurityEvent } from "../utils/securityEvents";
 import { executeRefund } from "../services/mercadopago.service";
 import { searchCustomers as searchCustomersService, registerCustomerFromPos } from "../services/posCustomer.service";
 import { PromotionService } from "../services/promotion.service";
@@ -480,6 +481,7 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
             deviceId: getRequestDeviceId(req),
           },
         });
+        emitSecurityEvent("failed-pin");
       } catch (logErr) {
         console.error("[FailedPinAttempt] Error al registrar intento fallido:", logErr);
       }

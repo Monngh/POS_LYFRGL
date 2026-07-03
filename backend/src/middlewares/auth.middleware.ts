@@ -46,6 +46,20 @@ export const authenticateJWT = (req: Request, res: Response, next: NextFunction)
 };
 
 /**
+ * Variante de authenticateJWT SOLO para el endpoint SSE de seguridad
+ * (GET /api/admin/security/events). El navegador (EventSource nativo) no permite
+ * enviar headers personalizados, así que el JWT viaja como query param (?token=).
+ * Si ya viene un header Authorization (ej. pruebas con curl/Postman) se respeta ese.
+ * No afecta a ninguna otra ruta: el resto sigue exigiendo el header Authorization.
+ */
+export const authenticateSSE = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.headers.authorization && typeof req.query.token === "string" && req.query.token) {
+    req.headers.authorization = `Bearer ${req.query.token}`;
+  }
+  authenticateJWT(req, res, next);
+};
+
+/**
  * Middleware para autorizar roles específicos.
  * @param allowedRoles Lista de roles permitidos (ej. ['ADMIN', 'GERENTE'])
  */

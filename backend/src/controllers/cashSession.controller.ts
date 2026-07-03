@@ -3,6 +3,7 @@ import { AppError } from "../utils/AppError";
 import { getRequestDeviceId } from "../middlewares/device.middleware";
 import { comparePassword } from "../utils/auth";
 import { clientIp } from "../utils/authAudit";
+import { emitSecurityEvent } from "../utils/securityEvents";
 import { prisma } from "../app";
 import {
   getSessionStatus as getSessionStatusService,
@@ -119,6 +120,7 @@ export const closeSession = async (req: Request, res: Response): Promise<void> =
           deviceId: getRequestDeviceId(req),
         },
       });
+      emitSecurityEvent("failed-pin");
     } catch (logErr) {
       console.error("[FailedPinAttempt] Error al registrar intento fallido:", logErr);
     }

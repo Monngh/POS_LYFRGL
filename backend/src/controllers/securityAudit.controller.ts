@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../app";
 import { comparePassword, generateAuditToken, verifyToken } from "../utils/auth";
+import { onSecurityEvent, offSecurityEvent, type SecurityEventPayload } from "../utils/securityEvents";
 
 /** Construye el filtro de rango de fechas para createdAt. */
 const buildDateWhere = (from: unknown, to: unknown) => {
@@ -14,10 +15,11 @@ const buildDateWhere = (from: unknown, to: unknown) => {
   return Object.keys(createdAt).length ? createdAt : undefined;
 };
 
-const fetchAccessLogs = async (roles: string[], from: unknown, to: unknown) => {
+const fetchAccessLogs = async (roles: string[], from: unknown, to: unknown, branchId?: unknown) => {
   const where: any = { role: { in: roles } };
   const dateWhere = buildDateWhere(from, to);
   if (dateWhere) where.createdAt = dateWhere;
+  if (branchId) where.branchId = Number(branchId);
 
   return prisma.authAuditLog.findMany({
     where,
@@ -35,12 +37,54 @@ const fetchAccessLogs = async (roles: string[], from: unknown, to: unknown) => {
  */
 export const getCashierAccessLogs = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { from, to } = req.query;
-    const logs = await fetchAccessLogs(["CAJERO"], from, to);
+    const { from, to, branchId } = req.query;
+    const logs = await fetchAccessLogs(["CAJERO"], from, to, branchId);
     res.json({ logs });
   } catch (err) {
     console.error("[getCashierAccessLogs]", err);
     res.status(500).json({ message: "Error al obtener la bitácora de accesos de caja." });
+  }
+};
+
+const FAILED_PIN_DEFAULT_PAGE_SIZE = 25;
+const FAILED_PIN_MAX_PAGE_SIZE = 200;
+
+/**
+ * Bitácora paginada de intentos fallidos de autorización por PIN (cancelar venta,
+ * cierre de caja, devoluciones, cancelar depósito). Solo ADMIN.
+ */
+export const getFailedPinAttempts = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { from, to, branchId } = req.query;
+    const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+    const pageSize = Math.max(
+      1,
+      Math.min(FAILED_PIN_MAX_PAGE_SIZE, parseInt(req.query.pageSize as string, 10) || FAILED_PIN_DEFAULT_PAGE_SIZE)
+    );
+
+    const where: any = {};
+    const dateWhere = buildDateWhere(from, to);
+    if (dateWhere) where.createdAt = dateWhere;
+    if (branchId) where.branchId = Number(branchId);
+
+    const [logs, total] = await Promise.all([
+      prisma.failedPinAttempt.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          user: { select: { id: true, name: true } },
+          branch: { select: { id: true, name: true } },
+        },
+      }),
+      prisma.failedPinAttempt.count({ where }),
+    ]);
+
+    res.json({ logs, total, page, pageSize });
+  } catch (err) {
+    console.error("[getFailedPinAttempts]", err);
+    res.status(500).json({ message: "Error al obtener los intentos fallidos de PIN." });
   }
 };
 
@@ -108,4 +152,36 @@ export const getAdminAccessLogs = async (req: Request, res: Response): Promise<v
     console.error("[getAdminAccessLogs]", err);
     res.status(500).json({ message: "Error al obtener la bitácora de accesos administrativos." });
   }
+};
+
+const SSE_KEEP_ALIVE_MS = 20000;
+
+/**
+ * Stream de eventos de seguridad en tiempo real (Server-Sent Events). Notifica al
+ * frontend cuando ocurre un nuevo login o un nuevo intento fallido de PIN, para que
+ * la vista de auditoría (CajaAccessLogView) pueda refrescarse sin hacer polling.
+ * Solo ADMIN. Requiere authenticateSSE (acepta el JWT también por query param, ya
+ * que EventSource no permite headers personalizados).
+ */
+export const streamSecurityEvents = (req: Request, res: Response): void => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const sendEvent = (payload: SecurityEventPayload): void => {
+    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  };
+
+  onSecurityEvent(sendEvent);
+
+  const keepAlive = setInterval(() => {
+    res.write(": ping\n\n");
+  }, SSE_KEEP_ALIVE_MS);
+
+  req.on("close", () => {
+    clearInterval(keepAlive);
+    offSecurityEvent(sendEvent);
+    res.end();
+  });
 };
