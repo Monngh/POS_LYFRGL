@@ -761,7 +761,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
             <p style={{ fontSize: 12, fontWeight: 700, color: "var(--accent-strong)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
               Datos CFDI 4.0
             </p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
               <div>
                 <label style={ui.fieldLabel}>Régimen Fiscal</label>
                 <select style={{ ...ui.input, cursor: "pointer" }} value={form.taxRegime} onChange={set("taxRegime")}>
