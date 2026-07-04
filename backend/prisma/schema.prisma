@@ -8,66 +8,69 @@ datasource db {
 }
 
 model Branch {
-  id                Int                @id @default(autoincrement())
-  name              String             @unique
-  address           String?
-  phone             String?
-  active            Boolean            @default(true)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  bankDeposits      BankDeposit[]
-  cashSessions      CashSession[]
-  inventories       Inventory[]
-  kardexEntries     Kardex[]
-  sales             Sale[]
-  users             User[]
-  purchaseOrders    PurchaseOrder[]    @relation("purchaseOrdersBranch")
-  reportAuditLogs   ReportAuditLog[]
-  authAuditLogs     AuthAuditLog[]
-  parkedSales       ParkedSale[]
-  failedPinAttempts FailedPinAttempt[]
-  adminSessions     AdminSession[]
+  id                   Int                   @id @default(autoincrement())
+  name                 String                @unique
+  address              String?
+  phone                String?
+  active               Boolean               @default(true)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  bankDeposits         BankDeposit[]
+  cashSessions         CashSession[]
+  inventories          Inventory[]
+  kardexEntries        Kardex[]
+  sales                Sale[]
+  users                User[]
+  purchaseOrders       PurchaseOrder[]       @relation("purchaseOrdersBranch")
+  reportAuditLogs      ReportAuditLog[]
+  authAuditLogs        AuthAuditLog[]
+  parkedSales          ParkedSale[]
+  failedPinAttempts    FailedPinAttempt[]
+  adminSessions        AdminSession[]
+  adminSessionClosures AdminSessionClosure[]
 }
 
 model User {
-  id                     Int                @id @default(autoincrement())
-  email                  String             @unique
+  id                     Int                   @id @default(autoincrement())
+  email                  String                @unique
   passwordHash           String
   pinCode                String?
   name                   String
   role                   String
-  active                 Boolean            @default(true)
+  active                 Boolean               @default(true)
   phone                  String?
-  baseSalary             Decimal?           @db.Decimal(18, 2)
-  commissionRate         Decimal?           @db.Decimal(18, 4)
+  baseSalary             Decimal?              @db.Decimal(18, 2)
+  commissionRate         Decimal?              @db.Decimal(18, 4)
   branchId               Int
-  createdAt              DateTime           @default(now())
-  updatedAt              DateTime           @updatedAt
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
   // Segundo factor WebAuthn (Windows Hello / huella / llave de seguridad) para ADMIN/GERENTE.
   // Aditivo y opcional: usuarios sin credencial registrada la enrolan en su próximo inicio de sesión.
-  webauthnCredentialId   String?            @db.VarChar(500)
-  webauthnPublicKey      String?            @db.VarChar(1000)
-  webauthnCounter        Int?               @default(0)
-  webauthnTransports     String?            @db.VarChar(200)
+  webauthnCredentialId   String?               @db.VarChar(500)
+  webauthnPublicKey      String?               @db.VarChar(1000)
+  webauthnCounter        Int?                  @default(0)
+  webauthnTransports     String?               @db.VarChar(200)
   webauthnRegisteredAt   DateTime?
-  otpCode                String?            @db.NVarChar(6)
+  otpCode                String?               @db.NVarChar(6)
   otpExpiresAt           DateTime?
   bankDeposits           BankDeposit[]
   cashSessions           CashSession[]
   kardexEntries          Kardex[]
-  returns                Return[]           @relation("UserReturns")
-  authorizedReturns      Return[]           @relation("UserAuthorizedReturns")
+  returns                Return[]              @relation("UserReturns")
+  authorizedReturns      Return[]              @relation("UserAuthorizedReturns")
   sales                  Sale[]
-  branch                 Branch             @relation(fields: [branchId], references: [id], onUpdate: NoAction)
-  purchaseOrdersCreated  PurchaseOrder[]    @relation("purchaseCreatedBy")
-  purchaseOrdersReceived PurchaseOrder[]    @relation("purchaseReceivedBy")
+  branch                 Branch                @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+  purchaseOrdersCreated  PurchaseOrder[]       @relation("purchaseCreatedBy")
+  purchaseOrdersReceived PurchaseOrder[]       @relation("purchaseReceivedBy")
   reportAuditLogs        ReportAuditLog[]
   authAuditLogs          AuthAuditLog[]
   priceAdjustments       PriceAdjustment[]
   parkedSales            ParkedSale[]
   failedPinAttempts      FailedPinAttempt[]
   adminSession           AdminSession?
-  revokedAdminSessions   AdminSession[]     @relation("AdminSessionRevokedBy")
+  revokedAdminSessions   AdminSession[]        @relation("AdminSessionRevokedBy")
+  adminSessionClosures   AdminSessionClosure[]
+  revokedSessionClosures AdminSessionClosure[] @relation("AdminSessionClosureRevokedBy")
 }
 
 model Product {
@@ -562,6 +565,29 @@ model AdminSession {
   user      User    @relation(fields: [userId], references: [id], onUpdate: NoAction)
   branch    Branch? @relation(fields: [branchId], references: [id], onUpdate: NoAction)
   revokedBy User?   @relation("AdminSessionRevokedBy", fields: [revokedByUserId], references: [id], onUpdate: NoAction)
+}
+
+// Historial append-only de cierres de AdminSession (logout normal o revocación
+// forzada). Se captura ANTES de borrar/reemplazar la fila de AdminSession, así que
+// sobrevive a login/logout posteriores del mismo usuario — a diferencia de
+// AdminSession (una sola fila vigente por usuario), aquí se acumula una fila por
+// cada cierre para poder auditar el historial completo.
+model AdminSessionClosure {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  branchId        Int?
+  deviceId        String?  @db.VarChar(64)
+  ipAddress       String?  @db.NVarChar(45)
+  loginAt         DateTime
+  closedAt        DateTime @default(now())
+  closureType     String   @db.VarChar(20) // "NORMAL" | "REVOKED"
+  revokedByUserId Int?
+  revokedReason   String?  @db.VarChar(500)
+  createdAt       DateTime @default(now())
+
+  user      User    @relation(fields: [userId], references: [id], onUpdate: NoAction)
+  branch    Branch? @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+  revokedBy User?   @relation("AdminSessionClosureRevokedBy", fields: [revokedByUserId], references: [id], onUpdate: NoAction)
 }
 
 // ─── CATEGORÍAS ────────────────────────────────────────────

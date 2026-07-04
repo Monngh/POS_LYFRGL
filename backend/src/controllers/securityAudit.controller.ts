@@ -254,20 +254,39 @@ export const revokeSession = async (req: Request, res: Response): Promise<void> 
   }
 
   try {
-    const result = await prisma.adminSession.updateMany({
-      where: { userId: targetUserId, status: "ACTIVE" },
-      data: {
-        status: "REVOKED",
-        revokedReason: reason.trim(),
-        revokedByUserId: req.user.userId,
-        revokedAt: new Date(),
-      },
-    });
-
-    if (result.count === 0) {
+    const session = await prisma.adminSession.findFirst({ where: { userId: targetUserId, status: "ACTIVE" } });
+    if (!session) {
       res.status(404).json({ message: "El usuario no tiene una sesión activa." });
       return;
     }
+
+    const trimmedReason = reason.trim();
+    const revokedByUserId = req.user.userId;
+    const revokedAt = new Date();
+
+    await prisma.$transaction([
+      prisma.adminSession.update({
+        where: { userId: targetUserId },
+        data: {
+          status: "REVOKED",
+          revokedReason: trimmedReason,
+          revokedByUserId,
+          revokedAt,
+        },
+      }),
+      prisma.adminSessionClosure.create({
+        data: {
+          userId: session.userId,
+          branchId: session.branchId,
+          deviceId: session.deviceId,
+          ipAddress: session.ipAddress,
+          loginAt: session.createdAt,
+          closureType: "REVOKED",
+          revokedByUserId,
+          revokedReason: trimmedReason,
+        },
+      }),
+    ]);
 
     res.json({ message: "Sesión revocada correctamente." });
   } catch (err) {
@@ -303,5 +322,39 @@ export const getMySessionStatus = async (req: Request, res: Response): Promise<v
   } catch (err) {
     console.error("[getMySessionStatus]", err);
     res.status(500).json({ message: "Error al consultar el estado de la sesión." });
+  }
+};
+
+/**
+ * Historial append-only de cierres de sesión de admin/gerente (AdminSessionClosure):
+ * incluye tanto logout normal como revocación forzada. A diferencia de AdminSession
+ * (una sola fila vigente por usuario), aquí se acumula una fila por cada cierre, así
+ * que sirve para auditar el historial completo sin importar cuántas veces se
+ * reabrió la sesión después. El "tiempo en la plataforma" (loginAt vs. closedAt) se
+ * deja para que lo calcule el frontend, igual que "since" en getActiveSessions — no
+ * existe ya un helper de formato de duración reutilizable en el proyecto. Solo ADMIN.
+ */
+export const getAdminSessionClosures = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { from, to } = req.query;
+    const where: any = {};
+    const dateWhere = buildDateWhere(from, to);
+    if (dateWhere) where.closedAt = dateWhere;
+
+    const closures = await prisma.adminSessionClosure.findMany({
+      where,
+      orderBy: { closedAt: "desc" },
+      take: 500,
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        branch: { select: { id: true, name: true } },
+        revokedBy: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    res.json({ closures });
+  } catch (err) {
+    console.error("[getAdminSessionClosures]", err);
+    res.status(500).json({ message: "Error al obtener el historial de cierres de sesión." });
   }
 };

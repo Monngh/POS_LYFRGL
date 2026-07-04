@@ -198,11 +198,30 @@ export const cashierLogin = async (req: Request, res: Response): Promise<void> =
  * Cierra la sesión activa del usuario (borra su fila en AdminSession, si existe;
  * los cajeros nunca tienen una), liberando el correo para un nuevo inicio de
  * sesión. El middleware garantiza que solo el titular de la sesión vigente llega
- * aquí. deleteMany no falla si no hay fila (p.ej. logout de un cajero).
+ * aquí. Antes de borrar, deja registrado el cierre en AdminSessionClosure
+ * (historial append-only) para poder auditarlo después. Si no hay fila (p.ej. la
+ * sesión ya se cerró por otro medio, o es un cajero, que nunca tiene una), no falla
+ * y simplemente no crea closure.
  */
 export const logout = async (req: Request, res: Response): Promise<void> => {
   if (req.user?.userId) {
-    await prisma.adminSession.deleteMany({ where: { userId: req.user.userId } });
+    const userId = req.user.userId;
+    const session = await prisma.adminSession.findUnique({ where: { userId } });
+    if (session) {
+      await prisma.$transaction([
+        prisma.adminSessionClosure.create({
+          data: {
+            userId: session.userId,
+            branchId: session.branchId,
+            deviceId: session.deviceId,
+            ipAddress: session.ipAddress,
+            loginAt: session.createdAt,
+            closureType: "NORMAL",
+          },
+        }),
+        prisma.adminSession.delete({ where: { userId } }),
+      ]);
+    }
   }
   res.status(200).json({ message: "Sesión cerrada." });
 };

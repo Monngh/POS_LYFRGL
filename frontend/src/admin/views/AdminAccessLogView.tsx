@@ -42,6 +42,52 @@ interface ActiveSessionRow {
   since: string;
 }
 
+interface AdminSessionClosureRow {
+  id: number;
+  ipAddress: string | null;
+  deviceId: string | null;
+  loginAt: string;
+  closedAt: string;
+  closureType: "NORMAL" | "REVOKED";
+  revokedReason: string | null;
+  user: { id: number; name: string; email: string };
+  branch: { id: number; name: string } | null;
+  revokedBy: { id: number; name: string; email: string } | null;
+}
+
+// No existe ya un helper de formato de duración reutilizable en el proyecto (se
+// revisó formValidation/decimalInput y las vistas de reportes): se calcula aquí,
+// a partir de las dos fechas crudas que ya manda el backend.
+const formatDuration = (loginAt: string, closedAt: string): string => {
+  const ms = new Date(closedAt).getTime() - new Date(loginAt).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return "—";
+  const totalMinutes = Math.round(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) return `${minutes} min`;
+  if (minutes === 0) return `${hours} h`;
+  return `${hours} h ${minutes} min`;
+};
+
+const ClosureTypeBadge: React.FC<{ type: string }> = ({ type }) => {
+  const isRevoked = type === "REVOKED";
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        padding: "2px 10px",
+        borderRadius: 12,
+        fontSize: 11,
+        fontWeight: 700,
+        backgroundColor: isRevoked ? "#fee2e2" : "#dcfce7",
+        color: isRevoked ? "#b91c1c" : "#15803d",
+      }}
+    >
+      {isRevoked ? "Revocado" : "Normal"}
+    </span>
+  );
+};
+
 const fmtDateTime = (iso: string) =>
   new Intl.DateTimeFormat("es-MX", { dateStyle: "short", timeStyle: "short" }).format(new Date(iso));
 
@@ -88,7 +134,7 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
   const { user } = useAuth();
   const { showToast } = useToast();
   const isMobile = useMediaQuery("(max-width: 1024px)");
-  const [activeTab, setActiveTab] = useState<"logins" | "active-sessions">("logins");
+  const [activeTab, setActiveTab] = useState<"logins" | "active-sessions" | "closures">("logins");
   const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
   const [unlocked, setUnlocked] = useState(false);
   const [auditToken, setAuditToken] = useState<string | null>(null);
@@ -210,6 +256,50 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
   }, [unlocked, activeTab, loadActiveSessions]);
 
   const sessionsPagination = usePagination(sessionRows, { pageSize: 20, resetKey: activeTab });
+
+  // ── Tab "Historial de Cierres" ──
+  const [closureRows, setClosureRows] = useState<AdminSessionClosureRow[]>([]);
+  const [closuresLoading, setClosuresLoading] = useState(false);
+  const [closuresError, setClosuresError] = useState<string | null>(null);
+
+  // Mismo patrón de carga que "Accesos": reutiliza los filtros from/to ya
+  // existentes en el componente (misma UI de fechas, un solo rango compartido).
+  const loadClosures = useCallback(async (f: string, t: string) => {
+    const invalidRange = f && t ? validateDateRange(f, t) : undefined;
+    if (invalidRange) {
+      setClosureRows([]);
+      setClosuresError(invalidRange);
+      setClosuresLoading(false);
+      return;
+    }
+    setClosuresLoading(true);
+    setClosuresError(null);
+    try {
+      const params: any = {};
+      if (f) params.from = new Date(`${f}T00:00:00`).toISOString();
+      if (t) params.to = new Date(`${t}T23:59:59.999`).toISOString();
+      const res = await api.get<{ closures: AdminSessionClosureRow[] }>(
+        "/api/admin/security/admin-session-closures",
+        { params }
+      );
+      setClosureRows(res.data.closures);
+    } catch (err: any) {
+      setClosuresError(err.response?.data?.message || "No se pudo cargar el historial de cierres.");
+    } finally {
+      setClosuresLoading(false);
+    }
+  }, []);
+
+  // Carga solo al entrar a esta pestaña (o si cambian los filtros mientras está
+  // activa), igual que el patrón ya usado por "Sesiones Activas" — evita refrescar
+  // una pestaña que el usuario no está viendo.
+  useEffect(() => {
+    if (unlocked && activeTab === "closures") {
+      loadClosures(from, to);
+    }
+  }, [unlocked, activeTab, from, to, loadClosures]);
+
+  const closuresPagination = usePagination(closureRows, { pageSize: 20, resetKey: `${activeTab}|${from}|${to}` });
 
   const closeRevokeFlow = () => {
     setRevokeTarget(null);
@@ -349,12 +439,14 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
         subtitle={
           activeTab === "logins"
             ? "Historial de inicios de sesión de administradores y gerentes"
-            : "Sesiones de administrador/gerente activas en este momento"
+            : activeTab === "active-sessions"
+            ? "Sesiones de administrador/gerente activas en este momento"
+            : "Historial de cierres de sesión (normales y revocados)"
         }
       />
 
       <div style={{ display: "flex", gap: 0, marginBottom: 18, borderBottom: "1px solid var(--border)" }}>
-        {(["logins", "active-sessions"] as const).map((tab) => {
+        {(["logins", "active-sessions", "closures"] as const).map((tab) => {
           const isActive = activeTab === tab;
           return (
             <button
@@ -373,7 +465,7 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
                 fontFamily: "inherit",
               }}
             >
-              {tab === "logins" ? "Accesos" : "Sesiones Activas"}
+              {tab === "logins" ? "Accesos" : tab === "active-sessions" ? "Sesiones Activas" : "Historial de Cierres"}
             </button>
           );
         })}
@@ -1038,6 +1130,244 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      </>
+      )}
+
+      {activeTab === "closures" && (
+      <>
+      {isMobile ? (
+        <div style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          marginBottom: 16,
+          padding: "12px",
+          backgroundColor: "var(--surface-2)",
+          borderRadius: 12,
+          border: "1px solid var(--border)"
+        }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Desde:</label>
+            <input
+              type="date"
+              value={from}
+              max={to || undefined}
+              onChange={(e) => setFrom(e.target.value)}
+              style={{ ...ui.input, padding: "6px 10px", fontSize: 13, flex: 1, minWidth: 0, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
+            />
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Hasta:</label>
+            <input
+              type="date"
+              value={to}
+              min={from || undefined}
+              onChange={(e) => setTo(e.target.value)}
+              style={{ ...ui.input, padding: "6px 10px", fontSize: 13, flex: 1, minWidth: 0, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
+            />
+          </div>
+          {dateError && (
+            <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 600 }}>{dateError}</span>
+          )}
+        </div>
+      ) : (
+        <Toolbar>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Desde:</label>
+            <input
+              type="date"
+              value={from}
+              max={to || undefined}
+              onChange={(e) => setFrom(e.target.value)}
+              style={{ ...inputStyle, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
+            />
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Hasta:</label>
+            <input
+              type="date"
+              value={to}
+              min={from || undefined}
+              onChange={(e) => setTo(e.target.value)}
+              style={{ ...inputStyle, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
+            />
+          </div>
+          <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+            {closureRows.length} registro{closureRows.length !== 1 ? "s" : ""}
+          </span>
+        </Toolbar>
+      )}
+
+      {isMobile ? (
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 4px" }}>
+          {closuresLoading && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+              Cargando información...
+            </div>
+          )}
+          {closuresError && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
+              {closuresError}
+            </div>
+          )}
+          {!closuresLoading && !closuresError && closuresPagination.pageItems.length === 0 && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+              No hay cierres de sesión para mostrar.
+            </div>
+          )}
+
+          {!closuresLoading &&
+            !closuresError &&
+            closuresPagination.pageItems.map((c) => (
+              <div
+                key={c.id}
+                style={{
+                  backgroundColor: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 12,
+                  marginBottom: 10,
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                  overflow: "hidden",
+                }}
+              >
+                <div style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "8px 12px 6px 12px",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "var(--text-muted)",
+                  borderBottom: "1px solid var(--surface-3)",
+                  backgroundColor: "var(--surface-2)",
+                  letterSpacing: "0.2px",
+                  textTransform: "uppercase"
+                }}>
+                  <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "60%" }}>
+                    {c.user.name}
+                  </span>
+                  <ClosureTypeBadge type={c.closureType} />
+                </div>
+                <div style={{ padding: "12px", display: "grid", gap: "6px" }}>
+                  <div style={detailRowStyle}>
+                    <span style={detailLabelStyle}>Sucursal:</span>
+                    <span style={detailValueStyle}>{c.branch?.name ?? "—"}</span>
+                  </div>
+                  <div style={detailRowStyle}>
+                    <span style={detailLabelStyle}>Cerrado:</span>
+                    <span style={detailValueStyle}>{fmtDateTime(c.closedAt)}</span>
+                  </div>
+                  <div style={detailRowStyle}>
+                    <span style={detailLabelStyle}>Duración:</span>
+                    <span style={detailValueStyle}>{formatDuration(c.loginAt, c.closedAt)}</span>
+                  </div>
+                  <div style={detailRowStyle}>
+                    <span style={detailLabelStyle}>Dispositivo:</span>
+                    <span style={detailValueStyle}>
+                      <div style={{ fontWeight: 600, fontSize: 12 }}>{formatDevice(c.deviceId)}</div>
+                      <div style={{ fontFamily: "monospace", fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>
+                        {formatDeviceShort(c.deviceId)}
+                      </div>
+                    </span>
+                  </div>
+                  <div style={detailRowStyle}>
+                    <span style={detailLabelStyle}>IP:</span>
+                    <span style={{ ...detailValueStyle, fontFamily: "monospace", fontSize: 11 }}>{formatIP(c.ipAddress)}</span>
+                  </div>
+                  {c.closureType === "REVOKED" && (
+                    <div style={{ ...detailRowStyle, alignItems: "flex-start" }}>
+                      <span style={detailLabelStyle}>Motivo:</span>
+                      <span style={{ ...detailValueStyle, wordBreak: "break-word" }}>
+                        {c.revokedReason ?? "—"}
+                        {c.revokedBy && (
+                          <span style={{ color: "var(--text-muted)" }}> (por {c.revokedBy.name})</span>
+                        )}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          <Pagination {...closuresPagination} onPage={closuresPagination.setPage} itemLabel="cierres" />
+        </div>
+      ) : (
+        <div
+          className="table-sticky-head"
+          style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}
+        >
+          <table style={ui.table}>
+            <thead>
+              <tr style={ui.theadRow}>
+                <th style={ui.th}>Usuario</th>
+                <th style={ui.th}>Sucursal</th>
+                <th style={ui.th}>Cerrado</th>
+                <th style={ui.th}>Duración</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Tipo</th>
+                <th style={ui.th}>Dispositivo</th>
+                <th style={{ ...ui.th, fontFamily: "monospace" }}>IP</th>
+                <th style={ui.th}>Motivo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <TableState
+                colSpan={8}
+                loading={closuresLoading}
+                error={closuresError}
+                empty={!closuresLoading && closuresPagination.pageItems.length === 0}
+                emptyText="No hay cierres de sesión para los filtros seleccionados."
+              />
+              {!closuresLoading &&
+                !closuresError &&
+                closuresPagination.pageItems.map((c) => (
+                  <tr key={c.id}>
+                    <td style={ui.td}>
+                      <div style={{ fontWeight: 700, color: "var(--text)" }}>{c.user.name}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{c.user.email}</div>
+                    </td>
+                    <td style={{ ...ui.td, color: "var(--text-muted)" }}>
+                      {c.branch?.name ?? <span style={{ color: "var(--border-strong)" }}>—</span>}
+                    </td>
+                    <td style={{ ...ui.td, whiteSpace: "nowrap", color: "var(--text-secondary)" }}>{fmtDateTime(c.closedAt)}</td>
+                    <td style={{ ...ui.td, whiteSpace: "nowrap", color: "var(--text-secondary)" }}>
+                      {formatDuration(c.loginAt, c.closedAt)}
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <ClosureTypeBadge type={c.closureType} />
+                    </td>
+                    <td style={ui.td}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)" }}>
+                        {formatDevice(c.deviceId)}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, fontFamily: "monospace" }}>
+                        {formatDeviceShort(c.deviceId)}
+                      </div>
+                    </td>
+                    <td style={{ ...ui.td, fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                      {formatIP(c.ipAddress)}
+                    </td>
+                    <td style={{ ...ui.td, maxWidth: 220 }}>
+                      {c.closureType === "REVOKED" ? (
+                        <>
+                          <div style={{ fontSize: 12, color: "var(--text-secondary)", wordBreak: "break-word" }}>
+                            {c.revokedReason ?? "—"}
+                          </div>
+                          {c.revokedBy && (
+                            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                              Por: {c.revokedBy.name}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <span style={{ color: "var(--border-strong)" }}>—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+          <div style={{ padding: "0 4px" }}>
+            <Pagination {...closuresPagination} onPage={closuresPagination.setPage} itemLabel="cierres" />
           </div>
         </div>
       )}

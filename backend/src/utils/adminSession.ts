@@ -34,6 +34,10 @@ export const openAdminSession = async (
       revokedReason: null,
       revokedByUserId: null,
       revokedAt: null,
+      // Sin esto, un reingreso tras una revocación arrastraría el createdAt de la
+      // sesión anterior (upsert solo actualiza, no reemplaza la fila), corrompiendo
+      // el cálculo de "tiempo en la plataforma" del próximo cierre en AdminSessionClosure.
+      createdAt: new Date(),
     },
   });
   return jti;
