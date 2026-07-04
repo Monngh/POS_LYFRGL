@@ -237,21 +237,24 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
 
   // Actualización en tiempo real: se suscribe a la conexión SSE global (ver
   // SecurityEventsProvider en AdminDashboard.tsx) en vez de abrir una conexión propia,
-  // para no duplicar el EventSource. Solo refrescamos la lista cuando hay un nuevo
-  // login, y solo si ya pasamos el gate de contraseña de esta vista. La detección de
-  // revocación (propia o ajena) ahora depende de AdminSession en BD: la del propio
-  // usuario la cubre useAdminSessionStatus (polling de 5s) + el rechazo duro 401
-  // SESION_DESPLAZADA; esta tabla se refresca con el próximo "login" o al reabrir la
-  // pestaña "Sesiones Activas".
+  // para no duplicar el EventSource. Refrescamos AMBAS listas (sesiones activas e
+  // historial de accesos) cuando hay un nuevo login, solo si ya pasamos el gate de
+  // contraseña de esta vista. No se gatea por activeTab: loadActiveSessions ya se
+  // refrescaba aquí sin importar la pestaña visible (mantiene los datos frescos para
+  // cuando el usuario cambie de pestaña), así que load() sigue ese mismo patrón por
+  // consistencia. La detección de revocación (propia o ajena) ahora depende de
+  // AdminSession en BD: la del propio usuario la cubre useAdminSessionStatus
+  // (polling de 5s) + el rechazo duro 401 SESION_DESPLAZADA.
   useSecurityEvents(
     useCallback(
       (payload) => {
         if (!unlocked) return;
         if (payload.type === "login") {
           loadActiveSessions();
+          if (auditToken) load(auditToken, from, to);
         }
       },
-      [unlocked, loadActiveSessions]
+      [unlocked, loadActiveSessions, load, auditToken, from, to]
     )
   );
 
