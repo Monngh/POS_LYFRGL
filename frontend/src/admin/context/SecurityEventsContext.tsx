@@ -39,15 +39,15 @@ export const useSecurityEvents = (listener: SecurityEventListener): void => {
  * Abre UNA sola conexión a GET /api/admin/security/events mientras haya una sesión
  * de ADMIN activa (el endpoint exige rol ADMIN vía authorizeRoles — un GERENTE
  * recibiría 403, por eso se omite la conexión para ese rol). Debe montarse una
- * única vez en el layout raíz del área de admin (AdminDashboard.tsx), envolviendo
- * TODA la vista activa, para que la expulsión por "session-revoked" sea instantánea
- * sin importar en qué sección del admin esté el usuario (Dashboard, Inventario,
- * Facturación, etc.) — antes la conexión SSE solo vivía dentro de
- * AdminAccessLogView.tsx, así que solo funcionaba si el usuario expulsado estaba
- * justo parado en esa pantalla.
+ * única vez en el layout raíz del área de admin (AdminDashboard.tsx). Solo reenvía
+ * eventos "login"/"failed-pin" a los suscriptores (p.ej. para refrescar tablas); la
+ * expulsión del propio usuario por revocación de sesión ya no depende de este canal
+ * SSE, sino de la tabla AdminSession en BD, cubierta de forma independiente por el
+ * rechazo duro 401 SESION_DESPLAZADA (authenticateJWT) y el polling de 5s de
+ * useAdminSessionStatus (ver AdminDashboard.tsx).
  */
 export const SecurityEventsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { token, user, logout } = useAuth();
+  const { token, user } = useAuth();
   const listenersRef = useRef<Set<SecurityEventListener>>(new Set());
 
   useEffect(() => {
@@ -66,15 +66,6 @@ export const SecurityEventsProvider: React.FC<{ children: React.ReactNode }> = (
         return;
       }
 
-      if (payload.type === "session-revoked" && payload.userId != null && Number(payload.userId) === user.id) {
-        // A este mismo usuario le revocaron la sesión desde otro lugar: cerrar la
-        // sesión local de inmediato, sin importar la vista activa en este momento.
-        // Mismo mecanismo (logout de AuthContext) que usa el 401 SESION_DESPLAZADA.
-        sessionStorage.setItem("fmb_pos_logout_reason", "Tu sesión fue cerrada por un administrador.");
-        logout();
-        return;
-      }
-
       listenersRef.current.forEach((fn) => fn(payload));
     };
 
@@ -86,7 +77,7 @@ export const SecurityEventsProvider: React.FC<{ children: React.ReactNode }> = (
     return () => {
       eventSource.close();
     };
-  }, [token, user, logout]);
+  }, [token, user]);
 
   const subscribe = useCallback((listener: SecurityEventListener) => {
     listenersRef.current.add(listener);

@@ -5,11 +5,10 @@ import { EventEmitter } from "events";
 // propio emisor y los eventos no llegan a los clientes SSE conectados a otro worker.
 // Por eso backend/ecosystem.config.js debe usar exec_mode: 'fork' e instances: 1.
 
-export type SecurityEventType = "login" | "failed-pin" | "session-revoked";
+export type SecurityEventType = "login" | "failed-pin";
 
 export interface SecurityEventPayload {
   type: SecurityEventType;
-  /** Para "session-revoked": el userId de la sesión que fue cerrada. */
   userId?: number;
 }
 

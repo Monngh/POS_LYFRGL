@@ -1,10 +1,9 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { ShieldAlert, Lock, ChevronDown, ChevronUp, ShieldOff } from "lucide-react";
 import api from "../../shared/services/api";
-import { validateDateRange, validateSearchText } from "../../shared/utils/formValidation";
+import { validateDateRange, validateSearchText, validateReference } from "../../shared/utils/formValidation";
 import { useAuth } from "../../auth";
 import { useToast } from "../../shared/context/ToastContext";
-import { ConfirmModal } from "../../shared/ui";
 import { useSecurityEvents } from "../context/SecurityEventsContext";
 import {
   ui,
@@ -186,6 +185,9 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<ActiveSessionRow | null>(null);
+  const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
+  const [revokeReason, setRevokeReason] = useState("");
+  const [revokeReasonError, setRevokeReasonError] = useState("");
   const [revoking, setRevoking] = useState(false);
 
   const loadActiveSessions = useCallback(async () => {
@@ -209,13 +211,22 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
 
   const sessionsPagination = usePagination(sessionRows, { pageSize: 20, resetKey: activeTab });
 
+  const closeRevokeFlow = () => {
+    setRevokeTarget(null);
+    setRevokeConfirmOpen(false);
+    setRevokeReason("");
+    setRevokeReasonError("");
+  };
+
   const confirmRevokeSession = async () => {
     if (!revokeTarget || revoking) return;
     setRevoking(true);
     try {
-      await api.post(`/api/admin/security/revoke-session/${revokeTarget.userId}`);
+      await api.post(`/api/admin/security/revoke-session/${revokeTarget.userId}`, {
+        reason: revokeReason.trim(),
+      });
       showToast(`Sesión de ${revokeTarget.name} cerrada correctamente.`, "success");
-      setRevokeTarget(null);
+      closeRevokeFlow();
       await loadActiveSessions();
     } catch (err: any) {
       showToast(err.response?.data?.message || "No se pudo cerrar la sesión.", "error");
@@ -226,15 +237,17 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
 
   // Actualización en tiempo real: se suscribe a la conexión SSE global (ver
   // SecurityEventsProvider en AdminDashboard.tsx) en vez de abrir una conexión propia,
-  // para no duplicar el EventSource. La expulsión por revocación de la sesión propia
-  // ya la maneja ese provider globalmente; aquí solo refrescamos la lista cuando hay
-  // un nuevo login o se revoca la sesión de OTRO admin/gerente, y solo si ya pasamos
-  // el gate de contraseña de esta vista.
+  // para no duplicar el EventSource. Solo refrescamos la lista cuando hay un nuevo
+  // login, y solo si ya pasamos el gate de contraseña de esta vista. La detección de
+  // revocación (propia o ajena) ahora depende de AdminSession en BD: la del propio
+  // usuario la cubre useAdminSessionStatus (polling de 5s) + el rechazo duro 401
+  // SESION_DESPLAZADA; esta tabla se refresca con el próximo "login" o al reabrir la
+  // pestaña "Sesiones Activas".
   useSecurityEvents(
     useCallback(
       (payload) => {
         if (!unlocked) return;
-        if (payload.type === "login" || payload.type === "session-revoked") {
+        if (payload.type === "login") {
           loadActiveSessions();
         }
       },
@@ -912,15 +925,119 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
         </div>
       )}
 
-      <ConfirmModal
-        isOpen={revokeTarget !== null}
-        onClose={() => !revoking && setRevokeTarget(null)}
-        onConfirm={confirmRevokeSession}
-        variant="danger"
-        title="Cerrar sesión activa"
-        message={`¿Seguro que deseas cerrar la sesión de "${revokeTarget?.name}"? Se cerrará de inmediato y deberá volver a iniciar sesión.`}
-        confirmLabel={revoking ? "Cerrando..." : "Cerrar sesión"}
-      />
+      {/* ===================== SUB-MODAL PASO 1: MOTIVO DE CIERRE ===================== */}
+      {revokeTarget && !revokeConfirmOpen && (
+        <div style={ui.overlay} onClick={closeRevokeFlow}>
+          <div
+            style={{ ...ui.modal, maxWidth: 440, width: "100%" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={ui.modalHeader}>
+              <span style={ui.modalTitle}>¿Cerrar la sesión de "{revokeTarget.name}"?</span>
+              <button style={ui.ghostBtn} onClick={closeRevokeFlow}>✕</button>
+            </div>
+            <div style={ui.modalBody}>
+              <p style={{ fontSize: 13, color: "#b91c1c", fontWeight: 600, marginBottom: 18 }}>
+                ⚠ Se cerrará de inmediato y deberá volver a iniciar sesión.
+              </p>
+              <label style={ui.fieldLabel}>Motivo del cierre *</label>
+              <textarea
+                value={revokeReason}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setRevokeReason(value);
+                  setRevokeReasonError(validateReference(value, "El motivo", { required: true, max: 180 }) || "");
+                }}
+                placeholder="Ingresa el motivo del cierre de sesión..."
+                rows={3}
+                style={{
+                  ...ui.input,
+                  resize: "vertical",
+                  minHeight: 80,
+                  fontFamily: "inherit",
+                  lineHeight: 1.5,
+                }}
+              />
+              {revokeReasonError && <p style={ui.fieldError}>{revokeReasonError}</p>}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
+                <button style={ui.ghostBtn} onClick={closeRevokeFlow}>
+                  Cancelar
+                </button>
+                <button
+                  style={{
+                    ...ui.primaryBtn,
+                    backgroundColor: !revokeReason.trim() ? "#94a3b8" : "#b91c1c",
+                    cursor: !revokeReason.trim() ? "not-allowed" : "pointer",
+                  }}
+                  onClick={() => {
+                    const err = validateReference(revokeReason, "El motivo", { required: true, max: 180 });
+                    if (err) { setRevokeReasonError(err); return; }
+                    setRevokeReasonError("");
+                    setRevokeConfirmOpen(true);
+                  }}
+                  disabled={!revokeReason.trim()}
+                >
+                  Continuar →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= SUB-MODAL PASO 2: CONFIRMAR CIERRE DE SESIÓN ================= */}
+      {revokeTarget && revokeConfirmOpen && (
+        <div style={{ ...ui.overlay, zIndex: 310 }} onClick={() => setRevokeConfirmOpen(false)}>
+          <div
+            style={{ ...ui.modal, maxWidth: 440, width: "100%" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={ui.modalHeader}>
+              <span style={ui.modalTitle}>Confirmar cierre de sesión</span>
+              <button style={ui.ghostBtn} onClick={() => setRevokeConfirmOpen(false)}>✕</button>
+            </div>
+            <div style={ui.modalBody}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20 }}>
+                <div style={detailRowStyle}>
+                  <span style={detailLabelStyle}>Usuario:</span>
+                  <span style={detailValueStyle}>{revokeTarget.name} ({revokeTarget.email})</span>
+                </div>
+                <div style={detailRowStyle}>
+                  <span style={detailLabelStyle}>Sucursal:</span>
+                  <span style={detailValueStyle}>{revokeTarget.branch?.name ?? "—"}</span>
+                </div>
+                <div style={{ ...detailRowStyle, alignItems: "flex-start" }}>
+                  <span style={detailLabelStyle}>Motivo:</span>
+                  <span style={{ ...detailValueStyle, wordBreak: "break-word", flex: 1 }}>{revokeReason}</span>
+                </div>
+              </div>
+              <p style={{ fontSize: 13, color: "#b91c1c", fontWeight: 600, marginBottom: 20 }}>
+                ⚠ Esta acción cerrará la sesión de inmediato y no se puede deshacer.
+              </p>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button
+                  style={ui.ghostBtn}
+                  onClick={() => setRevokeConfirmOpen(false)}
+                  disabled={revoking}
+                >
+                  ← Regresar
+                </button>
+                <button
+                  style={{
+                    ...ui.primaryBtn,
+                    backgroundColor: "#b91c1c",
+                    cursor: revoking ? "not-allowed" : "pointer",
+                  }}
+                  onClick={confirmRevokeSession}
+                  disabled={revoking}
+                >
+                  {revoking ? "Cerrando..." : "Confirmar cierre"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       </>
       )}
     </div>

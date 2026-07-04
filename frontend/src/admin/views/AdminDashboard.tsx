@@ -55,6 +55,7 @@ import AdminAccessLogView from "./AdminAccessLogView";
 import type { ViewProps } from "./shared";
 import { ui } from "./shared";
 import { SecurityEventsProvider } from "../context/SecurityEventsContext";
+import { useAdminSessionStatus } from "../hooks/useAdminSessionStatus";
 
 interface BranchOption {
   id: number;
@@ -165,6 +166,7 @@ const initialsOf = (name?: string): string => {
 
 const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
+  const { revokedData, acknowledgeRevocation } = useAdminSessionStatus(user);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -309,6 +311,93 @@ const AdminDashboard: React.FC = () => {
 
   return (
     <SecurityEventsProvider>
+    {/* Modal bloqueante: la sesión fue revocada por otro admin. Se muestra sin
+        importar la vista activa (Dashboard, Inventario, Facturación, etc.) gracias
+        a que useAdminSessionStatus vive en la raíz del panel admin. Independiente
+        del rechazo duro 401 SESION_DESPLAZADA: si el usuario está inactivo y no
+        dispara ningún request, este polling de 5s igual lo detecta y lo avisa. */}
+    {revokedData && (
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.78)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 9999,
+        }}
+      >
+        <div
+          style={{
+            backgroundColor: "var(--surface)",
+            borderRadius: "12px",
+            padding: "36px 32px",
+            maxWidth: "420px",
+            width: "90%",
+            boxShadow: "0 20px 40px rgba(0,0,0,0.35)",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: "48px", marginBottom: "16px", lineHeight: 1 }}>⚠️</div>
+          <h2 style={{ fontSize: "20px", fontWeight: "800", color: "var(--text)", marginBottom: "10px" }}>
+            Sesión cerrada
+          </h2>
+          <p style={{ fontSize: "14px", color: "var(--text-secondary)", marginBottom: "20px" }}>
+            Un administrador cerró tu sesión.
+          </p>
+          {revokedData.reason && (
+            <div
+              style={{
+                backgroundColor: "var(--surface-2)",
+                border: "1px solid var(--border)",
+                borderRadius: "8px",
+                padding: "14px 16px",
+                marginBottom: "28px",
+                textAlign: "left",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: "700",
+                  color: "var(--text-secondary)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.4px",
+                }}
+              >
+                Motivo
+              </span>
+              <p style={{ fontSize: "14px", color: "var(--text)", fontWeight: "600", marginTop: "6px", wordBreak: "break-word" }}>
+                {revokedData.reason}
+              </p>
+            </div>
+          )}
+          <button
+            onClick={() => {
+              acknowledgeRevocation();
+              logout();
+            }}
+            style={{
+              width: "100%",
+              padding: "12px",
+              backgroundColor: "var(--accent)",
+              color: "#ffffff",
+              border: "none",
+              borderRadius: "8px",
+              fontSize: "15px",
+              fontWeight: "700",
+              cursor: "pointer",
+            }}
+          >
+            Aceptar
+          </button>
+        </div>
+      </div>
+    )}
     <div style={styles.shell} className={`theme-aware${theme === "dark" ? " theme-dark" : ""}`}>
       <style>{ADMIN_CSS}</style>
       {/* Backdrop del cajón en móvil */}

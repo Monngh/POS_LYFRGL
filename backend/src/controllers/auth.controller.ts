@@ -9,7 +9,8 @@ import {
 import { AppError } from "../utils/AppError";
 import { buildLoginSecondFactor } from "./webauthn.controller";
 import { recordLoginEvent, clientIp as auditClientIp } from "../utils/authAudit";
-import { getActiveSession, openSession, closeSession } from "../utils/sessionRegistry";
+import { prisma } from "../app";
+import { openAdminSession } from "../utils/adminSession";
 import { getRequestDeviceId } from "../middlewares/device.middleware";
 import {
   findUserForAdminLogin,
@@ -60,16 +61,16 @@ export const adminLogin = async (req: Request, res: Response): Promise<void> => 
     // logout no haya alcanzado a liberar la sesión, la misma persona/máquina no
     // queda bloqueada.
     const currentDevice = getRequestDeviceId(req);
-    const active = getActiveSession(user.id);
-    if (active && active.device && currentDevice && active.device !== currentDevice) {
+    const active = await prisma.adminSession.findUnique({ where: { userId: user.id } });
+    if (active && active.status === "ACTIVE" && active.deviceId && currentDevice && active.deviceId !== currentDevice) {
       res.status(409).json({
         code: "SESION_ABIERTA",
         message:
           "Ya hay una sesión activa con este usuario en otro dispositivo. Cierre esa sesión para poder ingresar.",
         session: {
-          ip: active.ip || null,
-          device: active.device || null,
-          since: active.since,
+          ip: active.ipAddress || null,
+          device: active.deviceId || null,
+          since: active.createdAt.getTime(),
         },
       });
       return;
@@ -92,7 +93,7 @@ export const adminLogin = async (req: Request, res: Response): Promise<void> => 
 
     // Captura manual: acceso directo abriendo la sesión única del usuario.
     recordLoginEvent(req, user, "Contraseña");
-    const jti = openSession(user.id, { ip: clientIp(req), device: getRequestDeviceId(req) || undefined });
+    const jti = await openAdminSession(user.id, user.branchId, { ip: clientIp(req), device: getRequestDeviceId(req) });
     const token = generateToken({
       userId: user.id,
       email: user.email,
@@ -194,13 +195,14 @@ export const cashierLogin = async (req: Request, res: Response): Promise<void> =
 };
 
 /**
- * Cierra la sesión activa del usuario en el registro en memoria, liberando el
- * correo para un nuevo inicio de sesión. El middleware garantiza que solo el
- * titular de la sesión vigente llega aquí.
+ * Cierra la sesión activa del usuario (borra su fila en AdminSession, si existe;
+ * los cajeros nunca tienen una), liberando el correo para un nuevo inicio de
+ * sesión. El middleware garantiza que solo el titular de la sesión vigente llega
+ * aquí. deleteMany no falla si no hay fila (p.ej. logout de un cajero).
  */
 export const logout = async (req: Request, res: Response): Promise<void> => {
   if (req.user?.userId) {
-    closeSession(req.user.userId);
+    await prisma.adminSession.deleteMany({ where: { userId: req.user.userId } });
   }
   res.status(200).json({ message: "Sesión cerrada." });
 };
@@ -298,7 +300,7 @@ export const verifyOtp = async (req: Request, res: Response) => {
     const user = await validateOtpCode(decoded.userId, otpCode);
     recordLoginEvent(req, user, "Contraseña + OTP correo");
     // Abre (o reemplaza) la sesión única del usuario y firma el token con su jti.
-    const jti = openSession(user.id, { ip: clientIp(req), device: getRequestDeviceId(req) || undefined });
+    const jti = await openAdminSession(user.id, user.branchId, { ip: clientIp(req), device: getRequestDeviceId(req) });
     const token = generateToken({
       userId: user.id,
       email: user.email,

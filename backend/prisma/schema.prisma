@@ -26,6 +26,7 @@ model Branch {
   authAuditLogs     AuthAuditLog[]
   parkedSales       ParkedSale[]
   failedPinAttempts FailedPinAttempt[]
+  adminSessions     AdminSession[]
 }
 
 model User {
@@ -65,6 +66,8 @@ model User {
   priceAdjustments       PriceAdjustment[]
   parkedSales            ParkedSale[]
   failedPinAttempts      FailedPinAttempt[]
+  adminSession           AdminSession?
+  revokedAdminSessions   AdminSession[]     @relation("AdminSessionRevokedBy")
 }
 
 model Product {
@@ -536,6 +539,29 @@ model FailedPinAttempt {
 
   user   User   @relation(fields: [userId], references: [id], onUpdate: NoAction)
   branch Branch @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+}
+
+// Fuente de verdad en BD para "una sola sesión por admin/gerente" — reemplaza el
+// registro en memoria (sessionRegistry.ts), que se perdía entre workers de PM2 en
+// modo cluster. Una fila vigente por usuario (userId único): cada login la
+// sobreescribe (upsert); revocarla la marca REVOKED con motivo, sin borrarla.
+model AdminSession {
+  id              Int       @id @default(autoincrement())
+  userId          Int       @unique
+  branchId        Int?
+  jti             String    @db.VarChar(64)
+  ipAddress       String?   @db.NVarChar(45)
+  deviceId        String?   @db.VarChar(64)
+  status          String    @default("ACTIVE") @db.VarChar(20) // ACTIVE | REVOKED
+  revokedReason   String?   @db.VarChar(500)
+  revokedByUserId Int?
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user      User    @relation(fields: [userId], references: [id], onUpdate: NoAction)
+  branch    Branch? @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+  revokedBy User?   @relation("AdminSessionRevokedBy", fields: [revokedByUserId], references: [id], onUpdate: NoAction)
 }
 
 // ─── CATEGORÍAS ────────────────────────────────────────────

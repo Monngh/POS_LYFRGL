@@ -71,8 +71,9 @@ import {
   streamSecurityEvents,
   getActiveSessions,
   revokeSession,
+  getMySessionStatus,
 } from "../controllers/securityAudit.controller";
-import { authenticateJWT, authenticateSSE, authorizeRoles } from "../middlewares/auth.middleware";
+import { authenticateJWT, authenticateJWTDecodeOnly, authenticateSSE, authorizeRoles } from "../middlewares/auth.middleware";
 
 const router = Router();
 
@@ -80,6 +81,17 @@ const router = Router();
 // de abajo porque EventSource no puede mandar el header Authorization — el JWT viaja
 // como query param (?token=) y se valida con authenticateSSE, no con authenticateJWT.
 router.get("/security/events", authenticateSSE, authorizeRoles(["ADMIN"]), streamSecurityEvents);
+
+// Estado de la propia sesión (polling de useAdminSessionStatus): también se registra
+// ANTES del router.use(authenticateJWT) de abajo, con authenticateJWTDecodeOnly en vez
+// de authenticateJWT, para que pueda responder { revoked: true, reason } con 200 en
+// vez de que el propio middleware la rechace con 401 antes de llegar al controlador.
+router.get(
+  "/security/my-session-status",
+  authenticateJWTDecodeOnly,
+  authorizeRoles(["ADMIN", "GERENTE"]),
+  getMySessionStatus
+);
 
 // Todos los módulos administrativos requieren JWT
 router.use(authenticateJWT);

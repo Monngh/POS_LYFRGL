@@ -1,8 +1,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../app";
 import { comparePassword, generateAuditToken, verifyToken } from "../utils/auth";
-import { emitSecurityEvent, onSecurityEvent, offSecurityEvent, type SecurityEventPayload } from "../utils/securityEvents";
-import { getAllActiveSessions, revokeSessionForcefully } from "../utils/sessionRegistry";
+import { onSecurityEvent, offSecurityEvent, type SecurityEventPayload } from "../utils/securityEvents";
 
 /** Construye el filtro de rango de fechas para createdAt. */
 const buildDateWhere = (from: unknown, to: unknown) => {
@@ -189,41 +188,31 @@ export const streamSecurityEvents = (req: Request, res: Response): void => {
 };
 
 /**
- * Lista las sesiones activas (ADMIN/GERENTE) registradas en memoria (sessionRegistry),
+ * Lista las sesiones activas (ADMIN/GERENTE) registradas en AdminSession (BD),
  * enriquecidas con nombre/email/rol/sucursal del usuario. Solo ADMIN.
  */
 export const getActiveSessions = async (_req: Request, res: Response): Promise<void> => {
   try {
-    // Excluye entradas expiradas y las "envenenadas" por revokeSessionForcefully (quedan
-    // en el registro a propósito para que isCurrentSession rechace el token viejo, pero
-    // no representan una sesión real que deba listarse aquí).
-    const entries = getAllActiveSessions().filter(
-      ([, entry]) => entry.exp > Date.now() && !entry.jti.startsWith("revoked-")
-    );
-    const userIds = entries.map(([userId]) => userId);
-
-    const users = await prisma.user.findMany({
-      where: { id: { in: userIds } },
-      select: { id: true, name: true, email: true, role: true, branch: { select: { id: true, name: true } } },
+    const activeSessions = await prisma.adminSession.findMany({
+      where: { status: "ACTIVE" },
+      include: {
+        user: {
+          select: { id: true, name: true, email: true, role: true, branch: { select: { id: true, name: true } } },
+        },
+      },
     });
-    const usersById = new Map(users.map((u) => [u.id, u]));
 
-    const sessions = entries
-      .map(([userId, entry]) => {
-        const user = usersById.get(userId);
-        if (!user) return null;
-        return {
-          userId,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          branch: user.branch,
-          ipAddress: entry.ip ?? null,
-          deviceId: entry.device ?? null,
-          since: new Date(entry.since).toISOString(),
-        };
-      })
-      .filter((s): s is NonNullable<typeof s> => s !== null)
+    const sessions = activeSessions
+      .map((s) => ({
+        userId: s.userId,
+        name: s.user.name,
+        email: s.user.email,
+        role: s.user.role,
+        branch: s.user.branch,
+        ipAddress: s.ipAddress,
+        deviceId: s.deviceId,
+        since: s.createdAt.toISOString(),
+      }))
       .sort((a, b) => b.since.localeCompare(a.since));
 
     res.json({ sessions });
@@ -234,10 +223,12 @@ export const getActiveSessions = async (_req: Request, res: Response): Promise<v
 };
 
 /**
- * Revoca (cierra) la sesión activa de un ADMIN/GERENTE. El siguiente request de ese
- * usuario será rechazado con SESION_DESPLAZADA por authenticateJWT; adicionalmente se
- * emite un evento SSE "session-revoked" para desconectarlo en tiempo real si tiene la
- * app abierta. Solo ADMIN. No permite auto-revocación (usar "Cerrar sesión" para eso).
+ * Revoca (cierra) la sesión activa de un ADMIN/GERENTE, dejando registrado el motivo
+ * en AdminSession. El siguiente request de ese usuario será rechazado con
+ * SESION_DESPLAZADA por authenticateJWT (rechazo duro); adicionalmente, su polling de
+ * 5s (useAdminSessionStatus) detectará la revocación y mostrará el motivo de forma
+ * instantánea sin esperar su siguiente clic. Solo ADMIN. No permite auto-revocación
+ * (usar "Cerrar sesión" para eso).
  */
 export const revokeSession = async (req: Request, res: Response): Promise<void> => {
   if (!req.user) {
@@ -256,12 +247,61 @@ export const revokeSession = async (req: Request, res: Response): Promise<void> 
     return;
   }
 
+  const { reason } = req.body;
+  if (!reason || typeof reason !== "string" || !reason.trim()) {
+    res.status(400).json({ message: "Debe indicar un motivo para revocar la sesión." });
+    return;
+  }
+
   try {
-    revokeSessionForcefully(targetUserId);
-    emitSecurityEvent("session-revoked", { userId: targetUserId });
+    const result = await prisma.adminSession.updateMany({
+      where: { userId: targetUserId, status: "ACTIVE" },
+      data: {
+        status: "REVOKED",
+        revokedReason: reason.trim(),
+        revokedByUserId: req.user.userId,
+        revokedAt: new Date(),
+      },
+    });
+
+    if (result.count === 0) {
+      res.status(404).json({ message: "El usuario no tiene una sesión activa." });
+      return;
+    }
+
     res.json({ message: "Sesión revocada correctamente." });
   } catch (err) {
     console.error("[revokeSession]", err);
     res.status(500).json({ message: "Error al revocar la sesión." });
+  }
+};
+
+/**
+ * Estado de la propia sesión del admin/gerente autenticado, consultado por
+ * useAdminSessionStatus (polling de 5s) para mostrarle un modal instantáneo con el
+ * motivo si fue revocada, en vez de esperar a su siguiente petición (donde de todas
+ * formas authenticateJWT la rechazaría con 401 SESION_DESPLAZADA).
+ */
+export const getMySessionStatus = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  try {
+    const session = await prisma.adminSession.findUnique({ where: { userId: req.user.userId } });
+    if (!session || session.status !== "REVOKED") {
+      res.json({ revoked: false, reason: null, revokedAt: null });
+      return;
+    }
+
+    res.json({
+      revoked: true,
+      reason: session.revokedReason,
+      revokedAt: session.revokedAt ? session.revokedAt.toISOString() : null,
+    });
+  } catch (err) {
+    console.error("[getMySessionStatus]", err);
+    res.status(500).json({ message: "Error al consultar el estado de la sesión." });
   }
 };
