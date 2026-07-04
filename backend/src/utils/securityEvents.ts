@@ -1,5 +1,10 @@
 import { EventEmitter } from "events";
 
+// IMPORTANTE — requiere un solo proceso Node: este EventEmitter vive en memoria de
+// UN proceso. En modo cluster de PM2 (más de una instancia) cada worker tiene su
+// propio emisor y los eventos no llegan a los clientes SSE conectados a otro worker.
+// Por eso backend/ecosystem.config.js debe usar exec_mode: 'fork' e instances: 1.
+
 export type SecurityEventType = "login" | "failed-pin" | "session-revoked";
 
 export interface SecurityEventPayload {

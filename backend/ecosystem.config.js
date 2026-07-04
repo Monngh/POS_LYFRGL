@@ -3,8 +3,13 @@ module.exports = {
     {
       name: 'pos-backend',
       script: 'dist/server.js',
-      instances: 'max', // Utiliza todos los núcleos disponibles del servidor
-      exec_mode: 'cluster',
+      // Instancia única y modo 'fork' (no 'cluster'): sessionRegistry.ts y
+      // securityEvents.ts viven en memoria de un solo proceso Node (Map/EventEmitter,
+      // sin Redis ni almacenamiento compartido). En modo cluster cada worker de PM2
+      // tiene su propia copia, así que "Sesiones Activas" salía vacía y el SSE de
+      // revocación no llegaba a todos los clientes conectados a otro worker.
+      instances: 1,
+      exec_mode: 'fork',
       autorestart: true,
       watch: false,
       max_memory_restart: '1G',

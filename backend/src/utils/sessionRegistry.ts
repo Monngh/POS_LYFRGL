@@ -11,6 +11,11 @@ import crypto from "crypto";
  *
  * Nota: al ser en memoria, se limpia si el servidor se reinicia. En ese caso la
  * validación es permisiva (no expulsa tokens vigentes) hasta el próximo login.
+ *
+ * IMPORTANTE — requiere un solo proceso Node: este Map vive en la memoria de UN
+ * proceso. Si PM2 corre en modo cluster con más de una instancia, cada worker tiene
+ * su propia copia y no la comparten entre sí (ni tampoco con securityEvents.ts).
+ * Por eso backend/ecosystem.config.js debe usar exec_mode: 'fork' e instances: 1.
  */
 
 export interface SessionEntry {
