@@ -1,9 +1,13 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { BadgePercent, ChevronDown, ChevronUp, Package, Pencil, Plus, Power, X } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BadgePercent, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Package, Pencil, Plus, Power, X } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
 import { DataTable, ActionModal } from "../../shared/ui";
 import type { Column } from "../../shared/ui";
+import {
+  adminCategoryService,
+  type AdminCategoryFlatItem,
+} from "../services/categoryAdmin.service";
 import {
   DECIMAL_INPUT_REGEX,
   getDecimalValidationValue,
@@ -22,7 +26,6 @@ import {
   SectionHeader,
   fmtDate,
   money,
-  matchesProductSearch,
   useMediaQuery,
 } from "./shared";
 
@@ -51,6 +54,15 @@ interface LegacyTaxResponse {
   taxes?: unknown;
 }
 
+type TaxProductScope = "ALL" | "DIVISION" | "DEPARTMENT" | "CATEGORY" | "UNCATEGORIZED";
+
+interface TaxProductCategory {
+  id: number;
+  code: string;
+  name: string;
+  level: "DIVISION" | "DEPARTMENT" | "CATEGORY";
+}
+
 interface FormState {
   name: string;
   description: string;
@@ -64,8 +76,27 @@ interface ProductForTax {
   sku: string;
   name: string;
   barcode: string | null;
+  description: string | null;
+  costPrice: number;
   sellPrice: number;
+  active: boolean;
   assigned: boolean;
+  categories: TaxProductCategory[];
+}
+
+interface TaxProductsPayload {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  assignedCount: number;
+  assignedProductIds?: number[];
+  products: ProductForTax[];
+}
+
+interface TaxProductsResponse {
+  success: boolean;
+  data: TaxProductsPayload;
 }
 
 type FieldErrors = Partial<Record<keyof FormState, string>>;
@@ -78,6 +109,36 @@ const emptyForm: FormState = {
 };
 
 const TAX_ENDPOINT = "/api/admin-tax/taxes";
+const TAX_PRODUCT_LIMIT = 10;
+
+const TAX_SCOPE_OPTIONS: Array<{ label: string; value: TaxProductScope }> = [
+  { label: "Todos los productos", value: "ALL" },
+  { label: "Por division", value: "DIVISION" },
+  { label: "Por departamento", value: "DEPARTMENT" },
+  { label: "Por categoria", value: "CATEGORY" },
+  { label: "Productos sin categoria", value: "UNCATEGORIZED" },
+];
+
+const TAX_SCOPES_WITH_CATEGORY: TaxProductScope[] = ["DIVISION", "DEPARTMENT", "CATEGORY"];
+
+const compactParams = (
+  params: Record<string, string | number | boolean | undefined>
+): Record<string, string | number | boolean> =>
+  Object.fromEntries(
+    Object.entries(params).filter(
+      (entry): entry is [string, string | number | boolean] =>
+        entry[1] !== undefined && entry[1] !== ""
+    )
+  );
+
+const needsCategory = (scope: TaxProductScope) => TAX_SCOPES_WITH_CATEGORY.includes(scope);
+
+const scopeLabel = (scope: TaxProductScope) => {
+  if (scope === "DIVISION") return "Division";
+  if (scope === "DEPARTMENT") return "Departamento";
+  if (scope === "CATEGORY") return "Categoria";
+  return "";
+};
 
 // ---------------------------------------------------------------------------
 // Helpers de formato
@@ -127,6 +188,8 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [statusConfirmTarget, setStatusConfirmTarget] = useState<TaxRow | null>(null);
   const [expandedTaxes, setExpandedTaxes] = useState<Record<number, boolean>>({});
   const isMobile = useMediaQuery("(max-width: 1024px)");
+  const isPhone = useMediaQuery("(max-width: 767px)");
+  const isModalNarrow = useMediaQuery("(max-width: 1023px)");
 
   const toggleExpandTax = (id: number) =>
     setExpandedTaxes((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -146,13 +209,26 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
   // ── Modal: Gestionar productos de un impuesto ──
   const [manageOpen, setManageOpen] = useState(false);
   const [managingTax, setManagingTax] = useState<TaxRow | null>(null);
-  const [manageAllProducts, setManageAllProducts] = useState<ProductForTax[]>([]);
+  const [manageProducts, setManageProducts] = useState<ProductForTax[]>([]);
+  const [managePagination, setManagePagination] = useState({
+    page: 1,
+    limit: TAX_PRODUCT_LIMIT,
+    total: 0,
+    totalPages: 1,
+  });
+  const [manageScope, setManageScope] = useState<TaxProductScope>("ALL");
+  const [manageCategoryId, setManageCategoryId] = useState<number | undefined>(undefined);
+  const [manageCategories, setManageCategories] = useState<AdminCategoryFlatItem[]>([]);
+  const [manageCategoriesLoading, setManageCategoriesLoading] = useState(false);
   const [manageLoading, setManageLoading] = useState(false);
   const [manageError, setManageError] = useState<string | null>(null);
   const [manageSaving, setManageSaving] = useState(false);
   const [manageNotice, setManageNotice] = useState<string | null>(null);
-  const [manageSearch, setManageSearch] = useState("");
+  const [manageSearchInput, setManageSearchInput] = useState("");
+  const [debouncedManageSearch, setDebouncedManageSearch] = useState("");
+  const [managePage, setManagePage] = useState(1);
   const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
+  const [assignedProductIds, setAssignedProductIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
@@ -178,16 +254,26 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
   const activeCount = useMemo(() => rows.filter((r) => r.active).length, [rows]);
   const inactiveCount = rows.length - activeCount;
 
-  // ── Búsqueda local en el modal (multi-palabra) ──
-  const filteredManageProducts = useMemo(() => {
-    if (!manageSearch.trim()) return manageAllProducts;
-    return manageAllProducts.filter((p) =>
-      matchesProductSearch(
-        { sku: p.sku, name: p.name, barcode: p.barcode ?? undefined },
-        manageSearch
-      )
-    );
-  }, [manageAllProducts, manageSearch]);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedManageSearch(manageSearchInput);
+      setManagePage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [manageSearchInput]);
+
+  const manageFilteredCategories = useMemo(() => {
+    if (!needsCategory(manageScope)) return [];
+    return manageCategories.filter((category) => category.level === manageScope);
+  }, [manageCategories, manageScope]);
+
+  const manageFilterColumns = isPhone
+    ? "1fr"
+    : isModalNarrow
+      ? "minmax(0, 1fr) minmax(0, 1fr)"
+      : needsCategory(manageScope)
+        ? "minmax(180px, 240px) minmax(220px, 1fr) minmax(280px, 1.55fr)"
+        : "minmax(190px, 260px) minmax(280px, 1fr)";
 
   // ── Formulario de impuesto ──
   const openCreate = () => {
@@ -329,57 +415,124 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
   };
 
   // ── Gestión masiva de productos ──
-  const openManage = async (tax: TaxRow) => {
-    setManagingTax(tax);
-    setManageSearch("");
-    setManageNotice(null);
-    setManageError(null);
-    setManageLoading(true);
-    setManageOpen(true);
-    setCheckedIds(new Set());
-    setManageAllProducts([]);
+  const loadManageCategories = useCallback(async () => {
+    setManageCategoriesLoading(true);
     try {
-      const res = await api.get<{ data: { products: ProductForTax[] } }>(
-        `/api/admin-tax/taxes/${tax.id}/products`
-      );
-      const prods = res.data.data.products;
-      setManageAllProducts(prods);
-      setCheckedIds(new Set(prods.filter((p) => p.assigned).map((p) => p.id)));
+      const categories = await adminCategoryService.listFlat({ active: true });
+      setManageCategories(categories);
     } catch (err: unknown) {
-      setManageError(getErrorMessage(err, "No se pudo cargar los productos."));
+      setManageCategories([]);
+      setManageError(getErrorMessage(err, "No se pudieron cargar las categorias."));
+    } finally {
+      setManageCategoriesLoading(false);
+    }
+  }, []);
+
+  const loadManageProducts = useCallback(async () => {
+    if (!manageOpen || !managingTax) return;
+
+    if (needsCategory(manageScope) && !manageCategoryId) {
+      setManageProducts([]);
+      setManagePagination({ page: 1, limit: TAX_PRODUCT_LIMIT, total: 0, totalPages: 1 });
+      setManageError(null);
+      return;
+    }
+
+    setManageLoading(true);
+    setManageError(null);
+    try {
+      const res = await api.get<TaxProductsResponse>(
+        `/api/admin-tax/taxes/${managingTax.id}/products`,
+        {
+          params: compactParams({
+            search: debouncedManageSearch.trim() || undefined,
+            scope: manageScope,
+            categoryId: manageCategoryId,
+            page: managePage,
+            limit: TAX_PRODUCT_LIMIT,
+            includeAssociated: true,
+          }),
+        }
+      );
+
+      const payload = res.data.data;
+      setManageProducts(payload.products);
+      setManagePagination({
+        page: payload.page,
+        limit: payload.limit,
+        total: payload.total,
+        totalPages: Math.max(payload.totalPages, 1),
+      });
+      setAssignedProductIds(
+        new Set(payload.assignedProductIds ?? payload.products.filter((product) => product.assigned).map((product) => product.id))
+      );
+    } catch (err: unknown) {
+      setManageProducts([]);
+      setManageError(getErrorMessage(err, "No se pudieron cargar los productos."));
     } finally {
       setManageLoading(false);
     }
+  }, [
+    debouncedManageSearch,
+    manageCategoryId,
+    manageOpen,
+    managePage,
+    manageScope,
+    managingTax,
+  ]);
+
+  useEffect(() => {
+    if (manageOpen) void loadManageProducts();
+  }, [loadManageProducts, manageOpen]);
+
+  const openManage = (tax: TaxRow) => {
+    setManagingTax(tax);
+    setManageScope("ALL");
+    setManageCategoryId(undefined);
+    setManageSearchInput("");
+    setDebouncedManageSearch("");
+    setManagePage(1);
+    setManagePagination({ page: 1, limit: TAX_PRODUCT_LIMIT, total: 0, totalPages: 1 });
+    setManageNotice(null);
+    setManageError(null);
+    setManageOpen(true);
+    setCheckedIds(new Set());
+    setAssignedProductIds(new Set());
+    setManageProducts([]);
+    void loadManageCategories();
   };
 
   const closeManage = () => {
     if (manageSaving) return;
     setManageOpen(false);
     setManagingTax(null);
-    setManageAllProducts([]);
+    setManageProducts([]);
+    setManageCategories([]);
+    setManageScope("ALL");
+    setManageCategoryId(undefined);
+    setManagePagination({ page: 1, limit: TAX_PRODUCT_LIMIT, total: 0, totalPages: 1 });
+    setManagePage(1);
+    setDebouncedManageSearch("");
     setCheckedIds(new Set());
-    setManageSearch("");
+    setAssignedProductIds(new Set());
+    setManageSearchInput("");
     setManageNotice(null);
     setManageError(null);
   };
 
   const saveManage = async () => {
-    if (!managingTax || manageSaving) return;
+    if (!managingTax || manageSaving || checkedIds.size === 0) return;
     setManageSaving(true);
     setManageNotice(null);
     setManageError(null);
     try {
+      const productIds = [...new Set([...assignedProductIds, ...checkedIds])];
       await api.put(`/api/admin-tax/taxes/${managingTax.id}/products`, {
-        productIds: [...checkedIds],
+        productIds,
       });
-      // Recargar lista para reflejar estado actualizado
-      const res = await api.get<{ data: { products: ProductForTax[] } }>(
-        `/api/admin-tax/taxes/${managingTax.id}/products`
-      );
-      const prods = res.data.data.products;
-      setManageAllProducts(prods);
-      setCheckedIds(new Set(prods.filter((p) => p.assigned).map((p) => p.id)));
       setManageNotice("Impuesto asignado correctamente a los productos seleccionados.");
+      setCheckedIds(new Set());
+      await loadManageProducts();
     } catch (err: unknown) {
       setManageError(getErrorMessage(err, "No se pudo guardar la asignación."));
     } finally {
@@ -387,28 +540,56 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
     }
   };
 
-  const toggleChecked = (id: number) => {
+  const changeManageScope = (scope: TaxProductScope) => {
+    setManageScope(scope);
+    setManageCategoryId(undefined);
+    setCheckedIds(new Set());
+    setManagePage(1);
+  };
+
+  const changeManageCategory = (categoryId: number | undefined) => {
+    setManageCategoryId(categoryId);
+    setCheckedIds(new Set());
+    setManagePage(1);
+  };
+
+  const toggleChecked = (product: ProductForTax) => {
+    if (product.assigned || !product.active || !managingTax?.active) return;
     setCheckedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(product.id)) next.delete(product.id);
+      else next.add(product.id);
       return next;
     });
   };
+
+  const selectableVisibleProducts = manageProducts.filter(
+    (product) => product.active && !product.assigned && Boolean(managingTax?.active)
+  );
+  const allVisibleChecked =
+    selectableVisibleProducts.length > 0 &&
+    selectableVisibleProducts.every((product) => checkedIds.has(product.id));
+
+  const selectVisible = () => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      selectableVisibleProducts.forEach((product) => next.add(product.id));
+      return next;
+    });
+  };
+
+  const clearSelection = () => setCheckedIds(new Set());
 
   const toggleAllVisible = () => {
-    const ids = filteredManageProducts.map((p) => p.id);
-    const allChecked = ids.every((id) => checkedIds.has(id));
     setCheckedIds((prev) => {
       const next = new Set(prev);
-      ids.forEach((id) => (allChecked ? next.delete(id) : next.add(id)));
+      selectableVisibleProducts.forEach((product) => {
+        if (allVisibleChecked) next.delete(product.id);
+        else next.add(product.id);
+      });
       return next;
     });
   };
-
-  const allVisibleChecked =
-    filteredManageProducts.length > 0 &&
-    filteredManageProducts.every((p) => checkedIds.has(p.id));
 
   // ── Input handlers ──
   const set =
@@ -821,18 +1002,18 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
           position: "fixed", inset: 0,
           backgroundColor: "rgba(15,23,42,0.55)",
           display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 300, padding: 20,
+          zIndex: 300, padding: isPhone ? 8 : 20,
         }}>
           <div style={{
             backgroundColor: "var(--surface)", borderRadius: 16,
             boxShadow: "0 24px 48px rgba(0,0,0,0.2)",
-            width: "100%", maxWidth: 780, maxHeight: "90vh",
+            width: "100%", maxWidth: 1040, maxHeight: isPhone ? "96vh" : "88vh",
             display: "flex", flexDirection: "column", overflow: "hidden",
           }}>
 
             {/* Header */}
             <div style={{
-              padding: "20px 24px 16px", borderBottom: "1px solid var(--border)",
+              padding: isPhone ? "16px 16px 12px" : "18px 24px 14px", borderBottom: "1px solid var(--border)",
               display: "flex", justifyContent: "space-between", alignItems: "flex-start",
               flexShrink: 0,
             }}>
@@ -861,42 +1042,123 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
               </button>
             </div>
 
-            {/* Subheader: advertencia + stats + búsqueda + avisos */}
-            <div style={{ padding: "14px 24px 12px", borderBottom: "1px solid var(--border-soft)", flexShrink: 0 }}>
+            {/* Subheader: advertencia + filtros + avisos */}
+            <div style={{
+              padding: isPhone ? "12px 16px 10px" : "12px 24px 10px",
+              borderBottom: "1px solid var(--border-soft)",
+              flexShrink: 0,
+            }}>
               {!managingTax.active && (
                 <div style={{
                   backgroundColor: "#fef3c7", border: "1px solid #fde68a",
                   borderRadius: 8, padding: "8px 12px", marginBottom: 12,
                   fontSize: 13, color: "#92400e", fontWeight: 600,
                 }}>
-                  ⚠️ Este impuesto está inactivo. No puedes asignar nuevos productos a él.
+                  Este impuesto esta inactivo. No puedes asignar nuevos productos a el.
                 </div>
               )}
 
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-                <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
-                  <span style={{ color: "var(--accent-strong)", fontWeight: 800 }}>{checkedIds.size}</span>{" "}
-                  seleccionado{checkedIds.size !== 1 ? "s" : ""}{" "}
-                  · {manageAllProducts.filter((p) => p.assigned).length} ya vinculado{manageAllProducts.filter((p) => p.assigned).length !== 1 ? "s" : ""}
-                  {" "}· {manageAllProducts.length} total
-                </span>
-                {filteredManageProducts.length > 0 && (
-                  <button
-                    onClick={toggleAllVisible}
+              <div style={{ ...styles.manageFilters, gridTemplateColumns: manageFilterColumns }}>
+                <div style={styles.manageFilterGroup}>
+                  <label style={ui.fieldLabel}>Alcance</label>
+                  <select
+                    style={{ ...ui.input, height: 38 }}
+                    value={manageScope}
+                    onChange={(event) => changeManageScope(event.target.value as TaxProductScope)}
                     disabled={manageSaving}
-                    style={{ ...ui.ghostBtn, fontSize: 12 }}
-                    className="active-tap"
                   >
-                    {allVisibleChecked ? "Deseleccionar visibles" : "Seleccionar visibles"}
-                  </button>
+                    {TAX_SCOPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {needsCategory(manageScope) && (
+                  <div style={styles.manageFilterGroup}>
+                    <label style={ui.fieldLabel}>{scopeLabel(manageScope)}</label>
+                    {manageCategoriesLoading ? (
+                      <div style={styles.manageSelectPlaceholder}>Cargando categorias...</div>
+                    ) : (
+                      <select
+                        style={{ ...ui.input, height: 38 }}
+                        value={manageCategoryId ?? ""}
+                        onChange={(event) =>
+                          changeManageCategory(event.target.value ? Number(event.target.value) : undefined)
+                        }
+                        disabled={manageSaving}
+                      >
+                        <option value="">Selecciona {scopeLabel(manageScope).toLowerCase()}...</option>
+                        {manageFilteredCategories.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.pathLabel || `${category.code} ${category.name}`}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
                 )}
+
+                <div style={{
+                  ...styles.manageSearchGroup,
+                  gridColumn: isModalNarrow ? "1 / -1" : undefined,
+                }}>
+                  <label style={{ ...ui.fieldLabel, display: "block", marginBottom: 4 }}>Buscar</label>
+                  <SearchInput
+                    value={manageSearchInput}
+                    onChange={setManageSearchInput}
+                    placeholder="Buscar por SKU, codigo, nombre o descripcion"
+                  />
+                </div>
               </div>
 
-              <SearchInput
-                value={manageSearch}
-                onChange={setManageSearch}
-                placeholder="Buscar por nombre, SKU o código de barras..."
-              />
+              <p style={styles.helpText}>
+                Los productos se muestran segun el alcance de categorias seleccionado. El filtro solo ayuda a encontrarlos; la asignacion sigue siendo manual.
+              </p>
+
+              <div style={styles.manageSelectionBar}>
+                <span style={{
+                  ...styles.manageCounter,
+                  flexBasis: isPhone ? "100%" : "auto",
+                }}>
+                  <span style={{ color: "var(--accent-strong)", fontWeight: 800 }}>{checkedIds.size}</span>{" "}
+                  seleccionado{checkedIds.size !== 1 ? "s" : ""}{" "}
+                  · {assignedProductIds.size} ya asociado{assignedProductIds.size !== 1 ? "s" : ""}
+                  {" "}· {managePagination.total} resultado{managePagination.total !== 1 ? "s" : ""}
+                </span>
+                <div style={{
+                  ...styles.manageSelectionActions,
+                  width: isPhone ? "100%" : undefined,
+                }}>
+                  <button
+                    onClick={selectVisible}
+                    disabled={manageSaving || manageLoading || selectableVisibleProducts.length === 0 || allVisibleChecked}
+                    style={{
+                      ...ui.ghostBtn,
+                      ...styles.manageSmallButton,
+                      flex: isPhone ? 1 : undefined,
+                      opacity: selectableVisibleProducts.length === 0 || allVisibleChecked ? 0.55 : 1,
+                    }}
+                    className="active-tap"
+                  >
+                    Seleccionar visibles
+                  </button>
+                  <button
+                    onClick={clearSelection}
+                    disabled={manageSaving || checkedIds.size === 0}
+                    style={{
+                      ...ui.ghostBtn,
+                      ...styles.manageSmallButton,
+                      flex: isPhone ? 1 : undefined,
+                      opacity: checkedIds.size === 0 ? 0.55 : 1,
+                    }}
+                    className="active-tap"
+                  >
+                    Limpiar seleccion
+                  </button>
+                </div>
+              </div>
 
               {manageNotice && (
                 <div style={{
@@ -919,35 +1181,45 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
             </div>
 
             {/* Lista de productos */}
-            <div style={{ flex: 1, overflowY: "auto" }}>
+            <div style={{
+              ...styles.manageProductsArea,
+              padding: isPhone ? "0 16px 12px" : "0 24px 14px",
+            }}>
               {manageLoading && (
                 <div style={{ textAlign: "center", padding: 40, color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
                   Cargando productos...
                 </div>
               )}
-              {!manageLoading && filteredManageProducts.length === 0 && (
+              {!manageLoading && needsCategory(manageScope) && !manageCategoryId && (
                 <div style={{ textAlign: "center", padding: 40, color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-                  {manageSearch.trim()
-                    ? "No se encontraron productos con esa búsqueda."
-                    : "No hay productos activos disponibles."}
+                  Selecciona una {scopeLabel(manageScope).toLowerCase()} para ver productos.
+                </div>
+              )}
+              {!manageLoading && (!needsCategory(manageScope) || manageCategoryId) && manageProducts.length === 0 && (
+                <div style={{ textAlign: "center", padding: 40, color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+                  {debouncedManageSearch.trim()
+                    ? "No se encontraron productos con esa busqueda."
+                    : "No hay productos activos disponibles con estos filtros."}
                 </div>
               )}
 
-              {!manageLoading && filteredManageProducts.length > 0 && (
-                isMobile ? (
+              {!manageLoading && manageProducts.length > 0 && (
+                isPhone ? (
                   /* ── Mobile: cards ── */
-                  <div style={{ padding: "4px 16px" }}>
-                    {filteredManageProducts.map((p) => {
+                  <div style={styles.manageCardsScroll}>
+                    {manageProducts.map((p) => {
                       const isChecked = checkedIds.has(p.id);
+                      const disabled = p.assigned || !p.active || !managingTax.active;
                       return (
                         <div
                           key={p.id}
-                          onClick={() => toggleChecked(p.id)}
+                          onClick={() => toggleChecked(p)}
                           style={{
-                            display: "flex", alignItems: "center", gap: 12,
-                            padding: "10px 8px", borderBottom: "1px solid var(--border-soft)",
-                            cursor: "pointer", borderRadius: 6,
+                            display: "grid", gridTemplateColumns: "24px 1fr auto", gap: 12,
+                            padding: "12px 8px", borderBottom: "1px solid var(--border-soft)",
+                            cursor: disabled ? "default" : "pointer", borderRadius: 6,
                             backgroundColor: isChecked ? "rgba(59,130,246,0.06)" : undefined,
+                            opacity: disabled ? 0.68 : 1,
                             transition: "background-color 0.1s",
                           }}
                         >
@@ -955,18 +1227,32 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => {}}
-                            disabled={manageSaving}
+                            disabled={manageSaving || disabled}
                             style={{ width: 16, height: 16, accentColor: "var(--accent)", cursor: "pointer", flexShrink: 0 }}
                           />
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {p.name}
                             </div>
-                            <div style={{ fontSize: 11, color: "var(--text-faint)", fontFamily: "monospace" }}>{p.sku}</div>
+                            <div style={{ fontSize: 11, color: "var(--text-faint)", fontFamily: "monospace" }}>
+                              {p.sku} · {p.barcode || "Sin codigo"}
+                            </div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                              {p.categories.length === 0 ? (
+                                <span style={styles.noCatBadge}>Sin categoria</span>
+                              ) : (
+                                p.categories.map((category) => (
+                                  <span key={category.id} style={styles.manageCategoryBadge}>
+                                    {category.code ? `${category.code} ${category.name}` : category.name}
+                                  </span>
+                                ))
+                              )}
+                            </div>
                           </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{money(p.sellPrice)}</span>
-                            {p.assigned && <Badge tone="green">Vinculado</Badge>}
+                          <div style={{ display: "grid", gap: 5, justifyItems: "end", flexShrink: 0 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)" }}>Costo {money(p.costPrice)}</span>
+                            <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text)" }}>{money(p.sellPrice)}</span>
+                            {p.assigned ? <Badge tone="blue">Ya asociado</Badge> : <Badge tone="green">Activo</Badge>}
                           </div>
                         </div>
                       );
@@ -974,88 +1260,159 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                   </div>
                 ) : (
                   /* ── Desktop: tabla ── */
-                  <table style={{ ...ui.table, width: "100%" }}>
-                    <thead>
-                      <tr style={ui.theadRow}>
-                        <th style={{ ...ui.th, width: 44, textAlign: "center" }}>
-                          <input
-                            type="checkbox"
-                            checked={allVisibleChecked}
-                            onChange={toggleAllVisible}
-                            disabled={manageSaving}
-                            style={{ width: 15, height: 15, accentColor: "var(--accent)", cursor: "pointer" }}
-                            title="Seleccionar / deseleccionar todos los visibles"
-                          />
-                        </th>
-                        <th style={{ ...ui.th, width: 110 }}>SKU</th>
-                        <th style={ui.th}>Nombre</th>
-                        <th style={{ ...ui.th, textAlign: "right", width: 100 }}>Precio venta</th>
-                        <th style={{ ...ui.th, textAlign: "center", width: 110 }}>Estado</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredManageProducts.map((p) => {
-                        const isChecked = checkedIds.has(p.id);
-                        return (
-                          <tr
-                            key={p.id}
-                            onClick={() => toggleChecked(p.id)}
-                            style={{
-                              cursor: "pointer",
-                              backgroundColor: isChecked ? "rgba(59,130,246,0.07)" : undefined,
-                              transition: "background-color 0.1s",
-                            }}
-                          >
-                            <td style={{ ...ui.td, textAlign: "center" }}>
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => {}}
-                                disabled={manageSaving}
-                                style={{ width: 15, height: 15, accentColor: "var(--accent)", cursor: "pointer" }}
-                              />
-                            </td>
-                            <td style={{ ...ui.td, fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-                              {p.sku}
-                            </td>
-                            <td style={{ ...ui.td, fontWeight: 600, color: "var(--text)", whiteSpace: "normal" }}>
-                              {p.name}
-                            </td>
-                            <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, whiteSpace: "nowrap" }}>
-                              {money(p.sellPrice)}
-                            </td>
-                            <td style={{ ...ui.td, textAlign: "center" }}>
-                              {p.assigned && <Badge tone="green">Vinculado</Badge>}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                  <div style={styles.manageTableScroll}>
+                    <table style={{ ...ui.table, width: "100%", minWidth: 980, marginTop: 0 }}>
+                      <thead>
+                        <tr style={ui.theadRow}>
+                          <th style={{ ...ui.th, width: 44, textAlign: "center" }}>
+                            <input
+                              type="checkbox"
+                              checked={allVisibleChecked}
+                              onChange={toggleAllVisible}
+                              disabled={manageSaving || selectableVisibleProducts.length === 0}
+                              style={{ width: 15, height: 15, accentColor: "var(--accent)", cursor: "pointer" }}
+                              title="Seleccionar / deseleccionar productos visibles"
+                            />
+                          </th>
+                          <th style={{ ...ui.th, width: 110 }}>SKU</th>
+                          <th style={{ ...ui.th, width: 140 }}>Codigo barras</th>
+                          <th style={ui.th}>Producto</th>
+                          <th style={{ ...ui.th, textAlign: "right", width: 100 }}>Costo</th>
+                          <th style={{ ...ui.th, textAlign: "right", width: 120 }}>Precio venta</th>
+                          <th style={{ ...ui.th, width: 190 }}>Categorias</th>
+                          <th style={{ ...ui.th, textAlign: "center", width: 115 }}>Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {manageProducts.map((p) => {
+                          const isChecked = checkedIds.has(p.id);
+                          const disabled = p.assigned || !p.active || !managingTax.active;
+                          return (
+                            <tr
+                              key={p.id}
+                              onClick={() => toggleChecked(p)}
+                              style={{
+                                cursor: disabled ? "default" : "pointer",
+                                backgroundColor: isChecked ? "rgba(59,130,246,0.07)" : undefined,
+                                opacity: disabled ? 0.68 : 1,
+                                transition: "background-color 0.1s",
+                              }}
+                            >
+                              <td style={{ ...ui.td, textAlign: "center" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {}}
+                                  disabled={manageSaving || disabled}
+                                  style={{ width: 15, height: 15, accentColor: "var(--accent)", cursor: disabled ? "default" : "pointer" }}
+                                />
+                              </td>
+                              <td style={{ ...ui.td, fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                                {p.sku}
+                              </td>
+                              <td style={{ ...ui.td, fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                                {p.barcode || "Sin codigo"}
+                              </td>
+                              <td style={{ ...ui.td, color: "var(--text)", whiteSpace: "normal" }}>
+                                <div style={{ fontWeight: 700 }}>{p.name}</div>
+                                {p.description && (
+                                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{p.description}</div>
+                                )}
+                              </td>
+                              <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, whiteSpace: "nowrap" }}>
+                                {money(p.costPrice)}
+                              </td>
+                              <td style={{ ...ui.td, textAlign: "right", fontWeight: 800, whiteSpace: "nowrap" }}>
+                                {money(p.sellPrice)}
+                              </td>
+                              <td style={{ ...ui.td, whiteSpace: "normal" }}>
+                                {p.categories.length === 0 ? (
+                                  <span style={styles.noCatBadge}>Sin categoria</span>
+                                ) : (
+                                  <div style={styles.manageCategoryList}>
+                                    {p.categories.map((category) => (
+                                      <span key={category.id} style={styles.manageCategoryBadge}>
+                                        {category.code ? `${category.code} ${category.name}` : category.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </td>
+                              <td style={{ ...ui.td, textAlign: "center" }}>
+                                {p.assigned ? (
+                                  <Badge tone="blue">Ya asociado</Badge>
+                                ) : p.active ? (
+                                  <Badge tone="green">Activo</Badge>
+                                ) : (
+                                  <Badge tone="slate">Inactivo</Badge>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 )
+              )}
+
+              {!manageLoading && managePagination.totalPages > 1 && (
+                <div style={styles.managePagination}>
+                  <button
+                    type="button"
+                    style={{ ...ui.ghostBtn, fontSize: 12 }}
+                    disabled={managePage <= 1 || manageSaving}
+                    onClick={() => setManagePage((page) => Math.max(1, page - 1))}
+                    className="active-tap"
+                  >
+                    <ChevronLeft size={14} /> Anterior
+                  </button>
+                  <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 700 }}>
+                    Pagina {managePagination.page} de {managePagination.totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    style={{ ...ui.ghostBtn, fontSize: 12 }}
+                    disabled={managePage >= managePagination.totalPages || manageSaving}
+                    onClick={() => setManagePage((page) => Math.min(managePagination.totalPages, page + 1))}
+                    className="active-tap"
+                  >
+                    Siguiente <ChevronRight size={14} />
+                  </button>
+                </div>
               )}
             </div>
 
             {/* Footer */}
             <div style={{
-              padding: "16px 24px", borderTop: "1px solid var(--border)",
-              display: "flex", gap: 10, justifyContent: "flex-end", flexShrink: 0,
+              ...styles.manageFooter,
+              flexDirection: isPhone ? "column-reverse" : "row",
+              padding: isPhone ? "12px 16px" : "14px 24px",
             }}>
               <button
                 onClick={closeManage}
                 disabled={manageSaving}
-                style={ui.ghostBtn}
+                style={{
+                  ...ui.ghostBtn,
+                  justifyContent: "center",
+                  width: isPhone ? "100%" : undefined,
+                }}
                 className="active-tap"
               >
                 Cancelar
               </button>
               <button
                 onClick={saveManage}
-                disabled={manageSaving || manageLoading}
-                style={{ ...ui.primaryBtn, opacity: (manageSaving || manageLoading) ? 0.7 : 1 }}
+                disabled={manageSaving || manageLoading || checkedIds.size === 0 || !managingTax.active}
+                style={{
+                  ...ui.primaryBtn,
+                  justifyContent: "center",
+                  width: isPhone ? "100%" : undefined,
+                  opacity: (manageSaving || manageLoading || checkedIds.size === 0 || !managingTax.active) ? 0.7 : 1,
+                }}
                 className="active-tap"
               >
-                {manageSaving ? "Guardando..." : "Guardar asignación"}
+                {manageSaving ? "Guardando..." : `Guardar ${checkedIds.size || ""} seleccion${checkedIds.size === 1 ? "" : "es"}`}
               </button>
             </div>
           </div>
@@ -1100,7 +1457,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "var(--text-muted)",
     fontSize: 12,
     fontWeight: 600,
-    marginTop: 7,
+    margin: "6px 0 0",
   },
   fieldError: {
     color: "#b91c1c",
@@ -1134,6 +1491,118 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     gap: 10,
     marginTop: 22,
+  },
+  manageFilters: {
+    alignItems: "end",
+    display: "grid",
+    gap: 10,
+    marginBottom: 8,
+  },
+  manageFilterGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    minWidth: 0,
+  },
+  manageSearchGroup: {
+    minWidth: 0,
+  },
+  manageSelectPlaceholder: {
+    alignItems: "center",
+    backgroundColor: "var(--input-bg)",
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    color: "var(--text-muted)",
+    display: "flex",
+    fontSize: 13,
+    fontWeight: 600,
+    height: 38,
+    padding: "0 12px",
+  },
+  manageSelectionBar: {
+    alignItems: "center",
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
+    justifyContent: "flex-start",
+    marginTop: 10,
+  },
+  manageCounter: {
+    color: "var(--text-muted)",
+    fontSize: 13,
+    fontWeight: 600,
+    marginRight: "auto",
+  },
+  manageSelectionActions: {
+    alignItems: "center",
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  manageSmallButton: {
+    fontSize: 12,
+    justifyContent: "center",
+    minHeight: 34,
+    whiteSpace: "nowrap",
+  },
+  manageProductsArea: {
+    display: "flex",
+    flex: "1 1 auto",
+    flexDirection: "column",
+    minHeight: 0,
+    overflow: "hidden",
+    paddingTop: 0,
+  },
+  manageTableScroll: {
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    maxHeight: "clamp(220px, 42vh, 430px)",
+    overflow: "auto",
+  },
+  manageCardsScroll: {
+    maxHeight: "clamp(240px, 48vh, 440px)",
+    overflowY: "auto",
+    padding: "4px 0",
+  },
+  manageCategoryList: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  manageCategoryBadge: {
+    backgroundColor: "var(--surface-2)",
+    border: "1px solid var(--border)",
+    borderRadius: 4,
+    color: "var(--text-secondary)",
+    display: "inline-flex",
+    fontSize: 10,
+    fontWeight: 700,
+    lineHeight: 1.2,
+    maxWidth: "100%",
+    padding: "2px 6px",
+    whiteSpace: "normal",
+  },
+  noCatBadge: {
+    color: "var(--text-faint)",
+    fontSize: 11,
+    fontStyle: "italic",
+    fontWeight: 700,
+  },
+  managePagination: {
+    alignItems: "center",
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 10,
+    justifyContent: "center",
+    marginTop: 12,
+  },
+  manageFooter: {
+    alignItems: "center",
+    borderTop: "1px solid var(--border)",
+    display: "flex",
+    flexShrink: 0,
+    gap: 10,
+    justifyContent: "flex-end",
   },
 };
 
