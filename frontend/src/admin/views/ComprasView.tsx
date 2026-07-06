@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Calendar, CheckCircle2, ChevronDown, ChevronUp, Package, Plus, Trash2 } from "lucide-react";
+import { Ban, Calendar, CheckCircle, CheckCircle2, ChevronDown, ChevronUp, Package, Plus, Trash2 } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
 import { DataTable, ConfirmModal } from "../../shared/ui";
@@ -765,20 +765,22 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
       <div
         style={{
           display: "flex",
-          alignItems: "center",
+          alignItems: isMobile ? "flex-start" : "center",
           justifyContent: "space-between",
           marginBottom: 12,
           flexWrap: "wrap",
           gap: 10,
+          flexDirection: isMobile ? "column" : "row",
         }}
       >
         <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>
           Órdenes de compra
         </h3>
-        <Toolbar>
+        <Toolbar style={isMobile ? { width: "100%", flexWrap: "wrap" } : undefined}>
           <FilterSelect
             value={filterStatus}
             onChange={setFilterStatus}
+            style={isMobile ? { flex: 1, minWidth: 0, width: "100%" } : undefined}
             options={[
               { value: "all", label: "Todos los estados" },
               { value: "PENDIENTE", label: "Pendiente" },
@@ -789,6 +791,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
           <FilterSelect
             value={filterSupplierId}
             onChange={setFilterSupplierId}
+            style={isMobile ? { flex: 1, minWidth: 0, width: "100%" } : undefined}
             options={[
               { value: "all", label: "Todos los proveedores" },
               ...suppliers.map((s) => ({ value: String(s.id), label: s.name })),
@@ -826,31 +829,33 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-                    <div style={{ flex: 1 }}>
-                      {/* Top: Referencia & Total */}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                        <span style={{ fontSize: 16, fontWeight: 700, color: "var(--accent)" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Referencia sola — sin el total al frente */}
+                      <div style={{ marginBottom: 4 }}>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--accent)", wordBreak: "break-all", overflowWrap: "anywhere" }}>
                           {p.reference}
-                        </span>
-                        <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>
-                          {money(Number(p.total))}
                         </span>
                       </div>
 
                       {/* Sucursal y Proveedor */}
-                      <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 8, fontWeight: 600 }}>
+                      <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 6, fontWeight: 600, wordBreak: "break-word", overflowWrap: "anywhere" }}>
                         {p.branch.name} <span style={{ color: "#cbd5e1", margin: "0 6px" }}>|</span> {p.supplier.name}
                       </div>
 
-                      {/* Fecha */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
-                        <Calendar size={14} color="#2563eb" />
+                      {/* Fecha y hora */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-secondary)", marginBottom: 2 }}>
+                        <Calendar size={13} color="#2563eb" />
                         <span>{fmtDate(p.purchaseDate)} {fmtTime(p.purchaseDate)}</span>
+                      </div>
+
+                      {/* Total — debajo de la fecha */}
+                      <div style={{ fontSize: 15, fontWeight: 800, color: "var(--accent-strong)", marginTop: 4 }}>
+                        {money(Number(p.total))}
                       </div>
                     </div>
 
                     {/* Chevron Button */}
-                    <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
+                    <div style={{ display: "flex", alignItems: "center", alignSelf: "center", flexShrink: 0 }}>
                       <button
                         onClick={() => toggleExpand(p.id)}
                         style={{
@@ -885,56 +890,87 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                       }}>
                         {/* Estado */}
                         <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Estado de la Orden</h4>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
                           <Badge tone={statusTone(p.status)}>{p.status}</Badge>
                           {p.status === "PENDIENTE" && (
-                            <div style={{ display: "flex", gap: 6 }}>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              {/* Botón Recibir — solo ícono en mobile */}
                               <button
                                 style={{
-                                  ...ui.primaryBtn,
-                                  fontSize: 12,
-                                  padding: "6px 12px",
-                                  height: 30,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  gap: 6,
                                   backgroundColor: "#15803d",
+                                  color: "#ffffff",
+                                  border: "none",
+                                  borderRadius: 8,
+                                  width: 38,
+                                  height: 38,
+                                  cursor: "pointer",
+                                  padding: 0,
+                                  flexShrink: 0,
                                 }}
                                 onClick={() => receive(p.id)}
                                 disabled={receiving === p.id}
                                 className="active-tap"
+                                title="Recibir orden"
                               >
-                                {receiving === p.id ? "Recibiendo..." : "✓ Recibir"}
+                                <CheckCircle size={18} />
                               </button>
+                              {/* Botón Cancelar — solo ícono en mobile */}
                               <button
                                 style={{
-                                  ...ui.primaryBtn,
-                                  fontSize: 12,
-                                  padding: "6px 12px",
-                                  height: 30,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
                                   backgroundColor: "#dc2626",
+                                  color: "#ffffff",
+                                  border: "none",
+                                  borderRadius: 8,
+                                  width: 38,
+                                  height: 38,
+                                  cursor: "pointer",
+                                  padding: 0,
+                                  flexShrink: 0,
                                 }}
                                 onClick={() => cancelPurchase(p.id)}
                                 className="active-tap"
+                                title="Cancelar orden"
                               >
-                                Cancelar
+                                <Ban size={18} />
                               </button>
                             </div>
                           )}
                         </div>
 
-                        {/* Artículos */}
+                        {/* Artículos — datos apilados verticalmente */}
                         <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Artículos ({p.details.length})</h4>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                           {p.details.map((d) => (
-                            <div key={d.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, borderBottom: "1px dashed #e2e8f0", paddingBottom: 6 }}>
-                              <div>
-                                <span style={{ fontWeight: 700, color: "var(--text-secondary)" }}>{d.product.name}</span>
-                                <div style={{ fontSize: 11, color: "var(--text-faint)" }}>SKU: {d.product.sku}</div>
+                            <div
+                              key={d.id}
+                              style={{
+                                borderBottom: "1px dashed var(--border)",
+                                paddingBottom: 10,
+                              }}
+                            >
+                              {/* Nombre y SKU */}
+                              <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-secondary)", wordBreak: "break-word", overflowWrap: "anywhere", marginBottom: 4 }}>
+                                {d.product.name}
                               </div>
-                              <div style={{ textAlign: "right" }}>
-                                <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>
+                              <div style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 6 }}>SKU: {d.product.sku}</div>
+                              {/* Artículos y subtotal debajo del producto */}
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>
                                   {d.quantity} {d.unit ? d.unit.toLowerCase() : "pieza(s)"}
                                 </span>
-                                <span style={{ color: "var(--text-faint)", margin: "0 4px" }}>x</span>
-                                <span style={{ fontWeight: 600, color: "var(--text-muted)" }}>{money(d.unitCost)}</span>
+                                <span style={{ color: "var(--text-faint)", fontSize: 12 }}>×</span>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>{money(d.unitCost)}</span>
+                                <span style={{ fontSize: 12, color: "var(--text-faint)" }}>=</span>
+                                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)" }}>
+                                  {money(d.quantity * d.unitCost)}
+                                </span>
                               </div>
                             </div>
                           ))}

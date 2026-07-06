@@ -491,3 +491,17 @@ button:disabled {
   }
 }
 
+/* ───────────────────────────────────────────────────────────────
+   Reglas Globales Antidesbordamiento / Responsive
+   ─────────────────────────────────────────────────────────────── */
+/* Evitar que palabras extremadamente largas o sin espacios desborden los contenedores */
+*, *::before, *::after {
+  overflow-wrap: anywhere;
+}
+
+/* Permitir que las celdas de las tablas hagan salto de línea */
+td, th {
+  white-space: normal !important;
+  word-break: break-word !important;
+}
+
