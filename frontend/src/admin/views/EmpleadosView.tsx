@@ -40,6 +40,8 @@ import {
   normalizePhoneInput,
 } from "../../shared/utils/formValidation";
 import { PhoneField } from "../components/PhoneField";
+import AdminSaleDetailModal from "../components/AdminSaleDetailModal";
+import AdminSessionDetailModal from "../components/AdminSessionDetailModal";
 import {
   DEFAULT_PHONE_COUNTRY_ISO,
   getCountryCodeByIso,
@@ -209,6 +211,8 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [opsLoading, setOpsLoading] = useState(false);
   const [showOps, setShowOps] = useState(false);
   const [modalTab, setModalTab] = useState<"sales" | "sessions">("sales");
+  const [viewSaleId, setViewSaleId] = useState<number | null>(null);
+  const [viewSessionId, setViewSessionId] = useState<number | null>(null);
 
   useEffect(() => {
     setModalTab("sales");
@@ -1432,7 +1436,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18, maxHeight: 180, overflowY: "auto" }}>
                         {ops.recentSales.length === 0 && <div style={{ textAlign: "center", padding: "20px", color: "var(--text-faint)" }}>Sin ventas registradas.</div>}
                         {ops.recentSales.map((s) => (
-                          <div key={s.id} style={{ padding: 12, backgroundColor: "var(--surface)", borderRadius: 8, border: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div key={s.id} onClick={() => setViewSaleId(s.id)} style={{ padding: 12, backgroundColor: "var(--surface)", borderRadius: 8, border: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
                             <div>
                               <div style={{ fontWeight: 700, color: "var(--accent-strong)", marginBottom: 4 }}>{s.invoiceNumber}</div>
                               <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{fmtDate(s.createdAt)} {fmtTime(s.createdAt)}</div>
@@ -1458,7 +1462,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           <tbody>
                             {ops.recentSales.length === 0 && <TableState colSpan={4} empty emptyText="Sin ventas registradas." />}
                             {ops.recentSales.map((s) => (
-                              <tr key={s.id}>
+                              <tr key={s.id} onClick={() => setViewSaleId(s.id)} style={{ cursor: "pointer" }}>
                                 <td style={{ ...ui.td, fontWeight: 700, color: "var(--accent-strong)" }}>{s.invoiceNumber}</td>
                                 <td style={ui.td}>{fmtDate(s.createdAt)} {fmtTime(s.createdAt)}</td>
                                 <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{money(s.totalAmount)}</td>
@@ -1480,7 +1484,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18, maxHeight: 180, overflowY: "auto" }}>
                         {ops.recentSessions.length === 0 && <div style={{ textAlign: "center", padding: "20px", color: "var(--text-faint)" }}>Sin turnos registrados.</div>}
                         {ops.recentSessions.map((s) => (
-                          <div key={s.id} style={{ padding: 12, backgroundColor: "var(--surface)", borderRadius: 8, border: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div key={s.id} onClick={() => setViewSessionId(s.id)} style={{ padding: 12, backgroundColor: "var(--surface)", borderRadius: 8, border: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
                             <div>
                               <div style={{ fontWeight: 700, color: "var(--accent-strong)", marginBottom: 4 }}>#{s.id}</div>
                               <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{fmtDate(s.openedAt)} {fmtTime(s.openedAt)}</div>
@@ -1508,7 +1512,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           <tbody>
                             {ops.recentSessions.length === 0 && <TableState colSpan={4} empty emptyText="Sin turnos registrados." />}
                             {ops.recentSessions.map((s) => (
-                              <tr key={s.id}>
+                              <tr key={s.id} onClick={() => setViewSessionId(s.id)} style={{ cursor: "pointer" }}>
                                 <td style={{ ...ui.td, fontWeight: 700, color: "var(--accent-strong)" }}>{s.id}</td>
                                 <td style={ui.td}>{fmtDate(s.openedAt)} {fmtTime(s.openedAt)}</td>
                                 <td style={{ ...ui.td, textAlign: "right", fontWeight: 700, color: s.difference && s.difference < 0 ? "var(--color-danger)" : "var(--text-secondary)" }}>
@@ -1541,6 +1545,9 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           </div>
         )}
       </ActionModal>
+
+      <AdminSaleDetailModal saleId={viewSaleId} onClose={() => setViewSaleId(null)} />
+      <AdminSessionDetailModal sessionId={viewSessionId} onClose={() => setViewSessionId(null)} />
     </div>
   );
 };
