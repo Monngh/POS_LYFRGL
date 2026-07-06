@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../app";
 
 // ---------------------------------------------------------------------------
@@ -9,7 +10,18 @@ const normalizeSearchText = (value: string): string =>
 const splitSearchTerms = (search: string): string[] =>
     normalizeSearchText(search).split(/\s+/).filter(Boolean);
 
-const buildProductSearchWhere = (search?: string): object => {
+export type TaxProductScope = "ALL" | "DIVISION" | "DEPARTMENT" | "CATEGORY" | "UNCATEGORIZED";
+
+export interface TaxProductFilters {
+    search?: string;
+    scope: TaxProductScope;
+    categoryId?: number;
+    page: number;
+    limit: number;
+    includeAssociated: boolean;
+}
+
+const buildProductSearchWhere = (search?: string): Prisma.ProductWhereInput => {
     if (!search) return {};
     const terms = splitSearchTerms(search);
     if (terms.length === 0) return {};
@@ -35,6 +47,104 @@ const buildProductSearchWhere = (search?: string): object => {
         })),
     };
 };
+
+const availableProductsPagination = (page: number, limit: number) => {
+    const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+    const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 10;
+    return {
+        page: safePage,
+        limit: safeLimit,
+        skip: (safePage - 1) * safeLimit,
+    };
+};
+
+const taxProductSelect = Prisma.validator<Prisma.ProductSelect>()({
+    id: true,
+    sku: true,
+    barcode: true,
+    name: true,
+    description: true,
+    costPrice: true,
+    sellPrice: true,
+    active: true,
+    categories: {
+        orderBy: { categoryId: "asc" },
+        select: {
+            category: {
+                select: {
+                    id: true,
+                    code: true,
+                    name: true,
+                    level: true,
+                },
+            },
+        },
+    },
+});
+
+type TaxProductPayload = Prisma.ProductGetPayload<{ select: typeof taxProductSelect }>;
+
+const getFinalCategoryIdsForTaxScope = async (
+    scope: TaxProductScope,
+    categoryId?: number
+): Promise<number[] | undefined> => {
+    if (scope === "ALL" || scope === "UNCATEGORIZED") return undefined;
+
+    if (!categoryId) {
+        throw new Error("CATEGORY_REQUIRED");
+    }
+
+    const category = await prisma.category.findUnique({
+        where: { id: categoryId },
+        select: { id: true, level: true },
+    });
+
+    if (!category) {
+        throw new Error("CATEGORY_NOT_FOUND");
+    }
+
+    if (category.level !== scope) {
+        throw new Error("CATEGORY_LEVEL_MISMATCH");
+    }
+
+    if (scope === "CATEGORY") return [category.id];
+
+    if (scope === "DEPARTMENT") {
+        const categories = await prisma.category.findMany({
+            where: { parentId: category.id, level: "CATEGORY" },
+            select: { id: true },
+        });
+        return categories.map((row) => row.id);
+    }
+
+    const departments = await prisma.category.findMany({
+        where: { parentId: category.id, level: "DEPARTMENT" },
+        select: { id: true },
+    });
+    if (departments.length === 0) return [];
+
+    const categories = await prisma.category.findMany({
+        where: {
+            parentId: { in: departments.map((department) => department.id) },
+            level: "CATEGORY",
+        },
+        select: { id: true },
+    });
+    return categories.map((row) => row.id);
+};
+
+const mapTaxProduct = (product: TaxProductPayload, assignedIds: Set<number>) => ({
+    id: product.id,
+    sku: product.sku,
+    barcode: product.barcode,
+    name: product.name,
+    description: product.description,
+    costPrice: Number(product.costPrice),
+    sellPrice: Number(product.sellPrice),
+    active: product.active,
+    assigned: assignedIds.has(product.id),
+    categories: product.categories.map((row) => row.category),
+});
 
 // ---------------------------------------------------------------------------
 // Impuestos (TaxType)
@@ -241,37 +351,63 @@ export const syncTaxesForProduct = async (productId: number, taxIds: number[]) =
  * ya tienen el impuesto taxId. Acepta búsqueda multi-palabra por nombre,
  * SKU, código de barras o descripción.
  */
-export const getActiveProductsWithTaxFlag = async (taxId: number, search?: string) => {
-    const searchWhere = buildProductSearchWhere(search);
+export const getActiveProductsWithTaxFlag = async (taxId: number, filters: TaxProductFilters) => {
+    const { page, limit, skip } = availableProductsPagination(filters.page, filters.limit);
+    const categoryIds = await getFinalCategoryIdsForTaxScope(filters.scope, filters.categoryId);
 
-    const [products, currentAssignments] = await Promise.all([
+    const currentAssignments = await prisma.productTax.findMany({
+        where: { taxTypeId: taxId },
+        select: { productId: true },
+    });
+    const assignedIds = new Set(currentAssignments.map((assignment) => assignment.productId));
+
+    if (categoryIds && categoryIds.length === 0) {
+        return {
+            page,
+            limit,
+            total: 0,
+            totalPages: 0,
+            assignedCount: assignedIds.size,
+            assignedProductIds: [...assignedIds],
+            products: [],
+        };
+    }
+
+    const where: Prisma.ProductWhereInput = {
+        active: true,
+        ...buildProductSearchWhere(filters.search),
+    };
+
+    if (!filters.includeAssociated) {
+        where.productTaxes = { none: { taxTypeId: taxId } };
+    }
+
+    if (filters.scope === "UNCATEGORIZED") {
+        where.categories = { none: {} };
+    } else if (categoryIds) {
+        where.categories = { some: { categoryId: { in: categoryIds } } };
+    }
+
+    const [total, products] = await Promise.all([
+        prisma.product.count({ where }),
         prisma.product.findMany({
-            where: { active: true, ...searchWhere },
-            orderBy: { name: "asc" },
-            select: {
-                id: true,
-                sku: true,
-                name: true,
-                barcode: true,
-                sellPrice: true,
-            },
-        }),
-        prisma.productTax.findMany({
-            where: { taxTypeId: taxId },
-            select: { productId: true },
+            where,
+            skip,
+            take: limit,
+            orderBy: [{ name: "asc" }, { id: "asc" }],
+            select: taxProductSelect,
         }),
     ]);
 
-    const assignedIds = new Set(currentAssignments.map((a) => a.productId));
-
-    return products.map((p) => ({
-        id: p.id,
-        sku: p.sku,
-        name: p.name,
-        barcode: p.barcode,
-        sellPrice: Number(p.sellPrice),
-        assigned: assignedIds.has(p.id),
-    }));
+    return {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        assignedCount: assignedIds.size,
+        assignedProductIds: [...assignedIds],
+        products: products.map((product) => mapTaxProduct(product, assignedIds)),
+    };
 };
 
 /**

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   deletePromotionProduct,
+  getAvailablePromotionProducts,
   getPromotionDetail,
   listActiveProducts,
   listPromotionTypes,
@@ -26,6 +27,7 @@ router.post("/promotions", postPromotion);
 router.get("/promotions/:id", getPromotionDetail);
 router.put("/promotions/:id", putPromotion);
 router.patch("/promotions/:id/status", patchPromotionStatus);
+router.get("/promotions/:id/available-products", getAvailablePromotionProducts);
 router.post("/promotions/:id/products", postPromotionProducts);
 router.put("/promotions/:id/products", putPromotionProducts);
 router.delete("/promotions/:id/products/:productId", deletePromotionProduct);

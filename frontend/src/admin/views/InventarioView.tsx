@@ -115,6 +115,46 @@ interface SupplierOption {
   name: string;
 }
 
+interface PromotionTypeSummary {
+  id: number;
+  name: string;
+  description: string | null;
+}
+
+interface PromotionProductSummary {
+  id?: number;
+  promotionId?: number;
+  productId: number;
+  product?: {
+    id: number;
+    sku: string;
+    name: string;
+    sellPrice: number;
+    active: boolean;
+  } | null;
+}
+
+interface ProductPromotion {
+  id: number;
+  name: string;
+  description: string | null;
+  promotionTypeId: number;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+  value: number | string | null;
+  minQuantity: number | null;
+  payQuantity: number | null;
+  specialPrice: number | string | null;
+  promotionType: PromotionTypeSummary;
+  products: PromotionProductSummary[];
+}
+
+interface ProductCategoryMapRow {
+  id: number;
+  categories: ProductCategorySummary[];
+}
+
 const subModalStyle: React.CSSProperties = {
   position: "fixed",
   inset: 0,
@@ -340,6 +380,78 @@ const getCategoryPathLabel = (category: CategoryOption | ProductCategorySummary)
   return category.name;
 };
 
+const getPromotionRule = (typeName: string) => {
+  const normalized = typeName.toLowerCase().replace(/\s+/g, "");
+  if (normalized.includes("percentage") || normalized.includes("porcentaje")) return "percentage";
+  if (normalized.includes("fixedamount") || normalized.includes("montofijo") || normalized.includes("fixed")) return "fixedAmount";
+  if (normalized.includes("buyxpayy") || normalized.includes("nxm") || normalized.includes("2x1") || normalized.includes("3x2")) return "buyXPayY";
+  if (normalized.includes("specialprice") || normalized.includes("precioespecial")) return "specialPrice";
+  return null;
+};
+
+const getPromotionTypeLabel = (type: string) => {
+  const rule = getPromotionRule(type);
+  if (rule === "percentage") return "Porcentaje";
+  if (rule === "fixedAmount") return "Monto fijo";
+  if (rule === "buyXPayY") return "NxM";
+  if (rule === "specialPrice") return "Precio especial";
+  return type;
+};
+
+const getPromotionStatus = (promo: ProductPromotion) => {
+  const now = new Date();
+  const start = new Date(promo.startDate);
+  const end = new Date(promo.endDate);
+
+  if (!promo.isActive) return { label: "Inactiva", tone: "red" as const };
+  if (Number.isFinite(end.getTime()) && end < now) return { label: "Vencida", tone: "slate" as const };
+  if (Number.isFinite(start.getTime()) && start > now) return { label: "Programada", tone: "amber" as const };
+
+  return { label: "Vigente", tone: "green" as const };
+};
+
+const canSelectPromotion = (promotion: ProductPromotion) => {
+  const status = getPromotionStatus(promotion).label;
+  return status !== "Inactiva" && status !== "Vencida";
+};
+
+const getPromotionProductSummary = (promotion: ProductPromotion) => {
+  if (promotion.products.length === 0) return "Sin productos asociados";
+  const names = promotion.products.map((row) => row.product?.name ?? `Producto #${row.productId}`);
+  return names.length <= 3 ? names.join(", ") : `${names.slice(0, 3).join(", ")} +${names.length - 3} mas`;
+};
+
+const matchesPromotionSearch = (promotion: ProductPromotion, search: string): boolean => {
+  const query = normalizeProductSearchText(search);
+  if (!query) return true;
+  return normalizeProductSearchText(promotion.name).includes(query);
+};
+
+const getPromotionRelatedCategoryIds = (
+  promotion: ProductPromotion,
+  productCategoryMap: Record<number, number[]>,
+  currentProductId: number | null
+): Set<number> => {
+  const categoryIds = new Set<number>();
+  promotion.products.forEach((row) => {
+    if (row.productId === currentProductId) return;
+    (productCategoryMap[row.productId] || []).forEach((categoryId) => categoryIds.add(categoryId));
+  });
+  return categoryIds;
+};
+
+const isPromotionCompatibleWithCategories = (
+  promotion: ProductPromotion,
+  selectedFinalCategoryIds: number[],
+  productCategoryMap: Record<number, number[]>,
+  currentProductId: number | null
+): boolean => {
+  if (selectedFinalCategoryIds.length === 0) return false;
+  const relatedCategoryIds = getPromotionRelatedCategoryIds(promotion, productCategoryMap, currentProductId);
+  if (relatedCategoryIds.size === 0) return false;
+  return selectedFinalCategoryIds.some((categoryId) => relatedCategoryIds.has(categoryId));
+};
+
 const mergeCategoryOptions = (
   activeOptions: CategoryOption[],
   selectedCategories: ProductCategorySummary[]
@@ -475,9 +587,70 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     categoryIds: number[];
     validatedProduct: ValidatedProductForm;
   } | null>(null);
+  const [promotionCompatibilityConfirm, setPromotionCompatibilityConfirm] = useState<{
+    message: string;
+    categoryIds: number[];
+    validatedProduct: ValidatedProductForm;
+  } | null>(null);
   const categoryRequestId = useRef(0);
   const [skuLoading, setSkuLoading] = useState(false);
   const skuRequestId = useRef(0);
+
+  const [promotions, setPromotions] = useState<ProductPromotion[]>([]);
+  const [selectedPromotionIds, setSelectedPromotionIds] = useState<number[]>([]);
+  const [initialPromotionIds, setInitialPromotionIds] = useState<number[]>([]);
+  const [promotionsLoading, setPromotionsLoading] = useState(false);
+  const [promotionsError, setPromotionsError] = useState<string | null>(null);
+  const [promotionSearch, setPromotionSearch] = useState("");
+  const [productCategoryMap, setProductCategoryMap] = useState<Record<number, number[]>>({});
+
+  const loadPromotions = async (productId?: number) => {
+    setPromotionsLoading(true);
+    setPromotionsError(null);
+    try {
+      const res = await api.get<{ promotions: ProductPromotion[] }>("/api/admin-promotions/promotions");
+      const promos = res.data.promotions || [];
+      setPromotions(promos);
+
+      if (productId) {
+        const associated = promos
+          .filter((promo) => (promo.products || []).some((product) => product.productId === productId))
+          .map((promo) => promo.id);
+        setSelectedPromotionIds(associated);
+        setInitialPromotionIds(associated);
+      } else {
+        setSelectedPromotionIds([]);
+        setInitialPromotionIds([]);
+      }
+    } catch (err: unknown) {
+      setPromotionsError(getErrorMessage(err, "No se pudieron cargar las promociones."));
+    } finally {
+      setPromotionsLoading(false);
+    }
+  };
+
+  const loadProductCategoryMap = async () => {
+    try {
+      const res = await api.get<{ products: ProductCategoryMapRow[] }>("/api/admin/products", {
+        params: { includeInactive: true },
+      });
+      const map: Record<number, number[]> = {};
+      (res.data.products || []).forEach((product) => {
+        map[product.id] = (product.categories || [])
+          .filter((category) => category.level === "CATEGORY")
+          .map((category) => category.id);
+      });
+      setProductCategoryMap(map);
+    } catch {
+      // silently ignore
+    }
+  };
+
+  const isPromotionCompatible = useCallback(
+    (promotion: ProductPromotion, selectedCatIds: number[], currentProductId: number | null) =>
+      isPromotionCompatibleWithCategories(promotion, selectedCatIds, productCategoryMap, currentProductId),
+    [productCategoryMap]
+  );
 
   const selectedCategories = useMemo(
     () => selectedCategoryIds
@@ -486,10 +659,52 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     [categoryOptions, selectedCategoryIds]
   );
 
+  const selectedFinalCategories = useMemo(
+    () => selectedCategories.filter((category) => category.level === "CATEGORY"),
+    [selectedCategories]
+  );
+
+  const selectedFinalCategoryIds = useMemo(
+    () => selectedFinalCategories.map((category) => category.id),
+    [selectedFinalCategories]
+  );
+
   const visibleCategoryOptions = useMemo(
     () => categoryOptions.filter((category) => matchesCategorySearch(category, categorySearch)),
     [categoryOptions, categorySearch]
   );
+
+  const visiblePromotionOptions = useMemo(() => {
+    return promotions.filter((promotion) => {
+      if (!matchesPromotionSearch(promotion, promotionSearch)) return false;
+
+      const selected = selectedPromotionIds.includes(promotion.id);
+      if (selected) return true;
+
+      return isPromotionCompatible(promotion, selectedFinalCategoryIds, editingId);
+    });
+  }, [editingId, promotions, promotionSearch, selectedFinalCategoryIds, selectedPromotionIds, isPromotionCompatible]);
+
+  const selectedIncompatiblePromotions = useMemo(
+    () => promotions.filter((promotion) =>
+      selectedPromotionIds.includes(promotion.id) &&
+      selectedFinalCategoryIds.length > 0 &&
+      !isPromotionCompatible(promotion, selectedFinalCategoryIds, editingId)
+    ),
+    [editingId, promotions, selectedFinalCategoryIds, selectedPromotionIds, isPromotionCompatible]
+  );
+
+  const togglePromotion = (promotion: ProductPromotion) => {
+    const selected = selectedPromotionIds.includes(promotion.id);
+    if (!selected && !canSelectPromotion(promotion)) return;
+
+    setSelectedPromotionIds((current) =>
+      current.includes(promotion.id)
+        ? current.filter((id) => id !== promotion.id)
+        : [...current, promotion.id]
+    );
+    setFormError(null);
+  };
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const value = k === "barcode"
@@ -602,6 +817,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setEditingId(null);
     setFieldErrors({});
     setFormError(null);
+    setPromotionCompatibilityConfirm(null);
     setTaxError(null);
     setTaxOptions([]);
     setSelectedTaxIds([]);
@@ -612,6 +828,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setInitialCategoryIds([]);
     setCategorySearch("");
     setCategoryPanelOpen(false);
+
+    setPromotions([]);
+    setSelectedPromotionIds([]);
+    setInitialPromotionIds([]);
+    setPromotionsError(null);
+    setPromotionSearch("");
+    setProductCategoryMap({});
   };
 
   const loadProductTaxes = async (productId: number) => {
@@ -766,6 +989,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setEditingId(null);
     setFieldErrors({});
     setFormError(null);
+    setPromotionCompatibilityConfirm(null);
     setTaxError(null);
     setSelectedTaxIds([]);
     setCategoryError(null);
@@ -774,10 +998,18 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setSelectedCategoryIds([]);
     setInitialCategoryIds([]);
     setCategoryOptions([]);
+
+    setSelectedPromotionIds([]);
+    setInitialPromotionIds([]);
+    setPromotionSearch("");
+
     setShowForm(true);
     void loadTaxList();
     void loadCategoryList();
     void loadNextSku();
+
+    void loadPromotions();
+    void loadProductCategoryMap();
   };
 
   const handleEdit = (p: ProductRow | ProductDetail) => {
@@ -797,15 +1029,24 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setEditingId(p.id);
     setFieldErrors({});
     setFormError(null);
+    setPromotionCompatibilityConfirm(null);
     setCategorySearch("");
     setCategoryPanelOpen(false);
     const productCategoryIds = p.categories.map((category) => category.id);
     setSelectedCategoryIds(productCategoryIds);
     setInitialCategoryIds(productCategoryIds);
     setCategoryOptions(mergeCategoryOptions([], p.categories));
+
+    setSelectedPromotionIds([]);
+    setInitialPromotionIds([]);
+    setPromotionSearch("");
+
     setShowForm(true);
     void loadProductTaxes(p.id);
     void loadCategoryList(p.categories);
+
+    void loadPromotions(p.id);
+    void loadProductCategoryMap();
   };
 
   const handleClassifyProductFromCategoryAdmin = async (productId: number) => {
@@ -841,6 +1082,46 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     } finally {
       setStatusSaving(false);
     }
+  };
+
+  const syncProductPromotions = async (productId: number) => {
+    const nextPromotionIds = [...new Set(selectedPromotionIds)];
+    const previousPromotionIds = [...new Set(initialPromotionIds)];
+    const toRemove = previousPromotionIds.filter((promotionId) => !nextPromotionIds.includes(promotionId));
+    const toAdd = nextPromotionIds.filter((promotionId) => !previousPromotionIds.includes(promotionId));
+
+    for (const promotionId of toRemove) {
+      await api.delete(`/api/admin-promotions/promotions/${promotionId}/products/${productId}`);
+    }
+
+    for (const promotionId of toAdd) {
+      await api.post(`/api/admin-promotions/promotions/${promotionId}/products`, {
+        productIds: [productId],
+      });
+    }
+  };
+
+  const saveAfterPromotionReview = async (
+    categoryIds: number[],
+    validatedProduct: ValidatedProductForm
+  ) => {
+    if (selectedIncompatiblePromotions.length > 0) {
+      const names = selectedIncompatiblePromotions.map((promotion) => promotion.name).join(", ");
+      const categoryLabels = selectedFinalCategories.map((category) => `${category.code} - ${category.name}`).join(", ");
+      setPromotionCompatibilityConfirm({
+        categoryIds,
+        validatedProduct,
+        message: [
+          "Esta promoción podría no corresponder a las categorías seleccionadas.",
+          names ? `Promociones: ${names}` : "",
+          categoryLabels ? `Categorías seleccionadas: ${categoryLabels}` : "",
+          "Continua solo si deseas conservarla para este producto.",
+        ].filter(Boolean).join("\n"),
+      });
+      return;
+    }
+
+    await saveProduct(categoryIds, validatedProduct);
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -901,13 +1182,20 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       }
     }
 
-    await saveProduct(categoryIds, validatedProduct);
+    await saveAfterPromotionReview(categoryIds, validatedProduct);
   };
 
   const confirmCategoryRemoval = async () => {
     if (!categoryRemovalConfirm) return;
     const { categoryIds, validatedProduct } = categoryRemovalConfirm;
     setCategoryRemovalConfirm(null);
+    await saveAfterPromotionReview(categoryIds, validatedProduct);
+  };
+
+  const confirmPromotionCompatibility = async () => {
+    if (!promotionCompatibilityConfirm) return;
+    const { categoryIds, validatedProduct } = promotionCompatibilityConfirm;
+    setPromotionCompatibilityConfirm(null);
     await saveProduct(categoryIds, validatedProduct);
   };
 
@@ -935,9 +1223,10 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         await api.put(`/api/admin-tax/products/${editingId}/taxes`, {
           taxIds: selectedTaxIds,
         });
+        await syncProductPromotions(editingId);
       } else {
         // Modo Creación
-        const createRes = await api.post("/api/admin/products", {
+        const createRes = await api.post<{ product: { id: number } }>("/api/admin/products", {
           barcode: validatedProduct.barcode,
           name: validatedProduct.name,
           description: validatedProduct.description,
@@ -947,12 +1236,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           satUnitKey: validatedProduct.satUnitKey,
           categoryIds,
         });
+        const newProductId = createRes.data.product.id;
         if (selectedTaxIds.length > 0) {
-          const newProductId = createRes.data.product.id;
           await api.put(`/api/admin-tax/products/${newProductId}/taxes`, {
             taxIds: selectedTaxIds,
           });
         }
+        await syncProductPromotions(newProductId);
       }
       setShowForm(false);
       setForm({ ...emptyForm });
@@ -965,6 +1255,12 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       setInitialCategoryIds([]);
       setCategorySearch("");
       setCategoryPanelOpen(false);
+      setPromotions([]);
+      setSelectedPromotionIds([]);
+      setInitialPromotionIds([]);
+      setPromotionsError(null);
+      setPromotionSearch("");
+      setProductCategoryMap({});
       await load();
     } catch (err: unknown) {
       setFormError(getErrorMessage(err, "No se pudo guardar el producto."));
@@ -2770,6 +3066,140 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 )}
               </div>
 
+              <div style={styles.promotionSection}>
+                <div style={styles.categoryHeader}>
+                  <div style={styles.categoryTitleWrap}>
+                    <Tags size={16} color="var(--accent)" />
+                    <span style={styles.categoryTitle}>Promociones del producto</span>
+                  </div>
+                  <span style={styles.categoryCounter}>
+                    {selectedPromotionIds.length} promocion(es) seleccionada(s)
+                  </span>
+                </div>
+
+                <div style={styles.promotionCategorySummary}>
+                  <span style={styles.promotionCategoryLabel}>Categorías del producto:</span>
+                  {selectedFinalCategories.length > 0 ? (
+                    <div style={styles.promotionCategoryBadges}>
+                      {selectedFinalCategories.map((category) => (
+                        <span key={category.id} style={styles.promotionCategoryBadge}>
+                          {category.code} {category.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span style={styles.taxMuted}>Sin categorías seleccionadas</span>
+                  )}
+                </div>
+
+                <p style={styles.promotionHelp}>
+                  {selectedFinalCategories.length > 0
+                    ? "Las promociones disponibles se muestran según las categorías seleccionadas del producto."
+                    : "Primero selecciona al menos una categoría para ver promociones relacionadas."}
+                </p>
+
+                {(selectedFinalCategories.length > 0 || selectedPromotionIds.length > 0) && (
+                  <div style={styles.promotionPanel}>
+                    <div style={styles.categorySearchWrap}>
+                      <Search size={15} color="var(--text-muted)" />
+                      <input
+                        style={styles.categorySearchInput}
+                        value={promotionSearch}
+                        onChange={(event) => setPromotionSearch(event.target.value)}
+                        placeholder="Buscar promoción por nombre"
+                        disabled={saving}
+                      />
+                    </div>
+
+                    {promotionsLoading && <p style={styles.taxMuted}>Cargando promociones...</p>}
+
+                    {!promotionsLoading && promotionsError && (
+                      <div style={styles.taxErrorBox}>
+                        <span>{promotionsError}</span>
+                        <button
+                          type="button"
+                          style={ui.linkBtn}
+                          onClick={() => void loadPromotions(editingId ?? undefined)}
+                        >
+                          Reintentar
+                        </button>
+                      </div>
+                    )}
+
+                    {!promotionsLoading && !promotionsError && selectedIncompatiblePromotions.length > 0 && (
+                      <div style={styles.promotionWarningBox}>
+                        <AlertTriangle size={15} />
+                        <span>Esta promoción podría no corresponder a las categorías seleccionadas.</span>
+                      </div>
+                    )}
+
+                    {!promotionsLoading && !promotionsError && visiblePromotionOptions.length === 0 && (
+                      <p style={styles.taxMuted}>
+                        {promotionSearch.trim()
+                          ? "No se encontraron promociones con ese nombre."
+                          : "No hay promociones relacionadas con las categorías seleccionadas."}
+                      </p>
+                    )}
+
+                    {!promotionsLoading && !promotionsError && visiblePromotionOptions.length > 0 && (
+                      <div style={styles.promotionOptionList}>
+                        {visiblePromotionOptions.map((promotion) => {
+                          const checked = selectedPromotionIds.includes(promotion.id);
+                          const status = getPromotionStatus(promotion);
+                          const selectable = canSelectPromotion(promotion);
+                          const disabled = saving || (!checked && !selectable);
+                          const incompatible = selectedIncompatiblePromotions.some((item) => item.id === promotion.id);
+
+                          return (
+                            <label
+                              key={promotion.id}
+                              style={{
+                                ...styles.promotionOption,
+                                backgroundColor: checked ? "var(--accent-soft)" : "var(--surface)",
+                                borderColor: checked ? "#93c5fd" : "var(--border)",
+                                cursor: disabled ? "not-allowed" : "pointer",
+                                opacity: disabled ? 0.62 : 1,
+                              }}
+                              title={!selectable ? "Promoción inactiva o vencida" : undefined}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={disabled}
+                                onChange={() => togglePromotion(promotion)}
+                                style={styles.taxCheckbox}
+                              />
+                              <span style={styles.promotionOptionBody}>
+                                <span style={styles.promotionOptionHeader}>
+                                  <span style={styles.promotionOptionName}>{promotion.name}</span>
+                                  <Badge tone={status.tone}>{status.label}</Badge>
+                                </span>
+                                <span style={styles.promotionMetaGrid}>
+                                  <span style={styles.promotionMetaItem}>
+                                    Tipo: {getPromotionTypeLabel(promotion.promotionType.name)}
+                                  </span>
+                                  <span style={styles.promotionMetaItem}>
+                                    Vigencia: {fmtDate(promotion.startDate)} - {fmtDate(promotion.endDate)}
+                                  </span>
+                                  <span style={styles.promotionMetaItem}>
+                                    Productos asociados: {promotion.products.length} - {getPromotionProductSummary(promotion)}
+                                  </span>
+                                </span>
+                                {incompatible && (
+                                  <span style={styles.promotionInlineWarning}>
+                                    Esta promoción podría no corresponder a las categorías seleccionadas.
+                                  </span>
+                                )}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div style={{ border: "1px solid var(--border)", borderRadius: 10, backgroundColor: "var(--surface-2)", padding: 14, marginBottom: 14 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -2863,6 +3293,16 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         title="Quitar categorías del producto"
         message={categoryRemovalConfirm?.message || ""}
         confirmLabel="Continuar"
+      />
+
+      <ConfirmModal
+        isOpen={promotionCompatibilityConfirm !== null}
+        onClose={() => setPromotionCompatibilityConfirm(null)}
+        onConfirm={confirmPromotionCompatibility}
+        variant="warning"
+        title="Conservar promoción"
+        message={promotionCompatibilityConfirm?.message || ""}
+        confirmLabel="Conservar"
       />
     </div>
   );
@@ -3069,6 +3509,135 @@ const styles: { [key: string]: React.CSSProperties } = {
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
+  },
+  promotionSection: {
+    border: "1px solid var(--border)",
+    borderRadius: 10,
+    backgroundColor: "var(--surface-2)",
+    padding: 14,
+    marginBottom: 14,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  promotionCategorySummary: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 8,
+    flexWrap: "wrap",
+    marginBottom: 8,
+  },
+  promotionCategoryLabel: {
+    color: "var(--text)",
+    fontSize: 12,
+    fontWeight: 800,
+    paddingTop: 4,
+  },
+  promotionCategoryBadges: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 6,
+    minWidth: 0,
+  },
+  promotionCategoryBadge: {
+    border: "1px solid var(--border)",
+    borderRadius: 999,
+    backgroundColor: "var(--surface)",
+    color: "var(--text)",
+    fontSize: 11,
+    fontWeight: 800,
+    padding: "4px 8px",
+    maxWidth: "100%",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  promotionHelp: {
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 600,
+    margin: "0 0 10px",
+    lineHeight: 1.45,
+  },
+  promotionPanel: {
+    borderTop: "1px solid var(--border)",
+    marginTop: 12,
+    paddingTop: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  promotionOptionList: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: 8,
+    maxHeight: 320,
+    overflowY: "auto",
+    paddingRight: 2,
+  },
+  promotionOption: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 12,
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    padding: "10px 12px",
+    minHeight: 78,
+  },
+  promotionOptionBody: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    minWidth: 0,
+    flex: 1,
+  },
+  promotionOptionHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    minWidth: 0,
+  },
+  promotionOptionName: {
+    color: "var(--text)",
+    fontSize: 13,
+    fontWeight: 850,
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  promotionMetaGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: 3,
+    minWidth: 0,
+  },
+  promotionMetaItem: {
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 700,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  promotionWarningBox: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    border: "1px solid #f59e0b",
+    borderRadius: 8,
+    backgroundColor: "rgba(245,158,11,0.12)",
+    color: "#b45309",
+    fontSize: 12,
+    fontWeight: 800,
+    padding: "9px 10px",
+  },
+  promotionInlineWarning: {
+    color: "#b45309",
+    fontSize: 12,
+    fontWeight: 800,
+    lineHeight: 1.35,
   },
   taxSection: {
     border: "1px solid var(--border)",

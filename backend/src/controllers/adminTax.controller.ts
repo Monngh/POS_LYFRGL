@@ -16,11 +16,96 @@ import {
     getProductTaxRelation,
     getActiveProductsWithTaxFlag,
     syncProductsForTax,
+    type TaxProductScope,
 } from "../services/adminTax.service";
 
 const parsePositiveInt = (value: unknown): number | null => {
+    if (typeof value === "boolean") return null;
+    if (typeof value === "string" && !value.trim()) return null;
+    if (typeof value !== "number" && typeof value !== "string") return null;
     const id = Number(value);
     return Number.isInteger(id) && id > 0 ? id : null;
+};
+
+const taxProductScopes: TaxProductScope[] = ["ALL", "DIVISION", "DEPARTMENT", "CATEGORY", "UNCATEGORIZED"];
+
+const parseOptionalPositiveInt = (value: unknown, label: string): { value?: number; message?: string } => {
+    if (value === undefined || value === null || value === "") {
+        return { value: undefined };
+    }
+
+    const parsed = parsePositiveInt(value);
+    if (parsed === null) {
+        return { message: `${label} debe ser un numero entero positivo` };
+    }
+
+    return { value: parsed };
+};
+
+const parseOptionalQueryString = (value: unknown, label: string): { value?: string; message?: string } => {
+    if (value === undefined || value === null) {
+        return { value: undefined };
+    }
+    if (typeof value !== "string") {
+        return { message: `${label} debe ser texto` };
+    }
+
+    const trimmed = value.trim();
+    return { value: trimmed ? trimmed : undefined };
+};
+
+const parseOptionalBooleanQuery = (
+    value: unknown,
+    label: string,
+    defaultValue: boolean
+): { value?: boolean; message?: string } => {
+    if (value === undefined || value === null || value === "") {
+        return { value: defaultValue };
+    }
+    if (typeof value === "boolean") {
+        return { value };
+    }
+    if (typeof value !== "string") {
+        return { message: `${label} debe ser true o false` };
+    }
+
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return { value: true };
+    if (normalized === "false") return { value: false };
+    return { message: `${label} debe ser true o false` };
+};
+
+const parseTaxProductScope = (value: unknown): { value?: TaxProductScope; message?: string } => {
+    if (value === undefined || value === null || value === "") {
+        return { value: "ALL" };
+    }
+    if (typeof value !== "string") {
+        return { message: "scope debe ser ALL, DIVISION, DEPARTMENT, CATEGORY o UNCATEGORIZED" };
+    }
+
+    const normalized = value.trim().toUpperCase();
+    if (!taxProductScopes.includes(normalized as TaxProductScope)) {
+        return { message: "scope debe ser ALL, DIVISION, DEPARTMENT, CATEGORY o UNCATEGORIZED" };
+    }
+
+    return { value: normalized as TaxProductScope };
+};
+
+const parsePagination = (
+    pageValue: unknown,
+    limitValue: unknown
+): { value?: { page: number; limit: number }; message?: string } => {
+    const page = pageValue === undefined ? 1 : parsePositiveInt(pageValue);
+    if (page === null) {
+        return { message: "page debe ser un numero entero positivo" };
+    }
+
+    const limit = limitValue === undefined ? 10 : parsePositiveInt(limitValue);
+    if (limit === null) {
+        return { message: "limit debe ser un numero entero positivo" };
+    }
+
+    return { value: { page, limit } };
 };
 
 const parseTaxIds = (value: unknown): number[] | null => {
@@ -560,8 +645,9 @@ export const syncProductTaxes = async (req: Request, res: Response): Promise<voi
 };
 
 /**
- * Obtener todos los productos activos con flag `assigned` para un impuesto dado.
- * GET /taxes/:taxId/products?search=...
+ * Obtener productos activos disponibles para un impuesto con filtros
+ * jerarquicos de categoria.
+ * GET /taxes/:taxId/products?search=&scope=&categoryId=&page=&limit=&includeAssociated=
  */
 export const getTaxProducts = async (req: Request, res: Response): Promise<void> => {
     if (!req.user) {
@@ -582,15 +668,65 @@ export const getTaxProducts = async (req: Request, res: Response): Promise<void>
             return;
         }
 
-        const search = req.query.search as string | undefined;
-        const products = await getActiveProductsWithTaxFlag(taxId, search);
-        const assignedCount = products.filter((p) => p.assigned).length;
+        const search = parseOptionalQueryString(req.query.search, "search");
+        if (search.message) {
+            res.status(400).json({ message: search.message });
+            return;
+        }
+
+        const scope = parseTaxProductScope(req.query.scope);
+        if (scope.message) {
+            res.status(400).json({ message: scope.message });
+            return;
+        }
+
+        const categoryId = parseOptionalPositiveInt(req.query.categoryId, "categoryId");
+        if (categoryId.message) {
+            res.status(400).json({ message: categoryId.message });
+            return;
+        }
+
+        const pagination = parsePagination(req.query.page, req.query.limit);
+        if (pagination.message) {
+            res.status(400).json({ message: pagination.message });
+            return;
+        }
+
+        const includeAssociated = parseOptionalBooleanQuery(req.query.includeAssociated, "includeAssociated", false);
+        if (includeAssociated.message) {
+            res.status(400).json({ message: includeAssociated.message });
+            return;
+        }
+
+        const data = await getActiveProductsWithTaxFlag(taxId, {
+            search: search.value,
+            scope: scope.value!,
+            categoryId: categoryId.value,
+            page: pagination.value!.page,
+            limit: pagination.value!.limit,
+            includeAssociated: includeAssociated.value!,
+        });
 
         res.status(200).json({
             success: true,
-            data: { products, assignedCount, total: products.length },
+            data,
         });
     } catch (error: any) {
+        if (error.message === "CATEGORY_REQUIRED") {
+            res.status(400).json({ message: "categoryId es obligatorio para el scope seleccionado" });
+            return;
+        }
+
+        if (error.message === "CATEGORY_NOT_FOUND") {
+            res.status(404).json({ message: "Categoria no encontrada" });
+            return;
+        }
+
+        if (error.message === "CATEGORY_LEVEL_MISMATCH") {
+            res.status(400).json({ message: "El nivel de la categoria no coincide con el scope solicitado" });
+            return;
+        }
+
         logger.error("Error al obtener productos del impuesto", error.message);
         res.status(500).json({
             message: "Error al obtener los productos del impuesto",

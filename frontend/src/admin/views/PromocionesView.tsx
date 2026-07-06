@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, Eye, PackagePlus, Pencil, Plus, Power, Tags, X,
 import api from "../../shared/services/api";
 import { ConfirmModal } from "../../shared/ui";
 import { useToast } from "../../shared/context/ToastContext";
+import AddProductsToPromotionModal from "../components/AddProductsToPromotionModal";
 import {
   collectRoundedDecimalMessages,
   DECIMAL_INPUT_REGEX,
@@ -355,6 +356,9 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [productError, setProductError] = useState<string | null>(null);
   const [productSaving, setProductSaving] = useState(false);
 
+  // State for the new "Agregar productos" modal (filtered by category)
+  const [addProductsTarget, setAddProductsTarget] = useState<PromotionRow | null>(null);
+
   const [expandedPromotions, setExpandedPromotions] = useState<Record<number, boolean>>({});
   const isMobile = useMediaQuery("(max-width: 1024px)");
 
@@ -697,19 +701,31 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     }
   };
 
-  const openProductEditor = async (promotion: PromotionRow) => {
+  /** Abre el modal de agregar productos con filtro por categoría */
+  const openAddProducts = async (promotion: PromotionRow) => {
     setLoadingActionId(promotion.id);
-    setProductError(null);
     try {
       const fresh = await loadPromotionDetail(promotion.id);
       if (!fresh) throw new Error("PROMOTION_NOT_FOUND");
-      setProductEditor(fresh);
-      setProductEditorIds(fresh.products.map((row) => row.productId));
+      setAddProductsTarget(fresh);
     } catch (err: unknown) {
-      setError(getErrorMessage(err, "No se pudieron cargar los productos de la promocion."));
+      setError(getErrorMessage(err, "No se pudo abrir el selector de productos."));
     } finally {
       setLoadingActionId(null);
     }
+  };
+
+  /** Llamada cuando el modal de agregar productos asocia productos con éxito */
+  const handleAddProductsSuccess = async () => {
+    if (addProductsTarget) {
+      try {
+        const fresh = await loadPromotionDetail(addProductsTarget.id);
+        if (fresh) setAddProductsTarget(fresh);
+      } catch {
+        // silently ignore refresh error
+      }
+    }
+    await load();
   };
 
   const closeForm = () => {
@@ -1121,9 +1137,9 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           <Pencil size={13} /> Editar
                         </button>
 
-                        {/* Productos */}
+                        {/* Agregar productos con filtro de categoría */}
                         <button
-                          onClick={() => openProductEditor(promotion)}
+                          onClick={() => openAddProducts(promotion)}
                           disabled={busy}
                           style={{
                             ...ui.linkBtn,
@@ -1142,7 +1158,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           }}
                           className="active-tap"
                         >
-                          <PackagePlus size={13} /> Productos
+                          <PackagePlus size={13} /> Agregar productos
                         </button>
 
                         {/* Activar/Desactivar */}
@@ -1230,8 +1246,8 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           <button style={ui.linkBtn} className="active-tap" disabled={busy} onClick={() => openEdit(promotion)}>
                             <Pencil size={14} style={styles.iconInline} /> Editar
                           </button>
-                          <button style={ui.linkBtn} className="active-tap" disabled={busy} onClick={() => openProductEditor(promotion)}>
-                            <PackagePlus size={14} style={styles.iconInline} /> Productos
+                          <button style={ui.linkBtn} className="active-tap" disabled={busy} onClick={() => openAddProducts(promotion)}>
+                            <PackagePlus size={14} style={styles.iconInline} /> Agregar
                           </button>
                           <button
                             style={{ ...ui.linkBtn, color: promotion.isActive ? "#b91c1c" : "#15803d", opacity: busy ? 0.55 : 1 }}
@@ -1463,6 +1479,16 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
         onConfirm={handleConfirmToggle}
         onClose={() => setConfirmTogglePromotion(null)}
       />
+
+      {/* Modal: Agregar productos a la promoción (con filtro por categoría) */}
+      {addProductsTarget && (
+        <AddProductsToPromotionModal
+          promotionId={addProductsTarget.id}
+          promotionName={addProductsTarget.name}
+          onClose={() => setAddProductsTarget(null)}
+          onSuccess={handleAddProductsSuccess}
+        />
+      )}
     </div>
   );
 };
