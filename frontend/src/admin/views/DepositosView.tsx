@@ -19,6 +19,7 @@ import {
   usePagination,
   Pagination,
 } from "./shared";
+import { useToast } from "../../shared/context/ToastContext";
 
 interface DepositRow {
   id: number;
@@ -80,6 +81,7 @@ const detailValueStyle: React.CSSProperties = {
 };
 
 const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+  const { showToast } = useToast();
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [expandedDeposits, setExpandedDeposits] = useState<Record<number, boolean>>({});
 
@@ -201,7 +203,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       </div>
     `;
 
-    printTicketHtml(`Deposito #${deposit.id}`, body);
+    printTicketHtml(`Deposito #${deposit.id}`, body, showToast);
   };
 
   const total = rows.reduce((acc, d) => acc + d.amount, 0);

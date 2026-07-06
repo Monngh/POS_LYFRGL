@@ -11,6 +11,7 @@ import {
   validateReportDateRange,
   type ReportPeriod,
 } from "./reportPeriods";
+import { useToast } from "../../../shared/context/ToastContext";
 
 interface ReportData {
   range: { from: string; to: string };
@@ -35,6 +36,7 @@ interface ReportData {
 }
 
 const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ branchId, branchLabel }) => {
+  const { showToast } = useToast();
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [from, setFrom] = useState(daysAgoInputValue(29));
   const [to, setTo] = useState(daysAgoInputValue(0));
@@ -149,7 +151,7 @@ const ResumenReport: React.FC<{ branchId: string; branchLabel: string }> = ({ br
         ${data.topProducts.map((p, i) => `<tr><td>${i + 1}</td><td>${p.name}</td><td class="c">${p.unidades}</td><td class="r">${moneyExact(p.importe)}</td></tr>`).join("") || `<tr><td colspan="4" class="c">Sin datos</td></tr>`}
       </tbody></table>
     `;
-    printHtml("Resumen ejecutivo - LYFRGL Solutions", body);
+    printHtml("Resumen ejecutivo - LYFRGL Solutions", body, showToast);
   };
 
   return (

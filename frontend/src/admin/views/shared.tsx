@@ -47,12 +47,12 @@ export const fmtDateTime = (d: string | Date) => `${fmtDate(d)} ${fmtTime(d)}`;
 export const printHtml = (
   title: string,
   bodyHtml: string,
-  showToast?: (message: string, type?: "success" | "error" | "info" | "warning") => void
+  showToast: (message: string, type?: "success" | "error" | "info" | "warning") => void
 ) => {
   const w = window.open("", "_blank", "width=920,height=720");
   if (!w) {
     const msg = "Habilite las ventanas emergentes para imprimir el documento.";
-    showToast ? showToast(msg, "warning") : alert(msg);
+    showToast(msg, "warning");
     return;
   }
   w.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8" />
@@ -87,12 +87,12 @@ export const printHtml = (
 export const printTicketHtml = (
   title: string,
   bodyHtml: string,
-  showToast?: (message: string, type?: "success" | "error" | "info" | "warning") => void
+  showToast: (message: string, type?: "success" | "error" | "info" | "warning") => void
 ) => {
   const printed = openTicketPrintWindow(title, bodyHtml);
   if (!printed) {
     const msg = "Habilite las ventanas emergentes para imprimir el comprobante.";
-    showToast ? showToast(msg, "warning") : alert(msg);
+    showToast(msg, "warning");
   }
 };
 

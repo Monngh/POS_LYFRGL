@@ -16,6 +16,7 @@ import {
   usePagination,
   Pagination,
 } from "./shared";
+import { useToast } from "../../shared/context/ToastContext";
 
 interface KardexRow {
   id: number;
@@ -85,6 +86,7 @@ const chipStyle = (active: boolean): React.CSSProperties => ({
 });
 
 const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+  const { showToast } = useToast();
   const [rows, setRows] = useState<KardexRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -164,7 +166,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       </div>
       </div>
     `;
-    printTicketHtml(`Kardex Mov. #${k.id}`, body);
+    printTicketHtml(`Kardex Mov. #${k.id}`, body, showToast);
   };
 
   return (

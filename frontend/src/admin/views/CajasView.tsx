@@ -21,6 +21,7 @@ import {
   usePagination,
   Pagination,
 } from "./shared";
+import { useToast } from "../../shared/context/ToastContext";
 
 interface SessionRow {
   id: number;
@@ -58,6 +59,7 @@ interface SessionDetail extends SessionRow {
 }
 
 const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+  const { showToast } = useToast();
   const { user } = useAuth();
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [expandedSessions, setExpandedSessions] = useState<Record<number, boolean>>({});
@@ -305,7 +307,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       </div>
     `;
 
-    printTicketHtml(`Arqueo Caja #${d.id}`, body);
+    printTicketHtml(`Arqueo Caja #${d.id}`, body, showToast);
   };
 
   const openCount = rows.filter((r) => r.status === "ABIERTA").length;

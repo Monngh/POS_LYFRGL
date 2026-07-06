@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Eye, PackagePlus, Pencil, Plus, Power, Tags, X, Calendar } from "lucide-react";
 import api from "../../shared/services/api";
+import { ConfirmModal } from "../../shared/ui";
+import { useToast } from "../../shared/context/ToastContext";
 import {
   collectRoundedDecimalMessages,
   DECIMAL_INPUT_REGEX,
@@ -330,6 +332,7 @@ const ProductSelector: React.FC<{
 };
 
 const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
+  const { showToast } = useToast();
   const [rows, setRows] = useState<PromotionRow[]>([]);
   const [promotionTypes, setPromotionTypes] = useState<PromotionTypeOption[]>([]);
   const [products, setProducts] = useState<ProductOption[]>([]);
@@ -348,6 +351,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [detail, setDetail] = useState<PromotionRow | null>(null);
   const [productEditor, setProductEditor] = useState<PromotionRow | null>(null);
   const [productEditorIds, setProductEditorIds] = useState<number[]>([]);
+  const [confirmTogglePromotion, setConfirmTogglePromotion] = useState<PromotionRow | null>(null);
   const [productError, setProductError] = useState<string | null>(null);
   const [productSaving, setProductSaving] = useState(false);
 
@@ -739,7 +743,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     setFieldErrors({});
     try {
       if (decimalValidation.value.roundingMessages.length > 0) {
-        alert(decimalValidation.value.roundingMessages.join("\n"));
+        showToast(decimalValidation.value.roundingMessages.join("\n"), "warning");
       }
 
       if (editing === "create") {
@@ -761,12 +765,16 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     }
   };
 
-  const toggleStatus = async (promotion: PromotionRow) => {
-    const next = !promotion.isActive;
-    const action = next ? "activar" : "desactivar";
-    const confirmed = window.confirm(`Desea ${action} la promocion "${promotion.name}"?`);
-    if (!confirmed) return;
+  const toggleStatus = (promotion: PromotionRow) => {
+    setConfirmTogglePromotion(promotion);
+  };
 
+  const handleConfirmToggle = async () => {
+    if (!confirmTogglePromotion) return;
+    const promotion = confirmTogglePromotion;
+    const next = !promotion.isActive;
+
+    setConfirmTogglePromotion(null);
     setLoadingActionId(promotion.id);
     setError(null);
     setNotice(null);
@@ -1444,6 +1452,17 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
           </form>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmTogglePromotion !== null}
+        title={`${confirmTogglePromotion?.isActive ? "Desactivar" : "Activar"} promoción`}
+        message={`¿Desea ${confirmTogglePromotion?.isActive ? "desactivar" : "activar"} la promoción "${confirmTogglePromotion?.name}"?`}
+        confirmLabel="Confirmar"
+        cancelLabel="Cancelar"
+        variant={confirmTogglePromotion?.isActive ? "danger" : "info"}
+        onConfirm={handleConfirmToggle}
+        onClose={() => setConfirmTogglePromotion(null)}
+      />
     </div>
   );
 };

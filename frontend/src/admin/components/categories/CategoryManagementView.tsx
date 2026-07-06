@@ -24,6 +24,7 @@ import { CategoryTree } from "./CategoryTree";
 import { CategoryFormModal, type CategoryFormState } from "./CategoryFormModal";
 import { CategoryProductsModal } from "./CategoryProductsModal";
 import { UncategorizedProductsModal } from "./UncategorizedProductsModal";
+import { ConfirmModal } from "../../../shared/ui";
 import {
   createChildLabel,
   findCategoryAncestorIds,
@@ -72,6 +73,8 @@ export function CategoryManagementView({ onClose, onClassifyProduct }: CategoryM
   const [uncategorizedOpen, setUncategorizedOpen] = useState(false);
   const [actionSaving, setActionSaving] = useState<"status" | "delete" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [confirmStatusUpdate, setConfirmStatusUpdate] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const categoryTree = tree;
 
@@ -243,15 +246,15 @@ export function CategoryManagementView({ onClose, onClassifyProduct }: CategoryM
     setFormState({ mode: "create", level, parent: selectedNode });
   };
 
-  const updateStatus = async () => {
+  const requestUpdateStatus = () => {
     if (!detail || actionSaving) return;
+    setConfirmStatusUpdate(true);
+  };
+
+  const executeUpdateStatus = async () => {
+    if (!detail || actionSaving) return;
+    setConfirmStatusUpdate(false);
     const active = !detail.active;
-    const confirmed = window.confirm(
-      active
-        ? `Deseas activar "${detail.name}"?`
-        : `Deseas desactivar "${detail.name}"?\nLos productos que ya la tienen conservaran la relacion, pero no podra asignarse a productos nuevos.`
-    );
-    if (!confirmed) return;
 
     setActionSaving("status");
     setMessage(null);
@@ -267,12 +270,14 @@ export function CategoryManagementView({ onClose, onClassifyProduct }: CategoryM
     }
   };
 
-  const deleteCategory = async () => {
+  const requestDeleteCategory = () => {
     if (!detail || actionSaving) return;
-    const confirmed = window.confirm(
-      "Deseas eliminar esta categoria?\nEsta accion solo funcionara si no tiene subcategorias, productos asociados o relaciones historicas."
-    );
-    if (!confirmed) return;
+    setConfirmDelete(true);
+  };
+
+  const executeDeleteCategory = async () => {
+    if (!detail || actionSaving) return;
+    setConfirmDelete(false);
 
     setActionSaving("delete");
     setMessage(null);
@@ -484,7 +489,7 @@ export function CategoryManagementView({ onClose, onClassifyProduct }: CategoryM
                   <button type="button" style={ui.ghostBtn} onClick={() => setFormState({ mode: "edit", category: detail })} disabled={Boolean(actionSaving)}>
                     <Edit3 size={15} /> Editar
                   </button>
-                  <button type="button" style={ui.ghostBtn} onClick={() => void updateStatus()} disabled={Boolean(actionSaving)}>
+                  <button type="button" style={ui.ghostBtn} onClick={() => void requestUpdateStatus()} disabled={Boolean(actionSaving)}>
                     <Power size={15} /> {detail.active ? "Desactivar" : "Activar"}
                   </button>
                   {detail.level === "CATEGORY" && (
@@ -495,7 +500,7 @@ export function CategoryManagementView({ onClose, onClassifyProduct }: CategoryM
                   <button
                     type="button"
                     style={{ ...ui.ghostBtn, color: "var(--color-danger)", borderColor: "rgba(220,38,38,0.45)" }}
-                    onClick={() => void deleteCategory()}
+                    onClick={() => void requestDeleteCategory()}
                     disabled={Boolean(actionSaving)}
                   >
                     <Trash2 size={15} /> Eliminar
@@ -520,6 +525,26 @@ export function CategoryManagementView({ onClose, onClassifyProduct }: CategoryM
           isOpen={uncategorizedOpen}
           onClose={() => setUncategorizedOpen(false)}
           onClassifyProduct={onClassifyProduct}
+        />
+        <ConfirmModal
+          isOpen={confirmStatusUpdate}
+          title={`${!detail?.active ? "Activar" : "Desactivar"} categoría`}
+          message={!detail?.active ? `¿Deseas activar "${detail?.name}"?` : `¿Deseas desactivar "${detail?.name}"?\nLos productos que ya la tienen conservarán la relación, pero no podrá asignarse a productos nuevos.`}
+          confirmLabel="Confirmar"
+          cancelLabel="Cancelar"
+          variant={!detail?.active ? "info" : "warning"}
+          onConfirm={executeUpdateStatus}
+          onClose={() => setConfirmStatusUpdate(false)}
+        />
+        <ConfirmModal
+          isOpen={confirmDelete}
+          title="Eliminar categoría"
+          message="¿Deseas eliminar esta categoría?\nEsta acción solo funcionará si no tiene subcategorías, productos asociados o relaciones históricas."
+          confirmLabel="Eliminar"
+          cancelLabel="Cancelar"
+          variant="danger"
+          onConfirm={executeDeleteCategory}
+          onClose={() => setConfirmDelete(false)}
         />
       </div>
     </div>

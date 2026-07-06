@@ -1096,7 +1096,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       <table>
         <thead><tr><th>Fecha</th><th>Sucursal</th><th>Tipo</th><th class="c">Cambio</th><th class="c">Saldo</th><th>Motivo</th></tr></thead>
         <tbody>${kardexRows || '<tr><td colspan="6" class="c">Sin movimientos registrados</td></tr>'}</tbody>
-      </table>`
+      </table>`,
+      showToast
     );
   }, [selectedProduct]);
 

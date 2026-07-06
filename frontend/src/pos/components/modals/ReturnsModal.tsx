@@ -24,7 +24,7 @@ interface ReturnsModalProps {
   onClose: () => void;
   user: any;
   onReturnCompleted: () => void;
-  onToast: (msg: string, type?: "error" | "success" | "info") => void;
+  onToast: (msg: string, type?: "error" | "success" | "info" | "warning") => void;
   onOpenEmailModal: (config: { subject: string; htmlContent?: string; defaultEmail?: string | null }) => void;
 }
 
@@ -453,7 +453,7 @@ export default function ReturnsModal({
               const html = buildReturnReceiptHtml();
               const title = `Comprobante de devolución ${returnReceipt?.returnNumber}`;
               const printed = openTicketPrintWindow(title, html);
-              if (!printed) alert("Habilite las ventanas emergentes para imprimir el comprobante.");
+              if (!printed) onToast("Habilite las ventanas emergentes para imprimir el comprobante.", "warning");
             }}
             data-shortcut="confirm"
             data-shortcut-letter="C"

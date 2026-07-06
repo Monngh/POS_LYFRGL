@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import api from "../../shared/services/api";
 import { ui, Badge, money, fmtDateTime, statusTone, printTicketHtml } from "../views/shared";
+import { useToast } from "../../shared/context/ToastContext";
 
 interface SessionDetail {
   id: number;
@@ -85,6 +86,7 @@ interface AdminSessionDetailModalProps {
 // CajasView.tsx (modal "Detalle de Caja") — se mantiene independiente para no arriesgar
 // regresiones en esa vista. z-index explícito por encima del modal de empleado (ActionModal, 1000).
 const AdminSessionDetailModal: React.FC<AdminSessionDetailModalProps> = ({ sessionId, onClose }) => {
+  const { showToast } = useToast();
   const [detail, setDetail] = useState<SessionDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -182,7 +184,7 @@ const AdminSessionDetailModal: React.FC<AdminSessionDetailModalProps> = ({ sessi
       </div>
     `;
 
-    printTicketHtml(`Arqueo Caja #${d.id}`, body);
+    printTicketHtml(`Arqueo Caja #${d.id}`, body, showToast);
   };
 
   if (sessionId == null) return null;

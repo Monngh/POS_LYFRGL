@@ -15,6 +15,7 @@ import {
   statusTone,
   payTone,
 } from "../shared";
+import { useToast } from "../../../shared/context/ToastContext";
 import { type ReportDef, type ReportFilters, type Column, formatForPrint } from "./reportConfig";
 import {
   CUSTOM_REPORT_PERIOD,
@@ -54,6 +55,7 @@ const reportDetailValueStyle: React.CSSProperties = {
 };
 
 const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: string }> = ({ def, branchId, branchLabel }) => {
+  const { showToast } = useToast();
   const [filters, setFilters] = useState<ReportFilters>({
     from: daysAgoInputValue(29),
     to: daysAgoInputValue(0),
@@ -234,7 +236,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
         </tbody>
       </table>
     `;
-    printHtml(`${def.title} - LYFRGL`, body);
+    printHtml(`${def.title} - LYFRGL`, body, showToast);
   };
 
   return (

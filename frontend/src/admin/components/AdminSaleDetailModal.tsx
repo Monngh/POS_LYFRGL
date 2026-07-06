@@ -11,6 +11,7 @@ import {
   payTone,
   printTicketHtml,
 } from "../views/shared";
+import { useToast } from "../../shared/context/ToastContext";
 
 interface SaleDetail {
   id: number;
@@ -29,7 +30,7 @@ interface SaleDetail {
 }
 
 // Reimpresión: genera el ticket de la venta y abre el diálogo de impresión (copiado de VentasView.tsx)
-const reprintTicket = (d: SaleDetail) => {
+const reprintTicket = (d: SaleDetail, showToast: any) => {
   const safe = (value: unknown) =>
     String(value ?? "")
       .replace(/&/g, "&amp;")
@@ -85,7 +86,7 @@ const reprintTicket = (d: SaleDetail) => {
       </div>
     </div>
   `;
-  printTicketHtml(`Ticket ${d.invoiceNumber}`, body);
+  printTicketHtml(`Ticket ${d.invoiceNumber}`, body, showToast);
 };
 
 const Info: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
@@ -113,6 +114,7 @@ interface AdminSaleDetailModalProps {
 // VentasView.tsx (modal "Detalle de Venta") — se mantiene independiente para no arriesgar
 // regresiones en esa vista. z-index explícito por encima del modal de empleado (ActionModal, 1000).
 const AdminSaleDetailModal: React.FC<AdminSaleDetailModalProps> = ({ saleId, onClose }) => {
+  const { showToast } = useToast();
   const [detail, setDetail] = useState<SaleDetail | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -256,7 +258,7 @@ const AdminSaleDetailModal: React.FC<AdminSaleDetailModalProps> = ({ saleId, onC
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginTop: 20 }}>
-              <button style={ui.primaryBtn} className="active-tap" onClick={() => reprintTicket(detail)}>
+              <button style={ui.primaryBtn} className="active-tap" onClick={() => reprintTicket(detail, showToast)}>
                 <Printer size={15} /> Reimprimir ticket
               </button>
             </div>

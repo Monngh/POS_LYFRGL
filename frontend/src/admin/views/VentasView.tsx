@@ -24,6 +24,7 @@ import {
   usePagination,
   Pagination,
 } from "./shared";
+import { useToast } from "../../shared/context/ToastContext";
 
 interface SaleRow {
   id: number;
@@ -55,7 +56,7 @@ interface SaleDetail {
 }
 
 // Reimpresión: genera el ticket de la venta y abre el diálogo de impresión
-const reprintTicket = (d: SaleDetail) => {
+const reprintTicket = (d: SaleDetail, showToast: any) => {
   const safe = (value: unknown) =>
     String(value ?? "")
       .replace(/&/g, "&amp;")
@@ -111,7 +112,7 @@ const reprintTicket = (d: SaleDetail) => {
       </div>
     </div>
   `;
-  printTicketHtml(`Ticket ${d.invoiceNumber}`, body);
+  printTicketHtml(`Ticket ${d.invoiceNumber}`, body, showToast);
 };
 
 const detailRowStyle: React.CSSProperties = {
@@ -142,6 +143,7 @@ const detailValueStyle: React.CSSProperties = {
 };
 
 const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+  const { showToast } = useToast();
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [expandedSales, setExpandedSales] = useState<Record<number, boolean>>({});
 
@@ -721,7 +723,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               ) : (
                 <span />
               )}
-              <button style={ui.primaryBtn} className="active-tap" onClick={() => reprintTicket(detail)}>
+              <button style={ui.primaryBtn} className="active-tap" onClick={() => reprintTicket(detail, showToast)}>
                 <Printer size={15} /> Reimprimir ticket
               </button>
             </div>
