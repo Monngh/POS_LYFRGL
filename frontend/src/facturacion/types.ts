@@ -45,6 +45,9 @@ export interface InvoiceHistoryItem {
   cfdiUuid: string | null;
   pdfUrl: string | null;
   xmlUrl: string | null;
+  returnCfdiUuid?: string | null;
+  returnPdfUrl?: string | null;
+  returnXmlUrl?: string | null;
 }
 
 export interface CustomerProfile {

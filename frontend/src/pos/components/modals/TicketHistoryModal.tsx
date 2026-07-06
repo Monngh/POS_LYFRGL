@@ -5,6 +5,7 @@ import {
   normalizeIntegerInput,
 } from '../../../shared/utils/formValidation';
 import { PosModal } from "./shared";
+import { openTicketPrintWindow } from "../../../shared/utils/ticketEmailDocument.util";
 
 const maskPhone = (value: string | null | undefined): string => {
   const digits = (value || "").replace(/\D/g, "");
@@ -86,6 +87,9 @@ export default function TicketHistoryModal({
   const [ticketDateTo, setTicketDateTo] = useState("");
   const [filteredSales, setFilteredSales] = useState<any[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"ventas" | "vales">("ventas");
+  const [vales, setVales] = useState<any[]>([]);
+  const [valesLoading, setValesLoading] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
@@ -95,28 +99,115 @@ export default function TicketHistoryModal({
       setTicketDateFrom("");
       setTicketDateTo("");
       setFilteredSales([]);
+      setVales([]);
       setLocalError(null);
+      setActiveTab("ventas");
     }
   }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
-    const timer = setTimeout(async () => {
-      try {
-        const params: any = {};
-        if (ticketSearch.trim()) params.search = ticketSearch.trim();
-        if (ticketCustomer.trim()) params.customer = ticketCustomer.trim();
-        if (ticketPhone.trim()) params.phone = ticketPhone.trim();
-        if (ticketDateFrom) params.dateFrom = ticketDateFrom;
-        if (ticketDateTo) params.dateTo = ticketDateTo;
-        const res = await api.get("/api/sales/my-recent", { params });
-        setFilteredSales(res.data.sales || []);
-      } catch (err) {
-        console.error("Error al buscar tickets:", err);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [ticketSearch, ticketCustomer, ticketPhone, ticketDateFrom, ticketDateTo, isOpen]);
+    if (activeTab === "ventas") {
+      const timer = setTimeout(async () => {
+        try {
+          const params: any = {};
+          if (ticketSearch.trim()) params.search = ticketSearch.trim();
+          if (ticketCustomer.trim()) params.customer = ticketCustomer.trim();
+          if (ticketPhone.trim()) params.phone = ticketPhone.trim();
+          if (ticketDateFrom) params.dateFrom = ticketDateFrom;
+          if (ticketDateTo) params.dateTo = ticketDateTo;
+          const res = await api.get("/api/sales/my-recent", { params });
+          setFilteredSales(res.data.sales || []);
+        } catch (err) {
+          console.error("Error al buscar tickets:", err);
+        }
+      }, 300);
+      return () => clearTimeout(timer);
+    } else {
+      setValesLoading(true);
+      api.get("/api/sales/store-credits")
+        .then(res => {
+          setVales(res.data.storeCredits || []);
+        })
+        .catch(err => {
+          console.error("Error al buscar vales:", err);
+        })
+        .finally(() => {
+          setValesLoading(false);
+        });
+    }
+  }, [ticketSearch, ticketCustomer, ticketPhone, ticketDateFrom, ticketDateTo, activeTab, isOpen]);
+
+  const filteredVales = vales.filter((v) => {
+    if (ticketSearch.trim() && !v.code.toLowerCase().includes(ticketSearch.trim().toLowerCase())) {
+      return false;
+    }
+    const custName = v.customer?.name || "Público General";
+    if (ticketCustomer.trim() && !custName.toLowerCase().includes(ticketCustomer.trim().toLowerCase())) {
+      return false;
+    }
+    const custPhone = v.customer?.phone || "";
+    if (ticketPhone.trim() && !custPhone.includes(ticketPhone.trim())) {
+      return false;
+    }
+    if (ticketDateFrom && new Date(v.createdAt) < new Date(ticketDateFrom + "T00:00:00")) {
+      return false;
+    }
+    if (ticketDateTo && new Date(v.createdAt) > new Date(ticketDateTo + "T23:59:59")) {
+      return false;
+    }
+    return true;
+  });
+
+  const buildStoreCreditReceiptHtml = (sc: any) => {
+    const safe = (value: unknown) =>
+      String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    const rows = [
+      `<div class="ticket-row"><span>Codigo de vale:</span><span class="ticket-value">${safe(sc.code)}</span></div>`,
+      `<div class="ticket-row"><span>Fecha creacion:</span><span class="ticket-value">${safe(new Date(sc.createdAt).toLocaleString())}</span></div>`,
+      `<div class="ticket-row"><span>Cliente:</span><span class="ticket-value">${safe(sc.customer?.name || "Publico general")}</span></div>`,
+      `<div class="ticket-row"><span>Estado:</span><span class="ticket-value">${sc.active ? "ACTIVO" : "INACTIVO / USADO"}</span></div>`,
+    ];
+    return `
+      <div>
+        <div class="ticket-header">
+          <span class="ticket-store">LYFRGL POS</span>
+          <span class="ticket-muted">Punto de Venta Corporativo</span>
+          <span class="ticket-operation">VALE DE DEVOLUCIÓN</span>
+        </div>
+        <div class="ticket-section">
+          ${rows.join("")}
+        </div>
+        <div class="ticket-section">
+          <div class="ticket-row">
+            <span>Monto Inicial:</span>
+            <span>$${Number(sc.amount).toFixed(2)}</span>
+          </div>
+          <div class="ticket-row ticket-total">
+            <span>Saldo Restante:</span>
+            <span>$${Number(sc.remaining).toFixed(2)}</span>
+          </div>
+        </div>
+        <div class="ticket-footer">
+          <p>VALE GENERADO POR DEVOLUCIÓN</p>
+          <p>Presente este ticket para aplicar su saldo a favor en su proxima compra.</p>
+        </div>
+      </div>
+    `;
+  };
+
+  const handlePrintStoreCredit = (sc: any) => {
+    const html = buildStoreCreditReceiptHtml(sc);
+    const title = `Vale ${sc.code}`;
+    const printed = openTicketPrintWindow(title, html);
+    if (!printed) {
+      alert("Habilite las ventanas emergentes para imprimir el vale.");
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -166,11 +257,11 @@ export default function TicketHistoryModal({
         {/* Grid de Filtros */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }} className="pos-cashier-grid-2">
           <div style={{ ...inputGroup, gridColumn: "span 2" }}>
-            <label style={label}>Folio de Venta:</label>
+            <label style={label}>{activeTab === "ventas" ? "Folio de Venta:" : "Código de Vale:"}</label>
             <input
               type="text"
               className="input-corporate"
-              placeholder="Buscar por folio de venta (V-XXXXXX)..."
+              placeholder={activeTab === "ventas" ? "Buscar por folio de venta (V-XXXXXX)..." : "Buscar por código de vale (VALE-)..."}
               value={ticketSearch}
               onChange={(e) => setTicketSearch(validateFolioInput(e.target.value).toUpperCase())}
             />
@@ -215,6 +306,42 @@ export default function TicketHistoryModal({
           </div>
         </div>
 
+        {/* Selector de pestañas */}
+        <div style={{ display: "flex", borderBottom: "2px solid var(--border)", marginBottom: "16px" }} className="pos-cashier-dep-tabs">
+          <button
+            type="button"
+            onClick={() => setActiveTab("ventas")}
+            style={{
+              flex: 1,
+              padding: "10px",
+              border: "none",
+              borderBottom: activeTab === "ventas" ? "3px solid #2563eb" : "none",
+              backgroundColor: "transparent",
+              fontWeight: "700",
+              color: activeTab === "ventas" ? "#2563eb" : "var(--text-muted)",
+              cursor: "pointer",
+            }}
+          >
+            VENTAS RECIENTES
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("vales")}
+            style={{
+              flex: 1,
+              padding: "10px",
+              border: "none",
+              borderBottom: activeTab === "vales" ? "3px solid #2563eb" : "none",
+              backgroundColor: "transparent",
+              fontWeight: "700",
+              color: activeTab === "vales" ? "#2563eb" : "var(--text-muted)",
+              cursor: "pointer",
+            }}
+          >
+            VALES GENERADOS
+          </button>
+        </div>
+
         <div style={{ maxHeight: "40vh", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "6px" }} className="pos-cashier-table-scroll pos-cashier-table-scroll--history">
           <style>{`
             @media (max-width: 1024px) {
@@ -232,75 +359,131 @@ export default function TicketHistoryModal({
               .pos-cashier-table-scroll--history, .pos-cashier-table-scroll--history table, .pos-cashier-table-scroll--history tbody, .pos-cashier-table-scroll--history tr, .pos-cashier-table-scroll--history td { box-sizing: border-box; }
             }
           `}</style>
-          <table style={table}>
-            <thead>
-              <tr style={tableHeaderRow}>
-                <th style={th}>Folio / Fecha</th>
-                <th style={th}>Cliente / Tel</th>
-                <th style={{ ...th, textAlign: "right" }}>Total</th>
-                <th style={{ ...th, textAlign: "center" }}>Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredSales.length === 0 ? (
-                <tr>
-                  <td colSpan={4} style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "12px" }}>
-                    No se encontraron ventas.
-                  </td>
+          {activeTab === "ventas" ? (
+            <table style={table}>
+              <thead>
+                <tr style={tableHeaderRow}>
+                  <th style={th}>Folio / Fecha</th>
+                  <th style={th}>Cliente / Tel</th>
+                  <th style={{ ...th, textAlign: "right" }}>Total</th>
+                  <th style={{ ...th, textAlign: "center" }}>Acción</th>
                 </tr>
-              ) : (
-                filteredSales.map((sale, index) => (
-                  <tr key={sale.id} style={tableRow}>
-                    <td style={td}>
-                      <div style={{ fontWeight: "600", color: "var(--text)" }}>{sale.invoiceNumber}</div>
-                      <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>{new Date(sale.createdAt).toLocaleDateString()}</div>
-                    </td>
-                    <td style={{ ...td, fontSize: "11px" }}>
-                      {sale.customerName ? (
-                        <>
-                          <div style={{ fontWeight: "600", color: "var(--text-secondary)" }}>Cliente registrado</div>
-                          {sale.customerPhone && <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Tel: {maskPhone(sale.customerPhone)}</div>}
-                        </>
-                      ) : (
-                        <span style={{ color: "var(--text-faint)", fontStyle: "italic" }}>General</span>
-                      )}
-                    </td>
-                    <td style={{ ...td, textAlign: "right", fontWeight: "700" }}>
-                      ${sale.totalAmount.toFixed(2)}
-                    </td>
-                    <td style={{ ...td, textAlign: "center" }}>
-                      <button
-                        onClick={async () => {
-                          setLocalError(null);
-                          try {
-                            const res = await api.get(`/api/sales/detail?id=${sale.id}`);
-                            onSelectSale({
-                              ...res.data.sale,
-                              refundStatus: sale.refundStatus,
-                              isNewSale: false,
-                            });
-                          } catch (e: any) {
-                            setLocalError(e.response?.data?.message || "Error al recuperar los detalles de la venta.");
-                          }
-                        }}
-                        className="btn-primary"
-                        style={{ padding: "6px 10px", fontSize: "12px" }}
-                        {...(index === 0
-                          ? {
-                              "data-shortcut": "confirm",
-                              "data-shortcut-letter": "C",
-                              title: "Reimprimir (Enter, Alt+C)",
-                            }
-                          : { title: "Reimprimir" })}
-                      >
-                        Reimprimir
-                      </button>
+              </thead>
+              <tbody>
+                {filteredSales.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "12px" }}>
+                      No se encontraron ventas.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  filteredSales.map((sale, index) => (
+                    <tr key={sale.id} style={tableRow}>
+                      <td style={td}>
+                        <div style={{ fontWeight: "600", color: "var(--text)" }}>{sale.invoiceNumber}</div>
+                        <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>{new Date(sale.createdAt).toLocaleDateString()}</div>
+                      </td>
+                      <td style={{ ...td, fontSize: "11px" }}>
+                        {sale.customerName ? (
+                          <>
+                            <div style={{ fontWeight: "600", color: "var(--text-secondary)" }}>Cliente registrado</div>
+                            {sale.customerPhone && <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Tel: {maskPhone(sale.customerPhone)}</div>}
+                          </>
+                        ) : (
+                          <span style={{ color: "var(--text-faint)", fontStyle: "italic" }}>General</span>
+                        )}
+                      </td>
+                      <td style={{ ...td, textAlign: "right", fontWeight: "700" }}>
+                        ${sale.totalAmount.toFixed(2)}
+                      </td>
+                      <td style={{ ...td, textAlign: "center" }}>
+                        <button
+                          onClick={async () => {
+                            setLocalError(null);
+                            try {
+                              const res = await api.get(`/api/sales/detail?id=${sale.id}`);
+                              onSelectSale({
+                                ...res.data.sale,
+                                refundStatus: sale.refundStatus,
+                                isNewSale: false,
+                              });
+                            } catch (e: any) {
+                              setLocalError(e.response?.data?.message || "Error al recuperar los detalles de la venta.");
+                            }
+                          }}
+                          className="btn-primary"
+                          style={{ padding: "6px 10px", fontSize: "12px" }}
+                          {...(index === 0
+                            ? {
+                                "data-shortcut": "confirm",
+                                "data-shortcut-letter": "C",
+                                title: "Reimprimir (Enter, Alt+C)",
+                              }
+                            : { title: "Reimprimir" })}
+                        >
+                          Reimprimir
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          ) : (
+            <table style={table}>
+              <thead>
+                <tr style={tableHeaderRow}>
+                  <th style={th}>Código / Fecha</th>
+                  <th style={th}>Cliente / Tel</th>
+                  <th style={{ ...th, textAlign: "right" }}>Saldo / Inicial</th>
+                  <th style={{ ...th, textAlign: "center" }}>Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {valesLoading ? (
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "12px" }}>
+                      Cargando vales...
+                    </td>
+                  </tr>
+                ) : filteredVales.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "12px" }}>
+                      No se encontraron vales.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredVales.map((vale) => (
+                    <tr key={vale.id} style={tableRow}>
+                      <td style={td}>
+                        <div style={{ fontWeight: "700", color: "#7c3aed" }}>{vale.code}</div>
+                        <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>{new Date(vale.createdAt).toLocaleDateString()}</div>
+                      </td>
+                      <td style={{ ...td, fontSize: "11px" }}>
+                        <div style={{ fontWeight: "600", color: "var(--text-secondary)" }}>{vale.customer?.name || "Público General"}</div>
+                        {vale.customer?.phone && <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Tel: {maskPhone(vale.customer.phone)}</div>}
+                      </td>
+                      <td style={{ ...td, textAlign: "right" }}>
+                        <div style={{ fontWeight: "700", color: vale.active ? "#166534" : "var(--text-muted)" }}>
+                          ${Number(vale.remaining).toFixed(2)}
+                        </div>
+                        <div style={{ fontSize: "9px", color: "var(--text-muted)" }}>inicial: ${Number(vale.amount).toFixed(2)}</div>
+                      </td>
+                      <td style={{ ...td, textAlign: "center" }}>
+                        <button
+                          onClick={() => handlePrintStoreCredit(vale)}
+                          className="btn-primary"
+                          style={{ padding: "6px 10px", fontSize: "12px", backgroundColor: "#7c3aed", color: "white", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "pointer" }}
+                        >
+                          Reimprimir
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </PosModal>

@@ -47,22 +47,9 @@ export class BillingService {
     const isGenericRfc = customer.rfc.toUpperCase() === "XAXX010101000" || customer.rfc.toUpperCase() === "XEXX010101000";
 
     if (!customerId && !isGenericRfc) {
-      try {
-        const foundCustomer = await prisma.customer.findFirst({
-          where: {
-            taxId: customer.rfc.toUpperCase()
-          }
-        });
-        if (foundCustomer) {
-          customerId = foundCustomer.id;
-          await prisma.sale.update({
-            where: { id: sale.id },
-            data: { customerId: foundCustomer.id }
-          });
-        }
-      } catch (findErr) {
-        console.error("Error al buscar/asociar cliente por RFC:", findErr);
-      }
+      // Ya no intentamos asociar la venta a un cliente al azar solo por coincidir el RFC.
+      // Si la venta se hizo al "Público general" (customerId = null), se queda así.
+      // Esto evita que si dos clientes tienen el mismo RFC (ej. XAXX010101000), se asigne al incorrecto.
     }
 
     if (customerId) {
@@ -300,7 +287,17 @@ export class BillingService {
       };
     } catch (err: any) {
       console.error("Facturapi Error:", err);
-      throw new Error(`Error de Facturación SAT (API Real): ${err.message}`);
+      let friendlyMessage = err.message || "Error al comunicarse con el proveedor de facturación.";
+      if (
+        friendlyMessage.includes("tax_id") ||
+        friendlyMessage.includes("RFC") ||
+        friendlyMessage.toLowerCase().includes("rfc") ||
+        friendlyMessage.includes("inválido") ||
+        friendlyMessage.toLowerCase().includes("invalid")
+      ) {
+        friendlyMessage = "Por favor, verifique que su RFC, Razón Social, Régimen Fiscal y Código Postal Fiscal coincidan exactamente con su Constancia de Situación Fiscal del SAT.";
+      }
+      throw new Error(`Error de Facturación SAT (API Real): ${friendlyMessage}`);
     }
   }
 
@@ -324,8 +321,7 @@ export class BillingService {
       throw new Error("La venta original no cuenta con una factura timbrada. No es necesario emitir Nota de Crédito.");
     }
 
-    const uuidParts = sale.cfdiUuid.split(":");
-    const originalInvoiceId = uuidParts[1] || uuidParts[0];
+
 
     const rawApiKey = process.env.FACTURAPI_API_KEY;
     const apiKey = rawApiKey ? rawApiKey.replace(/['"]/g, "").trim() : "";
@@ -448,9 +444,7 @@ export class BillingService {
         },
         items: facturapiItems,
         payment_form: paymentFormMap[sale.paymentMethod] || "01",
-        use: isGeneric ? "S01" : (sale.customer?.cfdiUse || "G02"),
-        relation: "01",
-        related_documents: [originalInvoiceId]
+        use: isGeneric ? "S01" : (sale.customer?.cfdiUse || "G02")
       };
 
       const authHeader = "Bearer " + apiKey;

@@ -49,6 +49,7 @@ export const sendCustomerOtp = (email: string) =>
  */
 export const registerCustomer = (registerData: {
   email: string;
+  phone: string;
   invoiceNumber: string;
   password: string;
   passwordConfirmation: string;
@@ -103,8 +104,10 @@ export const createPublicInvoice = (invoiceData: {
   email: string;
   taxSystem: string;
   cfdiUse: string;
-}) =>
-  api.post<InvoiceResult>('/api/public/sales/invoice', invoiceData);
+}, token?: string) => {
+  const config = token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
+  return api.post<InvoiceResult>('/api/public/sales/invoice', invoiceData, config);
+};
 
 // ── Devoluciones (Returns) Admin Endpoints ────────────
 

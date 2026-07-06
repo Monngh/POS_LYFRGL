@@ -37,6 +37,8 @@ export default function PriceLookupModal({
 }: PriceLookupModalProps) {
   const tbodyRef = React.useRef<HTMLTableSectionElement | null>(null);
   const [categories, setCategories] = useState<{id: number, name: string}[]>([]);
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [categorySearch, setCategorySearch] = useState("");
 
   useEffect(() => {
     if (isOpen) {
@@ -45,6 +47,21 @@ export default function PriceLookupModal({
       }).catch(err => console.error("Error cargando categorias", err));
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (lookupCategory === "") {
+      setCategorySearch("");
+    } else {
+      const match = categories.find(c => c.id.toString() === lookupCategory);
+      if (match) {
+        setCategorySearch(match.name);
+      }
+    }
+  }, [lookupCategory, categories]);
+
+  const filteredCategories = categories.filter(c =>
+    c.name.toLowerCase().includes(categorySearch.toLowerCase())
+  );
 
   // Keep the highlighted result visible while navigating with arrows.
   useEffect(() => {
@@ -83,16 +100,91 @@ export default function PriceLookupModal({
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "8px 0" }}>
         <div style={{ display: "flex", gap: "12px" }}>
-          <select
-            style={{ padding: "12px 16px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "var(--surface-2)", color: "var(--text)", fontSize: "14px", outline: "none", minWidth: "200px" }}
-            value={lookupCategory}
-            onChange={(e) => onCategoryChange(e.target.value)}
-          >
-            <option value="">Todas las categorías</option>
-            {categories.map(c => (
-              <option key={c.id} value={c.id.toString()}>{c.name}</option>
-            ))}
-          </select>
+          <div style={{ position: "relative", minWidth: "220px" }}>
+            <input
+              type="text"
+              style={{
+                width: "100%",
+                padding: "12px 16px",
+                borderRadius: "8px",
+                border: "1px solid var(--border)",
+                backgroundColor: "var(--surface-2)",
+                color: "var(--text)",
+                fontSize: "14px",
+                outline: "none",
+                cursor: "pointer",
+              }}
+              placeholder="Todas las categorías"
+              value={categorySearch}
+              onFocus={() => setIsCategoryDropdownOpen(true)}
+              onBlur={() => setIsCategoryDropdownOpen(false)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setCategorySearch(val);
+                if (val === "") {
+                  onCategoryChange("");
+                }
+              }}
+            />
+            {isCategoryDropdownOpen && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 4px)",
+                  left: 0,
+                  width: "100%",
+                  maxHeight: "200px",
+                  overflowY: "auto",
+                  backgroundColor: "var(--surface-2)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+                  zIndex: 1000,
+                }}
+              >
+                <div
+                  style={{
+                    padding: "10px 16px",
+                    fontSize: "14px",
+                    color: "var(--text)",
+                    cursor: "pointer",
+                    backgroundColor: lookupCategory === "" ? "var(--surface-3)" : "transparent",
+                  }}
+                  onMouseDown={() => {
+                    onCategoryChange("");
+                    setCategorySearch("");
+                    setIsCategoryDropdownOpen(false);
+                  }}
+                >
+                  Todas las categorías
+                </div>
+                {filteredCategories.map(c => (
+                  <div
+                    key={c.id}
+                    style={{
+                      padding: "10px 16px",
+                      fontSize: "14px",
+                      color: "var(--text)",
+                      cursor: "pointer",
+                      backgroundColor: lookupCategory === c.id.toString() ? "var(--surface-3)" : "transparent",
+                    }}
+                    onMouseDown={() => {
+                      onCategoryChange(c.id.toString());
+                      setCategorySearch(c.name);
+                      setIsCategoryDropdownOpen(false);
+                    }}
+                  >
+                    {c.name}
+                  </div>
+                ))}
+                {filteredCategories.length === 0 && categorySearch !== "" && (
+                  <div style={{ padding: "10px 16px", fontSize: "12px", color: "var(--text-muted)", fontStyle: "italic" }}>
+                    No se encontraron categorías
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           <input
             type="text"

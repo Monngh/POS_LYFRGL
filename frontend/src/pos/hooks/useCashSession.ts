@@ -157,7 +157,7 @@ export function useCashSession({
           setBlockedByOtherTab(false);
           setBlockedSession(null);
           setSession(sessionFromServer);
-          onSetView("dashboard");
+          onSetView("sales-terminal");
           await loadDashboardData();
           return;
         }
@@ -319,7 +319,7 @@ export function useCashSession({
     setSession(blockedSession);
     setBlockedByOtherTab(false);
     setBlockedSession(null);
-    onSetView("dashboard");
+    onSetView("sales-terminal");
     await loadDashboardData();
   };
 

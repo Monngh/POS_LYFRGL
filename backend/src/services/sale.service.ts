@@ -127,7 +127,7 @@ export const calculateSaleCart = async (params: {
   const exactTotal = promoCalc.totalFinal;
   const finalTax = Number(totalTaxAmount.toFixed(2));
   const finalSubtotal = Number((exactTotal - finalTax).toFixed(2));
-  const finalTotal = Math.round(exactTotal * 2) / 2;
+  const finalTotal = Number(exactTotal.toFixed(2));
 
   let pointsDiscount = 0;
   let pointsEarned = 0;

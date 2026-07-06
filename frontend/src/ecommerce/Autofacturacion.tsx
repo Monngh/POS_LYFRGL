@@ -28,6 +28,7 @@ import {
   validateReference,
   validateRfc,
   validateSafeText,
+  validateMexicanPhone,
 } from "../shared/utils/formValidation";
 import {
   getCustomerProfile,
@@ -48,7 +49,7 @@ import { API_BASE_URL } from "../shared/services/api";
 type InvoiceFormField = "rfc" | "legalName" | "zip" | "email" | "taxSystem" | "cfdiUse";
 type ProfileFormField = "profileRfc" | "profileLegalName" | "profileZip" | "profileEmail" | "profileAddress" | "profileTaxSystem" | "profileCfdiUse";
 type LoginFormField = "loginEmail" | "loginPassword";
-type RegisterFormField = "registerEmail" | "registerInvoiceNumber" | "registerPassword" | "registerConfirmPassword";
+type RegisterFormField = "registerEmail" | "registerPhone" | "registerInvoiceNumber" | "registerPassword" | "registerConfirmPassword";
 
 const REGIMENES_FISCALES = [
   { code: "601", label: "601 - General de Ley Personas Morales" },
@@ -146,6 +147,7 @@ const Autofacturacion: React.FC = () => {
 
   // Campos Registro (Reclamar cuenta)
   const [registerEmail, setRegisterEmail] = useState("");
+  const [registerPhone, setRegisterPhone] = useState("");
   const [registerInvoiceNumber, setRegisterInvoiceNumber] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
@@ -245,13 +247,21 @@ const Autofacturacion: React.FC = () => {
     profileCfdiUse: validateProfileField("profileCfdiUse", profileCfdiUse),
   });
 
-  const validateLoginForm = () => ({
-    loginEmail: validateAutofactEmail(loginEmail, { required: true }),
-    loginPassword: normalizeSpaces(loginPassword) ? undefined : "La contrasena es obligatoria.",
-  });
+  const validateLoginForm = () => {
+    const input = loginEmail.trim();
+    const isDigitsOnly = /^\d+$/.test(input.replace(/\D/g, ""));
+    const error = isDigitsOnly
+      ? validateMexicanPhone(input, { required: true })
+      : validateAutofactEmail(input, { required: true });
+    return {
+      loginEmail: error,
+      loginPassword: normalizeSpaces(loginPassword) ? undefined : "La contraseña es obligatoria.",
+    };
+  };
 
   const validateRegisterForm = () => ({
     registerEmail: validateAutofactEmail(registerEmail, { required: true }),
+    registerPhone: validateMexicanPhone(registerPhone, { required: true }),
     registerInvoiceNumber: validateReference(registerInvoiceNumber, "El folio", { required: true, max: 40 }),
     registerPassword: validatePassword(registerPassword),
     registerConfirmPassword: validatePasswordConfirmation(registerPassword, registerConfirmPassword),
@@ -404,6 +414,7 @@ const Autofacturacion: React.FC = () => {
     try {
       await registerCustomer({
         email: cleanEmailInput(registerEmail),
+        phone: registerPhone.trim().replace(/\D/g, ""),
         invoiceNumber: registerInvoiceNumber.trim().toUpperCase(),
         password: registerPassword,
         passwordConfirmation: registerPassword,
@@ -414,6 +425,7 @@ const Autofacturacion: React.FC = () => {
 
       // Limpiar estados
       setRegisterEmail("");
+      setRegisterPhone("");
       setRegisterInvoiceNumber("");
       setRegisterPassword("");
       setRegisterConfirmPassword("");
@@ -478,6 +490,7 @@ const Autofacturacion: React.FC = () => {
     setInvoiceFieldErrors({});
     setProfileFieldErrors({});
     setLoginFieldErrors({});
+    setRegisterPhone("");
     setRegisterFieldErrors({});
   };
 
@@ -566,7 +579,7 @@ const Autofacturacion: React.FC = () => {
         zip: normalizeIntegerInput(zip),
         email: cleanEmailInput(email),
         cfdiUse
-      });
+      }, customerToken || undefined);
 
       setInvoiceResult(response.data);
       setStep(3);
@@ -660,20 +673,30 @@ const Autofacturacion: React.FC = () => {
     let error: string | undefined;
     if (field === "loginEmail") {
       setLoginEmail(next);
-      error = validateAutofactEmail(next, { required: true });
+      const isDigitsOnly = /^\d+$/.test(next.trim().replace(/\D/g, ""));
+      if (isDigitsOnly) {
+        error = validateMexicanPhone(next, { required: true });
+      } else {
+        error = validateAutofactEmail(next, { required: true });
+      }
     } else {
       setLoginPassword(next);
-      error = normalizeSpaces(next) ? undefined : "La contrasena es obligatoria.";
+      error = normalizeSpaces(next) ? undefined : "La contraseña es obligatoria.";
     }
     setLoginFieldErrors((prev) => ({ ...prev, [field]: error }));
   };
 
-  const setRegisterField = (field: RegisterFormField, rawValue: string) => {
+    const setRegisterField = (field: RegisterFormField, rawValue: string) => {
     let next = rawValue;
     let error: string | undefined;
     if (field === "registerEmail") {
       setRegisterEmail(next);
       error = validateAutofactEmail(next, { required: true });
+    }
+    if (field === "registerPhone") {
+      next = normalizeIntegerInput(rawValue).slice(0, 10);
+      setRegisterPhone(next);
+      error = validateMexicanPhone(next, { required: true });
     }
     if (field === "registerInvoiceNumber") {
       next = rawValue.toUpperCase();
@@ -1325,17 +1348,22 @@ const Autofacturacion: React.FC = () => {
                           </span>
                         </td>
                         <td style={{ ...styles.td, fontFamily: "monospace", fontSize: "12px", color: "#64748b" }}>
-                          {inv.cfdiUuid ? `${inv.cfdiUuid.substring(0, 8)}...` : "No facturado"}
+                          {inv.cfdiUuid ? `${inv.cfdiUuid.substring(0, 8)}...` : (inv.status === "CANCELADA" ? "No facturable" : "No facturado")}
                         </td>
                         <td style={{ ...styles.td }}>
                           {inv.cfdiUuid ? (
-                            <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
+                            <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center" }}>
+                              {inv.status === "CANCELADA" && (
+                                <span style={{ fontSize: "10px", color: "#ef4444", fontWeight: "700", fontStyle: "italic", marginRight: "4px" }}>
+                                  Cancelado
+                                </span>
+                              )}
                               <a
                                 href={`${API_BASE_URL}/api/public/sales/invoice/${inv.cfdiUuid}/pdf`}
                                 target="_blank"
                                 rel="noreferrer"
                                 style={styles.actionIconBtn}
-                                title="Ver PDF"
+                                title="Ver Factura (PDF)"
                               >
                                 <FileText size={14} color="#1e3a8a" />
                               </a>
@@ -1343,11 +1371,36 @@ const Autofacturacion: React.FC = () => {
                                 href={`${API_BASE_URL}/api/public/sales/invoice/${inv.cfdiUuid}/xml`}
                                 download={`factura-${inv.cfdiUuid}.xml`}
                                 style={styles.actionIconBtn}
-                                title="Descargar XML"
+                                title="Descargar Factura (XML)"
                               >
                                 <FileCode size={14} color="#475569" />
                               </a>
+                              {inv.returnCfdiUuid && (
+                                <>
+                                  <a
+                                    href={`${API_BASE_URL}/api/public/sales/invoice/${inv.returnCfdiUuid}/pdf`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{ ...styles.actionIconBtn, backgroundColor: "#fee2e2" }}
+                                    title="Ver Nota de Crédito (PDF)"
+                                  >
+                                    <FileText size={14} color="#b91c1c" />
+                                  </a>
+                                  <a
+                                    href={`${API_BASE_URL}/api/public/sales/invoice/${inv.returnCfdiUuid}/xml`}
+                                    download={`nota-${inv.returnCfdiUuid}.xml`}
+                                    style={{ ...styles.actionIconBtn, backgroundColor: "#fee2e2" }}
+                                    title="Descargar Nota de Crédito (XML)"
+                                  >
+                                    <FileCode size={14} color="#b91c1c" />
+                                  </a>
+                                </>
+                              )}
                             </div>
+                          ) : inv.status === "CANCELADA" ? (
+                            <span style={{ fontSize: "12px", color: "#ef4444", fontWeight: "700", fontStyle: "italic" }}>
+                              Cancelado
+                            </span>
                           ) : (
                             <button
                               onClick={() => {
@@ -1541,20 +1594,27 @@ const Autofacturacion: React.FC = () => {
           <div style={styles.modalContent}>
             <button onClick={() => setShowLoginModal(false)} style={styles.closeModalButton}>&times;</button>
             <h2 style={styles.modalTitle}>Acceso de Clientes</h2>
-            <p style={styles.modalSubtitle}>Ingresa tu correo electrónico y contraseña para gestionar tus facturas.</p>
+            <p style={styles.modalSubtitle}>Ingresa tu correo electrónico o teléfono y contraseña para gestionar tus facturas.</p>
 
             <form onSubmit={handleLogin} style={styles.modalForm} noValidate>
               <div style={styles.formGroup}>
-                <label style={styles.label}>Correo Electrónico</label>
+                <label style={styles.label}>Correo Electrónico o Teléfono</label>
                 <div style={styles.modalInputWrapper}>
                   <User size={16} style={styles.modalInputIcon} />
                   <input
-                    type="email"
+                    type="text"
                     required
-                    placeholder="Ej: cliente@correo.com"
+                    placeholder="Ej: cliente@correo.com o 7712411646"
                     value={loginEmail}
                     onChange={(e) => setLoginField("loginEmail", e.target.value)}
-                    onBlur={() => setLoginFieldErrors((prev) => ({ ...prev, loginEmail: validateAutofactEmail(loginEmail, { required: true }) }))}
+                    onBlur={() => {
+                      const input = loginEmail.trim();
+                      const isDigitsOnly = /^\d+$/.test(input.replace(/\D/g, ""));
+                      const error = isDigitsOnly
+                        ? validateMexicanPhone(input, { required: true })
+                        : validateAutofactEmail(input, { required: true });
+                      setLoginFieldErrors((prev) => ({ ...prev, loginEmail: error }));
+                    }}
                     style={{ ...styles.modalInput, ...(loginFieldErrors.loginEmail ? styles.inputError : {}) }}
                   />
                 </div>
@@ -1645,6 +1705,21 @@ const Autofacturacion: React.FC = () => {
                     style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerEmail ? styles.inputError : {}) }}
                   />
                   {registerFieldErrors.registerEmail && <p style={styles.fieldError}>{registerFieldErrors.registerEmail}</p>}
+                </div>
+
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Número de Teléfono *</label>
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    required
+                    placeholder="Ej: 7712411646"
+                    value={registerPhone}
+                    onChange={(e) => setRegisterField("registerPhone", e.target.value)}
+                    onBlur={() => setRegisterFieldErrors((prev) => ({ ...prev, registerPhone: validateMexicanPhone(registerPhone, { required: true }) }))}
+                    style={{ ...styles.modalInputNoIcon, ...(registerFieldErrors.registerPhone ? styles.inputError : {}) }}
+                  />
+                  {registerFieldErrors.registerPhone && <p style={styles.fieldError}>{registerFieldErrors.registerPhone}</p>}
                 </div>
 
                 <div style={styles.formGroup}>

@@ -102,8 +102,14 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
       });
 
       // El endpoint de ventas retorna { sales: [...] }
-      // Filtramos las que no estén facturadas en el frontend
+      // Filtrar no facturadas Y que sean al Público General (sin cliente o RFC genérico)
       const sales = res.data.sales || [];
+      const unbilled = sales.filter((s: any) => {
+        if (s.cfdiUuid) return false;
+        // s.customer viene como string desde el listado central ("Público General" o el nombre del cliente)
+        if (!s.customer || s.customer === "Público General") return true;
+        return false;
+      });
       
       // Nota: El listado central retorna 'customer' y 'invoiceNumber'.
       // Filtramos las ventas que no tienen cfdiUuid (en el listado central no viene cfdiUuid,
@@ -114,7 +120,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
       // Como el backend de listSales retorna todas las ventas de ese rango, agregamos un filtro
       // en el controlador o las filtramos aquí. En el backend, ya creamos createGlobalInvoice
       // que vuelve a filtrar con Prisma de forma estricta (cfdiUuid == null).
-      setTickets(sales);
+      setTickets(unbilled);
     } catch (err: any) {
       setError(err.response?.data?.message || "Error al recuperar las ventas elegibles.");
     } finally {

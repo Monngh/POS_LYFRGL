@@ -21,6 +21,16 @@ const maskPhoneLast2 = (phone: string): string => {
   return "•".repeat(clean.length - 1) + clean.slice(-1);
 };
 
+const maskCustomerName = (name: string): string => {
+  if (!name) return "";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length <= 1) return parts[0];
+  const firstWord = parts[0];
+  const restLength = name.length - firstWord.length;
+  const dots = "•".repeat(Math.min(8, restLength > 0 ? restLength : 5));
+  return `${firstWord} ${dots}`;
+};
+
 const getNextRealPhone = (newValue: string, prevReal: string): string => {
   if (!newValue) return "";
   if (!newValue.includes("•")) {
@@ -209,7 +219,7 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
             }} className="pos-cashier-customer-selected">
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <span style={{ fontWeight: "700", color: "#166534" }}>
-                  👤 {selectedCustomer.isNew ? "Cliente registrado para puntos" : (selectedCustomer.name || "Cliente registrado")}
+                  👤 {selectedCustomer.isNew ? "Cliente registrado para puntos" : maskCustomerName(selectedCustomer.name || "Cliente registrado")}
                 </span>
                 <span style={{ color: "var(--text-secondary)" }}>(Teléfono: {maskPhoneLast2(selectedCustomer.phone)})</span>
                 <span style={{ backgroundColor: "#dcfce7", color: "#15803d", padding: "2px 6px", borderRadius: "4px", fontWeight: "700" }}>

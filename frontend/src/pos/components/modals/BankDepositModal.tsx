@@ -38,6 +38,8 @@ interface BankDepositModalProps {
   onOpenDepositReceipt: (deposit: any) => void;
   onToast: (msg: string, type?: "error" | "success" | "info") => void;
   onActionComplete?: () => void;
+  initialTab?: "registrar" | "buscar";
+  onTabChange?: (tab: "registrar" | "buscar") => void;
 }
 
 
@@ -149,6 +151,8 @@ export default function BankDepositModal({
   onOpenDepositReceipt,
   onToast,
   onActionComplete,
+  initialTab,
+  onTabChange,
 }: BankDepositModalProps) {
   // Registro
   const [depTab, setDepTab] = useState<"registrar" | "buscar">("registrar");
@@ -321,7 +325,7 @@ export default function BankDepositModal({
 
   useEffect(() => {
     if (isOpen) {
-      setDepTab("registrar");
+      setDepTab(initialTab || "registrar");
       setCancellingDep(null);
       setDepCancelPin("");
       setDepCancelReason("");
@@ -517,7 +521,10 @@ export default function BankDepositModal({
             <div style={{ display: "flex", borderBottom: "2px solid var(--border)", marginBottom: "16px" }} className="pos-cashier-dep-tabs">
               <button
                 type="button"
-                onClick={() => setDepTab("registrar")}
+                onClick={() => {
+                  setDepTab("registrar");
+                  onTabChange?.("registrar");
+                }}
                 style={{
                   flex: 1,
                   padding: "10px",
@@ -533,7 +540,10 @@ export default function BankDepositModal({
               </button>
               <button
                 type="button"
-                onClick={() => setDepTab("buscar")}
+                onClick={() => {
+                  setDepTab("buscar");
+                  onTabChange?.("buscar");
+                }}
                 style={{
                   flex: 1,
                   padding: "10px",
@@ -870,7 +880,7 @@ export default function BankDepositModal({
                                     {syncingDepositId === dep.id ? "Sincronizando..." : "Sincronizar"}
                                   </button>
                                 )}
-                                {dep.status !== "CANCELLED" && (
+                                {dep.status === "PENDING" && (
                                   <button
                                     type="button"
                                     onClick={() => setCancellingDep(dep)}

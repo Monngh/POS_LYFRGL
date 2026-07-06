@@ -114,6 +114,44 @@ export const getBillingHistoryController = async (req: Request, res: Response): 
       }
     }
 
+    // Buscar también las Notas de Crédito (Devoluciones)
+    const billedReturns = await prisma.return.findMany({
+      where: {
+        cfdiUuid: { not: null }
+      },
+      include: {
+        sale: {
+          include: {
+            customer: true
+          }
+        },
+        returnDetails: true
+      },
+      orderBy: {
+        updatedAt: 'desc'
+      },
+      take: 200
+    });
+
+    for (const ret of billedReturns) {
+      const uuidStr = ret.cfdiUuid as string;
+      const parts = uuidStr.split(":");
+      const actualUuid = parts[0]; // Las notas de crédito no son globales, así que UUID es parts[0]
+
+      if (!historyMap.has(uuidStr)) {
+        historyMap.set(uuidStr, {
+          uuid: actualUuid,
+          type: "Nota de Crédito",
+          date: ret.updatedAt,
+          customer: ret.sale.customer?.name || "Público General",
+          totalAmount: Number(ret.totalRefunded),
+          taxAmount: 0, // No guardamos taxRefunded a nivel cabecera, lo dejamos en 0 para UI
+          ticketsCount: 1,
+          ticketsInvolved: [ret.sale.invoiceNumber]
+        });
+      }
+    }
+
     // Convertir a array y ordenar por fecha descendente
     const historyArray = Array.from(historyMap.values()).sort((a, b) => b.date.getTime() - a.date.getTime());
 
