@@ -9,6 +9,7 @@ import { prisma } from "../app";
  * fuente de verdad es la tabla AdminSession, compartida entre todos los procesos/
  * workers de PM2 sin importar el modo (cluster o fork), y persiste ante reinicios.
  */
+
 export const openAdminSession = async (
   userId: number,
   branchId: number | null | undefined,

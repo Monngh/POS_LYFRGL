@@ -208,6 +208,11 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [ops, setOps] = useState<Operations | null>(null);
   const [opsLoading, setOpsLoading] = useState(false);
   const [showOps, setShowOps] = useState(false);
+  const [modalTab, setModalTab] = useState<"sales" | "sessions">("sales");
+
+  useEffect(() => {
+    setModalTab("sales");
+  }, [selectedEmployee?.id]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
@@ -1395,9 +1400,34 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       )}
                     </div>
 
-                    <h4 style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-strong)", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-                      <CreditCard size={16} /> Últimas ventas
-                    </h4>
+                    <div style={{ display: "flex", gap: 0, marginBottom: 18, borderBottom: "1px solid var(--border)" }}>
+                      {(["sales", "sessions"] as const).map((tab) => {
+                        const isActive = modalTab === tab;
+                        return (
+                          <button
+                            key={tab}
+                            onClick={() => setModalTab(tab)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              borderBottom: isActive ? "2px solid var(--accent)" : "2px solid transparent",
+                              marginBottom: -1,
+                              padding: "8px 20px",
+                              fontSize: 14,
+                              fontWeight: isActive ? 700 : 500,
+                              color: isActive ? "var(--accent-strong)" : "var(--text-muted)",
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                            }}
+                          >
+                            {tab === "sales" ? "Últimas ventas" : "Últimos turnos"}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {modalTab === "sales" && (
+                    <>
                     {isSmallScreen ? (
                       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18, maxHeight: 180, overflowY: "auto" }}>
                         {ops.recentSales.length === 0 && <div style={{ textAlign: "center", padding: "20px", color: "var(--text-faint)" }}>Sin ventas registradas.</div>}
@@ -1441,10 +1471,11 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         </table>
                       </div>
                     )}
+                    </>
+                    )}
 
-                    <h4 style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-strong)", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-                      <Clock size={16} /> Últimos turnos
-                    </h4>
+                    {modalTab === "sessions" && (
+                    <>
                     {isSmallScreen ? (
                       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18, maxHeight: 180, overflowY: "auto" }}>
                         {ops.recentSessions.length === 0 && <div style={{ textAlign: "center", padding: "20px", color: "var(--text-faint)" }}>Sin turnos registrados.</div>}
@@ -1491,6 +1522,8 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           </tbody>
                         </table>
                       </div>
+                    )}
+                    </>
                     )}
                   </>
                 ) : (
