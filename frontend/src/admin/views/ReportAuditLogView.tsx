@@ -158,8 +158,8 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
         <div
           style={{
             display: "flex",
-            flexDirection: "column",
-            gap: 8,
+            flexWrap: "wrap",
+            gap: 12,
             marginBottom: 16,
             padding: 12,
             backgroundColor: "var(--surface-2)",
@@ -167,27 +167,28 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
             border: "1px solid var(--border)",
           }}
         >
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)", minWidth: 48 }}>Desde:</label>
-            <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} style={{ ...inputStyle, flex: 1, maxWidth: "none" }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 calc(50% - 6px)", minWidth: 130 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-strong)" }}>Desde:</label>
+            <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} style={{ ...inputStyle, flex: "none", maxWidth: "100%", padding: "6px 8px" }} />
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)", minWidth: 48 }}>Hasta:</label>
-            <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} style={{ ...inputStyle, flex: 1, maxWidth: "none" }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 calc(50% - 6px)", minWidth: 130 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-strong)" }}>Hasta:</label>
+            <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} style={{ ...inputStyle, flex: "none", maxWidth: "100%", padding: "6px 8px" }} />
           </div>
-          <select value={reportType} onChange={(e) => setReportType(e.target.value)} style={{ ...inputStyle, maxWidth: "none", width: "100%", cursor: "pointer" }}>
+          <select value={reportType} onChange={(e) => setReportType(e.target.value)} style={{ ...inputStyle, flex: "1 1 100%", maxWidth: "100%", cursor: "pointer", padding: "6px 8px" }}>
             {REPORT_TYPES.map((t) => (
               <option key={t.value} value={t.value}>{t.label}</option>
             ))}
           </select>
-          <input type="text" placeholder="Buscar usuario..." value={userSearch} onChange={(e) => setUserSearch(e.target.value)} style={{ ...inputStyle, maxWidth: "none", width: "100%" }} />
-          <button onClick={clearFilters} style={{ ...ui.ghostBtn, justifyContent: "center", width: "100%" }} className="active-tap">
+          <input type="text" placeholder="Buscar usuario..." value={userSearch} onChange={(e) => setUserSearch(e.target.value)} style={{ ...inputStyle, flex: "1 1 100%", maxWidth: "100%", padding: "6px 8px" }} />
+          <button onClick={clearFilters} style={{ ...ui.ghostBtn, flex: "1 1 100%", justifyContent: "center", padding: "6px 8px", fontSize: 12 }} className="active-tap">
             Limpiar filtros
           </button>
-          <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600, textAlign: "center", paddingTop: 4, borderTop: "1px solid var(--border)" }}>
+          <div style={{ width: "100%", fontSize: 11, color: "var(--text-muted)", fontWeight: 600, textAlign: "center", paddingTop: 4, borderTop: "1px solid var(--border)" }}>
             {visible.length} registro{visible.length !== 1 ? "s" : ""}
           </div>
         </div>
+
       ) : (
         <Toolbar>
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -283,18 +284,18 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
               />
               {!loading && !error && visible.map((row) => (
                 <tr key={row.id}>
-                  <td style={{ ...ui.td, whiteSpace: "nowrap", color: "var(--text-secondary)" }}>{fmtDateTime(row.createdAt)}</td>
-                  <td style={ui.td}>
+                  <td style={{ ...ui.td, color: "var(--text-secondary)", whiteSpace: "normal" }}>{fmtDateTime(row.createdAt)}</td>
+                  <td style={{ ...ui.td, whiteSpace: "normal", wordBreak: "break-word" }}>
                     <div style={{ fontWeight: 700, color: "var(--text)" }}>{row.user.name}</div>
                     <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{row.user.email}</div>
                   </td>
-                  <td style={{ ...ui.td, color: "var(--text-muted)" }}>
+                  <td style={{ ...ui.td, color: "var(--text-muted)", whiteSpace: "normal" }}>
                     {row.branch?.name ?? <span style={{ color: "var(--text-faint)" }}>—</span>}
                   </td>
-                  <td style={{ ...ui.td, fontWeight: 600, color: "var(--text)" }}>{row.reportName}</td>
+                  <td style={{ ...ui.td, fontWeight: 600, color: "var(--text)", whiteSpace: "normal" }}>{row.reportName}</td>
                   <td style={{ ...ui.td, textAlign: "center" }}><TypeBadge type={row.reportType} /></td>
-                  <td style={{ ...ui.td, fontSize: 12, color: "var(--text-secondary)", maxWidth: 240 }}>{parseFiltros(row.filters)}</td>
-                  <td style={{ ...ui.td, fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>{row.ipAddress ?? "—"}</td>
+                  <td style={{ ...ui.td, fontSize: 12, color: "var(--text-secondary)", maxWidth: 240, whiteSpace: "normal", wordBreak: "break-word" }}>{parseFiltros(row.filters)}</td>
+                  <td style={{ ...ui.td, fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", wordBreak: "break-all", whiteSpace: "normal" }}>{row.ipAddress ?? "—"}</td>
                 </tr>
               ))}
             </tbody>

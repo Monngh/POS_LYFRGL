@@ -305,16 +305,16 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
           <Panel style={{ padding: 20 }}>
             <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--text)", marginBottom: 14 }}>Resumen de Lote a Facturar</h3>
             
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 16 }}>
-              <div style={kpiWrap}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+              <div style={{ display: "flex", flexDirection: "column", padding: "4px 8px", minWidth: 120, borderRight: isMobile ? "none" : "1px solid var(--border)" }}>
                 <span style={kpiLabel}>Total Tickets</span>
                 <span style={kpiVal}>{tickets.length}</span>
               </div>
-              <div style={kpiWrap}>
+              <div style={{ display: "flex", flexDirection: "column", padding: "4px 8px", minWidth: 120, borderRight: isMobile ? "none" : "1px solid var(--border)" }}>
                 <span style={kpiLabel}>IVA Trasladado</span>
                 <span style={{ ...kpiVal, color: "#b45309" }}>{moneyExact(totalTax)}</span>
               </div>
-              <div style={{ ...kpiWrap, borderRight: "none" }}>
+              <div style={{ display: "flex", flexDirection: "column", padding: "4px 8px", minWidth: 120 }}>
                 <span style={kpiLabel}>Importe Total (Neto)</span>
                 <span style={{ ...kpiVal, color: "#15803d" }}>{moneyExact(totalAmount)}</span>
               </div>
@@ -345,22 +345,6 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
             {isMobile ? (
               /* ── Mobile / Tablet: Card-based layout ── */
               <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
-                {/* Column header */}
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "1.5fr 2fr 1.5fr 0.8fr",
-                  padding: "12px 16px",
-                  fontWeight: 700,
-                  fontSize: 11,
-                  color: "var(--text-muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.4px",
-                }}>
-                  <div>Folio</div>
-                  <div>Fecha</div>
-                  <div>Total</div>
-                  <div style={{ textAlign: "right", paddingRight: 8 }}>Mas</div>
-                </div>
 
                 {loading && (
                   <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
@@ -412,29 +396,27 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
 
                         {/* Row base: Folio, Fecha, Total, Chevron */}
                         <div style={{
-                          display: "grid",
-                          gridTemplateColumns: "1.5fr 2fr 1.5fr 0.8fr",
-                          padding: "12px 16px",
+                          display: "flex",
+                          justifyContent: "space-between",
                           alignItems: "center",
+                          flexWrap: "wrap",
+                          gap: 12,
+                          padding: "12px 16px",
                         }}>
-                          {/* Folio */}
-                          <div style={{ fontWeight: 700, fontSize: 13, color: "var(--accent-strong)" }}>
-                            {t.invoiceNumber}
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 auto", minWidth: 120 }}>
+                            <div style={{ fontWeight: 800, fontSize: 14, color: "var(--accent-strong)" }}>
+                              {t.invoiceNumber}
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-secondary)" }}>
+                              <span>{fmtDate(t.createdAt)}</span>
+                              <span style={{ color: "var(--text-faint)" }}>{fmtTime(t.createdAt)}</span>
+                            </div>
                           </div>
 
-                          {/* Fecha */}
-                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-                            <div>{fmtDate(t.createdAt)}</div>
-                            <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2 }}>{fmtTime(t.createdAt)}</div>
-                          </div>
-
-                          {/* Total */}
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
-                            {moneyExact(t.totalAmount)}
-                          </div>
-
-                          {/* Chevron */}
-                          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+                            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>
+                              {moneyExact(t.totalAmount)}
+                            </div>
                             <button
                               onClick={() => toggleExpandTicket(t.id)}
                               style={{
@@ -589,12 +571,7 @@ const fieldLabel: React.CSSProperties = {
   display: "block",
 };
 
-const kpiWrap: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  padding: "4px 8px",
-  borderRight: "1px solid var(--border)",
-};
+
 
 const kpiLabel: React.CSSProperties = {
   fontSize: 11,

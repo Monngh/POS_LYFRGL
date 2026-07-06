@@ -573,12 +573,12 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     style={{ cursor: "pointer", backgroundColor: hoveredRow === s.id ? "var(--surface-3)" : "transparent" }}
                   >
                     <td style={{ ...ui.td, fontWeight: 700, color: "var(--accent-strong)" }}>{s.id}</td>
-                    <td style={ui.td}>{s.branch}</td>
-                    <td style={ui.td}>{s.cajero}</td>
-                    <td style={ui.td}>
+                    <td style={{ ...ui.td, whiteSpace: "normal", wordBreak: "break-word" }}>{s.branch}</td>
+                    <td style={{ ...ui.td, whiteSpace: "normal", wordBreak: "break-word" }}>{s.cajero}</td>
+                    <td style={{ ...ui.td, whiteSpace: "normal" }}>
                       {fmtDate(s.openedAt)} <span style={{ color: "var(--text-faint)" }}>{fmtTime(s.openedAt)}</span>
                     </td>
-                    <td style={ui.td}>
+                    <td style={{ ...ui.td, whiteSpace: "normal" }}>
                       {s.closedAt ? (
                         <>
                           {fmtDate(s.closedAt)} <span style={{ color: "var(--text-faint)" }}>{fmtTime(s.closedAt)}</span>
@@ -696,7 +696,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                   {/* Desglose por método de pago */}
                   <p style={{ ...sectionLabel, marginTop: 18 }}>Por método de pago (ventas completadas)</p>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 24px", marginBottom: 6 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "6px 24px", marginBottom: 6 }}>
                     <PayRow label="Efectivo" value={money(selectedDetail.payBreakdown.efectivo)} />
                     <PayRow label="Tarjeta crédito" value={money(selectedDetail.payBreakdown.tarjetaCredito)} />
                     <PayRow label="Tarjeta débito" value={money(selectedDetail.payBreakdown.tarjetaDebito)} />
@@ -714,8 +714,30 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <p style={{ fontSize: 13, color: "var(--text-faint)", textAlign: "center", padding: "12px 0" }}>
                       Sin movimientos registrados.
                     </p>
+                  ) : isMobile ? (
+                    <div style={{ maxHeight: 340, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 10 }}>
+                      {selectedDetail.movements.map((m) => (
+                        <div key={m.id} style={{ backgroundColor: "var(--surface-2)", borderRadius: 8, padding: 12, border: "1px solid var(--border-soft)" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                            <span style={{ fontSize: 11, color: "var(--text-faint)" }}>{fmtDateTime(m.date)}</span>
+                            <span style={{ fontSize: 11, color: movTypeColor(m.type), fontWeight: 700 }}>{m.type}</span>
+                          </div>
+                          <div style={{ fontSize: 13, color: "var(--text)", marginBottom: 8, fontWeight: 500 }}>
+                            {m.description}
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+                            <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+                              Saldo: {money(m.balance)}
+                            </div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: m.amount >= 0 ? "#15803d" : "#b91c1c" }}>
+                              {m.amount >= 0 ? "+" : ""}{money(m.amount)}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   ) : (
-                    <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflowX: "auto", overflowY: "hidden", maxWidth: "100%" }}>
+                    <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflowX: "hidden", overflowY: "auto", maxHeight: 340, maxWidth: "100%" }}>
                       <table style={{ ...ui.table, fontSize: 12 }}>
                         <thead>
                           <tr style={ui.theadRow}>
