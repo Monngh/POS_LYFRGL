@@ -107,7 +107,7 @@ export function CategoryProductsModal({ category, onClose, onSaved }: CategoryPr
         key={`${section}-${product.id}`}
         style={{
           ...styles.productRow,
-          gridTemplateColumns: compact ? "18px minmax(0, 1fr)" : "18px minmax(0, 1fr) auto auto",
+          gridTemplateColumns: compact ? "18px minmax(0, 1fr)" : "18px minmax(0, 1fr) auto",
           opacity: disabled && !checked ? 0.6 : 1,
           backgroundColor: checked ? "var(--accent-soft)" : "var(--surface)",
           borderColor: checked ? "#93c5fd" : "var(--border)",
@@ -122,18 +122,19 @@ export function CategoryProductsModal({ category, onClose, onSaved }: CategoryPr
           style={styles.checkbox}
         />
         <span style={styles.productMain}>
-          <span style={styles.productName}>{product.sku} · {product.name}</span>
-          <span style={styles.productMeta}>
+          <span style={styles.productName} title={`${product.sku} · ${product.name}`}>{product.sku} · {product.name}</span>
+          <span
+            style={styles.productMeta}
+            title={`${product.barcode ? `${product.barcode} · ` : ""}${product.description || "Sin descripcion"}`}
+          >
             {product.barcode ? `${product.barcode} · ` : ""}
             {product.description || "Sin descripcion"}
           </span>
         </span>
-        <span style={{ ...styles.price, ...(compact ? { gridColumn: "2 / 3", justifySelf: "flex-start" } : {}) }}>{money(product.sellPrice)}</span>
-        {!product.active && (
-          <span style={{ ...styles.inactiveBadge, ...(compact ? { gridColumn: "2 / 3", justifySelf: "flex-start" } : {}) }}>
-            Inactivo
-          </span>
-        )}
+        <span style={{ ...styles.productAside, ...(compact ? styles.productAsideCompact : {}) }}>
+          <span style={styles.price}>{money(product.sellPrice)}</span>
+          {!product.active && <span style={styles.inactiveBadge}>Inactivo</span>}
+        </span>
       </label>
     );
   };
@@ -311,45 +312,79 @@ const styles: Record<string, CSSProperties> = {
     gap: 8,
     maxHeight: 420,
     overflowY: "auto",
-    paddingRight: 3,
+    padding: "0 3px 4px 0",
   },
   productRow: {
     border: "1px solid var(--border)",
     borderRadius: 8,
-    padding: "10px 12px",
+    padding: "11px 12px",
     display: "grid",
-    alignItems: "center",
-    gap: 10,
-    minHeight: 62,
+    alignItems: "start",
+    gap: "8px 12px",
+    minHeight: 76,
+    flexShrink: 0,
   },
   checkbox: {
     width: 16,
     height: 16,
     accentColor: "var(--accent)",
+    marginTop: 2,
+    flexShrink: 0,
   },
   productMain: {
     minWidth: 0,
     display: "flex",
     flexDirection: "column",
-    gap: 3,
+    gap: 4,
   },
   productName: {
     color: "var(--text)",
     fontSize: 13,
     fontWeight: 800,
+    lineHeight: 1.3,
+    overflow: "hidden",
     overflowWrap: "anywhere",
+    wordBreak: "break-word",
+    display: "-webkit-box" as CSSProperties["display"],
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical" as CSSProperties["WebkitBoxOrient"],
   },
   productMeta: {
     color: "var(--text-muted)",
     fontSize: 12,
     fontWeight: 600,
+    lineHeight: 1.35,
+    overflow: "hidden",
     overflowWrap: "anywhere",
+    wordBreak: "break-word",
+    display: "-webkit-box" as CSSProperties["display"],
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical" as CSSProperties["WebkitBoxOrient"],
+  },
+  productAside: {
+    display: "inline-flex",
+    flexDirection: "column",
+    alignItems: "flex-end",
+    justifySelf: "end",
+    gap: 5,
+    minWidth: 88,
+    flexShrink: 0,
+  },
+  productAsideCompact: {
+    gridColumn: "2 / 3",
+    justifySelf: "flex-start",
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    minWidth: 0,
+    marginTop: 2,
   },
   price: {
     color: "var(--text)",
     fontSize: 13,
     fontWeight: 900,
     whiteSpace: "nowrap",
+    lineHeight: 1.2,
   },
   inactiveBadge: {
     borderRadius: 999,
@@ -359,6 +394,8 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 10,
     fontWeight: 900,
     textTransform: "uppercase",
+    lineHeight: 1.2,
+    whiteSpace: "nowrap",
   },
   stateBox: {
     border: "1px dashed var(--border)",

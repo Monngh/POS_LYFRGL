@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Eye, PackagePlus, Pencil, Plus, Power, Tags, X } from "lucide-react";
 import api from "../../shared/services/api";
 import AddProductsToPromotionModal from "../components/AddProductsToPromotionModal";
+import type { PromotionAssociatedProductDetail } from "../types/promotions.types";
 import {
   collectRoundedDecimalMessages,
   DECIMAL_INPUT_REGEX,
@@ -43,7 +44,7 @@ interface PromotionProduct {
   id?: number;
   promotionId?: number;
   productId: number;
-  product?: ProductOption;
+  product?: PromotionAssociatedProductDetail;
 }
 
 interface PromotionRow {
@@ -362,12 +363,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [loadingActionId, setLoadingActionId] = useState<number | null>(null);
 
   const [detail, setDetail] = useState<PromotionRow | null>(null);
-  const [productEditor, setProductEditor] = useState<PromotionRow | null>(null);
-  const [productEditorIds, setProductEditorIds] = useState<number[]>([]);
-  const [productError, setProductError] = useState<string | null>(null);
-  const [productSaving, setProductSaving] = useState(false);
-
-  // State for the new "Agregar productos" modal (filtered by category)
+  // State for the products manager modal (associated + available products)
   const [addProductsTarget, setAddProductsTarget] = useState<PromotionRow | null>(null);
 
   const [expandedPromotions, setExpandedPromotions] = useState<Record<number, boolean>>({});
@@ -712,21 +708,6 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     }
   };
 
-  const openProductEditor = async (promotion: PromotionRow) => {
-    setLoadingActionId(promotion.id);
-    setProductError(null);
-    try {
-      const fresh = await loadPromotionDetail(promotion.id);
-      if (!fresh) throw new Error("PROMOTION_NOT_FOUND");
-      setProductEditor(fresh);
-      setProductEditorIds(fresh.products.map((row) => row.productId));
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, "No se pudieron cargar los productos de la promocion."));
-    } finally {
-      setLoadingActionId(null);
-    }
-  };
-
   /** Abre el modal de agregar productos con filtro por categoría */
   const openAddProducts = async (promotion: PromotionRow) => {
     setLoadingActionId(promotion.id);
@@ -828,39 +809,6 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
       setError(getErrorMessage(err, "No se pudo cambiar el estado de la promocion."));
     } finally {
       setLoadingActionId(null);
-    }
-  };
-
-  const toggleProductEditorId = (productId: number) => {
-    setProductEditorIds((current) =>
-      current.includes(productId)
-        ? current.filter((id) => id !== productId)
-        : [...current, productId]
-    );
-  };
-
-  const submitProducts = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!productEditor) return;
-
-    if (productEditorIds.length === 0) {
-      setProductError("Seleccione al menos un producto activo.");
-      return;
-    }
-
-    setProductSaving(true);
-    setProductError(null);
-    try {
-      await api.put(`/api/admin-promotions/promotions/${productEditor.id}/products`, {
-        productIds: productEditorIds,
-      });
-      setNotice("Productos de la promocion actualizados correctamente.");
-      setProductEditor(null);
-      await load();
-    } catch (err: unknown) {
-      setProductError(getErrorMessage(err, "No se pudieron actualizar los productos."));
-    } finally {
-      setProductSaving(false);
     }
   };
 
@@ -1118,7 +1066,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           <Pencil size={13} /> Editar promoción
                         </button>
 
-                        {/* Agregar productos con filtro de categoría */}
+                        {/* Gestionar productos con filtro de categoria */}
                         <button
                           onClick={() => openAddProducts(promotion)}
                           disabled={busy}
@@ -1139,7 +1087,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           }}
                           className="active-tap"
                         >
-                          <PackagePlus size={13} /> Agregar productos
+                          <PackagePlus size={13} /> Gestionar productos
                         </button>
 
                         {/* Activar/Desactivar */}
@@ -1228,7 +1176,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                             <Pencil size={14} style={styles.iconInline} /> Editar
                           </button>
                           <button style={ui.linkBtn} className="active-tap" disabled={busy} onClick={() => openAddProducts(promotion)}>
-                            <PackagePlus size={14} style={styles.iconInline} /> Agregar
+                            <PackagePlus size={14} style={styles.iconInline} /> Gestionar productos
                           </button>
                           <button
                             style={{ ...ui.linkBtn, color: promotion.isActive ? "#b91c1c" : "#15803d", opacity: busy ? 0.55 : 1 }}
@@ -1478,35 +1426,6 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
         </div>
       )}
 
-      {productEditor && (
-        <div style={ui.overlay} onClick={() => !productSaving && setProductEditor(null)}>
-          <form style={{ ...ui.modal, width: "calc(100% - 24px)", maxWidth: 710, maxHeight: "90vh" }} onClick={(event) => event.stopPropagation()} onSubmit={submitProducts}>
-            <div style={ui.modalHeader}>
-              <span style={ui.modalTitle}>Gestionar productos</span>
-              <button type="button" style={ui.linkBtn} onClick={() => setProductEditor(null)} aria-label="Cerrar">
-                <X size={18} />
-              </button>
-            </div>
-            <div style={ui.modalBody}>
-              <div style={styles.managerTitle}>
-                <strong>{productEditor.name}</strong>
-                <span>{typeLabel(productEditor.promotionType.name)} - {formatPromotionValue(productEditor)}</span>
-              </div>
-              <ProductSelector products={products} selectedIds={productEditorIds} onToggle={toggleProductEditorId} disabled={productSaving} />
-              {productError && <p style={styles.formError}>{productError}</p>}
-              <div style={styles.formActions}>
-                <button type="button" style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }} onClick={() => setProductEditor(null)}>
-                  Cancelar
-                </button>
-                <button type="submit" disabled={productSaving} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }}>
-                  {productSaving ? "Guardando..." : "Guardar productos"}
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      )}
-
       <ConfirmModal
         isOpen={statusConfirmTarget !== null}
         onClose={() => setStatusConfirmTarget(null)}
@@ -1516,11 +1435,13 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
         message={`¿Desea ${statusConfirmTarget?.isActive ? "desactivar" : "activar"} la promoción "${statusConfirmTarget?.name}"?`}
       />
 
-      {/* Modal: Agregar productos a la promoción (con filtro por categoría) */}
+      {/* Modal: Gestionar productos de la promocion (asociados + disponibles) */}
       {addProductsTarget && (
         <AddProductsToPromotionModal
           promotionId={addProductsTarget.id}
           promotionName={addProductsTarget.name}
+          promotionStartDate={addProductsTarget.startDate}
+          associatedProducts={addProductsTarget.products}
           onClose={() => setAddProductsTarget(null)}
           onSuccess={handleAddProductsSuccess}
         />
