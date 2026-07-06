@@ -1,9 +1,9 @@
-import React, { Suspense } from "react";
+import React, { Suspense, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth, Login } from "./auth";
 import Autofacturacion from "./ecommerce/Autofacturacion";
 import AppRouter from "./router";
-import { ToastProvider } from "./shared/context/ToastContext";
+import { ToastProvider, useToast, type ToastType } from "./shared/context/ToastContext";
 
 const PageLoader = () => (
   <div style={{
@@ -45,6 +45,25 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 const AppContent: React.FC = () => {
+  const { showToast } = useToast();
+
+  // Puente para el toast global de errores de API (ver interceptor en shared/services/api.ts):
+  // el interceptor vive fuera del árbol de React y no puede llamar a useToast() directamente,
+  // así que emite este evento de window (mismo patrón que "auth-expired") y aquí, dentro del
+  // árbol, lo recibimos para disparar el toast.
+  useEffect(() => {
+    const handleApiErrorToast = (e: Event) => {
+      const detail = (e as CustomEvent<{ message: string; type?: ToastType }>).detail;
+      if (!detail?.message) return;
+      showToast(detail.message, detail.type || "error");
+    };
+
+    window.addEventListener("api-error-toast", handleApiErrorToast);
+    return () => {
+      window.removeEventListener("api-error-toast", handleApiErrorToast);
+    };
+  }, [showToast]);
+
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>

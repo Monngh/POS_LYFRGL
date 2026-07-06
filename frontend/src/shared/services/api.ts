@@ -1,5 +1,14 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
 
+// Extiende la config de axios con un flag de opt-out para el toast global de errores
+// (ver interceptor de respuesta más abajo). No se usa todavía en ningún request — queda
+// disponible para que fases futuras lo agreguen a los catches que ya muestran su propio mensaje.
+declare module "axios" {
+  export interface AxiosRequestConfig {
+    skipGlobalErrorToast?: boolean;
+  }
+}
+
 // URL base de la API REST backend
 // Si corre en Vite (5173/5174) usa localhost:4000, si corre desde ngrok/producción usa rutas relativas
 const isVite = window.location.port === "5173" || window.location.port === "5174";
@@ -103,10 +112,31 @@ api.interceptors.response.use(
         // Disparar evento global o redirigir enrutador si es necesario
         // En una SPA, podemos emitir un evento personalizado para que el App.tsx reaccione
         window.dispatchEvent(new Event("auth-expired"));
+      } else if (status >= 500 || status === 403) {
+        // Red de seguridad global: errores de servidor (5xx) y prohibido (403) que el
+        // componente que hizo la llamada no haya optado por silenciar (fases futuras
+        // irán agregando skipGlobalErrorToast: true a los catches que ya muestran su
+        // propio mensaje, para no duplicar el aviso).
+        dispatchGlobalErrorToast(error, config);
       }
+    } else if (!axios.isCancel(error)) {
+      // Sin response: error de red (offline, timeout, DNS, CORS, servidor caído, etc.)
+      dispatchGlobalErrorToast(error, error.config);
     }
     return Promise.reject(error);
   }
 );
+
+// Puente entre el interceptor (fuera del árbol de React) y ToastContext (hook de React):
+// emite un evento de window, igual que "auth-expired", que el componente raíz escucha
+// para invocar useToast() desde dentro del árbol.
+function dispatchGlobalErrorToast(error: AxiosError, config?: InternalAxiosRequestConfig) {
+  if (config?.skipGlobalErrorToast) return;
+
+  const backendMessage = (error.response?.data as any)?.message;
+  const message = backendMessage || "Ocurrió un error, intenta de nuevo.";
+
+  window.dispatchEvent(new CustomEvent("api-error-toast", { detail: { message, type: "error" } }));
+}
 
 export default api;
