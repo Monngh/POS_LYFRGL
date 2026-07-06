@@ -8,6 +8,7 @@
     "start": "node dist/server.js",
     "predev": "node scripts/free-port.js",
     "dev": "nodemon --watch src -e ts --exec ts-node src/server.ts",
+    "test": "vitest run",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
@@ -45,7 +46,8 @@
     "nodemon": "^3.1.0",
     "prisma": "^5.14.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vitest": "^4.1.10"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

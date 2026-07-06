@@ -171,7 +171,7 @@ export class PromotionService {
         const minQty = promo.minQuantity || 1;
         const special = Number(promo.specialPrice || originalPrice);
         
-        if (quantity >= minQty) {
+        if (quantity >= minQty && special < originalPrice) {
           finalPrice = special;
           discountAmount = (originalPrice - special) * quantity;
           appliedPromo = {
@@ -181,7 +181,7 @@ export class PromotionService {
             discountAmount,
           };
         } else {
-          // No alcanza la cantidad mínima
+          // No alcanza la cantidad mínima o el precio especial es más caro que el normal
           discountAmount = 0;
           finalPrice = originalPrice;
         }

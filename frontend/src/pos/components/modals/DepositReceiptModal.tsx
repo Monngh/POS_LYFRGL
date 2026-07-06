@@ -165,19 +165,7 @@ export default function DepositReceiptModal({
                     <strong style={{ fontSize: "10px", wordBreak: "break-all" }}>{mpMeta.barcode}</strong>
                   </div>
                 )}
-                {mpMeta && mpMeta.ticketUrl && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "2px", borderTop: "1px dashed #cbd5e1", paddingTop: "4px", marginTop: "2px" }} className="no-print">
-                    <span style={{ color: "var(--text-muted)" }}>TICKET DIGITAL:</span>
-                    <a
-                      href={mpMeta.ticketUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ color: "#2563eb", textDecoration: "underline", wordBreak: "break-all", fontSize: "10px", fontWeight: "bold" }}
-                    >
-                      Ver Instrucciones de Pago
-                    </a>
-                  </div>
-                )}
+
                 {mpMeta && mpMeta.userComments && (
                   <div style={{ borderTop: "1px dashed #cbd5e1", paddingTop: "6px", marginTop: "4px" }}>
                     <span>REF/COMENTARIOS:</span>

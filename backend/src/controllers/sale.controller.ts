@@ -208,7 +208,7 @@ export const simulateSale = async (req: Request, res: Response): Promise<void> =
     }
 
     const exactTotal = promoCalc.totalFinal;
-    simulation.total = Math.round(exactTotal * 2) / 2;
+    simulation.total = Number(exactTotal.toFixed(2));
     simulation.subtotal = Number(simulation.subtotal.toFixed(2));
     simulation.totalDiscount = Number(simulation.totalDiscount.toFixed(2));
     simulation.totalTax = Number(simulation.totalTax.toFixed(2));
@@ -737,5 +737,21 @@ export const getStoreCreditInfo = async (req: Request, res: Response): Promise<v
     });
   } catch (error: any) {
     res.status(500).json({ message: "Error al consultar el vale.", error: error.message });
+  }
+};
+
+export const getMyRecentStoreCredits = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const storeCredits = await prisma.storeCredit.findMany({
+      take: 50,
+      orderBy: { createdAt: "desc" },
+      include: {
+        customer: true,
+      },
+    });
+    res.json({ success: true, storeCredits });
+  } catch (error: any) {
+    console.error("Error al obtener vales:", error);
+    res.status(500).json({ message: "Error al obtener la lista de vales.", error: error.message });
   }
 };

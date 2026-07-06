@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Download, FileText, ChevronDown, ChevronUp } from "lucide-react";
-import api from "../../shared/services/api";
+import api, { API_BASE_URL } from "../../shared/services/api";
 import {
   ui,
   type ViewProps,
@@ -51,16 +51,35 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
     }).format(d);
   };
 
+  const [filterType, setFilterType] = useState<"Todas" | "Facturas" | "Notas de Crédito">("Todas");
+
+  const filteredHistory = history.filter((item) => {
+    if (filterType === "Facturas") return item.type === "Individual" || item.type === "Global";
+    if (filterType === "Notas de Crédito") return item.type === "Nota de Crédito";
+    return true;
+  });
+
   return (
     <div>
   
 
       <Panel>
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", backgroundColor: "var(--surface-2)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", backgroundColor: "var(--surface-2)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
           <strong style={{ fontSize: 14, color: "var(--text-secondary)" }}>Facturas Emitidas</strong>
-          <button onClick={fetchHistory} style={ui.ghostBtn}>
-            Actualizar
-          </button>
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value as any)}
+              style={{ ...ui.input, padding: "6px 12px", height: "auto", minWidth: 160 }}
+            >
+              <option value="Todas">Todas</option>
+              <option value="Facturas">Sólo Facturas</option>
+              <option value="Notas de Crédito">Sólo Notas de Crédito</option>
+            </select>
+            <button onClick={fetchHistory} style={ui.ghostBtn}>
+              Actualizar
+            </button>
+          </div>
         </div>
         
         {isMobile ? (
@@ -76,7 +95,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                 {error}
               </div>
             )}
-            {!loading && !error && history.length === 0 && (
+            {!loading && !error && filteredHistory.length === 0 && (
               <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
                 No hay facturas emitidas.
               </div>
@@ -84,7 +103,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
 
             {!loading &&
               !error &&
-              history.map((item: any) => {
+              filteredHistory.map((item: any) => {
                 const isExpanded = expandedInvoices[item.uuid];
                 const displayUuid = item.uuid.substring(0, 8) + "..." + item.uuid.substring(item.uuid.length - 8);
                 return (
@@ -216,7 +235,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                           <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Descargar Comprobantes</h4>
                           <div style={{ display: "flex", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
                             <a
-                              href={`${api.defaults.baseURL}/api/public/sales/invoice/${item.uuid}/pdf`}
+                              href={`${API_BASE_URL}/api/public/sales/invoice/${item.uuid}/pdf`}
                               target="_blank"
                               rel="noreferrer"
                               style={{ ...downloadBtn, backgroundColor: "#dc2626" }}
@@ -224,7 +243,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                               <FileText size={14} /> PDF
                             </a>
                             <a
-                              href={`${api.defaults.baseURL}/api/public/sales/invoice/${item.uuid}/xml`}
+                              href={`${API_BASE_URL}/api/public/sales/invoice/${item.uuid}/xml`}
                               target="_blank"
                               rel="noreferrer"
                               style={{ ...downloadBtn, backgroundColor: "var(--text)" }}
@@ -259,10 +278,10 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                   colSpan={7}
                   loading={loading}
                   error={error}
-                  empty={!loading && !error && history.length === 0}
+                  empty={!loading && !error && filteredHistory.length === 0}
                   emptyText="No hay facturas emitidas."
                 />
-                {!loading && !error && history.map((item) => (
+                {!loading && !error && filteredHistory.map((item) => (
                   <tr key={item.uuid}>
                     <td style={ui.td}>{formatDate(item.date)}</td>
                     <td style={{ ...ui.td, fontFamily: "monospace", color: "var(--accent-strong)", fontWeight: 600 }}>{item.uuid}</td>
@@ -285,7 +304,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                     <td style={{ ...ui.td, textAlign: "center" }}>
                       <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
                         <a
-                          href={`${api.defaults.baseURL}/api/public/sales/invoice/${item.uuid}/pdf`}
+                          href={`${API_BASE_URL}/api/public/sales/invoice/${item.uuid}/pdf`}
                           target="_blank"
                           rel="noreferrer"
                           title="Descargar PDF"
@@ -295,7 +314,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                           <span style={srOnly}>PDF</span>
                         </a>
                         <a
-                          href={`${api.defaults.baseURL}/api/public/sales/invoice/${item.uuid}/xml`}
+                          href={`${API_BASE_URL}/api/public/sales/invoice/${item.uuid}/xml`}
                           target="_blank"
                           rel="noreferrer"
                           title="Descargar XML"

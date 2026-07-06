@@ -124,13 +124,20 @@ export const sendOtp = async (req: Request, res: Response): Promise<void> => {
 };
 
 export const registerCustomerAccount = async (req: Request, res: Response): Promise<void> => {
-  const { email, invoiceNumber, password, otp } = req.body;
-  if (!email || !invoiceNumber || !password || !otp) {
-    res.status(400).json({ message: "El correo electrónico, folio de ticket, contraseña y código OTP son requeridos." });
+  const { email, phone, invoiceNumber, password, otp } = req.body;
+  if (!email || !phone || !invoiceNumber || !password || !otp) {
+    res.status(400).json({ message: "El correo electrónico, teléfono, folio de ticket, contraseña y código OTP son requeridos." });
     return;
   }
 
   const cleanEmail = email.trim().toLowerCase();
+  const cleanPhone = phone.trim().replace(/\D/g, "");
+
+  if (cleanPhone.length !== 10) {
+    res.status(400).json({ message: "El número de teléfono debe tener exactamente 10 dígitos." });
+    return;
+  }
+
   const record = otpStore.get(cleanEmail);
 
   if (!record) {
@@ -153,7 +160,7 @@ export const registerCustomerAccount = async (req: Request, res: Response): Prom
   otpStore.delete(cleanEmail);
 
   try {
-    await registerCustomer(cleanEmail, invoiceNumber, password);
+    await registerCustomer(cleanEmail, cleanPhone, invoiceNumber, password);
     res.status(200).json({
       message: "Cuenta registrada exitosamente. Ahora puedes iniciar sesión con tu correo electrónico y contraseña.",
     });

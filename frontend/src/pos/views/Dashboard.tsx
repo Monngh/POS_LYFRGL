@@ -155,6 +155,7 @@ const Dashboard: React.FC = () => {
   } = customerData;
 
   const [selectedSale, setSelectedSale] = useState<any>(null);
+  const [depositTab, setDepositTab] = useState<"registrar" | "buscar">("registrar");
 
   const cartData = usePosCart({
     user,
@@ -1333,7 +1334,10 @@ const Dashboard: React.FC = () => {
       {/* MODAL 5: DEPOSITO BANCARIO (Resguardo de Efectivo) */}
       <BankDepositModal
         isOpen={activeModal === "bank-deposit"}
-        onClose={() => setActiveModal(null)}
+        onClose={() => {
+          setActiveModal(null);
+          setDepositTab("registrar");
+        }}
         user={user}
         sessionStats={sessionStats}
         onOpenDepositReceipt={(deposit) => {
@@ -1343,6 +1347,8 @@ const Dashboard: React.FC = () => {
         }}
         onToast={showToast}
         onActionComplete={loadDashboardData}
+        initialTab={depositTab}
+        onTabChange={setDepositTab}
       />
 
       {/* MODAL: COMPROBANTE DE RETIRO/DEPÓSITO BANCARIO (Fase 3.0) */}
@@ -1350,7 +1356,7 @@ const Dashboard: React.FC = () => {
         isOpen={activeModal === "deposit-receipt" && !!lastDeposit}
         lastDeposit={lastDeposit}
         user={user}
-        onClose={() => setActiveModal(null)}
+        onClose={() => setActiveModal("bank-deposit")}
         onPrint={() => {
           const printed = printTicketElementById(`Comprobante de Retiro #${lastDeposit?.id}`, "deposit-thermal-receipt");
           if (!printed) showToast("Habilite las ventanas emergentes para imprimir el comprobante.", "warning");

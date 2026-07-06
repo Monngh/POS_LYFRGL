@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { RotateCcw, KeyRound, Minus, Plus } from "lucide-react";
+import { RotateCcw, KeyRound, Minus, Plus, Check } from "lucide-react";
 import { PosModal, PosStepper } from "./shared";
 import { getEligibleReturn, submitReturn } from '../../../facturacion';
 import { openTicketPrintWindow } from "../../../shared/utils/ticketEmailDocument.util";
@@ -467,6 +467,7 @@ export default function ReturnsModal({
             data-shortcut="cancel"
             data-shortcut-letter="X"
             title="Cerrar (Esc)"
+            style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
           >
             Cerrar
           </button>
@@ -807,8 +808,21 @@ export default function ReturnsModal({
         {/* =========== PASO 4: RECIBO DE DEVOLUCIÓN =========== */}
         {returnStep === "receipt" && returnReceipt && (
           <div>
-            <div style={{ textAlign: "center", padding: "20px", backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "10px", marginBottom: "16px" }}>
-              <div style={{ fontSize: "36px", marginBottom: "4px" }}>✅</div>
+            <div style={{ textAlign: "center", padding: "20px", backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "10px", marginBottom: "16px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <div style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "56px",
+                height: "56px",
+                borderRadius: "50%",
+                backgroundColor: "#00a650",
+                color: "#ffffff",
+                marginBottom: "8px",
+                boxShadow: "0 4px 10px rgba(0, 166, 80, 0.2)",
+              }}>
+                <Check size={32} strokeWidth={3.5} />
+              </div>
               <h4 style={{ fontSize: "16px", fontWeight: "800", color: "#166534", margin: "0 0 4px 0" }}>Devolución Exitosa</h4>
               <p style={{ fontSize: "12px", color: "#166534", margin: 0 }}>La devolución fue procesada correctamente.</p>
             </div>

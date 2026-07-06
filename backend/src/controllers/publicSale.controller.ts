@@ -332,6 +332,24 @@ export const issueTicketInvoice = async (req: Request, res: Response): Promise<v
       cfdiUse
     });
 
+    // Asociar la venta al cliente si está logueado
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      try {
+        const jwt = require("jsonwebtoken");
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || "default_secret") as any;
+        if (decoded.role === "CUSTOMER" && decoded.customerId) {
+          await prisma.sale.update({
+            where: { id: sale.id },
+            data: { customerId: decoded.customerId }
+          });
+        }
+      } catch (e) {
+        console.warn("Invalid token during auto-invoicing, proceeding without customer assignment.");
+      }
+    }
+
     res.status(200).json({
       ...result,
       success: true,
@@ -353,7 +371,7 @@ export const getInvoicePdf = async (req: Request, res: Response): Promise<void> 
   const { uuid } = req.params;
 
   try {
-    const sale = await prisma.sale.findFirst({
+    let record: any = await prisma.sale.findFirst({
       where: {
         cfdiUuid: {
           contains: uuid
@@ -361,7 +379,17 @@ export const getInvoicePdf = async (req: Request, res: Response): Promise<void> 
       }
     });
 
-    if (!sale || !sale.cfdiUuid) {
+    if (!record || !record.cfdiUuid) {
+      record = await prisma.return.findFirst({
+        where: {
+          cfdiUuid: {
+            contains: uuid
+          }
+        }
+      });
+    }
+
+    if (!record || !record.cfdiUuid) {
       res.status(404).send("Factura no encontrada.");
       return;
     }
@@ -375,7 +403,7 @@ export const getInvoicePdf = async (req: Request, res: Response): Promise<void> 
     const cleanApiKey = apiKey.replace(/['"]/g, "").trim();
     const authHeader = "Bearer " + cleanApiKey;
 
-    const parts = sale.cfdiUuid.split(":");
+    const parts = record.cfdiUuid.split(":");
     const facturapiId = parts[0] === "GLOBAL" ? parts[2] : (parts[1] || parts[0]);
 
     const response = await fetch(`https://www.facturapi.io/v2/invoices/${facturapiId}/pdf`, {
@@ -386,7 +414,9 @@ export const getInvoicePdf = async (req: Request, res: Response): Promise<void> 
     });
 
     if (!response.ok) {
-      res.status(response.status).send("Error al descargar el PDF desde Facturapi.");
+      const errorText = await response.text();
+      console.error("Facturapi PDF error:", response.status, errorText, "FacturapiId:", facturapiId);
+      res.status(response.status).send(`Error al descargar el PDF desde Facturapi. Status: ${response.status}. Message: ${errorText}`);
       return;
     }
 
@@ -406,7 +436,7 @@ export const getInvoiceXml = async (req: Request, res: Response): Promise<void> 
   const { uuid } = req.params;
 
   try {
-    const sale = await prisma.sale.findFirst({
+    let record: any = await prisma.sale.findFirst({
       where: {
         cfdiUuid: {
           contains: uuid
@@ -414,7 +444,17 @@ export const getInvoiceXml = async (req: Request, res: Response): Promise<void> 
       }
     });
 
-    if (!sale || !sale.cfdiUuid) {
+    if (!record || !record.cfdiUuid) {
+      record = await prisma.return.findFirst({
+        where: {
+          cfdiUuid: {
+            contains: uuid
+          }
+        }
+      });
+    }
+
+    if (!record || !record.cfdiUuid) {
       res.status(404).send("Factura no encontrada.");
       return;
     }
@@ -428,7 +468,7 @@ export const getInvoiceXml = async (req: Request, res: Response): Promise<void> 
     const cleanApiKey = apiKey.replace(/['"]/g, "").trim();
     const authHeader = "Bearer " + cleanApiKey;
 
-    const parts = sale.cfdiUuid.split(":");
+    const parts = record.cfdiUuid.split(":");
     const facturapiId = parts[0] === "GLOBAL" ? parts[2] : (parts[1] || parts[0]);
 
     const response = await fetch(`https://www.facturapi.io/v2/invoices/${facturapiId}/xml`, {
@@ -439,7 +479,9 @@ export const getInvoiceXml = async (req: Request, res: Response): Promise<void> 
     });
 
     if (!response.ok) {
-      res.status(response.status).send("Error al descargar el XML desde Facturapi.");
+      const errorText = await response.text();
+      console.error("Facturapi XML error:", response.status, errorText, "FacturapiId:", facturapiId);
+      res.status(response.status).send(`Error al descargar el XML desde Facturapi. Status: ${response.status}. Message: ${errorText}`);
       return;
     }
 

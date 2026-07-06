@@ -6,6 +6,7 @@ const CUSTOMER_ACCOUNT_EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z
 
 export const registerCustomer = async (
   email: string,
+  phone: string,
   invoiceNumber: string,
   password: string
 ): Promise<{ autoLogin: boolean; customer: { id: number; name: string; phone: string | null; email: string | null } }> => {
@@ -19,34 +20,64 @@ export const registerCustomer = async (
   }
 
   const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+  const cleanPhone = typeof phone === "string" ? phone.trim().replace(/\D/g, "") : "";
 
   if (!cleanEmail || !CUSTOMER_ACCOUNT_EMAIL_REGEX.test(cleanEmail)) {
     throw new AppError("El correo electrónico no tiene un formato válido.", 400);
   }
 
-  // Buscar si ya existe un cliente con este correo electrónico
-  let customer = await prisma.customer.findFirst({
+  if (!cleanPhone || cleanPhone.length !== 10) {
+    throw new AppError("El número de teléfono debe tener exactamente 10 dígitos.", 400);
+  }
+
+  // 1. Buscar si ya existe un cliente con ese teléfono
+  let customerByPhone = await prisma.customer.findFirst({
+    where: { phone: cleanPhone }
+  });
+
+  // 2. Buscar si ya existe un cliente con ese correo
+  let customerByEmail = await prisma.customer.findFirst({
     where: { email: cleanEmail }
   });
 
-  if (customer && customer.passwordHash) {
+  // Si existe por teléfono y ya tiene contraseña
+  if (customerByPhone && customerByPhone.passwordHash) {
+    throw new AppError("El número de teléfono ya está registrado con otra cuenta.", 400);
+  }
+
+  // Si existe por correo y ya tiene contraseña
+  if (customerByEmail && customerByEmail.passwordHash) {
     throw new AppError("El correo electrónico ya está registrado con otra cuenta.", 400);
   }
 
   const hashedPassword = await hashPassword(password);
+  let customer;
 
-  if (customer) {
-    // Actualizar cliente existente
+  if (customerByPhone) {
+    // Si ya existía por teléfono (ej: registro en caja sin correo), lo actualizamos
     customer = await prisma.customer.update({
-      where: { id: customer.id },
-      data: { passwordHash: hashedPassword },
+      where: { id: customerByPhone.id },
+      data: {
+        email: cleanEmail,
+        passwordHash: hashedPassword,
+      },
+    });
+  } else if (customerByEmail) {
+    // Si ya existía por correo, le asignamos el teléfono y contraseña
+    customer = await prisma.customer.update({
+      where: { id: customerByEmail.id },
+      data: {
+        phone: cleanPhone,
+        passwordHash: hashedPassword,
+      },
     });
   } else {
-    // Crear nuevo cliente
+    // Si es completamente nuevo, lo creamos
     customer = await prisma.customer.create({
       data: {
         name: "Cliente registrado",
         email: cleanEmail,
+        phone: cleanPhone,
         passwordHash: hashedPassword,
       },
     });
@@ -94,16 +125,23 @@ export const resetCustomerPassword = async (email: string, password: string): Pr
   });
 };
 
-export const loginCustomer = async (email: string, password: string) => {
-  const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+export const loginCustomer = async (identifier: string, password: string) => {
+  const cleanInput = typeof identifier === "string" ? identifier.trim() : "";
+  const cleanEmail = cleanInput.toLowerCase();
+  const cleanPhone = cleanInput.replace(/\D/g, "");
 
   const customer = await prisma.customer.findFirst({
-    where: { email: cleanEmail },
+    where: {
+      OR: [
+        { email: cleanEmail },
+        ...(cleanPhone.length === 10 ? [{ phone: cleanPhone }] : []),
+      ],
+    },
   });
 
   if (!customer || !customer.passwordHash) {
     throw new AppError(
-      "El correo electrónico no está registrado o no se ha creado una contraseña para este cliente.",
+      "El correo electrónico o número de teléfono no está registrado, o no se ha creado una contraseña para este cliente.",
       401
     );
   }
@@ -185,11 +223,17 @@ export const getCustomerInvoices = async (customerId: number) => {
   const sales = await prisma.sale.findMany({
     where: { customerId },
     orderBy: { createdAt: "desc" },
-    include: { branch: { select: { name: true } } },
+    include: { 
+      branch: { select: { name: true } },
+      returns: { select: { cfdiUuid: true } }
+    },
   });
 
   return sales.map((s) => {
     const cleanUuid = s.cfdiUuid ? s.cfdiUuid.split(":")[0] : null;
+    const returnUuidStr = s.returns?.[0]?.cfdiUuid;
+    const cleanReturnUuid = returnUuidStr ? returnUuidStr.split(":")[0] : null;
+
     return {
       id: s.id,
       invoiceNumber: s.invoiceNumber,
@@ -201,6 +245,9 @@ export const getCustomerInvoices = async (customerId: number) => {
       cfdiUuid: cleanUuid,
       pdfUrl: cleanUuid ? `/api/public/sales/invoice/${cleanUuid}/pdf` : null,
       xmlUrl: cleanUuid ? `/api/public/sales/invoice/${cleanUuid}/xml` : null,
+      returnCfdiUuid: cleanReturnUuid,
+      returnPdfUrl: cleanReturnUuid ? `/api/public/sales/invoice/${cleanReturnUuid}/pdf` : null,
+      returnXmlUrl: cleanReturnUuid ? `/api/public/sales/invoice/${cleanReturnUuid}/xml` : null,
     };
   });
 };
