@@ -544,7 +544,7 @@ export function usePosCart({
       }, { timeout: LONG_OPERATION_TIMEOUT });
 
       try {
-        const saleDetailRes = await api.get(`/api/sales/detail?id=${res.data.saleId}`);
+        const saleDetailRes = await api.get(`/api/sales/detail?id=${res.data.saleId}`, { skipGlobalErrorToast: true });
         onSetSelectedSale({
           ...saleDetailRes.data.sale,
           isNewSale: true

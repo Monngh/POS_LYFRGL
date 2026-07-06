@@ -810,7 +810,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const handleClassifyProductFromCategoryAdmin = async (productId: number) => {
     try {
-      const response = await api.get<{ product: ProductDetail }>(`/api/admin/products/${productId}`);
+      const response = await api.get<{ product: ProductDetail }>(`/api/admin/products/${productId}`, { skipGlobalErrorToast: true });
       setCategoryAdminOpen(false);
       handleEdit(response.data.product);
     } catch (err: unknown) {
@@ -825,12 +825,12 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     try {
       if (p.active) {
         // Soft delete (desactivar)
-        await api.delete(`/api/admin/products/${p.id}`);
+        await api.delete(`/api/admin/products/${p.id}`, { skipGlobalErrorToast: true });
       } else {
         // Activar (usando PUT con active: true)
         await api.put(`/api/admin/products/${p.id}`, {
           active: true,
-        });
+        }, { skipGlobalErrorToast: true });
       }
       if (detailOpen && selectedProduct?.id === p.id) {
         await fetchDetail(p.id);

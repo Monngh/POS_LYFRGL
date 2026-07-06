@@ -41,7 +41,7 @@ export function useParkedSales(branchId: number | undefined) {
         customerId,
         cartData,
         total,
-      });
+      }, { skipGlobalErrorToast: true });
       await fetchParkedSales(); // Refrescar lista local
     } catch (err: any) {
       console.error("Error parking sale:", err);
@@ -55,7 +55,7 @@ export function useParkedSales(branchId: number | undefined) {
     setLoading(true);
     setError(null);
     try {
-      await api.delete(`/api/parked-sales/${id}`);
+      await api.delete(`/api/parked-sales/${id}`, { skipGlobalErrorToast: true });
       setParkedSales(prev => prev.filter(sale => sale.id !== id));
     } catch (err: any) {
       console.error("Error deleting parked sale:", err);

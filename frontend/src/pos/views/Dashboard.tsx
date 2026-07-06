@@ -439,7 +439,7 @@ const Dashboard: React.FC = () => {
         subject: ticketEmailSubject,
         pdfBase64,
         pdfFilename: ticketPdfFilename(ticketEmailSubject),
-      });
+      }, { skipGlobalErrorToast: true });
       showToast(res.data.message, "success");
       setTicketEmailModalOpen(false);
     } catch (err: any) {
@@ -794,8 +794,8 @@ const Dashboard: React.FC = () => {
       } else {
         showToast("No se pudo regenerar el código QR.");
       }
-    } catch (err: any) {
-      showToast("Error al regenerar el QR: " + (err.response?.data?.message || err.message));
+    } catch {
+      // Manejado por el interceptor global de errores (api.ts) — mismo mensaje.
     }
   };
 
@@ -870,8 +870,8 @@ const Dashboard: React.FC = () => {
       } else {
         showToast(`Venta ${invoiceNumber} sigue pendiente. Estado: ${res.data.status}`);
       }
-    } catch (err: any) {
-      showToast("Error al verificar: " + (err.response?.data?.message || err.message));
+    } catch {
+      // Manejado por el interceptor global de errores (api.ts) — mismo mensaje.
     } finally {
       setPendingQrChecking(null);
     }
