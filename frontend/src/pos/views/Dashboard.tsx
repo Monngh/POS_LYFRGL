@@ -707,8 +707,8 @@ const Dashboard: React.FC = () => {
         setLastDeposit(res.data.deposit);
       }
       await loadDashboardData();
-    } catch (err: any) {
-      showToast(err.response?.data?.message || "Error al sincronizar el depósito.");
+    } catch {
+      // Manejado por el interceptor global de errores (api.ts) — mismo mensaje.
     }
   };
 

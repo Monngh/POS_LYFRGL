@@ -215,8 +215,8 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
       setSelectedBranch((prev) =>
         prev ? { ...prev, employees: prev.employees - 1 } : prev
       );
-    } catch (err: any) {
-      showToast(err.response?.data?.message || "Error al reasignar empleado.", "error");
+    } catch {
+      // Manejado por el interceptor global de errores (api.ts) — mismo mensaje.
     } finally {
       setReassigningEmployeeId(null);
     }

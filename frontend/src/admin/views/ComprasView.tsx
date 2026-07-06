@@ -326,8 +326,8 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
     try {
       await api.put(`/api/admin/purchases/${purchaseId}/receive`);
       await refetchPurchases();
-    } catch (err: any) {
-      showToast(err.response?.data?.message || "Error al recibir la compra.", "error");
+    } catch {
+      // Manejado por el interceptor global de errores (api.ts) — mismo mensaje.
     } finally {
       setReceiving(null);
     }

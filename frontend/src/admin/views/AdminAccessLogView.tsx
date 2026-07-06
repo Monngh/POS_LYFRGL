@@ -318,8 +318,8 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
       showToast(`Sesión de ${revokeTarget.name} cerrada correctamente.`, "success");
       closeRevokeFlow();
       await loadActiveSessions();
-    } catch (err: any) {
-      showToast(err.response?.data?.message || "No se pudo cerrar la sesión.", "error");
+    } catch {
+      // Manejado por el interceptor global de errores (api.ts) — mismo mensaje.
     } finally {
       setRevoking(false);
     }
