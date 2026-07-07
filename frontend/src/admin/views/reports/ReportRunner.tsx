@@ -974,6 +974,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
               </div>
             );
           })}
+        </div>
       ) : isMobile ? (
         /* ── Mobile Fallback: Generic Card-based layout for any other reports ── */
         <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)" }}>
