@@ -150,18 +150,19 @@ export const payTone = (m: string): Tone =>
 // ---------------------------------------------------------------------------
 // Barra de filtros
 // ---------------------------------------------------------------------------
-export const Toolbar: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div style={ui.toolbar}>{children}</div>
+export const Toolbar: React.FC<{ children: React.ReactNode; style?: React.CSSProperties }> = ({ children, style }) => (
+  <div style={{ ...ui.toolbar, ...style }}>{children}</div>
 );
 
 export const SearchInput: React.FC<{
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
-}> = ({ value, onChange, placeholder }) => {
+  style?: React.CSSProperties;
+}> = ({ value, onChange, placeholder, style }) => {
   const error = validateSearchText(value, "La busqueda", { max: 120 });
   return (
-    <div style={ui.searchField}>
+    <div style={{ ...ui.searchField, ...style }}>
       <div style={{ ...ui.searchBox, borderColor: error ? "#dc2626" : "#e2e8f0" }}>
         <Search size={16} color="#94a3b8" />
         <input
@@ -181,8 +182,9 @@ export const FilterSelect: React.FC<{
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
-}> = ({ value, onChange, options }) => (
-  <select style={ui.filterSelect} value={value} onChange={(e) => onChange(e.target.value)}>
+  style?: React.CSSProperties;
+}> = ({ value, onChange, options, style }) => (
+  <select style={{ ...ui.filterSelect, ...style }} value={value} onChange={(e) => onChange(e.target.value)}>
     {options.map((o) => (
       <option key={o.value} value={o.value}>
         {o.label}
@@ -445,14 +447,18 @@ export const ui: { [k: string]: React.CSSProperties } = {
     color: "var(--text-muted)",
     textTransform: "uppercase",
     letterSpacing: "0.4px",
-    whiteSpace: "nowrap",
+    whiteSpace: "normal",
+    wordBreak: "break-word",
+    overflowWrap: "anywhere",
   },
   td: {
     padding: "13px 16px",
     fontSize: 13,
     color: "var(--text-secondary)",
     borderBottom: "1px solid var(--border-soft)",
-    whiteSpace: "nowrap",
+    whiteSpace: "normal",
+    wordBreak: "break-word",
+    overflowWrap: "anywhere",
   },
 
   // Botones

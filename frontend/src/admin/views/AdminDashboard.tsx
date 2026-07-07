@@ -28,6 +28,7 @@ import {
   Sun,
   Moon,
   Home,
+  AlertTriangle,
   Check,
   type LucideIcon,
 } from "lucide-react";
@@ -342,7 +343,9 @@ const AdminDashboard: React.FC = () => {
             textAlign: "center",
           }}
         >
-          <div style={{ fontSize: "48px", marginBottom: "16px", lineHeight: 1 }}>⚠️</div>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: "16px" }}>
+            <AlertTriangle size={48} color="var(--color-warning)" strokeWidth={1.5} />
+          </div>
           <h2 style={{ fontSize: "20px", fontWeight: "800", color: "var(--text)", marginBottom: "10px" }}>
             Sesión cerrada
           </h2>

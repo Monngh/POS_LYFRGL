@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Pencil, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, MapPin, Pencil, Phone, Plus } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
 import { DataTable, ActionModal } from "../../shared/ui";
@@ -459,23 +459,6 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
       {isMobile ? (
         /* ── Mobile / Tablet: Card-based layout ── */
         <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
-          {/* Header row mirroring the fields */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1.5fr 1.6fr",
-            padding: "12px 16px",
-            fontWeight: 700,
-            fontSize: 11,
-            color: "var(--text-muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.4px",
-          }}>
-            <div>Emp.</div>
-            <div style={{ textAlign: "center" }}>Ventas</div>
-            <div>Teléfono</div>
-            <div style={{ textAlign: "right", paddingRight: 8 }}>Acción</div>
-          </div>
-
           {loading && (
             <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
@@ -501,55 +484,53 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                   key={b.id}
                   style={{
                     backgroundColor: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 12,
-                    marginBottom: 10,
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
-                    overflow: "hidden",
+                    border: "1px solid var(--border-soft)",
+                    borderRadius: 16,
+                    padding: 16,
+                    marginBottom: 12,
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
                   }}
                 >
-                  {/* Header: Nombre y Estado */}
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "8px 16px 6px 16px",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: "var(--text-muted)",
-                    borderBottom: "1px solid var(--border-soft)",
-                    backgroundColor: "var(--surface-2)",
-                    letterSpacing: "0.2px",
-                  }}>
-                    <span>{b.name.toUpperCase()}</span>
-                    <Badge tone={b.active ? "green" : "red"}>{b.active ? "Activa" : "Inactiva"}</Badge>
-                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Nombre */}
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", marginBottom: 4, wordBreak: "break-word" }}>
+                        {b.name}
+                      </div>
+                      {/* Badge estado */}
+                      <div style={{ marginBottom: 8 }}>
+                        <Badge tone={b.active ? "green" : "red"}>{b.active ? "Activa" : "Inactiva"}</Badge>
+                      </div>
 
-                  {/* Fila principal */}
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr 1.5fr 1.6fr",
-                    padding: "12px 16px",
-                    alignItems: "center",
-                  }}>
-                    {/* Empleados */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)" }}>
-                      {b.employees}
+                      {/* Dirección */}
+                      {b.address && (
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4, wordBreak: "break-word", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <MapPin size={13} style={{ flexShrink: 0 }} /> {b.address}
+                        </div>
+                      )}
+
+                      {/* Teléfono */}
+                      {b.phone && (
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 6, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <Phone size={13} style={{ flexShrink: 0 }} /> {b.phone}
+                        </div>
+                      )}
+
+                      {/* Empleados y Ventas */}
+                      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 4 }}>
+                        <div>
+                          <span style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3px" }}>Empleados</span>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{b.employees}</div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3px" }}>Ventas</span>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{b.sales}</div>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Ventas */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "center" }}>
-                      {b.sales}
-                    </div>
-
-                    {/* Teléfono */}
-                    <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-                      {b.phone || "—"}
-                    </div>
-
-                    {/* Botones de Acción */}
-                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
-                      {/* Pencil/Editar */}
+                    {/* Acciones */}
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, paddingTop: 2 }}>
                       <button
                         onClick={() => openEdit(b)}
                         style={{
@@ -570,8 +551,6 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                       >
                         <Pencil size={14} />
                       </button>
-
-                      {/* Chevron */}
                       <button
                         onClick={() => toggleExpandBranch(b.id)}
                         style={{
@@ -597,18 +576,16 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                   {/* Detalle expandido */}
                   {isExpanded && (
                     <div style={{
-                      padding: "16px",
-                      margin: "0 16px 16px 16px",
-                      backgroundColor: "var(--surface-2)",
-                      borderRadius: "8px",
-                      border: "1px solid var(--border)",
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(185px, 1fr))",
-                      gap: "16px",
-                      textAlign: "left",
+                      marginTop: 12,
+                      paddingTop: 12,
+                      borderTop: "1px solid var(--border-soft)",
                     }}>
-                      {/* Datos Generales */}
-                      <div>
+                      <div style={{
+                        backgroundColor: "var(--surface-2)",
+                        borderRadius: 12,
+                        border: "1px solid var(--border)",
+                        padding: 16,
+                      }}>
                         <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Dirección y Alta</h4>
                         <div style={branchDetailRow}>
                           <span style={branchDetailLabel}>Dirección:</span>
@@ -618,27 +595,25 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           <span style={branchDetailLabel}>F. Alta:</span>
                           <span style={branchDetailValue}>{fmtDate(b.createdAt)}</span>
                         </div>
-                      </div>
-
-                      {/* Gestión de Personal */}
-                      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "flex-start" }}>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Colaboradores</h4>
-                        <button
-                          onClick={() => openEmployeesModal(b)}
-                          style={{
-                            ...ui.ghostBtn,
-                            color: "var(--accent)",
-                            borderColor: "var(--accent-soft)",
-                            fontSize: 12,
-                            padding: "6px 12px",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 6,
-                          }}
-                          className="active-tap"
-                        >
-                          Ver y gestionar empleados ({b.employees})
-                        </button>
+                        <div style={{ marginTop: 14 }}>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Colaboradores</h4>
+                          <button
+                            onClick={() => openEmployeesModal(b)}
+                            style={{
+                              ...ui.ghostBtn,
+                              color: "var(--accent)",
+                              borderColor: "var(--accent-soft)",
+                              fontSize: 12,
+                              padding: "6px 12px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                            className="active-tap"
+                          >
+                            Ver y gestionar empleados ({b.employees})
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}

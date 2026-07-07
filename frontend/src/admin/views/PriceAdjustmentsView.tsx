@@ -762,61 +762,123 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
           </button>
         </Toolbar>
 
-        <div style={{ ...ui.tableWrap, maxHeight: 310, overflowY: "auto" }}>
-          <table style={{ ...ui.table, minWidth: 760 }}>
-            <thead>
-              <tr style={ui.theadRow}>
-                <th style={{ ...ui.th, width: 44, textAlign: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={allVisibleAvailableSelected}
-                    onChange={toggleAllVisibleManual}
-                    disabled={availableLoading || filteredAvailableProducts.length === 0}
-                    style={styles.checkbox}
-                  />
-                </th>
-                <th style={ui.th}>SKU</th>
-                <th style={ui.th}>Producto</th>
-                <th style={{ ...ui.th, textAlign: "right" }}>Costo</th>
-                <th style={{ ...ui.th, textAlign: "right" }}>Precio actual</th>
-                <th style={ui.th}>Categorias</th>
-              </tr>
-            </thead>
-            <tbody>
-              <TableState
-                colSpan={6}
-                loading={availableLoading}
-                error={availableError}
-                empty={!availableLoading && filteredAvailableProducts.length === 0}
-                emptyText={availableSearch.trim() ? "No hay productos con esa busqueda." : "No hay productos activos disponibles."}
-              />
-              {!availableLoading &&
-                !availableError &&
-                filteredAvailableProducts.map((product) => (
-                  <tr key={product.id}>
-                    <td style={{ ...ui.td, textAlign: "center" }}>
-                      <input
-                        type="checkbox"
-                        checked={manualSelectedIds.has(product.id)}
-                        onChange={() => toggleManualProduct(product.id)}
-                        style={styles.checkbox}
-                      />
-                    </td>
-                    <td style={styles.codeCell}>{product.sku}</td>
-                    <td style={{ ...ui.td, whiteSpace: "normal", color: "var(--text)", fontWeight: 700 }}>
-                      {product.name}
-                      {product.barcode && <div style={styles.mutedSmall}>{product.barcode}</div>}
-                    </td>
-                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{moneyExact(Number(product.costPrice))}</td>
-                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 800, color: "var(--text)" }}>
-                      {moneyExact(Number(product.sellPrice))}
-                    </td>
-                    <td style={{ ...ui.td, whiteSpace: "normal" }}>{buildCategoryText(product)}</td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
+        {isMobile ? (
+          <div style={{ maxHeight: 310, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, padding: "4px 2px" }}>
+            {availableLoading && <div style={styles.loadingBlock}>Cargando...</div>}
+            {availableError && <InlineAlert tone="error">{availableError}</InlineAlert>}
+            {!availableLoading && !availableError && filteredAvailableProducts.length === 0 && (
+              <div style={{ textAlign: "center", padding: 16, color: "var(--text-muted)", fontSize: 13 }}>
+                No hay productos disponibles.
+              </div>
+            )}
+            {!availableLoading && !availableError && filteredAvailableProducts.map((product) => (
+              <div
+                key={product.id}
+                onClick={() => toggleManualProduct(product.id)}
+                style={{
+                  backgroundColor: "var(--surface)",
+                  border: manualSelectedIds.has(product.id) ? "2px solid var(--accent)" : "1px solid var(--border-soft)",
+                  borderRadius: 12,
+                  padding: 12,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                  cursor: "pointer"
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      checked={manualSelectedIds.has(product.id)}
+                      onChange={() => toggleManualProduct(product.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      style={styles.checkbox}
+                    />
+                    <span style={{ fontSize: 11, backgroundColor: "var(--accent-soft)", color: "var(--accent-strong)", padding: "2px 6px", borderRadius: 4, fontWeight: 800 }}>
+                      {product.sku}
+                    </span>
+                  </div>
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+                  {product.name}
+                  {product.barcode && <div style={styles.mutedSmall}>{product.barcode}</div>}
+                </div>
+                <div style={{ display: "flex", gap: 16 }}>
+                  <div>
+                    <span style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Costo</span>
+                    <div style={{ fontSize: 12, fontWeight: 600 }}>{moneyExact(Number(product.costPrice))}</div>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Precio Actual</span>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>{moneyExact(Number(product.sellPrice))}</div>
+                  </div>
+                </div>
+                {buildCategoryText(product) && (
+                  <div style={{ borderTop: "1px solid var(--border-soft)", paddingTop: 4, fontSize: 11, color: "var(--text-secondary)" }}>
+                    Categorías: {buildCategoryText(product)}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ ...ui.tableWrap, maxHeight: 310, overflowY: "auto" }}>
+            <table style={{ ...ui.table, minWidth: 760 }}>
+              <thead>
+                <tr style={ui.theadRow}>
+                  <th style={{ ...ui.th, width: 44, textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={allVisibleAvailableSelected}
+                      onChange={toggleAllVisibleManual}
+                      disabled={availableLoading || filteredAvailableProducts.length === 0}
+                      style={styles.checkbox}
+                    />
+                  </th>
+                  <th style={ui.th}>SKU</th>
+                  <th style={ui.th}>Producto</th>
+                  <th style={{ ...ui.th, textAlign: "right" }}>Costo</th>
+                  <th style={{ ...ui.th, textAlign: "right" }}>Precio actual</th>
+                  <th style={ui.th}>Categorias</th>
+                </tr>
+              </thead>
+              <tbody>
+                <TableState
+                  colSpan={6}
+                  loading={availableLoading}
+                  error={availableError}
+                  empty={!availableLoading && filteredAvailableProducts.length === 0}
+                  emptyText={availableSearch.trim() ? "No hay productos con esa busqueda." : "No hay productos activos disponibles."}
+                />
+                {!availableLoading &&
+                  !availableError &&
+                  filteredAvailableProducts.map((product) => (
+                    <tr key={product.id}>
+                      <td style={{ ...ui.td, textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={manualSelectedIds.has(product.id)}
+                          onChange={() => toggleManualProduct(product.id)}
+                          style={styles.checkbox}
+                        />
+                      </td>
+                      <td style={styles.codeCell}>{product.sku}</td>
+                      <td style={{ ...ui.td, whiteSpace: "normal", color: "var(--text)", fontWeight: 700 }}>
+                        {product.name}
+                        {product.barcode && <div style={styles.mutedSmall}>{product.barcode}</div>}
+                      </td>
+                      <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{moneyExact(Number(product.costPrice))}</td>
+                      <td style={{ ...ui.td, textAlign: "right", fontWeight: 800, color: "var(--text)" }}>
+                        {moneyExact(Number(product.sellPrice))}
+                      </td>
+                      <td style={{ ...ui.td, whiteSpace: "normal" }}>{buildCategoryText(product)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     );
   };
@@ -845,78 +907,161 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
       <Toolbar>
         <SearchInput value={productSearch} onChange={setProductSearch} placeholder="Buscar en productos cargados" />
       </Toolbar>
-      <div style={{ ...ui.tableWrap, maxHeight: 390, overflowY: "auto" }}>
-        <table style={{ ...ui.table, minWidth: 980 }}>
-          <thead>
-            <tr style={ui.theadRow}>
-              <th style={{ ...ui.th, width: 44, textAlign: "center" }}>
-                <input
-                  type="checkbox"
-                  checked={allVisibleResolvedSelected}
-                  onChange={toggleAllVisibleResolved}
-                  disabled={filteredResolvedProducts.length === 0}
-                  style={styles.checkbox}
-                />
-              </th>
-              <th style={ui.th}>SKU</th>
-              <th style={ui.th}>Codigo de barras</th>
-              <th style={ui.th}>Producto</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Costo</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Precio actual</th>
-              <th style={ui.th}>Categorias</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <TableState
-              colSpan={9}
-              loading={resolveLoading}
-              error={resolveError}
-              empty={!resolveLoading && filteredResolvedProducts.length === 0}
-              emptyText={
-                resolvedProducts.length === 0
-                  ? "Busca productos para comenzar."
-                  : "No hay productos cargados con esa busqueda."
-              }
-            />
-            {!resolveLoading &&
-              filteredResolvedProducts.map((product) => (
-                <tr key={product.id} style={selectedProductIds.has(product.id) ? styles.selectedRow : undefined}>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedProductIds.has(product.id)}
-                      onChange={() => toggleResolvedProduct(product.id)}
-                      style={styles.checkbox}
-                    />
-                  </td>
-                  <td style={styles.codeCell}>{product.sku}</td>
-                  <td style={ui.td}>{product.barcode || "-"}</td>
-                  <td style={{ ...ui.td, whiteSpace: "normal", color: "var(--text)", fontWeight: 700 }}>{product.name}</td>
-                  <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{moneyExact(Number(product.costPrice))}</td>
-                  <td style={{ ...ui.td, textAlign: "right", fontWeight: 800, color: "var(--text)" }}>
-                    {moneyExact(Number(product.sellPrice))}
-                  </td>
-                  <td style={{ ...ui.td, whiteSpace: "normal" }}>{buildCategoryText(product)}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <Badge tone={product.active ? "green" : "red"}>{product.active ? "Activo" : "Inactivo"}</Badge>
-                  </td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <button
-                      type="button"
-                      style={ui.linkBtn}
-                      onClick={() => removeResolvedProduct(product.id)}
-                    >
-                      <X size={14} style={{ verticalAlign: "-2px", color: "#b91c1c" }} />
-                      <span style={{ color: "#b91c1c", marginLeft: 4 }}>Quitar</span>
-                    </button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
+
+      {isMobile ? (
+        <div style={{ maxHeight: 390, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, padding: "4px 2px" }}>
+          {resolveLoading && <div style={styles.loadingBlock}>Cargando...</div>}
+          {resolveError && <InlineAlert tone="error">{resolveError}</InlineAlert>}
+          {!resolveLoading && filteredResolvedProducts.length === 0 && (
+            <div style={{ textAlign: "center", padding: 16, color: "var(--text-muted)", fontSize: 13 }}>
+              {resolvedProducts.length === 0 ? "Busca productos para comenzar." : "No hay productos cargados con esa búsqueda."}
+            </div>
+          )}
+          {!resolveLoading && filteredResolvedProducts.map((product) => (
+            <div
+              key={product.id}
+              onClick={() => toggleResolvedProduct(product.id)}
+              style={{
+                backgroundColor: "var(--surface)",
+                border: selectedProductIds.has(product.id) ? "2px solid var(--accent)" : "1px solid var(--border-soft)",
+                borderRadius: 12,
+                padding: 12,
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                cursor: "pointer"
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedProductIds.has(product.id)}
+                    onChange={() => toggleResolvedProduct(product.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    style={styles.checkbox}
+                  />
+                  <span style={{ fontSize: 11, backgroundColor: "var(--accent-soft)", color: "var(--accent-strong)", padding: "2px 6px", borderRadius: 4, fontWeight: 800 }}>
+                    {product.sku}
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <Badge tone={product.active ? "green" : "red"}>{product.active ? "Activo" : "Inactivo"}</Badge>
+                  <button
+                    type="button"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: 4,
+                      color: "#b91c1c"
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeResolvedProduct(product.id);
+                    }}
+                    title="Quitar"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+                {product.name}
+                {product.barcode && <div style={styles.mutedSmall}>{product.barcode}</div>}
+              </div>
+              <div style={{ display: "flex", gap: 16 }}>
+                <div>
+                  <span style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Costo</span>
+                  <div style={{ fontSize: 12, fontWeight: 600 }}>{moneyExact(Number(product.costPrice))}</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Precio Actual</span>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>{moneyExact(Number(product.sellPrice))}</div>
+                </div>
+              </div>
+              {buildCategoryText(product) && (
+                <div style={{ borderTop: "1px solid var(--border-soft)", paddingTop: 4, fontSize: 11, color: "var(--text-secondary)" }}>
+                  Categorías: {buildCategoryText(product)}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ ...ui.tableWrap, maxHeight: 390, overflowY: "auto" }}>
+          <table style={{ ...ui.table, minWidth: 980 }}>
+            <thead>
+              <tr style={ui.theadRow}>
+                <th style={{ ...ui.th, width: 44, textAlign: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={allVisibleResolvedSelected}
+                    onChange={toggleAllVisibleResolved}
+                    disabled={filteredResolvedProducts.length === 0}
+                    style={styles.checkbox}
+                  />
+                </th>
+                <th style={ui.th}>SKU</th>
+                <th style={ui.th}>Codigo de barras</th>
+                <th style={ui.th}>Producto</th>
+                <th style={{ ...ui.th, textAlign: "right" }}>Costo</th>
+                <th style={{ ...ui.th, textAlign: "right" }}>Precio actual</th>
+                <th style={ui.th}>Categorias</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <TableState
+                colSpan={9}
+                loading={resolveLoading}
+                error={resolveError}
+                empty={!resolveLoading && filteredResolvedProducts.length === 0}
+                emptyText={
+                  resolvedProducts.length === 0
+                    ? "Busca productos para comenzar."
+                    : "No hay productos cargados con esa busqueda."
+                }
+              />
+              {!resolveLoading &&
+                filteredResolvedProducts.map((product) => (
+                  <tr key={product.id} style={selectedProductIds.has(product.id) ? styles.selectedRow : undefined}>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedProductIds.has(product.id)}
+                        onChange={() => toggleResolvedProduct(product.id)}
+                        style={styles.checkbox}
+                      />
+                    </td>
+                    <td style={styles.codeCell}>{product.sku}</td>
+                    <td style={ui.td}>{product.barcode || "-"}</td>
+                    <td style={{ ...ui.td, whiteSpace: "normal", color: "var(--text)", fontWeight: 700 }}>{product.name}</td>
+                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{moneyExact(Number(product.costPrice))}</td>
+                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 800, color: "var(--text)" }}>
+                      {moneyExact(Number(product.sellPrice))}
+                    </td>
+                    <td style={{ ...ui.td, whiteSpace: "normal" }}>{buildCategoryText(product)}</td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <Badge tone={product.active ? "green" : "red"}>{product.active ? "Activo" : "Inactivo"}</Badge>
+                    </td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <button
+                        type="button"
+                        style={ui.linkBtn}
+                        onClick={() => removeResolvedProduct(product.id)}
+                      >
+                        <X size={14} style={{ verticalAlign: "-2px", color: "#b91c1c" }} />
+                        <span style={{ color: "#b91c1c", marginLeft: 4 }}>Quitar</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 
@@ -943,67 +1088,139 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
           <InlineAlert tone="warning">Este ajuste requiere un motivo antes de aplicarse.</InlineAlert>
         )}
 
-        <div style={{ ...ui.tableWrap, maxHeight: 390, overflowY: "auto", marginTop: 16 }}>
-          <table style={{ ...ui.table, minWidth: 980 }}>
-            <thead>
-              <tr style={ui.theadRow}>
-                <th style={ui.th}>SKU</th>
-                <th style={ui.th}>Producto</th>
-                <th style={{ ...ui.th, textAlign: "right" }}>Costo</th>
-                <th style={{ ...ui.th, textAlign: "right" }}>Precio actual</th>
-                <th style={{ ...ui.th, textAlign: "right" }}>Precio nuevo</th>
-                <th style={{ ...ui.th, textAlign: "right" }}>Diferencia</th>
-                <th style={{ ...ui.th, textAlign: "right" }}>Descuento %</th>
-                <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {preview.products.map((product) => {
-                const difference = getDifference(product);
-                const highDiscount = product.discountPercentage >= 50;
-                return (
-                  <tr key={product.id}>
-                    <td style={styles.codeCell}>{product.sku}</td>
-                    <td style={{ ...ui.td, whiteSpace: "normal", color: "var(--text)", fontWeight: 700 }}>{product.name}</td>
-                    <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(Number(product.costPrice))}</td>
-                    <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(Number(product.currentSellPrice))}</td>
-                    <td style={{ ...ui.td, textAlign: "right", color: "var(--text)", fontWeight: 800 }}>
-                      {moneyExact(Number(product.newSellPrice))}
-                    </td>
-                    <td
-                      style={{
-                        ...ui.td,
-                        textAlign: "right",
-                        color: difference > 0 ? "#15803d" : difference < 0 ? "#b91c1c" : "var(--text-muted)",
+        {isMobile ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16, maxHeight: 390, overflowY: "auto", padding: "4px 2px" }}>
+            {preview.products.map((product) => {
+              const difference = getDifference(product);
+              const highDiscount = product.discountPercentage >= 50;
+              return (
+                <div
+                  key={product.id}
+                  style={{
+                    backgroundColor: "var(--surface)",
+                    border: "1px solid var(--border-soft)",
+                    borderRadius: 12,
+                    padding: 12,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 6
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 11, backgroundColor: "var(--accent-soft)", color: "var(--accent-strong)", padding: "2px 6px", borderRadius: 4, fontWeight: 800 }}>
+                      {product.sku}
+                    </span>
+                    <div style={styles.badgeStack}>
+                      {product.isBelowCost && <Badge tone="red">Debajo del costo</Badge>}
+                      {highDiscount && <Badge tone="amber">Descuento alto</Badge>}
+                      {!product.isBelowCost && !highDiscount && (
+                        <Badge tone={difference > 0 ? "green" : difference < 0 ? "blue" : "slate"}>
+                          {difference > 0 ? "Aumento" : difference < 0 ? "Descuento" : "Sin cambio"}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+                    {product.name}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div>
+                      <span style={{ fontSize: 9, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Costo</span>
+                      <div style={{ fontSize: 12, fontWeight: 600 }}>{moneyExact(Number(product.costPrice))}</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 9, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Precio Actual</span>
+                      <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{moneyExact(Number(product.currentSellPrice))}</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 9, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Precio Nuevo</span>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text)" }}>{moneyExact(Number(product.newSellPrice))}</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 9, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Diferencia</span>
+                      <div style={{
+                        fontSize: 12,
                         fontWeight: 800,
-                      }}
-                    >
-                      <span style={styles.priceTrend}>
-                        {difference > 0 && <ArrowUp size={14} />}
-                        {difference < 0 && <ArrowDown size={14} />}
-                        {moneyExact(Math.abs(difference))}
-                      </span>
-                    </td>
-                    <td style={{ ...ui.td, textAlign: "right", fontWeight: highDiscount ? 800 : 600 }}>
-                      {product.discountPercentage.toLocaleString("es-MX", { maximumFractionDigits: 2 })}%
-                    </td>
-                    <td style={{ ...ui.td, textAlign: "center" }}>
-                      <div style={styles.badgeStack}>
-                        {product.isBelowCost && <Badge tone="red">Debajo del costo</Badge>}
-                        {highDiscount && <Badge tone="amber">Descuento alto</Badge>}
-                        {!product.isBelowCost && !highDiscount && (
-                          <Badge tone={difference > 0 ? "green" : difference < 0 ? "blue" : "slate"}>
-                            {difference > 0 ? "Aumento" : difference < 0 ? "Descuento" : "Sin cambio"}
-                          </Badge>
-                        )}
+                        color: difference > 0 ? "#15803d" : difference < 0 ? "#b91c1c" : "var(--text-muted)"
+                      }}>
+                        <span style={styles.priceTrend}>
+                          {difference > 0 && <ArrowUp size={12} />}
+                          {difference < 0 && <ArrowDown size={12} />}
+                          {moneyExact(Math.abs(difference))}
+                        </span>
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    </div>
+                  </div>
+                  <div style={{ borderTop: "1px solid var(--border-soft)", paddingTop: 6, fontSize: 11, color: "var(--text-secondary)" }}>
+                    Descuento: <strong>{product.discountPercentage.toLocaleString("es-MX", { maximumFractionDigits: 2 })}%</strong>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ ...ui.tableWrap, maxHeight: 390, overflowY: "auto", marginTop: 16 }}>
+            <table style={{ ...ui.table, minWidth: 980 }}>
+              <thead>
+                <tr style={ui.theadRow}>
+                  <th style={ui.th}>SKU</th>
+                  <th style={ui.th}>Producto</th>
+                  <th style={{ ...ui.th, textAlign: "right" }}>Costo</th>
+                  <th style={{ ...ui.th, textAlign: "right" }}>Precio actual</th>
+                  <th style={{ ...ui.th, textAlign: "right" }}>Precio nuevo</th>
+                  <th style={{ ...ui.th, textAlign: "right" }}>Diferencia</th>
+                  <th style={{ ...ui.th, textAlign: "right" }}>Descuento %</th>
+                  <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preview.products.map((product) => {
+                  const difference = getDifference(product);
+                  const highDiscount = product.discountPercentage >= 50;
+                  return (
+                    <tr key={product.id}>
+                      <td style={styles.codeCell}>{product.sku}</td>
+                      <td style={{ ...ui.td, whiteSpace: "normal", color: "var(--text)", fontWeight: 700 }}>{product.name}</td>
+                      <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(Number(product.costPrice))}</td>
+                      <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(Number(product.currentSellPrice))}</td>
+                      <td style={{ ...ui.td, textAlign: "right", color: "var(--text)", fontWeight: 800 }}>
+                        {moneyExact(Number(product.newSellPrice))}
+                      </td>
+                      <td
+                        style={{
+                          ...ui.td,
+                          textAlign: "right",
+                          color: difference > 0 ? "#15803d" : difference < 0 ? "#b91c1c" : "var(--text-muted)",
+                          fontWeight: 800,
+                        }}
+                      >
+                        <span style={styles.priceTrend}>
+                          {difference > 0 && <ArrowUp size={14} />}
+                          {difference < 0 && <ArrowDown size={14} />}
+                          {moneyExact(Math.abs(difference))}
+                        </span>
+                      </td>
+                      <td style={{ ...ui.td, textAlign: "right", fontWeight: highDiscount ? 800 : 600 }}>
+                        {product.discountPercentage.toLocaleString("es-MX", { maximumFractionDigits: 2 })}%
+                      </td>
+                      <td style={{ ...ui.td, textAlign: "center" }}>
+                        <div style={styles.badgeStack}>
+                          {product.isBelowCost && <Badge tone="red">Debajo del costo</Badge>}
+                          {highDiscount && <Badge tone="amber">Descuento alto</Badge>}
+                          {!product.isBelowCost && !highDiscount && (
+                            <Badge tone={difference > 0 ? "green" : difference < 0 ? "blue" : "slate"}>
+                              {difference > 0 ? "Aumento" : difference < 0 ? "Descuento" : "Sin cambio"}
+                            </Badge>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         <div style={styles.confirmationGrid}>
           {preview.requiresReason && (
@@ -1208,60 +1425,146 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
         )}
       </Toolbar>
 
-      <div style={{ ...ui.tableWrap, maxHeight: "64vh", overflowY: "auto" }}>
-        <table style={{ ...ui.table, minWidth: 1080 }}>
-          <thead>
-            <tr style={ui.theadRow}>
-              <th style={ui.th}>Fecha</th>
-              <th style={ui.th}>Usuario</th>
-              <th style={ui.th}>Alcance</th>
-              <th style={ui.th}>Categoria</th>
-              <th style={ui.th}>Tipo de ajuste</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Valor</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Productos</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Debajo costo</th>
-              <th style={ui.th}>Motivo</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <TableState
-              colSpan={10}
-              loading={historyLoading}
-              error={historyError}
-              empty={!historyLoading && (history?.adjustments.length ?? 0) === 0}
-              emptyText="No hay ajustes de precios con los filtros seleccionados."
-            />
-            {!historyLoading &&
-              !historyError &&
-              history?.adjustments.map((adjustment) => (
-                <tr key={adjustment.id}>
-                  <td style={ui.td}>{fmtDateTime(adjustment.appliedAt)}</td>
-                  <td style={{ ...ui.td, whiteSpace: "normal" }}>
-                    <strong style={{ color: "var(--text)" }}>{adjustment.appliedBy.name}</strong>
-                    <div style={styles.mutedSmall}>{adjustment.appliedBy.email}</div>
-                  </td>
-                  <td style={ui.td}>{scopeLabel(adjustment.scope)}</td>
-                  <td style={{ ...ui.td, whiteSpace: "normal" }}>
-                    {adjustment.category ? `${adjustment.category.code} ${adjustment.category.name}` : "-"}
-                  </td>
-                  <td style={ui.td}>{adjustmentTypeLabel(adjustment.type, adjustment.direction)}</td>
-                  <td style={{ ...ui.td, textAlign: "right", fontWeight: 800 }}>{formatStoredAdjustmentValue(adjustment.type, adjustment.value)}</td>
-                  <td style={{ ...ui.td, textAlign: "right", fontWeight: 800 }}>{adjustment.affectedRows}</td>
-                  <td style={{ ...ui.td, textAlign: "right" }}>
-                    <Badge tone={adjustment.belowCostCount > 0 ? "red" : "green"}>{adjustment.belowCostCount}</Badge>
-                  </td>
-                  <td style={{ ...ui.td, whiteSpace: "normal", maxWidth: 230 }}>{adjustment.notes || "-"}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <button type="button" style={ui.linkBtn} onClick={() => openDetail(adjustment.id)}>
-                      <Eye size={14} style={{ verticalAlign: "-2px" }} /> Ver detalle
-                    </button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
+      {isMobile ? (
+        <div style={{ maxHeight: "64vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, padding: "4px 2px" }}>
+          {historyLoading && <div style={styles.loadingBlock}>Cargando historial...</div>}
+          {historyError && <InlineAlert tone="error">{historyError}</InlineAlert>}
+          {!historyLoading && !historyError && (history?.adjustments.length ?? 0) === 0 && (
+            <div style={{ textAlign: "center", padding: 20, color: "var(--text-muted)", fontSize: 13 }}>
+              No hay ajustes de precios con los filtros seleccionados.
+            </div>
+          )}
+          {!historyLoading && !historyError && history?.adjustments.map((adjustment) => (
+            <div
+              key={adjustment.id}
+              style={{
+                backgroundColor: "var(--surface)",
+                border: "1px solid var(--border-soft)",
+                borderRadius: 12,
+                padding: 12,
+                display: "flex",
+                flexDirection: "column",
+                gap: 8
+              }}
+            >
+              {/* Top row: fecha + acción */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div style={{ fontSize: 11, color: "var(--text-faint)", fontWeight: 700 }}>
+                  {fmtDateTime(adjustment.appliedAt)}
+                </div>
+                <button
+                  type="button"
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "var(--accent-strong)" }}
+                  onClick={() => openDetail(adjustment.id)}
+                  title="Ver detalle"
+                >
+                  <Eye size={16} />
+                </button>
+              </div>
+
+              {/* Usuario */}
+              <div>
+                <strong style={{ fontSize: 13, color: "var(--text)" }}>{adjustment.appliedBy.name}</strong>
+                <div style={styles.mutedSmall}>{adjustment.appliedBy.email}</div>
+              </div>
+
+              {/* Info grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px" }}>
+                <div>
+                  <span style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Alcance</span>
+                  <div style={{ fontSize: 12, fontWeight: 600, overflowWrap: "anywhere" }}>{scopeLabel(adjustment.scope)}</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Tipo</span>
+                  <div style={{ fontSize: 12, fontWeight: 600, overflowWrap: "anywhere" }}>{adjustmentTypeLabel(adjustment.type, adjustment.direction)}</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Valor</span>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text)" }}>{formatStoredAdjustmentValue(adjustment.type, adjustment.value)}</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Productos</span>
+                  <div style={{ fontSize: 12, fontWeight: 800 }}>{adjustment.affectedRows}</div>
+                </div>
+              </div>
+
+              {/* Categoría (si existe) */}
+              {adjustment.category && (
+                <div style={{ fontSize: 11, color: "var(--text-secondary)", overflowWrap: "anywhere" }}>
+                  Categoría: <strong>{adjustment.category.code} {adjustment.category.name}</strong>
+                </div>
+              )}
+
+              {/* Footer: debajo costo + notas */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--border-soft)", paddingTop: 6 }}>
+                <Badge tone={adjustment.belowCostCount > 0 ? "red" : "green"}>
+                  {adjustment.belowCostCount} debajo costo
+                </Badge>
+                {adjustment.notes && (
+                  <span style={{ fontSize: 11, color: "var(--text-secondary)", maxWidth: "60%", textAlign: "right", overflowWrap: "anywhere" }}>
+                    {adjustment.notes}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ ...ui.tableWrap, maxHeight: "64vh", overflowY: "auto" }}>
+          <table style={{ ...ui.table, minWidth: 1080 }}>
+            <thead>
+              <tr style={ui.theadRow}>
+                <th style={ui.th}>Fecha</th>
+                <th style={ui.th}>Usuario</th>
+                <th style={ui.th}>Alcance</th>
+                <th style={ui.th}>Categoria</th>
+                <th style={ui.th}>Tipo de ajuste</th>
+                <th style={{ ...ui.th, textAlign: "right" }}>Valor</th>
+                <th style={{ ...ui.th, textAlign: "right" }}>Productos</th>
+                <th style={{ ...ui.th, textAlign: "right" }}>Debajo costo</th>
+                <th style={ui.th}>Motivo</th>
+                <th style={{ ...ui.th, textAlign: "center" }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <TableState
+                colSpan={10}
+                loading={historyLoading}
+                error={historyError}
+                empty={!historyLoading && (history?.adjustments.length ?? 0) === 0}
+                emptyText="No hay ajustes de precios con los filtros seleccionados."
+              />
+              {!historyLoading &&
+                !historyError &&
+                history?.adjustments.map((adjustment) => (
+                  <tr key={adjustment.id}>
+                    <td style={ui.td}>{fmtDateTime(adjustment.appliedAt)}</td>
+                    <td style={{ ...ui.td, whiteSpace: "normal" }}>
+                      <strong style={{ color: "var(--text)" }}>{adjustment.appliedBy.name}</strong>
+                      <div style={styles.mutedSmall}>{adjustment.appliedBy.email}</div>
+                    </td>
+                    <td style={ui.td}>{scopeLabel(adjustment.scope)}</td>
+                    <td style={{ ...ui.td, whiteSpace: "normal" }}>
+                      {adjustment.category ? `${adjustment.category.code} ${adjustment.category.name}` : "-"}
+                    </td>
+                    <td style={ui.td}>{adjustmentTypeLabel(adjustment.type, adjustment.direction)}</td>
+                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 800 }}>{formatStoredAdjustmentValue(adjustment.type, adjustment.value)}</td>
+                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 800 }}>{adjustment.affectedRows}</td>
+                    <td style={{ ...ui.td, textAlign: "right" }}>
+                      <Badge tone={adjustment.belowCostCount > 0 ? "red" : "green"}>{adjustment.belowCostCount}</Badge>
+                    </td>
+                    <td style={{ ...ui.td, whiteSpace: "normal", maxWidth: 230 }}>{adjustment.notes || "-"}</td>
+                    <td style={{ ...ui.td, textAlign: "center" }}>
+                      <button type="button" style={ui.linkBtn} onClick={() => openDetail(adjustment.id)}>
+                        <Eye size={14} style={{ verticalAlign: "-2px" }} /> Ver detalle
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div style={styles.pagination}>
         <span style={styles.mutedText}>
@@ -1407,45 +1710,93 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                 </label>
               </Toolbar>
 
-              <div style={{ ...ui.tableWrap, maxHeight: 360, overflowY: "auto" }}>
-                <table style={{ ...ui.table, minWidth: 760 }}>
-                  <thead>
-                    <tr style={ui.theadRow}>
-                      <th style={ui.th}>SKU</th>
-                      <th style={ui.th}>Producto</th>
-                      <th style={{ ...ui.th, textAlign: "right" }}>Precio anterior</th>
-                      <th style={{ ...ui.th, textAlign: "right" }}>Precio nuevo</th>
-                      <th style={{ ...ui.th, textAlign: "right" }}>Costo al cambio</th>
-                      <th style={{ ...ui.th, textAlign: "center" }}>Debajo costo</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <TableState
-                      colSpan={6}
-                      loading={detailProductsLoading}
-                      error={detailProductsError}
-                      empty={!detailProductsLoading && (detailProducts?.products.length ?? 0) === 0}
-                      emptyText="No hay productos para estos filtros."
-                    />
-                    {!detailProductsLoading &&
-                      !detailProductsError &&
-                      detailProducts?.products.map((row) => (
-                        <tr key={row.id}>
-                          <td style={styles.codeCell}>{row.producto.sku}</td>
-                          <td style={{ ...ui.td, whiteSpace: "normal", color: "var(--text)", fontWeight: 700 }}>
-                            {row.producto.name}
-                          </td>
-                          <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(Number(row.oldSellPrice))}</td>
-                          <td style={{ ...ui.td, textAlign: "right", fontWeight: 800 }}>{moneyExact(Number(row.newSellPrice))}</td>
-                          <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(Number(row.costPriceAtChange))}</td>
-                          <td style={{ ...ui.td, textAlign: "center" }}>
-                            <Badge tone={row.isBelowCost ? "red" : "green"}>{row.isBelowCost ? "Si" : "No"}</Badge>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
+              {isMobile ? (
+                <div style={{ maxHeight: 360, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, padding: "4px 2px" }}>
+                  {detailProductsLoading && <div style={styles.loadingBlock}>Cargando productos...</div>}
+                  {detailProductsError && <InlineAlert tone="error">{detailProductsError}</InlineAlert>}
+                  {!detailProductsLoading && (detailProducts?.products.length ?? 0) === 0 && (
+                    <div style={{ textAlign: "center", padding: 14, color: "var(--text-muted)", fontSize: 13 }}>
+                      No hay productos para estos filtros.
+                    </div>
+                  )}
+                  {!detailProductsLoading && !detailProductsError && detailProducts?.products.map((row) => (
+                    <div
+                      key={row.id}
+                      style={{
+                        backgroundColor: "var(--surface)",
+                        border: "1px solid var(--border-soft)",
+                        borderRadius: 10,
+                        padding: 10,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 6
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 11, backgroundColor: "var(--accent-soft)", color: "var(--accent-strong)", padding: "2px 6px", borderRadius: 4, fontWeight: 800 }}>
+                          {row.producto.sku}
+                        </span>
+                        <Badge tone={row.isBelowCost ? "red" : "green"}>{row.isBelowCost ? "Debajo costo" : "Ok"}</Badge>
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{row.producto.name}</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+                        <div>
+                          <span style={{ fontSize: 9, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Anterior</span>
+                          <div style={{ fontSize: 12 }}>{moneyExact(Number(row.oldSellPrice))}</div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: 9, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Nuevo</span>
+                          <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text)" }}>{moneyExact(Number(row.newSellPrice))}</div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: 9, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Costo</span>
+                          <div style={{ fontSize: 12 }}>{moneyExact(Number(row.costPriceAtChange))}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ ...ui.tableWrap, maxHeight: 360, overflowY: "auto" }}>
+                  <table style={{ ...ui.table, minWidth: 760 }}>
+                    <thead>
+                      <tr style={ui.theadRow}>
+                        <th style={ui.th}>SKU</th>
+                        <th style={ui.th}>Producto</th>
+                        <th style={{ ...ui.th, textAlign: "right" }}>Precio anterior</th>
+                        <th style={{ ...ui.th, textAlign: "right" }}>Precio nuevo</th>
+                        <th style={{ ...ui.th, textAlign: "right" }}>Costo al cambio</th>
+                        <th style={{ ...ui.th, textAlign: "center" }}>Debajo costo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <TableState
+                        colSpan={6}
+                        loading={detailProductsLoading}
+                        error={detailProductsError}
+                        empty={!detailProductsLoading && (detailProducts?.products.length ?? 0) === 0}
+                        emptyText="No hay productos para estos filtros."
+                      />
+                      {!detailProductsLoading &&
+                        !detailProductsError &&
+                        detailProducts?.products.map((row) => (
+                          <tr key={row.id}>
+                            <td style={styles.codeCell}>{row.producto.sku}</td>
+                            <td style={{ ...ui.td, whiteSpace: "normal", color: "var(--text)", fontWeight: 700 }}>
+                              {row.producto.name}
+                            </td>
+                            <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(Number(row.oldSellPrice))}</td>
+                            <td style={{ ...ui.td, textAlign: "right", fontWeight: 800 }}>{moneyExact(Number(row.newSellPrice))}</td>
+                            <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(Number(row.costPriceAtChange))}</td>
+                            <td style={{ ...ui.td, textAlign: "center" }}>
+                              <Badge tone={row.isBelowCost ? "red" : "green"}>{row.isBelowCost ? "Si" : "No"}</Badge>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
               <div style={styles.pagination}>
                 <span style={styles.mutedText}>
                   {detailProducts

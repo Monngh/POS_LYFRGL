@@ -792,97 +792,42 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                   key={tax.id}
                   style={{
                     backgroundColor: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 12,
-                    marginBottom: 10,
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
-                    overflow: "hidden",
+                    border: "1px solid var(--border-soft)",
+                    borderRadius: 16,
+                    padding: 16,
+                    marginBottom: 12,
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
                   }}
                 >
-                  {/* Fila principal */}
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.4fr 0.8fr 0.8fr 1fr",
-                    padding: "12px 16px",
-                    alignItems: "center",
-                  }}>
-                    {/* Nombre */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {tax.name}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Nombre */}
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", marginBottom: 4, wordBreak: "break-word" }}>
+                        {tax.name}
+                      </div>
+                      {/* Tasa */}
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)", marginBottom: 6 }}>
+                        {formatPercent(tax.rate)}
+                      </div>
+                      {/* Estado */}
+                      <div>
+                        <Badge tone={tax.active ? "green" : "red"}>{tax.active ? "Activo" : "Inactivo"}</Badge>
+                      </div>
                     </div>
 
-                    {/* Tasa */}
-                    <div style={{ textAlign: "center", fontSize: 13, fontWeight: 800, color: "var(--text)" }}>
-                      {formatPercent(tax.rate)}
-                    </div>
-
-                    {/* Estado */}
-                    <div style={{ textAlign: "center" }}>
-                      <Badge tone={tax.active ? "green" : "red"}>{tax.active ? "Activo" : "Inactivo"}</Badge>
-                    </div>
-
-                    {/* Botones de Acción */}
-                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 6 }}>
-                      {/* Gestionar productos */}
-                      <button
-                        onClick={() => openManage(tax)}
-                        style={{
-                          display: "inline-flex", alignItems: "center", justifyContent: "center",
-                          backgroundColor: "var(--accent-soft)", border: "1px solid var(--border)",
-                          borderRadius: 8, width: 34, height: 34, cursor: "pointer",
-                          color: "var(--accent-strong)", padding: 0,
-                        }}
-                        className="active-tap"
-                        title="Gestionar productos"
-                      >
-                        <Package size={14} />
-                      </button>
-
-                      {/* Editar */}
-                      <button
-                        onClick={() => openEdit(tax)}
-                        style={{
-                          display: "inline-flex", alignItems: "center", justifyContent: "center",
-                          backgroundColor: "#eff6ff", border: "1px solid #bfdbfe",
-                          borderRadius: 8, width: 34, height: 34, cursor: "pointer",
-                          color: "var(--accent-strong)", padding: 0,
-                        }}
-                        className="active-tap"
-                        title="Editar impuesto"
-                      >
-                        <Pencil size={14} />
-                      </button>
-
-                      {/* Activar/Desactivar */}
-                      <button
-                        onClick={() => toggleStatus(tax)}
-                        disabled={statusUpdatingId === tax.id}
-                        style={{
-                          display: "inline-flex", alignItems: "center", justifyContent: "center",
-                          backgroundColor: tax.active ? "#fef2f2" : "#f0fdf4",
-                          border: `1px solid ${tax.active ? "#fecaca" : "#bbf7d0"}`,
-                          borderRadius: 8, width: 34, height: 34, cursor: "pointer",
-                          color: tax.active ? "#b91c1c" : "#15803d", padding: 0,
-                          opacity: statusUpdatingId === tax.id ? 0.55 : 1,
-                        }}
-                        className="active-tap"
-                        title={tax.active ? "Desactivar" : "Activar"}
-                      >
-                        <Power size={14} />
-                      </button>
-
-                      {/* Chevron */}
+                    {/* Solo Chevron en la fila principal */}
+                    <div style={{ display: "flex", alignItems: "center", paddingTop: 2 }}>
                       <button
                         onClick={() => toggleExpandTax(tax.id)}
                         style={{
                           display: "inline-flex", alignItems: "center", justifyContent: "center",
                           backgroundColor: "var(--surface)", border: "1px solid var(--border-strong)",
-                          borderRadius: 8, width: 34, height: 34, cursor: "pointer",
+                          borderRadius: 8, width: 38, height: 38, cursor: "pointer",
                           color: "var(--text-muted)", padding: 0,
                         }}
                         className="active-tap"
                       >
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                       </button>
                     </div>
                   </div>
@@ -890,38 +835,94 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                   {/* Detalle expandido */}
                   {isExpanded && (
                     <div style={{
-                      padding: "16px",
-                      margin: "0 16px 16px 16px",
-                      backgroundColor: "var(--surface-2)",
-                      borderRadius: 8,
-                      border: "1px solid var(--border)",
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-                      gap: 16,
-                      textAlign: "left",
+                      marginTop: 12,
+                      paddingTop: 12,
+                      borderTop: "1px solid var(--border-soft)",
                     }}>
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>ID</div>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)" }}>{tax.id}</div>
+                      {/* Botones de acción (solo iconos) antes del ID */}
+                      <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                        {/* Gestionar productos */}
+                        <button
+                          onClick={() => openManage(tax)}
+                          style={{
+                            display: "inline-flex", alignItems: "center", justifyContent: "center",
+                            backgroundColor: "var(--accent-soft)", border: "1px solid var(--border)",
+                            borderRadius: 8, width: 38, height: 38, cursor: "pointer",
+                            color: "var(--accent-strong)", padding: 0,
+                          }}
+                          className="active-tap"
+                          title="Gestionar productos"
+                        >
+                          <Package size={16} />
+                        </button>
+
+                        {/* Editar */}
+                        <button
+                          onClick={() => openEdit(tax)}
+                          style={{
+                            display: "inline-flex", alignItems: "center", justifyContent: "center",
+                            backgroundColor: "#eff6ff", border: "1px solid #bfdbfe",
+                            borderRadius: 8, width: 38, height: 38, cursor: "pointer",
+                            color: "var(--accent-strong)", padding: 0,
+                          }}
+                          className="active-tap"
+                          title="Editar impuesto"
+                        >
+                          <Pencil size={16} />
+                        </button>
+
+                        {/* Activar/Desactivar */}
+                        <button
+                          onClick={() => toggleStatus(tax)}
+                          disabled={statusUpdatingId === tax.id}
+                          style={{
+                            display: "inline-flex", alignItems: "center", justifyContent: "center",
+                            backgroundColor: tax.active ? "#fef2f2" : "#f0fdf4",
+                            border: `1px solid ${tax.active ? "#fecaca" : "#bbf7d0"}`,
+                            borderRadius: 8, width: 38, height: 38, cursor: "pointer",
+                            color: tax.active ? "#b91c1c" : "#15803d", padding: 0,
+                            opacity: statusUpdatingId === tax.id ? 0.55 : 1,
+                          }}
+                          className="active-tap"
+                          title={tax.active ? "Desactivar" : "Activar"}
+                        >
+                          <Power size={16} />
+                        </button>
                       </div>
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Tasa decimal</div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)" }}>{formatDecimal(tax.rate)}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Descripción</div>
-                        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{tax.description || "Sin descripción"}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Fecha de creación</div>
-                        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmtDate(tax.createdAt)}</div>
-                      </div>
-                      {tax.updatedAt && (
+
+                      <div style={{
+                        backgroundColor: "var(--surface-2)",
+                        borderRadius: 8,
+                        border: "1px solid var(--border)",
+                        padding: 16,
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                        gap: 16,
+                        textAlign: "left",
+                      }}>
                         <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Última actualización</div>
-                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmtDate(tax.updatedAt)}</div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>ID</div>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)" }}>{tax.id}</div>
                         </div>
-                      )}
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Tasa decimal</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)" }}>{formatDecimal(tax.rate)}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Descripción</div>
+                          <div style={{ fontSize: 13, color: "var(--text-secondary)", wordBreak: "break-word" }}>{tax.description || "Sin descripción"}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Fecha de creación</div>
+                          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmtDate(tax.createdAt)}</div>
+                        </div>
+                        {tax.updatedAt && (
+                          <div>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>Última actualización</div>
+                            <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmtDate(tax.updatedAt)}</div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

@@ -3,7 +3,7 @@ import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
 import { DataTable, ActionModal } from "../../shared/ui";
 import type { Column } from "../../shared/ui";
-import { Calendar, ChevronDown, ChevronUp, CreditCard, Eye } from "lucide-react"
+import { Calendar, ChevronDown, ChevronUp, CreditCard, Eye, Printer, X } from "lucide-react"
 import {
   type ViewProps,
   Toolbar,
@@ -386,23 +386,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     overflow: "hidden",
                   }}
                 >
-                  {/* Encabezado: Sucursal y Tipo */}
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "10px 16px",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: "var(--text-muted)",
-                    borderBottom: "1px solid var(--border-soft)",
-                    backgroundColor: "var(--surface-2)",
-                    letterSpacing: "0.2px"
-                  }}>
-                    <span>{d.branch.toUpperCase()}</span>
-                    <span>TIPO: {d.paymentType.toUpperCase()}</span>
-                  </div>
-
-                  {/* Cuerpo principal */}
+                  {/* Cuerpo principal — sin header de sucursal/tipo */}
                   <div style={{ padding: 16 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                       <div style={{ flex: 1 }}>
@@ -505,6 +489,15 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         }}>
                           {/* Datos del Depósito */}
                           <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Datos del Depósito</h4>
+                          {/* Sucursal y Tipo aquí en el detalle expandido */}
+                          <div style={detailRowStyle}>
+                            <span style={detailLabelStyle}>Sucursal:</span>
+                            <span style={detailValueStyle}>{d.branch}</span>
+                          </div>
+                          <div style={detailRowStyle}>
+                            <span style={detailLabelStyle}>Tipo:</span>
+                            <span style={detailValueStyle}>{d.paymentType}</span>
+                          </div>
                           <div style={detailRowStyle}>
                             <span style={detailLabelStyle}>Folio Dep:</span>
                             <span style={detailValueStyle}>#{d.id}</span>
@@ -601,7 +594,13 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             <button
               onClick={closeDetail}
               style={{
-                padding: "10px 16px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                padding: isMobile ? "0" : "10px 16px",
+                width: isMobile ? 38 : "auto",
+                height: isMobile ? 38 : "auto",
                 background: "var(--surface-2)",
                 border: "1px solid var(--border)",
                 borderRadius: "6px",
@@ -610,13 +609,21 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 fontWeight: "600",
                 color: "var(--text)",
               }}
+              title="Cerrar"
             >
-              Cerrar
+              <X size={15} />
+              {!isMobile && <span>Cerrar</span>}
             </button>
             <button
               onClick={() => selectedDeposit && printDeposit(selectedDeposit)}
               style={{
-                padding: "10px 16px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                padding: isMobile ? "0" : "10px 16px",
+                width: isMobile ? 38 : "auto",
+                height: isMobile ? 38 : "auto",
                 background: "#3b82f6",
                 color: "white",
                 border: "none",
@@ -625,8 +632,10 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 fontSize: "14px",
                 fontWeight: "600",
               }}
+              title="Imprimir"
             >
-              Imprimir
+              <Printer size={15} />
+              {!isMobile && <span>Imprimir</span>}
             </button>
           </>
         }

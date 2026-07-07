@@ -13,7 +13,7 @@ import type {
   AvailablePromotionProduct,
   PromotionProductScope,
 } from "../types/promotions.types";
-import { Badge, SearchInput, ui, moneyExact } from "../views/shared";
+import { Badge, SearchInput, ui, moneyExact, useMediaQuery } from "../views/shared";
 import { useToast } from "../../shared/context/ToastContext";
 
 // ---------------------------------------------------------------------------
@@ -53,6 +53,7 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
   onSuccess,
 }) => {
   const { showToast } = useToast();
+  const isMobile = useMediaQuery("(max-width: 1024px)");
 
   // ── Filters state ──────────────────────────────────────────────────────────
   const [scope, setScope] = useState<PromotionProductScope>("ALL");
@@ -226,9 +227,12 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div style={s.overlay} onClick={!submitting ? onClose : undefined}>
+    <div style={{ ...s.overlay, ...(isMobile ? { padding: 0 } : {}) }} onClick={!submitting ? onClose : undefined}>
       <div
-        style={s.modal}
+        style={{
+          ...s.modal,
+          ...(isMobile ? { maxWidth: "100%", height: "100%", maxHeight: "100%", borderRadius: 0 } : {})
+        }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -251,14 +255,20 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
           </button>
         </div>
 
-        <div style={ui.modalBody}>
+        <div style={{ ...ui.modalBody, ...(isMobile ? { overflowY: "auto" } : {}) }}>
           {/* Promotion name */}
           <div style={s.promotionTag}>{promotionName}</div>
 
           {/* ── Filters row ── */}
-          <div style={s.filtersRow}>
+          <div style={{
+            ...s.filtersRow,
+            ...(isMobile ? { flexDirection: "column", alignItems: "stretch", gap: 8 } : {})
+          }}>
             {/* Scope selector */}
-            <div style={s.filterGroup}>
+            <div style={{
+              ...s.filterGroup,
+              ...(isMobile ? { flex: "1 1 100%", width: "100%" } : {})
+            }}>
               <label style={ui.fieldLabel}>Alcance</label>
               <select
                 style={{ ...ui.input, ...s.select }}
@@ -275,7 +285,10 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
 
             {/* Category selector — only when scope requires it */}
             {SCOPE_NEEDS_CATEGORY.includes(scope) && (
-              <div style={s.filterGroup}>
+              <div style={{
+                ...s.filterGroup,
+                ...(isMobile ? { flex: "1 1 100%", width: "100%" } : {})
+              }}>
                 <label style={ui.fieldLabel}>{scopeLabel(scope)}</label>
                 {categoriesLoading ? (
                   <div style={s.selectPlaceholder}>Cargando categorías...</div>
@@ -317,7 +330,7 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
               disabled={selectableCount === 0 || productsLoading}
               title="Seleccionar todos los productos visibles en esta página"
             >
-              {allVisibleSelected ? "✓ " : ""}Seleccionar visibles
+              {allVisibleSelected ? "✓ " : ""}{isMobile ? "Todos visibles" : "Seleccionar visibles"}
             </button>
             <button
               type="button"
@@ -325,29 +338,37 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
               onClick={clearSelection}
               disabled={selectedIds.size === 0}
             >
-              Limpiar selección
+              {isMobile ? "Limpiar" : "Limpiar selección"}
             </button>
             <span style={s.counter}>
               {selectedIds.size} producto{selectedIds.size === 1 ? "" : "s"} seleccionado{selectedIds.size === 1 ? "" : "s"}
             </span>
           </div>
 
-          {/* ── Products table ── */}
-          <div style={s.tableWrap}>
+          {/* ── Products table or cards ── */}
+          <div style={{
+            ...s.tableWrap,
+            ...(isMobile ? { border: "none", backgroundColor: "transparent" } : {})
+          }}>
             {/* Table header */}
-            <div style={{ ...s.tableRow, ...s.tableHead }}>
-              <div style={{ ...s.cell, ...s.colCheck }} />
-              <div style={{ ...s.cell, ...s.colSku }}>SKU</div>
-              <div style={{ ...s.cell, ...s.colBarcode }}>Código barras</div>
-              <div style={{ ...s.cell, ...s.colName }}>Producto</div>
-              <div style={{ ...s.cell, ...s.colCost }}>Costo</div>
-              <div style={{ ...s.cell, ...s.colPrice }}>Precio venta</div>
-              <div style={{ ...s.cell, ...s.colCats }}>Categorías</div>
-              <div style={{ ...s.cell, ...s.colStatus }}>Estado</div>
-            </div>
+            {!isMobile && (
+              <div style={{ ...s.tableRow, ...s.tableHead }}>
+                <div style={{ ...s.cell, ...s.colCheck }} />
+                <div style={{ ...s.cell, ...s.colSku }}>SKU</div>
+                <div style={{ ...s.cell, ...s.colBarcode }}>Código barras</div>
+                <div style={{ ...s.cell, ...s.colName }}>Producto</div>
+                <div style={{ ...s.cell, ...s.colCost }}>Costo</div>
+                <div style={{ ...s.cell, ...s.colPrice }}>Precio venta</div>
+                <div style={{ ...s.cell, ...s.colCats }}>Categorías</div>
+                <div style={{ ...s.cell, ...s.colStatus }}>Estado</div>
+              </div>
+            )}
 
             {/* Table body */}
-            <div style={s.tableBody}>
+            <div style={{
+              ...s.tableBody,
+              ...(isMobile ? { maxHeight: "42vh", padding: "4px 2px" } : {})
+            }}>
               {/* Loading */}
               {productsLoading && (
                 <div style={s.stateRow}>Cargando productos...</div>
@@ -386,6 +407,103 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
                 products.map((product) => {
                   const isSelected = selectedIds.has(product.id);
                   const disabled = product.alreadyAssociated;
+
+                  if (isMobile) {
+                    return (
+                      <div
+                        key={product.id}
+                        onClick={() => !disabled && toggleProduct(product.id, product.alreadyAssociated)}
+                        style={{
+                          backgroundColor: isSelected
+                            ? "rgba(30,58,138,0.06)"
+                            : disabled
+                            ? "var(--surface-2)"
+                            : "var(--surface)",
+                          border: isSelected ? "2px solid var(--accent)" : "1px solid var(--border-soft)",
+                          borderRadius: 14,
+                          padding: 14,
+                          marginBottom: 10,
+                          opacity: disabled ? 0.65 : 1,
+                          cursor: disabled ? "default" : "pointer",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 8,
+                          boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+                        }}
+                      >
+                        {/* Header card: Checkbox, SKU y Status */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              disabled={disabled}
+                              onChange={() => toggleProduct(product.id, product.alreadyAssociated)}
+                              onClick={(e) => e.stopPropagation()}
+                              style={s.check}
+                              aria-label={`Seleccionar ${product.name}`}
+                            />
+                            <span style={s.skuBadge}>{product.sku}</span>
+                          </div>
+                          <div>
+                            {product.alreadyAssociated ? (
+                              <Badge tone="blue">Ya asociado</Badge>
+                            ) : product.active ? (
+                              <Badge tone="green">Activo</Badge>
+                            ) : (
+                              <Badge tone="slate">Inactivo</Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Name and Description */}
+                        <div>
+                          <div style={{ fontWeight: 700, color: "var(--text)", fontSize: 13, wordBreak: "break-word" }}>
+                            {product.name}
+                          </div>
+                          {product.description && (
+                            <div style={{ ...s.productDesc, color: "var(--text-muted)", wordBreak: "break-word" }}>
+                              {product.description}
+                            </div>
+                          )}
+                          {product.barcode && (
+                            <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2, fontFamily: "monospace" }}>
+                              Código: {product.barcode}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Cost & Sell Price */}
+                        <div style={{ display: "flex", gap: 20 }}>
+                          <div>
+                            <span style={{ fontSize: 9, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Costo</span>
+                            <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmt(product.costPrice)}</div>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: 9, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Precio Venta</span>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{moneyExact(Number(product.sellPrice))}</div>
+                          </div>
+                        </div>
+
+                        {/* Categories (línea completa) */}
+                        <div style={{ borderTop: "1px solid var(--border-soft)", paddingTop: 8 }}>
+                          <span style={{ fontSize: 9, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 4 }}>Categorías</span>
+                          {product.categories.length === 0 ? (
+                            <span style={s.noCatBadge}>Sin categoría</span>
+                          ) : (
+                            <div style={s.catList}>
+                              {product.categories.map((cat) => (
+                                <span key={cat.id} style={s.catBadge}>
+                                  {cat.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div
                       key={product.id}
@@ -485,25 +603,43 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
             <div style={s.paginationBar}>
               <button
                 type="button"
-                style={{ ...ui.ghostBtn, padding: "5px 10px", height: 30, fontSize: 12 }}
+                style={{
+                  ...ui.ghostBtn,
+                  padding: "5px 10px",
+                  height: 30,
+                  fontSize: 12,
+                  ...(isMobile ? { width: 34, height: 30, padding: 0, justifyContent: "center" } : {})
+                }}
                 disabled={page <= 1 || productsLoading}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
+                title="Anterior"
               >
-                <ChevronLeft size={14} /> Anterior
+                <ChevronLeft size={14} />
+                {!isMobile && " Anterior"}
               </button>
               <span style={s.pageInfo}>
-                Página {pagination.page} de {pagination.totalPages}
-                <span style={{ marginLeft: 8, color: "var(--text-faint)", fontWeight: 500 }}>
-                  ({pagination.total} producto{pagination.total === 1 ? "" : "s"})
-                </span>
+                {isMobile ? `${pagination.page}/${pagination.totalPages}` : `Página ${pagination.page} de ${pagination.totalPages}`}
+                {!isMobile && (
+                  <span style={{ marginLeft: 8, color: "var(--text-faint)", fontWeight: 500 }}>
+                    ({pagination.total} producto{pagination.total === 1 ? "" : "s"})
+                  </span>
+                )}
               </span>
               <button
                 type="button"
-                style={{ ...ui.ghostBtn, padding: "5px 10px", height: 30, fontSize: 12 }}
+                style={{
+                  ...ui.ghostBtn,
+                  padding: "5px 10px",
+                  height: 30,
+                  fontSize: 12,
+                  ...(isMobile ? { width: 34, height: 30, padding: 0, justifyContent: "center" } : {})
+                }}
                 disabled={page >= pagination.totalPages || productsLoading}
                 onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                title="Siguiente"
               >
-                Siguiente <ChevronRight size={14} />
+                {!isMobile && "Siguiente "}
+                <ChevronRight size={14} />
               </button>
             </div>
           )}
@@ -517,28 +653,44 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
           <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
             <button
               type="button"
-              style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }}
+              style={{
+                ...ui.ghostBtn,
+                flex: 1,
+                justifyContent: "center",
+                alignItems: "center",
+                gap: 6,
+                ...(isMobile ? { padding: "10px 0", maxWidth: 50 } : {})
+              }}
               onClick={onClose}
               disabled={submitting}
+              title="Cancelar"
             >
-              Cancelar
+              <X size={15} />
+              {!isMobile && <span>Cancelar</span>}
             </button>
             <button
               type="button"
               style={{
                 ...ui.primaryBtn,
-                flex: 2,
+                flex: isMobile ? 1 : 2,
                 justifyContent: "center",
+                alignItems: "center",
+                gap: 6,
                 opacity: selectedIds.size === 0 || submitting ? 0.55 : 1,
                 cursor: selectedIds.size === 0 || submitting ? "not-allowed" : "pointer",
               }}
               disabled={selectedIds.size === 0 || submitting}
               onClick={handleSubmit}
+              title="Agregar seleccionados"
             >
               <PackagePlus size={15} />
-              {submitting
-                ? "Agregando..."
-                : `Agregar ${selectedIds.size > 0 ? selectedIds.size : ""} producto${selectedIds.size === 1 ? "" : "s"} seleccionado${selectedIds.size === 1 ? "" : "s"}`}
+              {submitting ? (
+                <span>Agregando...</span>
+              ) : isMobile ? (
+                <span>Agregar ({selectedIds.size})</span>
+              ) : (
+                <span>Agregar {selectedIds.size > 0 ? selectedIds.size : ""} producto{selectedIds.size === 1 ? "" : "s"} seleccionado{selectedIds.size === 1 ? "" : "s"}</span>
+              )}
             </button>
           </div>
         </div>

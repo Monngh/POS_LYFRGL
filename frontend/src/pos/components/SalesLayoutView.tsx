@@ -29,19 +29,19 @@ export function SalesLayoutView({
     <div className={`pos-sales-layout ${isSidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       {/* Sidebar Container */}
       <aside className="pos-sales-sidebar">
+        {/* Close sidebar button — positioned absolute inside sidebar padding area */}
+        <button
+          type="button"
+          onClick={() => setIsSidebarCollapsed(true)}
+          className="pos-sidebar-close-btn active-tap"
+          title="Ocultar panel lateral"
+          aria-label="Ocultar panel lateral"
+        >
+          ✕
+        </button>
+
         {/* Sidebar Content (hidden when collapsed via CSS) */}
         <div className="pos-sidebar-inner-content">
-          {/* Close sidebar button — top right of sidebar */}
-          <button
-            type="button"
-            onClick={() => setIsSidebarCollapsed(true)}
-            className="pos-sidebar-close-btn active-tap"
-            title="Ocultar panel lateral"
-            aria-label="Ocultar panel lateral"
-          >
-            ✕
-          </button>
-
           {/* Quick Actions Carousel */}
           <QuickActionsCarousel onOpenModal={onOpenModal} onGoHome={onGoHome} />
 

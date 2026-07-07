@@ -152,7 +152,8 @@ export function CheckoutPanel({
           <button
             onClick={handleCancelCurrentPurchase}
             className="active-tap"
-            title="Cancelar compra"
+            data-shortcut-letter="V"
+            title="Cancelar compra (Alt+V)"
             style={{ ...styles.terminalBtn, flex: 1, minWidth: "120px", backgroundColor: "#dc2626", color: "white" }}
           >
             CANCELAR COMPRA

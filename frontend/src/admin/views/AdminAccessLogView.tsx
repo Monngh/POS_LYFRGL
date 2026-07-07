@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { ShieldAlert, Lock, ChevronDown, ChevronUp, ShieldOff } from "lucide-react";
+import { AlertTriangle, ShieldAlert, Lock, ChevronDown, ChevronUp, ShieldOff, X } from "lucide-react";
 import api from "../../shared/services/api";
 import { validateDateRange, validateSearchText, validateReference } from "../../shared/utils/formValidation";
 import { useAuth } from "../../auth";
@@ -1029,11 +1029,11 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
           >
             <div style={ui.modalHeader}>
               <span style={ui.modalTitle}>¿Cerrar la sesión de "{revokeTarget.name}"?</span>
-              <button style={ui.ghostBtn} onClick={closeRevokeFlow}>✕</button>
+              <button style={ui.ghostBtn} onClick={closeRevokeFlow} title="Cerrar"><X size={15} /></button>
             </div>
             <div style={ui.modalBody}>
-              <p style={{ fontSize: 13, color: "#b91c1c", fontWeight: 600, marginBottom: 18 }}>
-                ⚠ Se cerrará de inmediato y deberá volver a iniciar sesión.
+              <p style={{ fontSize: 13, color: "#b91c1c", fontWeight: 600, marginBottom: 18, display: "flex", alignItems: "center", gap: 6 }}>
+                <AlertTriangle size={14} /> Se cerrará de inmediato y deberá volver a iniciar sesión.
               </p>
               <label style={ui.fieldLabel}>Motivo del cierre *</label>
               <textarea
@@ -1089,7 +1089,7 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
           >
             <div style={ui.modalHeader}>
               <span style={ui.modalTitle}>Confirmar cierre de sesión</span>
-              <button style={ui.ghostBtn} onClick={() => setRevokeConfirmOpen(false)}>✕</button>
+              <button style={ui.ghostBtn} onClick={() => setRevokeConfirmOpen(false)} title="Cerrar"><X size={15} /></button>
             </div>
             <div style={ui.modalBody}>
               <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20 }}>
@@ -1106,8 +1106,8 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
                   <span style={{ ...detailValueStyle, wordBreak: "break-word", flex: 1 }}>{revokeReason}</span>
                 </div>
               </div>
-              <p style={{ fontSize: 13, color: "#b91c1c", fontWeight: 600, marginBottom: 20 }}>
-                ⚠ Esta acción cerrará la sesión de inmediato y no se puede deshacer.
+              <p style={{ fontSize: 13, color: "#b91c1c", fontWeight: 600, marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
+                <AlertTriangle size={14} /> Esta acción cerrará la sesión de inmediato y no se puede deshacer.
               </p>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
                 <button

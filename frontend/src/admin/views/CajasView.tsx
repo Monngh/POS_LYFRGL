@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../../auth";
-import { Calendar, ChevronDown, ChevronUp, DollarSign, Eye } from "lucide-react";
+import { AlertTriangle, Ban, Calendar, ChevronDown, ChevronUp, DollarSign, Eye, Printer, X } from "lucide-react";
 import api from "../../shared/services/api";
 import { validateReference } from "../../shared/utils/formValidation";
 import {
@@ -360,7 +360,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               style={clearBtn}
               title="Limpiar fechas"
             >
-              ✕
+              <X size={13} />
             </button>
           )}
         </div>
@@ -632,7 +632,7 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               {selectedDetail && (
                 <Badge tone={statusTone(selectedDetail.status)}>{selectedDetail.status}</Badge>
               )}
-              <button style={ui.ghostBtn} onClick={closeDetail}>✕</button>
+              <button style={ui.ghostBtn} onClick={closeDetail} title="Cerrar"><X size={15} /></button>
             </div>
 
             {/* Body */}
@@ -655,26 +655,28 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       <> &nbsp;·&nbsp; Cierre: {fmtDateTime(selectedDetail.closedAt)}</>
                     )}
                     {selectedDetail.forceCloseReason && (
-                      <span style={{ color: "var(--color-danger)", marginLeft: 8 }}>
-                        ⚠ Cierre forzado: {selectedDetail.forceCloseReason}
+                      <span style={{ color: "var(--color-danger)", marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <AlertTriangle size={12} /> Cierre forzado: {selectedDetail.forceCloseReason}
                       </span>
                     )}
                   </p>
 
                   {/* Desglose financiero */}
                   <p style={sectionLabel}>Desglose financiero</p>
-                  <div style={finBox}>
-                    <FinRow label="Monto inicial (fondo):" value={money(selectedDetail.initialAmount)} />
-                    <FinRow label="+ Ventas (efectivo neto):" value={money(selectedDetail.cashIn)} />
-                    <FinRow label="– Depósitos (salidas):" value={money(selectedDetail.cashOut)} />
+                  <div style={{ ...finBox, maxHeight: 155, overflowY: "auto" }}>
+                    <FinRow isMobile={isMobile} label="Monto inicial (fondo):" value={money(selectedDetail.initialAmount)} />
+                    <FinRow isMobile={isMobile} label="+ Ventas (efectivo neto):" value={money(selectedDetail.cashIn)} />
+                    <FinRow isMobile={isMobile} label="– Depósitos (salidas):" value={money(selectedDetail.cashOut)} />
                     <div style={{ borderTop: "1px solid var(--border)", margin: "8px 0" }} />
-                    <FinRow label="= Esperado (teórico):" value={money(selectedDetail.expectedAmount)} bold />
+                    <FinRow isMobile={isMobile} label="= Esperado (teórico):" value={money(selectedDetail.expectedAmount)} bold />
                     <div style={{ borderTop: "1px dashed var(--border-strong)", margin: "8px 0" }} />
                     <FinRow
+                      isMobile={isMobile}
                       label="Declarado (contado):"
                       value={selectedDetail.declaredAmount !== null ? money(selectedDetail.declaredAmount) : "—"}
                     />
                     <FinRow
+                      isMobile={isMobile}
                       label="Diferencia:"
                       value={
                         selectedDetail.difference !== null
@@ -696,14 +698,13 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                   {/* Desglose por método de pago */}
                   <p style={{ ...sectionLabel, marginTop: 18 }}>Por método de pago (ventas completadas)</p>
-                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "6px 24px", marginBottom: 6 }}>
-                    <PayRow label="Efectivo" value={money(selectedDetail.payBreakdown.efectivo)} />
-                    <PayRow label="Tarjeta crédito" value={money(selectedDetail.payBreakdown.tarjetaCredito)} />
-                    <PayRow label="Tarjeta débito" value={money(selectedDetail.payBreakdown.tarjetaDebito)} />
-                    <PayRow label="MercadoPago QR" value={money(selectedDetail.payBreakdown.mercadoPago)} />
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 13, fontWeight: 700, color: "var(--text)", paddingTop: 6, borderTop: "1px solid var(--border-soft)" }}>
-                    Total ventas: {money(selectedDetail.payBreakdown.totalVentas)}
+                  <div style={{ ...finBox, maxHeight: 155, overflowY: "auto" }}>
+                    <FinRow isMobile={isMobile} label="Efectivo" value={money(selectedDetail.payBreakdown.efectivo)} />
+                    <FinRow isMobile={isMobile} label="Tarjeta crédito" value={money(selectedDetail.payBreakdown.tarjetaCredito)} />
+                    <FinRow isMobile={isMobile} label="Tarjeta débito" value={money(selectedDetail.payBreakdown.tarjetaDebito)} />
+                    <FinRow isMobile={isMobile} label="MercadoPago QR" value={money(selectedDetail.payBreakdown.mercadoPago)} />
+                    <div style={{ borderTop: "1px solid var(--border)", margin: "8px 0" }} />
+                    <FinRow isMobile={isMobile} label="Total ventas" value={money(selectedDetail.payBreakdown.totalVentas)} bold />
                   </div>
 
                   {/* Tabla de movimientos */}
@@ -787,24 +788,43 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               }}
             >
               <div style={{ display: "flex", gap: 8 }}>
-                <button style={ui.ghostBtn} onClick={closeDetail}>
-                  Cerrar
+                <button
+                  style={{
+                    ...ui.ghostBtn,
+                    ...(isMobile ? { width: 38, height: 38, padding: 0, minWidth: 38, justifyContent: "center" } : {}),
+                  }}
+                  onClick={closeDetail}
+                  title="Cerrar"
+                >
+                  <X size={15} />
+                  {!isMobile && <span>Cerrar</span>}
                 </button>
                 <button
-                  style={{ ...ui.primaryBtn, backgroundColor: "#2563eb" }}
+                  style={{
+                    ...ui.primaryBtn,
+                    backgroundColor: "#2563eb",
+                    ...(isMobile ? { width: 38, height: 38, padding: 0, minWidth: 38, justifyContent: "center" } : {}),
+                  }}
                   onClick={printCashReport}
                   disabled={detailLoading || !selectedDetail}
                   title="Imprimir arqueo de esta caja"
                 >
-                  Imprimir
+                  <Printer size={15} />
+                  {!isMobile && <span>Imprimir</span>}
                 </button>
               </div>
               {selectedDetail?.status === "ABIERTA" && (
                 <button
-                  style={{ ...ui.primaryBtn, backgroundColor: "#b91c1c" }}
+                  style={{
+                    ...ui.primaryBtn,
+                    backgroundColor: "#b91c1c",
+                    ...(isMobile ? { width: 38, height: 38, padding: 0, minWidth: 38, justifyContent: "center" } : {}),
+                  }}
                   onClick={() => setForceOpen(true)}
+                  title="Cerrar forzado"
                 >
-                  Cerrar forzado
+                  <Ban size={15} />
+                  {!isMobile && <span>Cerrar forzado</span>}
                 </button>
               )}
             </div>
@@ -827,13 +847,14 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               <button
                 style={ui.ghostBtn}
                 onClick={() => { setForceOpen(false); setForceReason(""); setForceReasonError(""); setForceError(null); }}
+                title="Cerrar"
               >
-                ✕
+                <X size={15} />
               </button>
             </div>
             <div style={ui.modalBody}>
-              <p style={{ fontSize: 13, color: "#b91c1c", fontWeight: 600, marginBottom: 18 }}>
-                ⚠ Esta acción no se puede deshacer.
+              <p style={{ fontSize: 13, color: "#b91c1c", fontWeight: 600, marginBottom: 18, display: "flex", alignItems: "center", gap: 6 }}>
+                <AlertTriangle size={14} /> Esta acción no se puede deshacer.
               </p>
               <label style={ui.fieldLabel}>Motivo de cierre *</label>
               <textarea
@@ -905,8 +926,9 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               <button
                 style={ui.ghostBtn}
                 onClick={() => { setForceConfirmOpen(false); setForceOpen(true); }}
+                title="Cerrar"
               >
-                ✕
+                <X size={15} />
               </button>
             </div>
             <div style={ui.modalBody}>
@@ -928,8 +950,8 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   <span style={{ ...detailValueStyle, wordBreak: "break-word", flex: 1 }}>{forceReason}</span>
                 </div>
               </div>
-              <p style={{ fontSize: 13, color: "#b91c1c", fontWeight: 600, marginBottom: 20 }}>
-                ⚠ Esta acción cerrará la caja permanentemente y no se puede deshacer.
+              <p style={{ fontSize: 13, color: "#b91c1c", fontWeight: 600, marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
+                <AlertTriangle size={14} /> Esta acción cerrará la caja permanentemente y no se puede deshacer.
               </p>
               {forceError && (
                 <p style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>{forceError}</p>
@@ -1020,24 +1042,30 @@ const finBox: React.CSSProperties = {
   gap: 4,
 };
 
-const FinRow: React.FC<{ label: string; value: string; bold?: boolean; color?: string }> = ({
+const FinRow: React.FC<{ label: string; value: string; bold?: boolean; color?: string; isMobile?: boolean }> = ({
   label,
   value,
   bold,
   color,
+  isMobile,
 }) => (
-  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, alignItems: "center" }}>
+  <div
+    style={{
+      display: "flex",
+      flexDirection: isMobile ? "column" : "row",
+      justifyContent: isMobile ? "flex-start" : "space-between",
+      fontSize: 13,
+      alignItems: isMobile ? "flex-start" : "center",
+      gap: isMobile ? 2 : 0,
+      paddingBottom: isMobile ? 6 : 0,
+    }}
+  >
     <span style={{ color: "var(--text-muted)" }}>{label}</span>
-    <span style={{ fontWeight: bold ? 800 : 600, color: color ?? "var(--text)" }}>{value}</span>
+    <span style={{ fontWeight: bold ? 800 : 600, color: color ?? "var(--text)", fontSize: isMobile ? 15 : 13 }}>{value}</span>
   </div>
 );
 
-const PayRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-    <span style={{ color: "var(--text-muted)" }}>{label}</span>
-    <span style={{ fontWeight: 700, color: "var(--text-secondary)" }}>{value}</span>
-  </div>
-);
+
 
 const detailRowStyle: React.CSSProperties = {
   display: "flex",

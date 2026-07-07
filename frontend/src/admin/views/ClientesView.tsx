@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Pencil, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Pencil, Phone, Plus } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
 import { DataTable, ActionModal } from "../../shared/ui";
@@ -193,19 +193,19 @@ const validateCustomerForm = (form: FormState): {
 
 const cliDetailRow: React.CSSProperties = {
   display: "flex",
+  flexDirection: "column",
   justifyContent: "flex-start",
   alignItems: "flex-start",
-  gap: "8px",
+  gap: "2px",
   fontSize: 13,
-  marginBottom: 6,
+  marginBottom: 8,
 };
 
 const cliDetailLabel: React.CSSProperties = {
   flexShrink: 0,
   fontWeight: 700,
   color: "var(--text-muted)",
-  minWidth: "95px",
-  display: "inline-block",
+  display: "block",
 };
 
 const cliDetailValue: React.CSSProperties = {
@@ -457,23 +457,6 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
       {isMobile ? (
         /* ── Mobile / Tablet: Card-based layout ── */
         <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
-          {/* Header row mirroring the fields */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "1.2fr 1fr 2fr 1.6fr",
-            padding: "12px 16px",
-            fontWeight: 700,
-            fontSize: 11,
-            color: "var(--text-muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.4px",
-          }}>
-            <div>Saldo</div>
-            <div style={{ textAlign: "center" }}>Compras</div>
-            <div>Contacto</div>
-            <div style={{ textAlign: "right", paddingRight: 8 }}>Acción</div>
-          </div>
-
           {loading && (
             <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
@@ -493,76 +476,48 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                   key={c.id}
                   style={{
                     backgroundColor: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 12,
-                    marginBottom: 10,
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
-                    overflow: "hidden",
+                    border: "1px solid var(--border-soft)",
+                    borderRadius: 16,
+                    padding: 16,
+                    marginBottom: 12,
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
                   }}
                 >
-                  {/* Header: Nombre y RFC */}
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "8px 16px 6px 16px",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: "var(--text-muted)",
-                    borderBottom: "1px solid var(--border-soft)",
-                    backgroundColor: "var(--surface-2)",
-                    letterSpacing: "0.2px",
-                  }}>
-                    <span>{c.name.toUpperCase()}</span>
-                    <span style={{ fontFamily: "monospace" }}>{c.taxId || "SIN RFC"}</span>
-                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Nombre */}
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", marginBottom: 2, wordBreak: "break-word" }}>
+                        {c.name}
+                      </div>
+                      {/* RFC */}
+                      <div style={{ fontSize: 12, fontFamily: "monospace", color: "var(--accent-strong)", marginBottom: 8, fontWeight: 600 }}>
+                        {c.taxId || "SIN RFC"}
+                      </div>
 
-                  {/* Fila principal */}
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.2fr 1fr 2fr 1.6fr",
-                    padding: "12px 16px",
-                    alignItems: "center",
-                  }}>
-                    {/* Saldo */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: c.balance > 0 ? "var(--color-danger)" : "var(--text-secondary)" }}>
-                      {money(c.balance)}
-                    </div>
+                      {/* Contacto */}
+                      {(c.phone || c.email) && (
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4, wordBreak: "break-word", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                          {c.phone && <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><Phone size={12} style={{ flexShrink: 0 }} /> {c.phone}</span>}
+                          {c.phone && c.email && <span style={{ margin: "0 6px", color: "var(--border-strong)" }}>·</span>}
+                          {c.email && <span style={{ wordBreak: "break-all" }}>{c.email}</span>}
+                        </div>
+                      )}
 
-                    {/* Compras */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "center" }}>
-                      {c.salesCount}
-                    </div>
-
-                    {/* Contacto */}
-                    <div style={{ fontSize: 12, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {c.phone || c.email || "—"}
+                      {/* Compras y Saldo */}
+                      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 4 }}>
+                        <div>
+                          <span style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3px" }}>Compras</span>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{c.salesCount}</div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3px" }}>Saldo</span>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: c.balance > 0 ? "var(--color-danger)" : "var(--text-secondary)" }}>{money(c.balance)}</div>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Botones de Acción */}
-                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
-                      {/* Pencil/Editar */}
-                      <button
-                        onClick={() => openEdit(c)}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: "var(--accent-soft)",
-                          border: "1px solid var(--accent-soft)",
-                          borderRadius: 8,
-                          width: 34,
-                          height: 34,
-                          cursor: "pointer",
-                          color: "var(--accent-strong)",
-                          padding: 0,
-                        }}
-                        className="active-tap"
-                        title="Editar cliente"
-                      >
-                        <Pencil size={14} />
-                      </button>
-
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
                       {/* Chevron */}
                       <button
                         onClick={() => toggleExpandCustomer(c.id)}
@@ -573,15 +528,15 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           backgroundColor: "var(--surface)",
                           border: "1px solid var(--border-strong)",
                           borderRadius: 8,
-                          width: 34,
-                          height: 34,
+                          width: 38,
+                          height: 38,
                           cursor: "pointer",
                           color: "var(--text-muted)",
                           padding: 0,
                         }}
                         className="active-tap"
                       >
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                       </button>
                     </div>
                   </div>
@@ -653,7 +608,26 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           <span style={cliDetailValue}>{c.salesCount} compras</span>
                         </div>
                       </div>
+
+                      {/* Acciones */}
+                      <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", borderTop: "1px solid var(--border-soft)", paddingTop: 12, marginTop: 4 }}>
+                        <button
+                          type="button"
+                          onClick={() => openEdit(c)}
+                          style={{
+                            ...ui.primaryBtn,
+                            padding: "8px 14px",
+                            fontSize: 12,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6
+                          }}
+                        >
+                          <Pencil size={13} /> Editar cliente
+                        </button>
+                      </div>
                     </div>
+                  
                   )}
                 </div>
               );

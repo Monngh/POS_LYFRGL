@@ -975,6 +975,55 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
             );
           })}
         </div>
+      ) : isMobile ? (
+        /* ── Mobile Fallback: Generic Card-based layout for any other reports ── */
+        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px", backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)" }}>
+          {loading && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+              Cargando información...
+            </div>
+          )}
+          {error && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
+              {error}
+            </div>
+          )}
+          {!loading && !error && rows.length === 0 && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+              Sin registros en el periodo seleccionado.
+            </div>
+          )}
+
+          {!loading &&
+            !error &&
+            rows.map((row, i) => (
+              <div
+                key={i}
+                style={{
+                  backgroundColor: "var(--surface)",
+                  border: "1px solid var(--border-soft)",
+                  borderRadius: 16,
+                  padding: 16,
+                  marginBottom: 12,
+                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+                  textAlign: "left",
+                }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {cols.map((c) => (
+                    <div key={c.key} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                        {c.label}
+                      </span>
+                      <span style={{ fontSize: 14, color: "var(--text-secondary)", fontWeight: 600 }}>
+                        {renderCell(c, row)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+        </div>
       ) : (
         /* ── Standard Dynamic Table ── */
         <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>

@@ -64,6 +64,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasAssociatedCustomers, setHasAssociatedCustomers] = useState(false);
 
   // Estado de timbrado
   const [stamping, setStamping] = useState(false);
@@ -102,24 +103,25 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
       });
 
       // El endpoint de ventas retorna { sales: [...] }
-      // Filtrar no facturadas Y que sean al Público General (sin cliente o RFC genérico)
       const sales = res.data.sales || [];
+
+      // Detectar si el rango incluye ventas con clientes asociados (no Público General),
+      // para avisar en la UI que fueron omitidas automáticamente.
+      const incomingHasCustomers = sales.some((s: any) => {
+        const cName = s.customer ? s.customer.toLowerCase() : "";
+        return cName && cName !== "público general";
+      });
+      setHasAssociatedCustomers(incomingHasCustomers);
+
+      // Filtrar no facturadas Y que sean al Público General (sin cliente o RFC genérico).
+      // Nota: el backend (createGlobalInvoice) vuelve a filtrar con Prisma de forma
+      // estricta (cfdiUuid == null) — este filtro del frontend es solo para la vista previa.
       const unbilled = sales.filter((s: any) => {
         if (s.cfdiUuid) return false;
-        // s.customer viene como string desde el listado central ("Público General" o el nombre del cliente)
-        if (!s.customer || s.customer === "Público General") return true;
-        return false;
+        const cName = s.customer ? s.customer.toLowerCase() : "";
+        if (cName && cName !== "público general") return false;
+        return true;
       });
-      
-      // Nota: El listado central retorna 'customer' y 'invoiceNumber'.
-      // Filtramos las ventas que no tienen cfdiUuid (en el listado central no viene cfdiUuid,
-      // pero si viene vacío el campo de factura se asume no facturada. Para ser 100% seguros,
-      // en el endpoint listSales el cfdiUuid no se mapea, pero si el backend no lo expone o
-      // ya tiene UUID no debería salir como elegible. Si el backend retorna todas, filtramos por
-      // cliente 'Público General' o ventas que sepamos no facturadas)
-      // Como el backend de listSales retorna todas las ventas de ese rango, agregamos un filtro
-      // en el controlador o las filtramos aquí. En el backend, ya creamos createGlobalInvoice
-      // que vuelve a filtrar con Prisma de forma estricta (cfdiUuid == null).
       setTickets(unbilled);
     } catch (err: any) {
       setError(err.response?.data?.message || "Error al recuperar las ventas elegibles.");
@@ -303,6 +305,19 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
               <div>
                 <strong style={{ display: "block", fontSize: 14 }}>Error al Timbrar Factura Global</strong>
                 <p style={{ fontSize: 13, marginTop: 4 }}>{stampError}</p>
+              </div>
+            </div>
+          )}
+
+          {hasAssociatedCustomers && (
+            <div style={warningAlert}>
+              <AlertCircle size={24} style={{ flexShrink: 0 }} />
+              <div>
+                <strong style={{ display: "block", fontSize: 14 }}>Atención: Clientes Asociados Detectados</strong>
+                <p style={{ fontSize: 13, marginTop: 4 }}>
+                  Se han omitido automáticamente los tickets con clientes registrados de esta lista,
+                  ya que la Factura Global es exclusiva para ventas de Público General.
+                </p>
               </div>
             </div>
           )}
@@ -609,6 +624,16 @@ const errorAlert: React.CSSProperties = {
   backgroundColor: "#fef2f2",
   border: "1px solid #fca5a5",
   color: "#b91c1c",
+  padding: 16,
+  borderRadius: 12,
+};
+
+const warningAlert: React.CSSProperties = {
+  display: "flex",
+  gap: 16,
+  backgroundColor: "#fffbeb",
+  border: "1px solid #fde68a",
+  color: "#b45309",
   padding: 16,
   borderRadius: 12,
 };

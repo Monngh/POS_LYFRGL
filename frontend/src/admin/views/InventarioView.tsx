@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { AlertTriangle, Printer, X, Plus, Eye, ChevronDown, ChevronUp, Search, Tags, FolderTree } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Check, Settings, Printer, X, Plus, Eye, ChevronDown, ChevronUp, Search, Tags, FolderTree } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAuth } from "../../auth";
 import {
@@ -1687,23 +1687,6 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           {isMobile ? (
             /* ── Mobile / Tablet: Card-based layout ── */
             <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
-              {/* Header row mirroring the fields */}
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 72px 44px 80px",
-                padding: "12px 16px",
-                fontWeight: 700,
-                fontSize: 11,
-                color: "var(--text-muted)",
-                textTransform: "uppercase",
-                letterSpacing: "0.4px",
-              }}>
-                <div>Producto</div>
-                <div style={{ textAlign: "right" }}>Precio</div>
-                <div style={{ textAlign: "center" }}>Stock</div>
-                <div style={{ textAlign: "right", paddingRight: 4 }}>Acción</div>
-              </div>
-
               {loading && (
                 <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
                   Cargando información...
@@ -1725,10 +1708,10 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       key={p.id}
                       style={{
                         backgroundColor: p.low ? "var(--icon-bg-amber, rgba(251,191,36,0.12))" : "var(--surface)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 12,
-                        marginBottom: 10,
-                        boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+                        border: "1px solid var(--border-soft)",
+                        borderRadius: 16,
+                        marginBottom: 12,
+                        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
                         overflow: "hidden",
                       }}
                     >
@@ -1737,7 +1720,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
-                        padding: "8px 16px 6px 16px",
+                        padding: "10px 16px",
                         fontSize: 11,
                         fontWeight: 700,
                         color: "var(--text-muted)",
@@ -1745,7 +1728,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         backgroundColor: "var(--surface-2)",
                         letterSpacing: "0.2px",
                       }}>
-                        <span>{p.sku}</span>
+                        <span style={{ wordBreak: "break-all", overflowWrap: "anywhere", marginRight: 8 }}>{p.sku}</span>
                         {!p.active ? (
                           <Badge tone="red">Inactivo</Badge>
                         ) : p.low ? (
@@ -1755,108 +1738,108 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         )}
                       </div>
 
-                      {/* Fila principal */}
-                      <div style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 72px 44px 80px",
-                        padding: "12px 16px",
-                        alignItems: "center",
-                      }}>
-                        {/* Producto */}
-                        <div style={{ fontSize: 13, color: "var(--text)", fontWeight: 600, paddingRight: 8, minWidth: 0, overflow: "hidden", display: "-webkit-box" as React.CSSProperties["display"], WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as React.CSSProperties["WebkitBoxOrient"] }}>
-                          {p.name}
-                        </div>
-
-                        {/* Precio */}
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "right" }}>
-                          {money(p.sellPrice)}
-                        </div>
-
-                        {/* Stock */}
-                        <div style={{
-                          fontSize: 13,
-                          fontWeight: 800,
-                          textAlign: "center",
-                          color: p.low ? "var(--color-warning)" : "var(--color-success)",
-                        }}>
-                          {p.stock}
-                        </div>
-
-                        {/* Botones de Acción */}
-                        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
-                          {/* Eye/Detalle */}
-                          <button
-                            onClick={() => openProductDetail(p.id)}
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              backgroundColor: "var(--accent-soft)",
-                              border: "1px solid var(--border)",
-                              borderRadius: 8,
-                              width: 34,
-                              height: 34,
-                              cursor: "pointer",
-                              color: "var(--accent)",
-                              padding: 0,
-                            }}
-                            className="active-tap"
-                            title="Ver detalle"
-                          >
-                            <Eye size={16} />
-                          </button>
-
-                          {/* Chevron */}
-                          <button
-                            onClick={() => toggleExpandProduct(p.id)}
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              backgroundColor: "var(--surface)",
-                              border: "1px solid var(--border-strong)",
-                              borderRadius: 8,
-                              width: 34,
-                              height: 34,
-                              cursor: "pointer",
-                              color: "var(--text-muted)",
-                              padding: 0,
-                            }}
-                            className="active-tap"
-                          >
-                            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Detalle expandido */}
-                      {isExpanded && (
-                        <div style={{
-                          padding: "16px",
-                          margin: "0 16px 16px 16px",
-                          backgroundColor: "var(--surface-2)",
-                          borderRadius: "8px",
-                          border: "1px solid var(--border)",
-                          display: "grid",
-                          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-                          gap: "16px",
-                        }}>
-                          {/* Información General */}
-                          <div>
-                            <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Información General</h4>
-                            <div style={invDetailRow}>
-                              <span style={invDetailLabel}>Código Barras:</span>
-                              <span style={invDetailValue}>{p.barcode || "—"}</span>
+                      {/* Cuerpo principal */}
+                      <div style={{ padding: 16 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            {/* Nombre del Producto */}
+                            <div style={{ marginBottom: 6 }}>
+                              <button
+                                onClick={() => openProductDetail(p.id)}
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  color: "var(--accent)",
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                  padding: 0,
+                                  fontSize: 16,
+                                  textAlign: "left",
+                                  wordBreak: "break-word",
+                                  overflowWrap: "anywhere",
+                                }}
+                                className="active-tap"
+                              >
+                                {p.name}
+                              </button>
                             </div>
-                            <div style={invDetailRow}>
-                              <span style={invDetailLabel}>Descripción:</span>
-                              <span style={invDetailValue}>{p.description || "—"}</span>
+
+                            {/* Precio */}
+                            <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4, fontWeight: 600 }}>
+                              Precio: <span style={{ color: "var(--text)", fontWeight: 700 }}>{money(p.sellPrice)}</span>
+                            </div>
+
+                            {/* Stock actual */}
+                            <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600 }}>
+                              Stock: <span style={{ fontWeight: 800, color: p.low ? "var(--color-warning)" : "var(--color-success)" }}>{p.stock}</span>
                             </div>
                           </div>
 
-                          {/* Valores Económicos */}
-                          <div>
-                            <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Valores Económicos</h4>
+                          {/* Acciones */}
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                            {/* Botón Ver Detalle */}
+                            <button
+                              onClick={() => openProductDetail(p.id)}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                backgroundColor: "var(--accent-soft)",
+                                border: "1px solid var(--border)",
+                                borderRadius: 8,
+                                width: 34,
+                                height: 34,
+                                cursor: "pointer",
+                                color: "var(--accent)",
+                                padding: 0,
+                              }}
+                              className="active-tap"
+                              title="Ver detalle"
+                            >
+                              <Eye size={16} />
+                            </button>
+
+                            {/* Botón Expandir */}
+                            <button
+                              onClick={() => toggleExpandProduct(p.id)}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                backgroundColor: "var(--surface)",
+                                border: "1px solid var(--border-strong)",
+                                borderRadius: 8,
+                                width: 34,
+                                height: 34,
+                                cursor: "pointer",
+                                color: "var(--text-muted)",
+                                padding: 0,
+                              }}
+                              className="active-tap"
+                            >
+                              {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Detalle expandido */}
+                        {isExpanded && (
+                          <div style={{
+                            marginTop: 12,
+                            paddingTop: 12,
+                            borderTop: "1px solid var(--border-soft)",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 8,
+                          }}>
+                            <div style={invDetailRow}>
+                              <span style={invDetailLabel}>Código Barras:</span>
+                              <span style={{ ...invDetailValue, wordBreak: "break-all", overflowWrap: "anywhere" }}>{p.barcode || "—"}</span>
+                            </div>
+                            <div style={invDetailRow}>
+                              <span style={invDetailLabel}>Descripción:</span>
+                              <span style={{ ...invDetailValue, wordBreak: "break-word", overflowWrap: "anywhere" }}>{p.description || "—"}</span>
+                            </div>
                             <div style={invDetailRow}>
                               <span style={invDetailLabel}>Costo:</span>
                               <span style={invDetailValue}>{money(p.costPrice)}</span>
@@ -1873,15 +1856,6 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                                   : "—"}
                               </span>
                             </div>
-                          </div>
-
-                          {/* Stock y Sucursales */}
-                          <div>
-                            <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Stock y Sucursales</h4>
-                            <div style={invDetailRow}>
-                              <span style={invDetailLabel}>Stock Actual:</span>
-                              <span style={{ ...invDetailValue, color: p.low ? "var(--color-warning)" : "var(--color-success)" }}>{p.stock}</span>
-                            </div>
                             <div style={invDetailRow}>
                               <span style={invDetailLabel}>Stock Mínimo:</span>
                               <span style={invDetailValue}>{p.minStock}</span>
@@ -1891,8 +1865,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               <span style={invDetailValue}>{p.branchCount || "—"}</span>
                             </div>
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -1988,11 +1962,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           <div style={{ ...ui.modal, maxWidth: isMobile ? "100%" : 680, display: "flex", flexDirection: "column", overflowY: "hidden", ...(isMobile ? { width: "100%", height: "100%", borderRadius: 0, margin: 0 } : {}) }} onClick={(e) => e.stopPropagation()}>
             <div style={ui.modalHeader}>
               <div>
-                <div style={ui.modalTitle}>
+                <div style={{ ...ui.modalTitle, wordBreak: "break-word", overflowWrap: "anywhere" }}>
                   {selectedProduct ? selectedProduct.name : "Cargando…"}
                 </div>
                 {selectedProduct && (
-                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3, wordBreak: "break-all", overflowWrap: "anywhere" }}>
                     SKU: {selectedProduct.sku}
                     {selectedProduct.barcode ? ` · Barcode: ${selectedProduct.barcode}` : ""}
                   </div>
@@ -2016,7 +1990,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   <div style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 16, marginBottom: 20 }}>
                     {!editMode ? (
                       <>
-                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 12, marginBottom: 12 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, 1fr)", gap: 12, marginBottom: 12 }}>
                           {[
                             { label: "Costo", value: money(selectedProduct.costPrice) },
                             { label: "Precio venta", value: money(selectedProduct.sellPrice) },
@@ -2084,8 +2058,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           <p style={{ fontSize: 12, color: "var(--color-danger)", marginBottom: 10 }}>{saveError}</p>
                         )}
                         <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={saveProductChanges} style={ui.primaryBtn}>✓ Guardar</button>
-                          <button onClick={() => { setEditMode(false); setSaveError(null); setPriceFieldErrors({}); }} style={ui.ghostBtn}>✕ Cancelar</button>
+                          <button onClick={saveProductChanges} style={{ ...ui.primaryBtn, display: "inline-flex", alignItems: "center", gap: 5 }}><Check size={13} /> Guardar</button>
+                          <button onClick={() => { setEditMode(false); setSaveError(null); setPriceFieldErrors({}); }} style={{ ...ui.ghostBtn, display: "inline-flex", alignItems: "center", gap: 5 }}><X size={13} /> Cancelar</button>
                         </div>
                       </>
                     )}
@@ -2102,7 +2076,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     )}
                     <Badge tone="slate">SAT: {selectedProduct.satProductKey || "01010101"} ({selectedProduct.satUnitKey || "H87"})</Badge>
                     {selectedProduct.description && (
-                      <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{selectedProduct.description}</span>
+                      <span style={{ fontSize: 12, color: "var(--text-muted)", wordBreak: "break-word", overflowWrap: "anywhere" }}>{selectedProduct.description}</span>
                     )}
                   </div>
 
@@ -2129,7 +2103,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             padding: "12px 14px",
                           }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{inv.branch}</span>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", wordBreak: "break-word", overflowWrap: "anywhere" }}>{inv.branch}</span>
                               {inv.quantity <= inv.minStock ? (
                                 <Badge tone="amber">Stock bajo</Badge>
                               ) : (
@@ -2297,8 +2271,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           <p style={{ fontSize: 12, color: "#b91c1c", marginBottom: 10 }}>{suppliersError}</p>
                         )}
                         <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={saveSuppliersChanges} style={ui.primaryBtn}>✓ Guardar</button>
-                          <button onClick={() => { setEditingSuppliersMode(false); setSuppliersError(null); }} style={ui.ghostBtn}>✕ Cancelar</button>
+                          <button onClick={saveSuppliersChanges} style={{ ...ui.primaryBtn, display: "inline-flex", alignItems: "center", gap: 5 }}><Check size={13} /> Guardar</button>
+                          <button onClick={() => { setEditingSuppliersMode(false); setSuppliersError(null); }} style={{ ...ui.ghostBtn, display: "inline-flex", alignItems: "center", gap: 5 }}><X size={13} /> Cancelar</button>
                         </div>
                       </div>
                     )}
@@ -2346,7 +2320,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             <div style={{ padding: "10px 14px", display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 8, alignItems: "center" }}>
                               <div>
                                 <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Sucursal</div>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{k.branch}</div>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", wordBreak: "break-word", overflowWrap: "anywhere" }}>{k.branch}</div>
                               </div>
                               <div style={{ textAlign: "center" }}>
                                 <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Cambio</div>
@@ -2361,7 +2335,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             </div>
                             {/* Reason if present */}
                             {k.reason && (
-                              <div style={{ padding: "0 14px 10px 14px", fontSize: 12, color: "var(--text-muted)" }}>
+                              <div style={{ padding: "0 14px 10px 14px", fontSize: 12, color: "var(--text-muted)", wordBreak: "break-word", overflowWrap: "anywhere" }}>
                                 <span style={{ fontWeight: 700, color: "var(--text-faint)" }}>Motivo:</span> {k.reason}
                               </div>
                             )}
@@ -2544,7 +2518,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           <div style={subModalStyle} onClick={() => { if (!adjustSaving) setAdjustOpen(false); }}>
             <div style={{ ...ui.modal, maxWidth: 500 }} onClick={(e) => e.stopPropagation()}>
               <div style={ui.modalHeader}>
-                <div style={ui.modalTitle}>⚙️ Ajustar stock — {selectedProduct.name}</div>
+                <div style={{ ...ui.modalTitle, display: "flex", alignItems: "center", gap: 8 }}><Settings size={16} /> Ajustar stock — {selectedProduct.name}</div>
                 <button onClick={() => setAdjustOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }} disabled={adjustSaving}>
                   <X size={16} />
                 </button>
@@ -2691,7 +2665,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid var(--border)" }}>
                 <button onClick={() => setAdjustOpen(false)} style={ui.ghostBtn}>Cancelar</button>
                 <button onClick={submitAdjustment} style={ui.primaryBtn} disabled={!adjustBranch || !adjustType || !adjustReason}>
-                  ✓ Aplicar ajuste
+                  {transferSaving ? "Aplicando..." : <><Check size={13} /> Aplicar ajuste</>}
                 </button>
               </div>
             </div>
@@ -2708,7 +2682,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           <div style={subModalStyle} onClick={() => { if (!transferConfirm && !transferSaving) setTransferOpen(false); }}>
             <div style={{ ...ui.modal, maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
               <div style={ui.modalHeader}>
-                <div style={ui.modalTitle}>🔄 Trasladar stock — {selectedProduct.name}</div>
+                <div style={{ ...ui.modalTitle, display: "flex", alignItems: "center", gap: 8 }}><ArrowLeftRight size={16} /> Trasladar stock — {selectedProduct.name}</div>
                 <button onClick={() => setTransferOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }} disabled={transferSaving}>
                   <X size={16} />
                 </button>
@@ -2717,7 +2691,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               {/* Overlay de confirmación dentro del modal */}
               {transferConfirm && fromInv && toInv ? (
                 <div style={{ padding: "24px 22px" }}>
-                  <p style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: "var(--accent-strong)" }}>⚠️ Confirmar traslado</p>
+                  <p style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: "var(--accent-strong)", display: "flex", alignItems: "center", gap: 6 }}><AlertTriangle size={15} /> Confirmar traslado</p>
                   <p style={{ fontSize: 14, marginBottom: 16 }}>
                     Trasladar <strong>{transferQty} uds.</strong> de <strong>{fromInv.branch}</strong> a <strong>{toInv.branch}</strong>
                   </p>
@@ -2733,7 +2707,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       Volver
                     </button>
                     <button onClick={submitTransfer} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }} disabled={transferSaving}>
-                      {transferSaving ? "Procesando..." : "✓ Confirmar traslado"}
+                      {transferSaving ? "Procesando..." : <><Check size={13} /> Confirmar traslado</>}
                     </button>
                   </div>
                 </div>
@@ -2793,7 +2767,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       {fromInv && transferQty > 0 && (
                         <p style={{ fontSize: 12, color: transferQty > fromInv.quantity ? "var(--color-danger)" : "var(--accent-strong)", marginTop: 4 }}>
                           {transferQty > fromInv.quantity
-                            ? `⚠️ Stock insuficiente — hay ${fromInv.quantity} uds. disponibles`
+                            ? <><AlertTriangle size={12} /> Stock insuficiente — hay {fromInv.quantity} uds. disponibles</>
                             : `Quedarán ${fromInv.quantity - transferQty} uds. en ${fromInv.branch}`}
                         </p>
                       )}
@@ -2809,7 +2783,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       style={ui.primaryBtn}
                       disabled={transferSaving || !transferFrom || !transferTo || !transferQty || (fromInv ? transferQty > fromInv.quantity : false)}
                     >
-                      🔄 Trasladar
+                      <ArrowLeftRight size={13} /> Trasladar
                     </button>
                   </div>
                 </>
@@ -3258,7 +3232,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             style={{ width: 16, height: 16, accentColor: "var(--accent)", cursor: "pointer", flexShrink: 0, alignSelf: "center", marginTop: 0 }}
                           />
                           <span style={{ display: "flex", flexDirection: "column", minWidth: 0, gap: 3 }}>
-                            <span style={{ color: "var(--text)", fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tax.name}</span>
+                            <span style={{ color: "var(--text)", fontSize: 13, fontWeight: 800, wordBreak: "break-word", overflowWrap: "anywhere" }}>{tax.name}</span>
                             <span style={{ color: "var(--text-muted)", fontSize: 12, fontWeight: 700, marginTop: 2 }}>{formatTaxRate(tax.rate)}</span>
                           </span>
                         </label>
@@ -3415,10 +3389,9 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: 800,
   },
   categoryChipText: {
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
     minWidth: 0,
+    wordBreak: "break-word",
+    overflowWrap: "anywhere",
   },
   categoryColorDot: {
     width: 9,
@@ -3491,9 +3464,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "var(--text)",
     fontSize: 13,
     fontWeight: 800,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
+    wordBreak: "break-word",
+    overflowWrap: "anywhere",
   },
   categoryInactiveInline: {
     color: "#b45309",
@@ -3506,9 +3478,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "var(--text-muted)",
     fontSize: 12,
     fontWeight: 700,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
+    wordBreak: "break-word",
+    overflowWrap: "anywhere",
   },
   promotionSection: {
     border: "1px solid var(--border)",
@@ -3603,9 +3574,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 13,
     fontWeight: 850,
     minWidth: 0,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
+    wordBreak: "break-word",
+    overflowWrap: "anywhere",
   },
   promotionMetaGrid: {
     display: "grid",
@@ -3617,9 +3587,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "var(--text-muted)",
     fontSize: 12,
     fontWeight: 700,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
+    wordBreak: "break-word",
+    overflowWrap: "anywhere",
   },
   promotionWarningBox: {
     display: "flex",

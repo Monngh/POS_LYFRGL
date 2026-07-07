@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { ArrowUp, ArrowDown, Printer, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowUp, ArrowDown, Printer, ChevronDown, ChevronUp, X } from "lucide-react";
 import api from "../../shared/services/api";
 import {
   ui,
@@ -199,8 +199,8 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={{ ...ui.filterSelect, height: 38 }} />
         </div>
         {(from || to) && (
-          <button onClick={() => { setFrom(""); setTo(""); }} style={{ ...ui.ghostBtn, fontSize: 12, marginTop: 18 }}>
-            ✕ Limpiar fechas
+          <button onClick={() => { setFrom(""); setTo(""); }} style={{ ...ui.ghostBtn, fontSize: 12, marginTop: 18, display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <X size={12} /> Limpiar fechas
           </button>
         )}
         <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>

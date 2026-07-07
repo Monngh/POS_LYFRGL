@@ -165,6 +165,26 @@ export default function KeyboardShortcutsManager() {
           }
         }
 
+        // Alt+L → Cerrar sesión (logout)
+        if (letter === "L") {
+          const logoutBtn =
+            document.querySelector<HTMLElement>('[data-shortcut-letter="L"]') ??
+            document.querySelector<HTMLElement>('[data-shortcut-action="logout"]');
+          if (logoutBtn && !isDisabled(logoutBtn)) {
+            logoutBtn.click();
+            return;
+          }
+        }
+
+        // Alt+V → Cancelar compra (void/cancel current purchase)
+        if (letter === "V" && scope) {
+          const cancelBtn = scope.querySelector<HTMLElement>('[data-shortcut-letter="V"]');
+          if (cancelBtn && isVisible(cancelBtn) && !isDisabled(cancelBtn)) {
+            cancelBtn.click();
+            return;
+          }
+        }
+
         if (!modal && GLOBAL_QUICK_ACTION_LETTERS.includes(letter as (typeof GLOBAL_QUICK_ACTION_LETTERS)[number])) {
           const globalBtn = findGlobalAction(letter);
           if (globalBtn) {
