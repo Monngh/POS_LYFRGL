@@ -280,7 +280,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       align: "center",
       width: "80px",
       render: (d) => (
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}>
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: "4px" }}>
           <input
             type="checkbox"
             checked={d.status === "COMPLETED" || d.status === "CONFIRMADO"}
@@ -311,15 +311,19 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               background: "none",
               border: "none",
               cursor: "pointer",
-              fontSize: "16px",
+              fontSize: "11px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               padding: 0,
+              color: "var(--accent)",
+              fontWeight: 600,
+              gap: "4px"
             }}
             title="Ver detalles"
           >
-            Ver
+            <Eye size={12} />
+            <span>Ver</span>
           </button>
         </div>
       ),
@@ -360,9 +364,15 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             { value: "", label: "Todas las cuentas" },
             ...accounts.map(acc => ({
               value: acc.accountNumber,
-              label: `${acc.targetName} | ${acc.accountMasked}`
+              label: (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                  <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{acc.targetName}</span>
+                  <span style={{ fontFamily: 'monospace', fontSize: '12px', color: 'var(--text-faint)' }}>{acc.accountMasked}</span>
+                </div>
+              )
             }))
           ]}
+          style={{ minWidth: '240px', maxWidth: '300px', flex: '1 1 240px' }}
         />
         <FilterSelect
           value={paymentType}
@@ -563,9 +573,9 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             </span>
                           </div>
 
-                          <div style={{ ...detailRowStyle, marginTop: 8 }}>
+                          <div style={{ ...detailRowStyle, marginTop: 8, alignItems: 'flex-start' }}>
                             <span style={detailLabelStyle}>Confirmado:</span>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ display: "inline-flex", flexDirection: 'column', alignItems: "center", gap: 8 }}>
                               <input
                                 type="checkbox"
                                 checked={d.status === "COMPLETED" || d.status === "CONFIRMADO"}
@@ -590,8 +600,8 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                                   height: "18px",
                                 }}
                               />
-                              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                                {d.status === "COMPLETED" || d.status === "CONFIRMADO" ? "Confirmado" : "Pendiente de confirmar"}
+                              <span style={{ fontSize: 11, color: "var(--text-muted)", textAlign: 'center' }}>
+                                {d.status === "COMPLETED" || d.status === "CONFIRMADO" ? "Confirmado" : "Pendiente"}
                               </span>
                             </span>
                           </div>

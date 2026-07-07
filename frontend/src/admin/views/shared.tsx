@@ -181,7 +181,7 @@ export const SearchInput: React.FC<{
 export const FilterSelect: React.FC<{
   value: string;
   onChange: (v: string) => void;
-  options: { value: string; label: string }[];
+  options: { value: string; label: React.ReactNode }[];
   style?: React.CSSProperties;
 }> = ({ value, onChange, options, style }) => (
   <select style={{ ...ui.filterSelect, ...style }} value={value} onChange={(e) => onChange(e.target.value)}>
@@ -641,4 +641,3 @@ export const filterProductsBySearch = <T extends SearchableProduct>(
     return 0;
   });
 };
-
