@@ -252,10 +252,14 @@ export const listBankDeposits = async (params: {
   from?: string;
   to?: string;
   account?: string;
+  paymentType?: string;
 }) => {
   const where: any = {};
   if (params.branchId) where.branchId = params.branchId;
   if (params.account) where.accountNumber = String(params.account);
+  if (params.paymentType && params.paymentType !== "all" && params.paymentType !== "") {
+    where.paymentType = params.paymentType;
+  }
 
   if (params.from || params.to) {
     where.createdAt = {};

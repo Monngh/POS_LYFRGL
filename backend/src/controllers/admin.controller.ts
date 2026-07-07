@@ -254,6 +254,7 @@ export const listBankDeposits = async (req: Request, res: Response): Promise<voi
       from: req.query.from as string | undefined,
       to: req.query.to as string | undefined,
       account: req.query.account as string | undefined,
+      paymentType: req.query.paymentType as string | undefined,
     });
 
     logger.debug(`Encontrados ${deposits.length} depósitos`);

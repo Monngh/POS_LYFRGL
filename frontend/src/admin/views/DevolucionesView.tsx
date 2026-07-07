@@ -139,38 +139,83 @@ const ReturnDetailSubView: React.FC<{
         </div>
       </div>
 
-      {/* Sección 1: Info general */}
-      <Panel style={{ padding: 20, marginBottom: 20 }}>
-        <h3 style={secTitle}>Información General</h3>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "14px 28px",
-          }}
-        >
-          <InfoRow label="Folio Devolución" value={current.returnNumber} highlight />
-          <InfoRow label="Folio Venta" value={current.saleNumber} highlight />
-          <InfoRow label="Fecha" value={fmtDate(current.date)} />
-          <InfoRow label="Cliente" value={current.clientName} />
-          <InfoRow label="RFC" value={current.clientRFC} />
-          <InfoRow label="Tipo" value={current.type} />
-          <InfoRow label="Motivo" value={current.reason} />
-          <InfoRow label="Método de Reembolso">
-            <Badge tone={payTone(current.paymentMethod)}>
-              {payLabel[current.paymentMethod] || current.paymentMethod}
-            </Badge>
-          </InfoRow>
-          {current.cashSessionId != null && (
-            <InfoRow label="Sesión de Caja" value={`#${current.cashSessionId}`} />
-          )}
-          {current.cfdiUuid && (
-            <InfoRow label="CFDI UUID" value={current.cfdiUuid} />
-          )}
-        </div>
-      </Panel>
+      {/* Información General y Resumen Económico lado a lado en la parte superior */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+        gap: 20,
+        marginBottom: 20,
+        alignItems: "stretch"
+      }}>
+        {/* Sección 1: Info general */}
+        <Panel style={{ padding: 20, height: "100%" }}>
+          <h3 style={secTitle}>Información General</h3>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "14px 28px",
+            }}
+          >
+            {current.returnNumber && <InfoRow label="Folio Devolución" value={current.returnNumber} highlight />}
+            {current.saleNumber && <InfoRow label="Folio Venta" value={current.saleNumber} highlight />}
+            {current.date && <InfoRow label="Fecha" value={fmtDate(current.date)} />}
+            {current.clientName && <InfoRow label="Cliente" value={current.clientName} />}
+            {current.clientRFC && <InfoRow label="RFC" value={current.clientRFC} />}
+            {current.type && <InfoRow label="Tipo" value={current.type} />}
+            {current.reason && <InfoRow label="Motivo" value={current.reason} />}
+            {current.paymentMethod && (
+              <InfoRow label="Método de Reembolso">
+                <Badge tone={payTone(current.paymentMethod)}>
+                  {payLabel[current.paymentMethod] || current.paymentMethod}
+                </Badge>
+              </InfoRow>
+            )}
+            {current.cashSessionId != null && (
+              <InfoRow label="Sesión de Caja" value={`#${current.cashSessionId}`} />
+            )}
+            {current.cfdiUuid && (
+              <InfoRow label="CFDI UUID" value={current.cfdiUuid} />
+            )}
+          </div>
+        </Panel>
 
-      {/* Sección 2: Productos devueltos */}
+        {/* Sección 3: Resumen económico */}
+        <Panel style={{ padding: 20, height: "100%" }}>
+          <h3 style={{ ...secTitle, marginBottom: 14 }}>Resumen Económico</h3>
+          <div style={{ display: "flex", flexDirection: "column" as const, gap: 10, width: "100%" }}>
+            <div style={sumRow}>
+              <span style={{ color: "var(--text-muted)", fontSize: 13 }}>Subtotal (sin impuesto)</span>
+              <span style={{ fontWeight: 700 }}>{moneyExact(subtotal)}</span>
+            </div>
+            <div style={sumRow}>
+              <span style={{ color: "var(--text-muted)", fontSize: 13 }}>IVA</span>
+              <span style={{ fontWeight: 700 }}>{moneyExact(totalTax)}</span>
+            </div>
+            <div
+              style={{
+                ...sumRow,
+                borderTop: "2px solid var(--border)",
+                paddingTop: 10,
+                marginTop: 4,
+              }}
+            >
+              <span style={{ fontWeight: 800, fontSize: 14 }}>TOTAL A REEMBOLSAR</span>
+              <span style={{ fontWeight: 800, fontSize: 20, color: "#15803d" }}>
+                {moneyExact(current.totalRefunded)}
+              </span>
+            </div>
+            <div style={sumRow}>
+              <span style={{ color: "var(--text-muted)", fontSize: 13 }}>Método</span>
+              <Badge tone={payTone(current.paymentMethod)}>
+                {payLabel[current.paymentMethod] || current.paymentMethod}
+              </Badge>
+            </div>
+          </div>
+        </Panel>
+      </div>
+
+      {/* Sección 2: Productos devueltos (movida abajo) */}
       <Panel style={{ marginBottom: 20 }}>
         <div style={{ padding: "16px 20px 12px" }}>
           <h3 style={secTitle}>Productos Devueltos</h3>
@@ -286,40 +331,6 @@ const ReturnDetailSubView: React.FC<{
         )}
       </Panel>
 
-      {/* Sección 3: Resumen económico */}
-      <Panel style={{ padding: 20, marginBottom: 20 }}>
-        <h3 style={{ ...secTitle, marginBottom: 14 }}>Resumen Económico</h3>
-        <div style={{ display: "flex", flexDirection: "column" as const, gap: 10, maxWidth: 320 }}>
-          <div style={sumRow}>
-            <span style={{ color: "var(--text-muted)", fontSize: 13 }}>Subtotal (sin impuesto)</span>
-            <span style={{ fontWeight: 700 }}>{moneyExact(subtotal)}</span>
-          </div>
-          <div style={sumRow}>
-            <span style={{ color: "var(--text-muted)", fontSize: 13 }}>IVA</span>
-            <span style={{ fontWeight: 700 }}>{moneyExact(totalTax)}</span>
-          </div>
-          <div
-            style={{
-              ...sumRow,
-              borderTop: "2px solid var(--border)",
-              paddingTop: 10,
-              marginTop: 4,
-            }}
-          >
-            <span style={{ fontWeight: 800, fontSize: 14 }}>TOTAL A REEMBOLSAR</span>
-            <span style={{ fontWeight: 800, fontSize: 20, color: "#15803d" }}>
-              {moneyExact(current.totalRefunded)}
-            </span>
-          </div>
-          <div style={sumRow}>
-            <span style={{ color: "var(--text-muted)", fontSize: 13 }}>Método</span>
-            <Badge tone={payTone(current.paymentMethod)}>
-              {payLabel[current.paymentMethod] || current.paymentMethod}
-            </Badge>
-          </div>
-        </div>
-      </Panel>
-
       {/* Sección 4: Venta de cambio (condicional) */}
       {current.exchangeSale && (
         <Panel style={{ padding: 20, marginBottom: 20 }}>
@@ -395,6 +406,8 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [clientSearch, setClientSearch] = useState("");
+  const [debouncedClientSearch, setDebouncedClientSearch] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -404,6 +417,11 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const [detail, setDetail] = useState<ReturnDetailData | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedClientSearch(clientSearch), 400);
+    return () => clearTimeout(t);
+  }, [clientSearch]);
 
   const toggleExpand = (id: number) => {
     setExpandedReturns((prev) => ({
@@ -425,7 +443,8 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         ...(paymentFilter !== "all" ? { paymentMethod: paymentFilter } : {}),
         ...(dateFrom ? { startDate: dateFrom } : {}),
         ...(dateTo ? { endDate: dateTo } : {}),
-      } as any);
+        ...(debouncedClientSearch.trim() ? { clientName: debouncedClientSearch.trim() } : {}),
+      });
       setRows((res.data as any).data);
       setTotalPages((res.data as any).pagination.pages);
       setTotalRows((res.data as any).pagination.total);
@@ -434,7 +453,7 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     } finally {
       setLoading(false);
     }
-  }, [branchId, page, paymentFilter, dateFrom, dateTo, refreshToken]);
+  }, [branchId, page, paymentFilter, dateFrom, dateTo, debouncedClientSearch, refreshToken]);
 
   useEffect(() => {
     load();
@@ -485,6 +504,14 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           value={search}
           onChange={setSearch}
           placeholder="Buscar por folio DEV-... o V-..."
+        />
+        <SearchInput
+          value={clientSearch}
+          onChange={(v) => {
+            setClientSearch(v);
+            setPage(1);
+          }}
+          placeholder="Buscar por cliente..."
         />
         <FilterSelect
           value={paymentFilter}
@@ -537,7 +564,7 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
 
       {isMobile ? (
-        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
+        <div style={{ overflowY: "auto", maxHeight: "74vh", padding: "8px 16px" }}>
           {loading && (
             <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
@@ -748,7 +775,7 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             })}
         </div>
       ) : (
-        <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
+        <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "74vh" }}>
           <table style={{ ...ui.table, minWidth: 680 }}>
             <thead>
               <tr style={ui.theadRow}>
