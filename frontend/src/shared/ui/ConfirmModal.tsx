@@ -180,8 +180,15 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   const v = VARIANTS[variant];
   const Icon = v.Icon;
 
+  // El modal se monta a nivel de app (fuera del contenedor con `.theme-dark`),
+  // por lo que re-aplicamos la clase del tema a su propio overlay para que los
+  // tokens (--surface, --text, …) resuelvan a los valores del modo activo.
+  const isDark =
+    (typeof document !== "undefined" && document.querySelector(".theme-dark") !== null) ||
+    (typeof localStorage !== "undefined" && localStorage.getItem("fmb_pos_theme") === "dark");
+
   return (
-    <div style={styles.overlay} onClick={() => !loading && onClose()}>
+    <div style={styles.overlay} className={isDark ? "theme-dark" : undefined} onClick={() => !loading && onClose()}>
       <div
         style={styles.modal}
         onClick={(e) => e.stopPropagation()}
