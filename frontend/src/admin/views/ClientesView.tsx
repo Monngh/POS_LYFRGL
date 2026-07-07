@@ -545,7 +545,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                   {isExpanded && (
                     <div style={{
                       padding: "16px",
-                      margin: "0 16px 16px 16px",
+                      margin: "16px 0 0 0",
                       backgroundColor: "var(--surface-2)",
                       borderRadius: "8px",
                       border: "1px solid var(--border)",
@@ -634,7 +634,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
             })}
         </div>
       ) : (
-        <div className="table-sticky-head">
+        <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowY: "auto", maxHeight: "70vh" }}>
           <DataTable
             columns={columns}
             data={paged.pageItems}
