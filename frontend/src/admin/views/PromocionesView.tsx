@@ -1089,60 +1089,6 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           )}
                         </div>
 
-                        {/* Productos — lista de tarjetas */}
-                        <div style={{ gridColumn: "1 / -1" }}>
-                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>
-                            Productos ({promotion.products.length})
-                          </h4>
-                          {promotion.products.length > 0 ? (
-                            <div
-                              style={{
-                                maxHeight: "28vh",
-                                overflowY: "auto",
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: 8,
-                                paddingRight: 2,
-                              }}
-                            >
-                              {promotion.products.map((prod: PromotionProduct) => {
-                                const p = prod.product;
-                                if (!p) return null;
-                                return (
-                                  <div
-                                    key={prod.id ?? prod.productId}
-                                    style={{
-                                      backgroundColor: "var(--surface)",
-                                      border: "1px solid var(--border)",
-                                      borderRadius: 10,
-                                      padding: "10px 14px",
-                                      display: "flex",
-                                      flexDirection: "column",
-                                      gap: 3,
-                                    }}
-                                  >
-                                    {/* Nombre */}
-                                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text)", wordBreak: "break-word", overflowWrap: "anywhere" }}>
-                                      {p.name}
-                                    </div>
-                                    {/* SKU en azul */}
-                                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--accent-strong)" }}>
-                                      {p.sku}
-                                    </div>
-                                    {/* Precio de venta */}
-                                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
-                                      Precio: <strong style={{ color: "var(--text)" }}>{moneyExact(p.sellPrice)}</strong>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <div style={{ fontSize: 12, color: "var(--text-faint)", textAlign: "center", padding: "8px 0" }}>
-                              Sin productos asignados
-                            </div>
-                          )}
-                        </div>
                       </div>
 
                       {/* Botones de acción */}
@@ -1464,18 +1410,38 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
               {detail.description && <p style={styles.detailDescription}>{detail.description}</p>}
 
               <div style={{ marginTop: 18 }}>
-                <label style={ui.fieldLabel}>Productos asignados</label>
-                <div style={styles.assignedList}>
-                  {detail.products.map((row) => (
-                    <div key={row.productId} style={styles.assignedRow}>
-                      <span style={styles.sku}>{row.product?.sku ?? `#${row.productId}`}</span>
-                      <span style={{ fontWeight: 800 }}>{row.product?.name ?? `Producto #${row.productId}`}</span>
-                      <span style={{ marginLeft: "auto", color: "var(--text-muted)" }}>
-                        {row.product ? moneyExact(Number(row.product.sellPrice)) : ""}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <label style={ui.fieldLabel}>Productos asignados ({detail.products.length})</label>
+                {detail.products.length === 0 ? (
+                  <div style={{ fontSize: 13, color: "var(--text-faint)", textAlign: "center", padding: "16px 0" }}>
+                    Sin productos asignados
+                  </div>
+                ) : (
+                  <div style={{ maxHeight: "40vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, paddingRight: 2 }}>
+                    {detail.products.map((row) => (
+                      <div key={row.productId} style={{
+                        backgroundColor: "var(--surface-2)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 10,
+                        padding: "10px 14px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 3,
+                      }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text)", wordBreak: "break-word", overflowWrap: "anywhere" }}>
+                          {row.product?.name ?? `Producto #${row.productId}`}
+                        </div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--accent-strong)" }}>
+                          {row.product?.sku ?? `#${row.productId}`}
+                        </div>
+                        {row.product && (
+                          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+                            Precio: <strong style={{ color: "var(--text)" }}>{moneyExact(Number(row.product.sellPrice))}</strong>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1608,7 +1574,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: 8,
     overflow: "hidden",
     backgroundColor: "var(--surface)",
-    width: "fit-content",
+    width: "100%",
     maxWidth: "100%",
     margin: "0 auto",
   },

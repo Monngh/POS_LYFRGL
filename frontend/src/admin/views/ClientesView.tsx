@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Pencil, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Pencil, Phone, Plus } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
 import { DataTable, ActionModal } from "../../shared/ui";
@@ -193,19 +193,19 @@ const validateCustomerForm = (form: FormState): {
 
 const cliDetailRow: React.CSSProperties = {
   display: "flex",
+  flexDirection: "column",
   justifyContent: "flex-start",
   alignItems: "flex-start",
-  gap: "8px",
+  gap: "2px",
   fontSize: 13,
-  marginBottom: 6,
+  marginBottom: 8,
 };
 
 const cliDetailLabel: React.CSSProperties = {
   flexShrink: 0,
   fontWeight: 700,
   color: "var(--text-muted)",
-  minWidth: "95px",
-  display: "inline-block",
+  display: "block",
 };
 
 const cliDetailValue: React.CSSProperties = {
@@ -496,8 +496,8 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
                       {/* Contacto */}
                       {(c.phone || c.email) && (
-                        <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4, wordBreak: "break-word" }}>
-                          {c.phone && <span>📞 {c.phone}</span>}
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4, wordBreak: "break-word", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                          {c.phone && <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><Phone size={12} style={{ flexShrink: 0 }} /> {c.phone}</span>}
                           {c.phone && c.email && <span style={{ margin: "0 6px", color: "var(--border-strong)" }}>·</span>}
                           {c.email && <span style={{ wordBreak: "break-all" }}>{c.email}</span>}
                         </div>
@@ -517,29 +517,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     </div>
 
                     {/* Botones de Acción */}
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, paddingTop: 2 }}>
-                      {/* Editar */}
-                      <button
-                        onClick={() => openEdit(c)}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: "var(--accent-soft)",
-                          border: "1px solid var(--accent-soft)",
-                          borderRadius: 8,
-                          width: 34,
-                          height: 34,
-                          cursor: "pointer",
-                          color: "var(--accent-strong)",
-                          padding: 0,
-                        }}
-                        className="active-tap"
-                        title="Editar cliente"
-                      >
-                        <Pencil size={14} />
-                      </button>
-
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
                       {/* Chevron */}
                       <button
                         onClick={() => toggleExpandCustomer(c.id)}
@@ -550,15 +528,15 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           backgroundColor: "var(--surface)",
                           border: "1px solid var(--border-strong)",
                           borderRadius: 8,
-                          width: 34,
-                          height: 34,
+                          width: 38,
+                          height: 38,
                           cursor: "pointer",
                           color: "var(--text-muted)",
                           padding: 0,
                         }}
                         className="active-tap"
                       >
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                       </button>
                     </div>
                   </div>
@@ -630,7 +608,26 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           <span style={cliDetailValue}>{c.salesCount} compras</span>
                         </div>
                       </div>
+
+                      {/* Acciones */}
+                      <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", borderTop: "1px solid var(--border-soft)", paddingTop: 12, marginTop: 4 }}>
+                        <button
+                          type="button"
+                          onClick={() => openEdit(c)}
+                          style={{
+                            ...ui.primaryBtn,
+                            padding: "8px 14px",
+                            fontSize: 12,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6
+                          }}
+                        >
+                          <Pencil size={13} /> Editar cliente
+                        </button>
+                      </div>
                     </div>
+                  
                   )}
                 </div>
               );

@@ -418,7 +418,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
               onClick={() => receive(p.id)}
               disabled={receiving === p.id}
             >
-              {receiving === p.id ? "Recibiendo..." : "✓ Recibir"}
+              {receiving === p.id ? "Recibiendo..." : <><CheckCircle size={13} /> Recibir</>}
             </button>
             <button
               style={{

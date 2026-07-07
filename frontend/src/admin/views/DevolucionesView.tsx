@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Eye, ChevronDown, ChevronUp, Calendar, User, Tag } from "lucide-react";
+import { ArrowLeft, Check, Eye, ChevronDown, ChevronUp, Calendar, User, Tag } from "lucide-react";
 import {
   getAdminReturns,
   getAdminReturnDetail,
@@ -376,7 +376,7 @@ const ReturnDetailSubView: React.FC<{
                 {current.cfdiUuid}
               </div>
             </div>
-            <Badge tone="green">Timbrado ✓</Badge>
+            <Badge tone="green"><span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Check size={11} /> Timbrado</span></Badge>
           </div>
         </Panel>
       )}

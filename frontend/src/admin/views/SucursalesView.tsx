@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Pencil, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Pencil, Phone, Plus } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
 import { DataTable, ActionModal } from "../../shared/ui";
@@ -511,8 +511,8 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
                       {/* Teléfono */}
                       {b.phone && (
-                        <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 6 }}>
-                          📞 {b.phone}
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 6, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <Phone size={13} style={{ flexShrink: 0 }} /> {b.phone}
                         </div>
                       )}
 

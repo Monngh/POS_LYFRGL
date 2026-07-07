@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { AlertTriangle, Printer, X, Plus, Eye, ChevronDown, ChevronUp, Search, Tags, FolderTree } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Check, Printer, X, Plus, Eye, ChevronDown, ChevronUp, Search, Tags, FolderTree } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAuth } from "../../auth";
 import {
@@ -1990,7 +1990,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   <div style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 16, marginBottom: 20 }}>
                     {!editMode ? (
                       <>
-                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 12, marginBottom: 12 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, 1fr)", gap: 12, marginBottom: 12 }}>
                           {[
                             { label: "Costo", value: money(selectedProduct.costPrice) },
                             { label: "Precio venta", value: money(selectedProduct.sellPrice) },
@@ -2058,8 +2058,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           <p style={{ fontSize: 12, color: "var(--color-danger)", marginBottom: 10 }}>{saveError}</p>
                         )}
                         <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={saveProductChanges} style={ui.primaryBtn}>✓ Guardar</button>
-                          <button onClick={() => { setEditMode(false); setSaveError(null); setPriceFieldErrors({}); }} style={ui.ghostBtn}>✕ Cancelar</button>
+                          <button onClick={saveProductChanges} style={{ ...ui.primaryBtn, display: "inline-flex", alignItems: "center", gap: 5 }}><Check size={13} /> Guardar</button>
+                          <button onClick={() => { setEditMode(false); setSaveError(null); setPriceFieldErrors({}); }} style={{ ...ui.ghostBtn, display: "inline-flex", alignItems: "center", gap: 5 }}><X size={13} /> Cancelar</button>
                         </div>
                       </>
                     )}
@@ -2271,8 +2271,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           <p style={{ fontSize: 12, color: "#b91c1c", marginBottom: 10 }}>{suppliersError}</p>
                         )}
                         <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={saveSuppliersChanges} style={ui.primaryBtn}>✓ Guardar</button>
-                          <button onClick={() => { setEditingSuppliersMode(false); setSuppliersError(null); }} style={ui.ghostBtn}>✕ Cancelar</button>
+                          <button onClick={saveSuppliersChanges} style={{ ...ui.primaryBtn, display: "inline-flex", alignItems: "center", gap: 5 }}><Check size={13} /> Guardar</button>
+                          <button onClick={() => { setEditingSuppliersMode(false); setSuppliersError(null); }} style={{ ...ui.ghostBtn, display: "inline-flex", alignItems: "center", gap: 5 }}><X size={13} /> Cancelar</button>
                         </div>
                       </div>
                     )}
@@ -2665,7 +2665,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid var(--border)" }}>
                 <button onClick={() => setAdjustOpen(false)} style={ui.ghostBtn}>Cancelar</button>
                 <button onClick={submitAdjustment} style={ui.primaryBtn} disabled={!adjustBranch || !adjustType || !adjustReason}>
-                  ✓ Aplicar ajuste
+                  {transferSaving ? "Aplicando..." : <><Check size={13} /> Aplicar ajuste</>}
                 </button>
               </div>
             </div>
@@ -2682,7 +2682,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           <div style={subModalStyle} onClick={() => { if (!transferConfirm && !transferSaving) setTransferOpen(false); }}>
             <div style={{ ...ui.modal, maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
               <div style={ui.modalHeader}>
-                <div style={ui.modalTitle}>🔄 Trasladar stock — {selectedProduct.name}</div>
+                <div style={{ ...ui.modalTitle, display: "flex", alignItems: "center", gap: 8 }}><ArrowLeftRight size={16} /> Trasladar stock — {selectedProduct.name}</div>
                 <button onClick={() => setTransferOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }} disabled={transferSaving}>
                   <X size={16} />
                 </button>
@@ -2691,7 +2691,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               {/* Overlay de confirmación dentro del modal */}
               {transferConfirm && fromInv && toInv ? (
                 <div style={{ padding: "24px 22px" }}>
-                  <p style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: "var(--accent-strong)" }}>⚠️ Confirmar traslado</p>
+                  <p style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: "var(--accent-strong)", display: "flex", alignItems: "center", gap: 6 }}><AlertTriangle size={15} /> Confirmar traslado</p>
                   <p style={{ fontSize: 14, marginBottom: 16 }}>
                     Trasladar <strong>{transferQty} uds.</strong> de <strong>{fromInv.branch}</strong> a <strong>{toInv.branch}</strong>
                   </p>
@@ -2707,7 +2707,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       Volver
                     </button>
                     <button onClick={submitTransfer} style={{ ...ui.primaryBtn, flex: 1, justifyContent: "center" }} disabled={transferSaving}>
-                      {transferSaving ? "Procesando..." : "✓ Confirmar traslado"}
+                      {transferSaving ? "Procesando..." : <><Check size={13} /> Confirmar traslado</>}
                     </button>
                   </div>
                 </div>
@@ -2767,7 +2767,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       {fromInv && transferQty > 0 && (
                         <p style={{ fontSize: 12, color: transferQty > fromInv.quantity ? "var(--color-danger)" : "var(--accent-strong)", marginTop: 4 }}>
                           {transferQty > fromInv.quantity
-                            ? `⚠️ Stock insuficiente — hay ${fromInv.quantity} uds. disponibles`
+                            ? <><AlertTriangle size={12} /> Stock insuficiente — hay {fromInv.quantity} uds. disponibles</>
                             : `Quedarán ${fromInv.quantity - transferQty} uds. en ${fromInv.branch}`}
                         </p>
                       )}
@@ -2783,7 +2783,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       style={ui.primaryBtn}
                       disabled={transferSaving || !transferFrom || !transferTo || !transferQty || (fromInv ? transferQty > fromInv.quantity : false)}
                     >
-                      🔄 Trasladar
+                      <ArrowLeftRight size={13} /> Trasladar
                     </button>
                   </div>
                 </>
@@ -3232,7 +3232,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             style={{ width: 16, height: 16, accentColor: "var(--accent)", cursor: "pointer", flexShrink: 0, alignSelf: "center", marginTop: 0 }}
                           />
                           <span style={{ display: "flex", flexDirection: "column", minWidth: 0, gap: 3 }}>
-                            <span style={{ color: "var(--text)", fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tax.name}</span>
+                            <span style={{ color: "var(--text)", fontSize: 13, fontWeight: 800, wordBreak: "break-word", overflowWrap: "anywhere" }}>{tax.name}</span>
                             <span style={{ color: "var(--text-muted)", fontSize: 12, fontWeight: 700, marginTop: 2 }}>{formatTaxRate(tax.rate)}</span>
                           </span>
                         </label>
@@ -3389,10 +3389,9 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: 800,
   },
   categoryChipText: {
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
     minWidth: 0,
+    wordBreak: "break-word",
+    overflowWrap: "anywhere",
   },
   categoryColorDot: {
     width: 9,
@@ -3465,9 +3464,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "var(--text)",
     fontSize: 13,
     fontWeight: 800,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
+    wordBreak: "break-word",
+    overflowWrap: "anywhere",
   },
   categoryInactiveInline: {
     color: "#b45309",
@@ -3480,9 +3478,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "var(--text-muted)",
     fontSize: 12,
     fontWeight: 700,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
+    wordBreak: "break-word",
+    overflowWrap: "anywhere",
   },
   promotionSection: {
     border: "1px solid var(--border)",
@@ -3577,9 +3574,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 13,
     fontWeight: 850,
     minWidth: 0,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
+    wordBreak: "break-word",
+    overflowWrap: "anywhere",
   },
   promotionMetaGrid: {
     display: "grid",
@@ -3591,9 +3587,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "var(--text-muted)",
     fontSize: 12,
     fontWeight: 700,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
+    wordBreak: "break-word",
+    overflowWrap: "anywhere",
   },
   promotionWarningBox: {
     display: "flex",
