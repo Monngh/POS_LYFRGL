@@ -134,16 +134,16 @@
   position: relative;
 }
 
-/* Close sidebar X button — top right inside sidebar content */
+/* Close sidebar X button — top right inside sidebar padding area */
 .pos-sidebar-close-btn {
   position: absolute;
-  top: 0;
-  right: 0;
+  top: 14px;   /* raised to align with the carousel title row */
+  right: 20px;
   width: 28px;
   height: 28px;
   border-radius: 6px;
   border: 1px solid var(--border);
-  background-color: var(--surface-2);
+  background-color: transparent;
   color: var(--text-muted);
   cursor: pointer;
   display: flex;

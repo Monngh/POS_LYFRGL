@@ -757,6 +757,7 @@ export default function ReturnsModal({
                   className="input-corporate"
                   placeholder="Ej: Producto defectuoso, talla incorrecta..."
                   value={returnReason}
+                  data-shortcut-role="return-reason"
                   onChange={(e) => {
                     const value = validateMotivoDevoluccion(e.target.value).slice(0, 100);
                     setReturnReason(value);
@@ -767,6 +768,14 @@ export default function ReturnsModal({
                       else delete next.reason;
                       return next;
                     });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      // Focus the "Continuar" button
+                      const continueBtn = document.querySelector<HTMLButtonElement>('[data-shortcut="confirm"]');
+                      if (continueBtn) continueBtn.focus();
+                    }
                   }}
                 />
                 {returnFieldErrors.reason && <p style={fieldError}>{returnFieldErrors.reason}</p>}
@@ -859,6 +868,8 @@ export default function ReturnsModal({
                 className="input-corporate"
                 placeholder="Ingrese PIN de Gerente/Admin"
                 value={returnPin}
+                // eslint-disable-next-line jsx-a11y/no-autofocus
+                autoFocus
                 onChange={(e) => {
                   const value = normalizeIntegerInput(e.target.value).slice(0, 4);
                   setReturnPin(value);

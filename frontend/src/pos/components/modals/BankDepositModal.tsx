@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { AlertTriangle, Landmark } from "lucide-react";
 import { PosModal } from "./shared";
 import api from '../../../shared/services/api';
@@ -177,6 +177,27 @@ export default function BankDepositModal({
   const [depCancelLoading, setDepCancelLoading] = useState(false);
   // Sync
   const [syncingDepositId, setSyncingDepositId] = useState<number | null>(null);
+  // Keyboard navigation for search results
+  const [selectedDepIdx, setSelectedDepIdx] = useState(0);
+  const depListRef = useRef<HTMLDivElement | null>(null);
+
+  const handleDepListKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (depSearchResults.length === 0) return;
+    const safeIdx = Math.min(selectedDepIdx, depSearchResults.length - 1);
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedDepIdx((i) => Math.min(i + 1, depSearchResults.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedDepIdx((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      const active = document.activeElement;
+      if (active && (active.tagName === "INPUT" || active.tagName === "SELECT")) return;
+      e.preventDefault();
+      const dep = depSearchResults[safeIdx];
+      if (dep) onOpenDepositReceipt(dep);
+    }
+  };
 
   const fetchCashiers = async () => {
     if (!user) return;
@@ -327,6 +348,7 @@ export default function BankDepositModal({
       setDepCancelReason("");
       setDepCancelFieldErrors({});
       setSearchDepRefError("");
+      setSelectedDepIdx(0);
       fetchCashiers();
       handleSearchDeposits();
     } else {
@@ -354,6 +376,14 @@ export default function BankDepositModal({
     }, 300);
     return () => clearTimeout(delayDebounce);
   }, [searchDepRef, searchDepStatus, searchDepUser, searchDepDateFrom, searchDepDateTo]);
+
+  // Auto-focus list when results load
+  useEffect(() => {
+    if (depSearchResults.length > 0 && depListRef.current && depTab === "buscar") {
+      setSelectedDepIdx(0);
+      depListRef.current.focus();
+    }
+  }, [depSearchResults.length, depTab]);
 
   if (!isOpen) return null;
 
@@ -518,6 +548,8 @@ export default function BankDepositModal({
               <button
                 type="button"
                 onClick={() => setDepTab("registrar")}
+                data-shortcut-letter="M"
+                title="Registrar Resguardo (Alt+M)"
                 style={{
                   flex: 1,
                   padding: "10px",
@@ -534,6 +566,8 @@ export default function BankDepositModal({
               <button
                 type="button"
                 onClick={() => setDepTab("buscar")}
+                data-shortcut-letter="K"
+                title="Buscar Resguardos (Alt+K)"
                 style={{
                   flex: 1,
                   padding: "10px",
@@ -776,7 +810,13 @@ export default function BankDepositModal({
                 </div>
 
                 {/* Tabla de Resultados */}
-                <div style={{ maxHeight: "220px", overflowX: "auto", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "6px", marginBottom: "14px" }} className="pos-cashier-inline-table-scroll">
+                <div
+                  ref={depListRef}
+                  style={{ maxHeight: "220px", overflowX: "auto", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "6px", marginBottom: "14px", outline: "none" }}
+                  className="pos-cashier-inline-table-scroll"
+                  tabIndex={-1}
+                  onKeyDown={handleDepListKeyDown}
+                >
                   <table style={table}>
                     <thead>
                       <tr style={tableHeaderRow}>
@@ -802,8 +842,12 @@ export default function BankDepositModal({
                           </td>
                         </tr>
                       ) : (
-                        depSearchResults.map((dep) => (
-                          <tr key={dep.id} style={tableRow}>
+                        depSearchResults.map((dep, depIdx) => (
+                          <tr
+                            key={dep.id}
+                            style={{ ...tableRow, backgroundColor: depIdx === selectedDepIdx ? "var(--surface-2)" : "transparent", cursor: "pointer" }}
+                            onClick={() => setSelectedDepIdx(depIdx)}
+                          >
                             <td style={{ ...td, padding: "8px", fontSize: "12px" }}>
                               <div style={{ fontWeight: "700" }}>{dep.reference || `#${dep.id}`}</div>
                               <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>{new Date(dep.createdAt).toLocaleDateString()}</div>
