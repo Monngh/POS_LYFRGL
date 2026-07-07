@@ -158,10 +158,11 @@ export const SearchInput: React.FC<{
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
-}> = ({ value, onChange, placeholder }) => {
+  style?: React.CSSProperties;
+}> = ({ value, onChange, placeholder, style }) => {
   const error = validateSearchText(value, "La busqueda", { max: 120 });
   return (
-    <div style={ui.searchField}>
+    <div style={{ ...ui.searchField, ...style }}>
       <div style={{ ...ui.searchBox, borderColor: error ? "#dc2626" : "#e2e8f0" }}>
         <Search size={16} color="#94a3b8" />
         <input

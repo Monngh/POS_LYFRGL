@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Pencil, Phone, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, MapPin, Pencil, Phone, Plus } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
 import { DataTable, ActionModal } from "../../shared/ui";
@@ -504,8 +504,8 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
                       {/* Dirección */}
                       {b.address && (
-                        <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4, wordBreak: "break-word" }}>
-                          📍 {b.address}
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4, wordBreak: "break-word", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <MapPin size={13} style={{ flexShrink: 0 }} /> {b.address}
                         </div>
                       )}
 

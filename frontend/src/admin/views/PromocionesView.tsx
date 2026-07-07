@@ -242,9 +242,25 @@ const ProductSelector: React.FC<{
 
   return (
     <div style={styles.productPicker}>
-      <div style={styles.productPickerTop}>
-        <SearchInput value={query} onChange={setQuery} placeholder="Buscar SKU o producto" />
-        <span style={styles.selectedCount}>{selectedIds.length} seleccionado{selectedIds.length === 1 ? "" : "s"}</span>
+      <div style={{
+        ...styles.productPickerTop,
+        flexDirection: isMobile ? "column" : "row",
+        alignItems: isMobile ? "stretch" : "center",
+        gap: isMobile ? 8 : 10,
+      }}>
+        <SearchInput
+          value={query}
+          onChange={setQuery}
+          placeholder="Buscar SKU o producto"
+          style={isMobile ? { minWidth: 0, flex: "1 1 auto", width: "100%" } : undefined}
+        />
+        <span style={{
+          ...styles.selectedCount,
+          marginLeft: isMobile ? "0" : "auto",
+          alignSelf: isMobile ? "flex-end" : "center",
+        }}>
+          {selectedIds.length} seleccionado{selectedIds.length === 1 ? "" : "s"}
+        </span>
       </div>
       {isMobile ? (
         <div style={styles.productList}>

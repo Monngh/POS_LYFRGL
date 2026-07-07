@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { AlertTriangle, ArrowLeftRight, Check, Printer, X, Plus, Eye, ChevronDown, ChevronUp, Search, Tags, FolderTree } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Check, Settings, Printer, X, Plus, Eye, ChevronDown, ChevronUp, Search, Tags, FolderTree } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAuth } from "../../auth";
 import {
@@ -2518,7 +2518,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           <div style={subModalStyle} onClick={() => { if (!adjustSaving) setAdjustOpen(false); }}>
             <div style={{ ...ui.modal, maxWidth: 500 }} onClick={(e) => e.stopPropagation()}>
               <div style={ui.modalHeader}>
-                <div style={ui.modalTitle}>⚙️ Ajustar stock — {selectedProduct.name}</div>
+                <div style={{ ...ui.modalTitle, display: "flex", alignItems: "center", gap: 8 }}><Settings size={16} /> Ajustar stock — {selectedProduct.name}</div>
                 <button onClick={() => setAdjustOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }} disabled={adjustSaving}>
                   <X size={16} />
                 </button>

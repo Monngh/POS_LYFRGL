@@ -839,6 +839,57 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                       paddingTop: 12,
                       borderTop: "1px solid var(--border-soft)",
                     }}>
+                      {/* Botones de acción (solo iconos) antes del ID */}
+                      <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                        {/* Gestionar productos */}
+                        <button
+                          onClick={() => openManage(tax)}
+                          style={{
+                            display: "inline-flex", alignItems: "center", justifyContent: "center",
+                            backgroundColor: "var(--accent-soft)", border: "1px solid var(--border)",
+                            borderRadius: 8, width: 38, height: 38, cursor: "pointer",
+                            color: "var(--accent-strong)", padding: 0,
+                          }}
+                          className="active-tap"
+                          title="Gestionar productos"
+                        >
+                          <Package size={16} />
+                        </button>
+
+                        {/* Editar */}
+                        <button
+                          onClick={() => openEdit(tax)}
+                          style={{
+                            display: "inline-flex", alignItems: "center", justifyContent: "center",
+                            backgroundColor: "#eff6ff", border: "1px solid #bfdbfe",
+                            borderRadius: 8, width: 38, height: 38, cursor: "pointer",
+                            color: "var(--accent-strong)", padding: 0,
+                          }}
+                          className="active-tap"
+                          title="Editar impuesto"
+                        >
+                          <Pencil size={16} />
+                        </button>
+
+                        {/* Activar/Desactivar */}
+                        <button
+                          onClick={() => toggleStatus(tax)}
+                          disabled={statusUpdatingId === tax.id}
+                          style={{
+                            display: "inline-flex", alignItems: "center", justifyContent: "center",
+                            backgroundColor: tax.active ? "#fef2f2" : "#f0fdf4",
+                            border: `1px solid ${tax.active ? "#fecaca" : "#bbf7d0"}`,
+                            borderRadius: 8, width: 38, height: 38, cursor: "pointer",
+                            color: tax.active ? "#b91c1c" : "#15803d", padding: 0,
+                            opacity: statusUpdatingId === tax.id ? 0.55 : 1,
+                          }}
+                          className="active-tap"
+                          title={tax.active ? "Desactivar" : "Activar"}
+                        >
+                          <Power size={16} />
+                        </button>
+                      </div>
+
                       <div style={{
                         backgroundColor: "var(--surface-2)",
                         borderRadius: 8,
@@ -848,7 +899,6 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                         gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
                         gap: 16,
                         textAlign: "left",
-                        marginBottom: 14,
                       }}>
                         <div>
                           <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase" as const, letterSpacing: "0.3px", marginBottom: 4 }}>ID</div>
@@ -872,56 +922,6 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                             <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmtDate(tax.updatedAt)}</div>
                           </div>
                         )}
-                      </div>
-
-                      {/* Botones de Acción dentro del detail */}
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        {/* Gestionar productos */}
-                        <button
-                          onClick={() => openManage(tax)}
-                          style={{
-                            ...ui.ghostBtn,
-                            display: "inline-flex", alignItems: "center", gap: 6,
-                            flex: 1, justifyContent: "center", fontSize: 12,
-                          }}
-                          className="active-tap"
-                          title="Gestionar productos"
-                        >
-                          <Package size={13} /> Gestionar
-                        </button>
-
-                        {/* Editar */}
-                        <button
-                          onClick={() => openEdit(tax)}
-                          style={{
-                            ...ui.primaryBtn,
-                            display: "inline-flex", alignItems: "center", gap: 6,
-                            flex: 1, justifyContent: "center", fontSize: 12,
-                          }}
-                          className="active-tap"
-                          title="Editar impuesto"
-                        >
-                          <Pencil size={13} /> Editar
-                        </button>
-
-                        {/* Activar/Desactivar */}
-                        <button
-                          onClick={() => toggleStatus(tax)}
-                          disabled={statusUpdatingId === tax.id}
-                          style={{
-                            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-                            backgroundColor: tax.active ? "#fef2f2" : "#f0fdf4",
-                            border: `1px solid ${tax.active ? "#fecaca" : "#bbf7d0"}`,
-                            borderRadius: 8, padding: "8px 14px", cursor: "pointer",
-                            color: tax.active ? "#b91c1c" : "#15803d", fontSize: 12, fontWeight: 700,
-                            opacity: statusUpdatingId === tax.id ? 0.55 : 1,
-                            flex: 1,
-                          }}
-                          className="active-tap"
-                          title={tax.active ? "Desactivar" : "Activar"}
-                        >
-                          <Power size={13} /> {tax.active ? "Desactivar" : "Activar"}
-                        </button>
                       </div>
                     </div>
                   )}
