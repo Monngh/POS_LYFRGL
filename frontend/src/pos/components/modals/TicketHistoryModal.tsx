@@ -86,6 +86,8 @@ export default function TicketHistoryModal({
   const [ticketDateTo, setTicketDateTo] = useState("");
   const [filteredSales, setFilteredSales] = useState<any[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const listRef = React.useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -96,8 +98,19 @@ export default function TicketHistoryModal({
       setTicketDateTo("");
       setFilteredSales([]);
       setLocalError(null);
+      setSelectedIndex(0);
     }
   }, [isOpen]);
+
+  // Reset selection when results change
+  useEffect(() => { setSelectedIndex(0); }, [filteredSales.length]);
+
+  // Focus the list container when results load so arrow keys work immediately
+  useEffect(() => {
+    if (filteredSales.length > 0 && listRef.current) {
+      listRef.current.focus();
+    }
+  }, [filteredSales.length]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -119,6 +132,40 @@ export default function TicketHistoryModal({
   }, [ticketSearch, ticketCustomer, ticketPhone, ticketDateFrom, ticketDateTo, isOpen]);
 
   if (!isOpen) return null;
+
+  const safeIdx = filteredSales.length > 0 ? Math.min(selectedIndex, filteredSales.length - 1) : 0;
+
+  const handleListKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (filteredSales.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex((i) => Math.min(i + 1, filteredSales.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      const active = document.activeElement;
+      // Only trigger if not focused inside a text input
+      if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) return;
+      e.preventDefault();
+      const selected = filteredSales[safeIdx];
+      if (selected) triggerReprint(selected);
+    }
+  };
+
+  const triggerReprint = async (sale: any) => {
+    setLocalError(null);
+    try {
+      const res = await api.get(`/api/sales/detail?id=${sale.id}`);
+      onSelectSale({
+        ...res.data.sale,
+        refundStatus: sale.refundStatus,
+        isNewSale: false,
+      });
+    } catch (e: any) {
+      setLocalError(e.response?.data?.message || "Error al recuperar los detalles de la venta.");
+    }
+  };
 
   const renderFooter = () => (
     <div style={{ display: "flex", width: "100%" }}>
@@ -215,7 +262,19 @@ export default function TicketHistoryModal({
           </div>
         </div>
 
-        <div style={{ maxHeight: "40vh", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "6px" }} className="pos-cashier-table-scroll pos-cashier-table-scroll--history">
+        {filteredSales.length > 0 && (
+          <p style={{ fontSize: "11px", color: "var(--text-muted)", margin: "0 0 4px 0" }}>
+            ↑↓ seleccionar · Enter / Alt+C reimprimir
+          </p>
+        )}
+
+        <div
+          ref={listRef}
+          style={{ maxHeight: "40vh", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "6px", outline: "none" }}
+          className="pos-cashier-table-scroll pos-cashier-table-scroll--history"
+          tabIndex={-1}
+          onKeyDown={handleListKeyDown}
+        >
           <style>{`
             @media (max-width: 1024px) {
               .pos-cashier-table-scroll--history { overflow-x: hidden; max-height: 50vh; padding: 4px 6px; }
@@ -250,7 +309,15 @@ export default function TicketHistoryModal({
                 </tr>
               ) : (
                 filteredSales.map((sale, index) => (
-                  <tr key={sale.id} style={tableRow}>
+                  <tr
+                    key={sale.id}
+                    style={{
+                      ...tableRow,
+                      backgroundColor: index === safeIdx ? "var(--surface-2)" : "transparent",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => setSelectedIndex(index)}
+                  >
                     <td style={td}>
                       <div style={{ fontWeight: "600", color: "var(--text)" }}>{sale.invoiceNumber}</div>
                       <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>{new Date(sale.createdAt).toLocaleDateString()}</div>
@@ -270,22 +337,10 @@ export default function TicketHistoryModal({
                     </td>
                     <td style={{ ...td, textAlign: "center" }}>
                       <button
-                        onClick={async () => {
-                          setLocalError(null);
-                          try {
-                            const res = await api.get(`/api/sales/detail?id=${sale.id}`);
-                            onSelectSale({
-                              ...res.data.sale,
-                              refundStatus: sale.refundStatus,
-                              isNewSale: false,
-                            });
-                          } catch (e: any) {
-                            setLocalError(e.response?.data?.message || "Error al recuperar los detalles de la venta.");
-                          }
-                        }}
+                        onClick={(e) => { e.stopPropagation(); triggerReprint(sale); }}
                         className="btn-primary"
                         style={{ padding: "6px 10px", fontSize: "12px" }}
-                        {...(index === 0
+                        {...(index === safeIdx
                           ? {
                               "data-shortcut": "confirm",
                               "data-shortcut-letter": "C",

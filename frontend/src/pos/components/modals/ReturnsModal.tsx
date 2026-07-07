@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { RotateCcw, KeyRound, Minus, Plus } from "lucide-react";
 import { PosModal, PosStepper } from "./shared";
 import { getEligibleReturn, submitReturn } from '../../../facturacion';
@@ -73,6 +73,10 @@ export default function ReturnsModal({
   const [returnPaymentMethod, setReturnPaymentMethod] = useState("VALE_DEVOLUCION");
   const [returnProcessing, setReturnProcessing] = useState(false);
   const [returnReceipt, setReturnReceipt] = useState<any>(null);
+  const [returnItemNavIdx, setReturnItemNavIdx] = useState(0);
+  const returnItemsListRef = useRef<HTMLDivElement | null>(null);
+
+  const eligibleItems = returnItems.filter((it) => it.isEligible);
 
   const handleReturnReset = () => {
     setReturnStep("search");
@@ -93,6 +97,34 @@ export default function ReturnsModal({
       handleReturnReset();
     }
   }, [isOpen]);
+
+  // Auto-focus primer checkbox al entrar al paso select
+  useEffect(() => {
+    if (returnStep === "select" && returnItemsListRef.current) {
+      const firstCheck = returnItemsListRef.current.querySelector<HTMLInputElement>('input[type="checkbox"]:not([disabled])');
+      if (firstCheck) {
+        setTimeout(() => firstCheck.focus(), 0);
+      }
+      setReturnItemNavIdx(0);
+    }
+  }, [returnStep]);
+
+  // Navegar entre checkboxes con flechas
+  const handleItemsKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const next = Math.min(returnItemNavIdx + 1, eligibleItems.length - 1);
+      setReturnItemNavIdx(next);
+      const checks = returnItemsListRef.current?.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:not([disabled])');
+      if (checks && checks[next]) checks[next].focus();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const prev = Math.max(returnItemNavIdx - 1, 0);
+      setReturnItemNavIdx(prev);
+      const checks = returnItemsListRef.current?.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:not([disabled])');
+      if (checks && checks[prev]) checks[prev].focus();
+    }
+  };
 
   const handleReturnSearch = async () => {
     const folio = returnFolio.trim();
@@ -562,10 +594,16 @@ export default function ReturnsModal({
             </div>
 
             {/* Lista de productos */}
-            <div style={{ maxHeight: "260px", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "8px" }}>
+            <div
+              ref={returnItemsListRef}
+              style={{ maxHeight: "260px", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "8px", outline: "none" }}
+              tabIndex={-1}
+              onKeyDown={handleItemsKeyDown}
+            >
               {returnItems.map((item, idx) => (
                 <div
                   key={item.saleDetailId}
+                  className="pos-return-item-row"
                   style={{
                     padding: "10px 12px",
                     borderBottom: idx < returnItems.length - 1 ? "1px solid var(--surface-3)" : "none",
@@ -581,6 +619,18 @@ export default function ReturnsModal({
                       disabled={!item.isEligible}
                       onChange={() => handleReturnToggleItem(idx)}
                       style={{ accentColor: "var(--accent-strong)", width: "16px", height: "16px" }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleReturnToggleItem(idx);
+                          // If now-selected, focus qty
+                          if (!item.selected) {
+                            const row = (e.target as HTMLElement).closest('.pos-return-item-row');
+                            const qtyInput = row?.querySelector<HTMLInputElement>('input[type="number"]');
+                            if (qtyInput) setTimeout(() => qtyInput.focus(), 50);
+                          }
+                        }
+                      }}
                     />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: "600", fontSize: "13px", color: "var(--text)" }}>{item.name}</div>
@@ -620,6 +670,14 @@ export default function ReturnsModal({
                             handleReturnQtyChange(idx, val);
                           }}
                           style={{ fontSize: "13px", fontWeight: "700", width: "50px", textAlign: "center", border: "1px solid var(--border-strong)", borderRadius: "4px", padding: "4px" }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              const row = (e.target as HTMLElement).closest('.pos-return-item-row');
+                              const dest = row?.querySelector<HTMLSelectElement>('select');
+                              if (dest) dest.focus();
+                            }
+                          }}
                         />
                         <button
                           onClick={() => handleReturnQtyChange(idx, item.qtyToReturn + 1)}
@@ -632,6 +690,22 @@ export default function ReturnsModal({
                           value={item.destination}
                           onChange={(e) => handleReturnDestinationChange(idx, e.target.value)}
                           style={{ fontSize: "11px", padding: "3px 6px", borderRadius: "4px", border: "1px solid var(--border-strong)", backgroundColor: "var(--surface)" }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              // Focus next eligible checkbox or reason textarea
+                              const checks = returnItemsListRef.current?.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:not([disabled])');
+                              const eligIdx = eligibleItems.findIndex((el) => el.saleDetailId === item.saleDetailId);
+                              if (checks && checks[eligIdx + 1]) {
+                                setReturnItemNavIdx(eligIdx + 1);
+                                checks[eligIdx + 1].focus();
+                              } else {
+                                // All done, jump to reason
+                                const reasonInput = document.querySelector<HTMLTextAreaElement>('textarea[data-shortcut-role="return-reason"]');
+                                if (reasonInput) reasonInput.focus();
+                              }
+                            }
+                          }}
                         >
                           <option value="INVENTARIO_VENDIBLE">Inventario Vendible</option>
                           <option value="MERMA">Merma</option>

@@ -122,6 +122,10 @@ export function SalesTerminalView({
   const [mixedModalOpen, setMixedModalOpen] = React.useState(false);
   const checkoutModalRef = useModalInitialFocus(checkoutModalOpen);
 
+  // Cobro en dos fases: primero elegir método con flechas, Enter confirma y da foco al input/botón, luego Enter cobra
+  const [checkoutPhase, setCheckoutPhase] = React.useState<"select-method" | "fill-fields">("select-method");
+  React.useEffect(() => { if (checkoutModalOpen) setCheckoutPhase("select-method"); }, [checkoutModalOpen]);
+
   const handleGlobalQuickAction = (actionId: string) => {
     if (actionId === "autofacturacion") {
       window.open("/autofacturacion", "_blank");
@@ -161,19 +165,47 @@ export function SalesTerminalView({
       const active = document.activeElement;
       if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || (active as HTMLElement).isContentEditable)) return;
       e.preventDefault();
-      const methods = ["EFECTIVO", "TARJETA", "STORE_CREDIT", "MIXTO", "QR_MERCADOPAGO"];
-      const idx = methods.indexOf(paymentMethod as string);
-      if (idx === -1) return;
-      const next = e.key === "ArrowRight" ? Math.min(idx + 1, methods.length - 1) : Math.max(idx - 1, 0);
-      setPaymentMethod(methods[next] as any);
+      // Solo cambiar método en fase de selección
+      if (checkoutPhase === "select-method") {
+        const methods = ["EFECTIVO", "TARJETA", "STORE_CREDIT", "MIXTO", "QR_MERCADOPAGO"];
+        const idx = methods.indexOf(paymentMethod as string);
+        if (idx === -1) return;
+        const next = e.key === "ArrowRight" ? Math.min(idx + 1, methods.length - 1) : Math.max(idx - 1, 0);
+        setPaymentMethod(methods[next] as any);
+      }
       return;
     }
 
     if (e.key === "Enter") {
       const active = document.activeElement;
-      if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || (active as HTMLElement).isContentEditable)) return;
+      const isTyping = active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || (active as HTMLElement).isContentEditable);
       e.preventDefault();
       e.stopPropagation();
+
+      if (checkoutPhase === "select-method") {
+        // Avanzar a la fase de llenado: dar foco al primer input del panel de pago
+        setCheckoutPhase("fill-fields");
+        const modal = checkoutModalRef.current;
+        if (modal) {
+          const firstInput = modal.querySelector<HTMLElement>(
+            'input:not([readonly]):not([disabled]), select:not([disabled])'
+          );
+          if (firstInput) {
+            firstInput.focus();
+          } else if (paymentMethod === "QR_MERCADOPAGO" || paymentMethod === "MIXTO") {
+            // Para métodos sin input extra, disparar directo
+            if (paymentMethod === "MIXTO") { setMixedModalOpen(true); }
+            else { handleCheckoutSubmit(); }
+          } else if (paymentMethod === "TARJETA") {
+            handleCheckoutSubmit();
+          }
+        }
+        return;
+      }
+
+      // Fase fill-fields: si estoy escribiendo en un input NO disparo el cobro
+      if (isTyping) return;
+
       if (paymentMethod === "MIXTO") {
         setMixedModalOpen(true);
       } else {
@@ -261,7 +293,8 @@ export function SalesTerminalView({
             type="button"
             onClick={onLogout}
             className="pos-terminal-logout-btn active-tap"
-            title="Cerrar Sesión"
+            data-shortcut-letter="L"
+            title="Cerrar Sesión (Alt+L)"
             aria-label="Cerrar sesión del cajero"
           >
             <LogOut size={16} />
@@ -618,6 +651,8 @@ export function SalesTerminalView({
                   data-shortcut="confirm"
                   data-shortcut-action="verify-payment"
                   data-shortcut-letter="W"
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
+                  autoFocus
                   title="Verificar estado (Alt+W, Enter)"
                   style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
                 >

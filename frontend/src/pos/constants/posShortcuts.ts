@@ -28,4 +28,7 @@ export const POS_ALT_LETTERS = [
   "W",
   "J",
   "Z",
+  "L", // Cerrar sesión
+  "V", // Cancelar compra
+  "F", // Bloquear Alt+F del navegador (menú archivo en Firefox)
 ] as const;
