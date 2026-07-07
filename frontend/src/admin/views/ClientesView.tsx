@@ -457,23 +457,6 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
       {isMobile ? (
         /* ── Mobile / Tablet: Card-based layout ── */
         <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
-          {/* Header row mirroring the fields */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "1.2fr 1fr 2fr 1.6fr",
-            padding: "12px 16px",
-            fontWeight: 700,
-            fontSize: 11,
-            color: "var(--text-muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.4px",
-          }}>
-            <div>Saldo</div>
-            <div style={{ textAlign: "center" }}>Compras</div>
-            <div>Contacto</div>
-            <div style={{ textAlign: "right", paddingRight: 8 }}>Acción</div>
-          </div>
-
           {loading && (
             <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
@@ -493,55 +476,49 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
                   key={c.id}
                   style={{
                     backgroundColor: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 12,
-                    marginBottom: 10,
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
-                    overflow: "hidden",
+                    border: "1px solid var(--border-soft)",
+                    borderRadius: 16,
+                    padding: 16,
+                    marginBottom: 12,
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
                   }}
                 >
-                  {/* Header: Nombre y RFC */}
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "8px 16px 6px 16px",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: "var(--text-muted)",
-                    borderBottom: "1px solid var(--border-soft)",
-                    backgroundColor: "var(--surface-2)",
-                    letterSpacing: "0.2px",
-                  }}>
-                    <span>{c.name.toUpperCase()}</span>
-                    <span style={{ fontFamily: "monospace" }}>{c.taxId || "SIN RFC"}</span>
-                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Nombre */}
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", marginBottom: 2, wordBreak: "break-word" }}>
+                        {c.name}
+                      </div>
+                      {/* RFC */}
+                      <div style={{ fontSize: 12, fontFamily: "monospace", color: "var(--accent-strong)", marginBottom: 8, fontWeight: 600 }}>
+                        {c.taxId || "SIN RFC"}
+                      </div>
 
-                  {/* Fila principal */}
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.2fr 1fr 2fr 1.6fr",
-                    padding: "12px 16px",
-                    alignItems: "center",
-                  }}>
-                    {/* Saldo */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: c.balance > 0 ? "var(--color-danger)" : "var(--text-secondary)" }}>
-                      {money(c.balance)}
-                    </div>
+                      {/* Contacto */}
+                      {(c.phone || c.email) && (
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4, wordBreak: "break-word" }}>
+                          {c.phone && <span>📞 {c.phone}</span>}
+                          {c.phone && c.email && <span style={{ margin: "0 6px", color: "var(--border-strong)" }}>·</span>}
+                          {c.email && <span style={{ wordBreak: "break-all" }}>{c.email}</span>}
+                        </div>
+                      )}
 
-                    {/* Compras */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textAlign: "center" }}>
-                      {c.salesCount}
-                    </div>
-
-                    {/* Contacto */}
-                    <div style={{ fontSize: 12, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {c.phone || c.email || "—"}
+                      {/* Compras y Saldo */}
+                      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 4 }}>
+                        <div>
+                          <span style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3px" }}>Compras</span>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{c.salesCount}</div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3px" }}>Saldo</span>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: c.balance > 0 ? "var(--color-danger)" : "var(--text-secondary)" }}>{money(c.balance)}</div>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Botones de Acción */}
-                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
-                      {/* Pencil/Editar */}
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, paddingTop: 2 }}>
+                      {/* Editar */}
                       <button
                         onClick={() => openEdit(c)}
                         style={{

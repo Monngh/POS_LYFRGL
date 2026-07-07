@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../../auth";
-import { Calendar, ChevronDown, ChevronUp, DollarSign, Eye } from "lucide-react";
+import { Ban, Calendar, ChevronDown, ChevronUp, DollarSign, Eye, Printer, X } from "lucide-react";
 import api from "../../shared/services/api";
 import { validateReference } from "../../shared/utils/formValidation";
 import {
@@ -664,17 +664,19 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   {/* Desglose financiero */}
                   <p style={sectionLabel}>Desglose financiero</p>
                   <div style={finBox}>
-                    <FinRow label="Monto inicial (fondo):" value={money(selectedDetail.initialAmount)} />
-                    <FinRow label="+ Ventas (efectivo neto):" value={money(selectedDetail.cashIn)} />
-                    <FinRow label="– Depósitos (salidas):" value={money(selectedDetail.cashOut)} />
+                    <FinRow isMobile={isMobile} label="Monto inicial (fondo):" value={money(selectedDetail.initialAmount)} />
+                    <FinRow isMobile={isMobile} label="+ Ventas (efectivo neto):" value={money(selectedDetail.cashIn)} />
+                    <FinRow isMobile={isMobile} label="– Depósitos (salidas):" value={money(selectedDetail.cashOut)} />
                     <div style={{ borderTop: "1px solid var(--border)", margin: "8px 0" }} />
-                    <FinRow label="= Esperado (teórico):" value={money(selectedDetail.expectedAmount)} bold />
+                    <FinRow isMobile={isMobile} label="= Esperado (teórico):" value={money(selectedDetail.expectedAmount)} bold />
                     <div style={{ borderTop: "1px dashed var(--border-strong)", margin: "8px 0" }} />
                     <FinRow
+                      isMobile={isMobile}
                       label="Declarado (contado):"
                       value={selectedDetail.declaredAmount !== null ? money(selectedDetail.declaredAmount) : "—"}
                     />
                     <FinRow
+                      isMobile={isMobile}
                       label="Diferencia:"
                       value={
                         selectedDetail.difference !== null
@@ -697,10 +699,10 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   {/* Desglose por método de pago */}
                   <p style={{ ...sectionLabel, marginTop: 18 }}>Por método de pago (ventas completadas)</p>
                   <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "6px 24px", marginBottom: 6 }}>
-                    <PayRow label="Efectivo" value={money(selectedDetail.payBreakdown.efectivo)} />
-                    <PayRow label="Tarjeta crédito" value={money(selectedDetail.payBreakdown.tarjetaCredito)} />
-                    <PayRow label="Tarjeta débito" value={money(selectedDetail.payBreakdown.tarjetaDebito)} />
-                    <PayRow label="MercadoPago QR" value={money(selectedDetail.payBreakdown.mercadoPago)} />
+                    <PayRow isMobile={isMobile} label="Efectivo" value={money(selectedDetail.payBreakdown.efectivo)} />
+                    <PayRow isMobile={isMobile} label="Tarjeta crédito" value={money(selectedDetail.payBreakdown.tarjetaCredito)} />
+                    <PayRow isMobile={isMobile} label="Tarjeta débito" value={money(selectedDetail.payBreakdown.tarjetaDebito)} />
+                    <PayRow isMobile={isMobile} label="MercadoPago QR" value={money(selectedDetail.payBreakdown.mercadoPago)} />
                   </div>
                   <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 13, fontWeight: 700, color: "var(--text)", paddingTop: 6, borderTop: "1px solid var(--border-soft)" }}>
                     Total ventas: {money(selectedDetail.payBreakdown.totalVentas)}
@@ -787,24 +789,43 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               }}
             >
               <div style={{ display: "flex", gap: 8 }}>
-                <button style={ui.ghostBtn} onClick={closeDetail}>
-                  Cerrar
+                <button
+                  style={{
+                    ...ui.ghostBtn,
+                    ...(isMobile ? { width: 38, height: 38, padding: 0, minWidth: 38, justifyContent: "center" } : {}),
+                  }}
+                  onClick={closeDetail}
+                  title="Cerrar"
+                >
+                  <X size={15} />
+                  {!isMobile && <span>Cerrar</span>}
                 </button>
                 <button
-                  style={{ ...ui.primaryBtn, backgroundColor: "#2563eb" }}
+                  style={{
+                    ...ui.primaryBtn,
+                    backgroundColor: "#2563eb",
+                    ...(isMobile ? { width: 38, height: 38, padding: 0, minWidth: 38, justifyContent: "center" } : {}),
+                  }}
                   onClick={printCashReport}
                   disabled={detailLoading || !selectedDetail}
                   title="Imprimir arqueo de esta caja"
                 >
-                  Imprimir
+                  <Printer size={15} />
+                  {!isMobile && <span>Imprimir</span>}
                 </button>
               </div>
               {selectedDetail?.status === "ABIERTA" && (
                 <button
-                  style={{ ...ui.primaryBtn, backgroundColor: "#b91c1c" }}
+                  style={{
+                    ...ui.primaryBtn,
+                    backgroundColor: "#b91c1c",
+                    ...(isMobile ? { width: 38, height: 38, padding: 0, minWidth: 38, justifyContent: "center" } : {}),
+                  }}
                   onClick={() => setForceOpen(true)}
+                  title="Cerrar forzado"
                 >
-                  Cerrar forzado
+                  <Ban size={15} />
+                  {!isMobile && <span>Cerrar forzado</span>}
                 </button>
               )}
             </div>
@@ -1020,22 +1041,41 @@ const finBox: React.CSSProperties = {
   gap: 4,
 };
 
-const FinRow: React.FC<{ label: string; value: string; bold?: boolean; color?: string }> = ({
+const FinRow: React.FC<{ label: string; value: string; bold?: boolean; color?: string; isMobile?: boolean }> = ({
   label,
   value,
   bold,
   color,
+  isMobile,
 }) => (
-  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, alignItems: "center" }}>
+  <div
+    style={{
+      display: "flex",
+      flexDirection: isMobile ? "column" : "row",
+      justifyContent: isMobile ? "flex-start" : "space-between",
+      fontSize: 13,
+      alignItems: isMobile ? "flex-start" : "center",
+      gap: isMobile ? 2 : 0,
+      paddingBottom: isMobile ? 6 : 0,
+    }}
+  >
     <span style={{ color: "var(--text-muted)" }}>{label}</span>
-    <span style={{ fontWeight: bold ? 800 : 600, color: color ?? "var(--text)" }}>{value}</span>
+    <span style={{ fontWeight: bold ? 800 : 600, color: color ?? "var(--text)", fontSize: isMobile ? 15 : 13 }}>{value}</span>
   </div>
 );
 
-const PayRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+const PayRow: React.FC<{ label: string; value: string; isMobile?: boolean }> = ({ label, value, isMobile }) => (
+  <div
+    style={{
+      display: "flex",
+      flexDirection: isMobile ? "column" : "row",
+      justifyContent: isMobile ? "flex-start" : "space-between",
+      fontSize: 13,
+      gap: isMobile ? 1 : 0,
+    }}
+  >
     <span style={{ color: "var(--text-muted)" }}>{label}</span>
-    <span style={{ fontWeight: 700, color: "var(--text-secondary)" }}>{value}</span>
+    <span style={{ fontWeight: 700, color: "var(--text-secondary)", fontSize: isMobile ? 14 : 13 }}>{value}</span>
   </div>
 );
 

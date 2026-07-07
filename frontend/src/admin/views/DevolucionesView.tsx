@@ -573,9 +573,9 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-                    <div style={{ flex: 1 }}>
-                      {/* Title: Folio & Amount */}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Folio solo en su propia línea */}
+                      <div style={{ marginBottom: 6 }}>
                         <button
                           onClick={() => openDetail(r.id)}
                           style={{
@@ -587,19 +587,23 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             padding: 0,
                             fontSize: 16,
                             textAlign: "left",
+                            wordBreak: "break-all",
+                            overflowWrap: "anywhere",
                           }}
                           className="active-tap"
                         >
                           {r.returnNumber}
                         </button>
-                        <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>
-                          {moneyExact(r.totalRefunded)}
-                        </span>
                       </div>
 
                       {/* Sucursal */}
-                      <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 8 }}>
+                      <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 4, wordBreak: "break-word" }}>
                         {r.branchName}
+                      </div>
+
+                      {/* Precio de reembolso debajo de sucursal */}
+                      <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)", marginBottom: 6 }}>
+                        {moneyExact(r.totalRefunded)}
                       </div>
 
                       {/* Fecha */}
@@ -611,12 +615,12 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       {/* Cliente */}
                       <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
                         <User size={14} color="#2563eb" />
-                        <span>Cliente: {r.clientName}</span>
+                        <span style={{ wordBreak: "break-word" }}>Cliente: {r.clientName}</span>
                       </div>
                     </div>
 
-                    {/* Chevron Button */}
-                    <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
+                    {/* Chevron Button — alineado arriba */}
+                    <div style={{ display: "flex", alignItems: "flex-start", paddingTop: 2 }}>
                       <button
                         onClick={() => toggleExpand(r.id)}
                         style={{

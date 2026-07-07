@@ -413,7 +413,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                 fontSize: 12,
                 padding: "6px 12px",
                 height: 30,
-                backgroundColor: "#15803d",
+                backgroundColor: "#1e3a8a",
               }}
               onClick={() => receive(p.id)}
               disabled={receiving === p.id}
@@ -702,13 +702,15 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
         <div
           style={{
             display: "flex",
-            alignItems: "center",
+            flexDirection: isMobile ? "column" : "row",
+            alignItems: isMobile ? "stretch" : "center",
             justifyContent: "space-between",
+            gap: 12,
             marginTop: 14,
           }}
         >
           <button
-            style={ui.ghostBtn}
+            style={{ ...ui.ghostBtn, justifyContent: "center" }}
             className="active-tap"
             onClick={() => {
               if (!supplierId) {
@@ -721,8 +723,8 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
           >
             <Plus size={15} /> Agregar producto
           </button>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--accent-strong)", paddingTop: 4 }}>
+          <div style={{ display: "flex", justifyContent: isMobile ? "flex-start" : "flex-end" }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--accent-strong)" }}>
               Total estimado: {money(computedTotals.total)}
             </div>
           </div>
@@ -901,7 +903,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                                   alignItems: "center",
                                   justifyContent: "center",
                                   gap: 6,
-                                  backgroundColor: "#15803d",
+                                  backgroundColor: "#1e3a8a",
                                   color: "#ffffff",
                                   border: "none",
                                   borderRadius: 8,

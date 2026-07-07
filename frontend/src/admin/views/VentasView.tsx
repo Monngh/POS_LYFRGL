@@ -676,30 +676,64 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               <Info label="Método" value={<Badge tone={payTone(detail.paymentMethod)}>{detail.paymentMethod}</Badge>} />
             </div>
 
-            <div style={{ ...ui.tableWrap, boxShadow: "none", marginBottom: 14, overflowX: "hidden" }}>
-              <table style={{ ...ui.table, minWidth: "unset", width: "100%" }}>
-                <thead>
-                  <tr style={ui.theadRow}>
-                    <th style={{ ...ui.th, width: "50%" }}>Producto</th>
-                    <th style={{ ...ui.th, textAlign: "center", width: "15%" }}>Cant</th>
-                    <th style={{ ...ui.th, textAlign: "right", width: "17%" }}>P. unit.</th>
-                    <th style={{ ...ui.th, textAlign: "right", width: "18%" }}>Importe</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detail.items.map((it, i) => (
-                    <tr key={i}>
-                      <td style={ui.td}>
-                        <div style={{ fontWeight: 600 }}>{it.name}</div>
-                        <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{it.sku}</div>
-                      </td>
-                      <td style={{ ...ui.td, textAlign: "center" }}>{it.quantity}</td>
-                      <td style={{ ...ui.td, textAlign: "right", color: "var(--text-muted)" }}>{moneyExact(it.unitPrice)}</td>
-                      <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{moneyExact(it.importe)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Productos — lista con scroll vertical y tarjetas en mobile */}
+            <div
+              style={{
+                maxHeight: "32vh",
+                overflowY: "auto",
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                marginBottom: 14,
+                paddingRight: 2,
+              }}
+            >
+              {detail.items.map((it, i) => (
+                <div
+                  key={i}
+                  style={{
+                    backgroundColor: "var(--surface-2)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 10,
+                    padding: "10px 14px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                  }}
+                >
+                  {/* Nombre del producto */}
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontSize: 13,
+                      color: "var(--text)",
+                      wordBreak: "break-word",
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    {it.name}
+                  </div>
+                  {/* SKU en azul acento */}
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--accent-strong)" }}>
+                    {it.sku}
+                  </div>
+                  {/* Detalles de cantidad, unitario e importe */}
+                  <div style={{ display: "flex", gap: 16, marginTop: 4, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      <span style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.3px" }}>Cantidad</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{it.quantity}</span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      <span style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.3px" }}>Unitario</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-muted)" }}>{moneyExact(it.unitPrice)}</span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      <span style={{ fontSize: 10, color: "var(--text-faint)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.3px" }}>Importe</span>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)" }}>{moneyExact(it.importe)}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -711,20 +745,35 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               </div>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20, gap: 8 }}>
               {detail.status !== "CANCELADA" ? (
                 <button
-                  style={{ ...ui.primaryBtn, backgroundColor: "#dc2626" }}
+                  style={{
+                    ...ui.primaryBtn,
+                    backgroundColor: "#dc2626",
+                    ...(isMobile ? { width: 38, height: 38, padding: 0, minWidth: 38, justifyContent: "center" } : {}),
+                  }}
                   className="active-tap"
                   onClick={openPinModal}
+                  title="Cancelar venta"
                 >
-                  <Ban size={15} /> Cancelar venta
+                  <Ban size={15} />
+                  {!isMobile && <span>Cancelar venta</span>}
                 </button>
               ) : (
                 <span />
               )}
-              <button style={ui.primaryBtn} className="active-tap" onClick={() => reprintTicket(detail, showToast)}>
-                <Printer size={15} /> Reimprimir ticket
+              <button
+                style={{
+                  ...ui.primaryBtn,
+                  ...(isMobile ? { width: 38, height: 38, padding: 0, minWidth: 38, justifyContent: "center" } : {}),
+                }}
+                className="active-tap"
+                onClick={() => reprintTicket(detail, showToast)}
+                title="Reimprimir ticket"
+              >
+                <Printer size={15} />
+                {!isMobile && <span>Reimprimir ticket</span>}
               </button>
             </div>
           </>
