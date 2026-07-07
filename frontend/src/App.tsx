@@ -4,6 +4,7 @@ import { AuthProvider, useAuth, Login } from "./auth";
 import Autofacturacion from "./ecommerce/Autofacturacion";
 import AppRouter from "./router";
 import { ToastProvider, useToast, type ToastType } from "./shared/context/ToastContext";
+import { ConfirmProvider } from "./shared/context/ConfirmContext";
 
 const PageLoader = () => (
   <div style={{
@@ -96,11 +97,13 @@ const AppContent: React.FC = () => {
 function App() {
   return (
     <ToastProvider>
-      <AuthProvider>
-        <Router>
-          <AppContent />
-        </Router>
-      </AuthProvider>
+      <ConfirmProvider>
+        <AuthProvider>
+          <Router>
+            <AppContent />
+          </Router>
+        </AuthProvider>
+      </ConfirmProvider>
     </ToastProvider>
   );
 }

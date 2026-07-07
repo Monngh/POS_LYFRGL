@@ -9,6 +9,7 @@ import {
 } from "../../shared/utils/decimalInput";
 import { validateInteger } from "../../shared/utils/formValidation";
 import { useToast } from "../../shared/context/ToastContext";
+import { useConfirm } from "../../shared/context/ConfirmContext";
 import { ConfirmModal } from "../../shared/ui";
 import KardexView from "./KardexView";
 import { CategoryManagementView } from "../components/categories/CategoryManagementView";
@@ -499,6 +500,7 @@ const formatTaxRate = (rate: number | string) => {
 
 const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const { showToast } = useToast();
+  const confirm = useConfirm();
   const { user } = useAuth();
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [expandedProducts, setExpandedProducts] = useState<Record<number, boolean>>({});
@@ -1062,6 +1064,16 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const handleToggleActive = async (p: ProductRow | ProductDetail) => {
     if (statusSaving) return;
+    const deactivating = p.active;
+    const ok = await confirm({
+      title: deactivating ? "Desactivar producto" : "Reactivar producto",
+      message: deactivating
+        ? `¿Deseas desactivar «${p.name}» (SKU ${p.sku})?\n\nDejará de estar disponible para la venta en el POS. Podrás reactivarlo cuando lo necesites.`
+        : `¿Deseas reactivar «${p.name}» (SKU ${p.sku})?\n\nVolverá a estar disponible para la venta en el POS.`,
+      variant: deactivating ? "danger" : "info",
+      confirmLabel: deactivating ? "Sí, desactivar" : "Sí, reactivar",
+    });
+    if (!ok) return;
     setStatusSaving(true);
     try {
       if (p.active) {
