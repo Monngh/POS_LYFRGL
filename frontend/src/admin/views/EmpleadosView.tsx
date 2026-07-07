@@ -961,8 +961,25 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                  <button style={{ ...ui.linkBtn, fontSize: 11, padding: "4px 8px", backgroundColor: "var(--surface-2)", borderRadius: 6 }} className="active-tap" onClick={() => openViewEmployee(u)}>
-                    <Activity size={13} style={{ verticalAlign: "-2px" }} /> Ver
+                  <button
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: "var(--surface-2)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 6,
+                      width: 30,
+                      height: 30,
+                      cursor: "pointer",
+                      color: "var(--accent-strong)",
+                      padding: 0,
+                    }}
+                    className="active-tap"
+                    onClick={() => openViewEmployee(u)}
+                    title="Ver operaciones"
+                  >
+                    <Activity size={13} />
                   </button>
                   <button
                     onClick={() => openEdit(u)}

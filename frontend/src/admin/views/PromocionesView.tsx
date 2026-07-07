@@ -1089,17 +1089,59 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           )}
                         </div>
 
-                        {/* Productos */}
-                        <div>
-                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Productos</h4>
-                          <div style={promoDetailRow}>
-                            <span style={promoDetailLabel}>Incluidos:</span>
-                            <span style={promoDetailValue}>{productSummary(promotion)}</span>
-                          </div>
-                          <div style={promoDetailRow}>
-                            <span style={promoDetailLabel}>Cantidad:</span>
-                            <span style={promoDetailValue}>{promotion.products.length} producto{promotion.products.length === 1 ? "" : "s"}</span>
-                          </div>
+                        {/* Productos — lista de tarjetas */}
+                        <div style={{ gridColumn: "1 / -1" }}>
+                          <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>
+                            Productos ({promotion.products.length})
+                          </h4>
+                          {promotion.products.length > 0 ? (
+                            <div
+                              style={{
+                                maxHeight: "28vh",
+                                overflowY: "auto",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 8,
+                                paddingRight: 2,
+                              }}
+                            >
+                              {promotion.products.map((prod: PromotionProduct) => {
+                                const p = prod.product;
+                                if (!p) return null;
+                                return (
+                                  <div
+                                    key={prod.id ?? prod.productId}
+                                    style={{
+                                      backgroundColor: "var(--surface)",
+                                      border: "1px solid var(--border)",
+                                      borderRadius: 10,
+                                      padding: "10px 14px",
+                                      display: "flex",
+                                      flexDirection: "column",
+                                      gap: 3,
+                                    }}
+                                  >
+                                    {/* Nombre */}
+                                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text)", wordBreak: "break-word", overflowWrap: "anywhere" }}>
+                                      {p.name}
+                                    </div>
+                                    {/* SKU en azul */}
+                                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--accent-strong)" }}>
+                                      {p.sku}
+                                    </div>
+                                    {/* Precio de venta */}
+                                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+                                      Precio: <strong style={{ color: "var(--text)" }}>{moneyExact(p.sellPrice)}</strong>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: 12, color: "var(--text-faint)", textAlign: "center", padding: "8px 0" }}>
+                              Sin productos asignados
+                            </div>
+                          )}
                         </div>
                       </div>
 
