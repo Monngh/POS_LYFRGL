@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Info, X } from "lucide-react";
+import { useBodyScrollLock } from "../hooks/useBodyScrollLock";
 
 export type ConfirmModalVariant = "danger" | "warning" | "info";
 
@@ -149,6 +150,8 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   const needsText = Boolean(requireText && requireText.trim());
   const textOk = !needsText || typed.trim().toLowerCase() === requireText!.trim().toLowerCase();
   const canConfirm = !loading && textOk;
+
+  useBodyScrollLock(isOpen);
 
   useEffect(() => {
     if (!isOpen) {

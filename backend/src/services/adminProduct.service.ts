@@ -656,7 +656,7 @@ export const updateSupplier = async (id: number, body: Record<string, unknown>) 
 export const getSupplierProducts = async (supplierId: number) => {
   const records = await prisma.supplierProduct.findMany({
     where: { supplierId },
-    include: { product: { select: { id: true, sku: true, name: true, costPrice: true, sellPrice: true, active: true } } },
+    include: { product: { select: { id: true, sku: true, name: true, costPrice: true, sellPrice: true, active: true, satUnitKey: true } } },
   });
 
   return records.map((sp) => ({
@@ -666,6 +666,7 @@ export const getSupplierProducts = async (supplierId: number) => {
     costPrice: Number(sp.product.costPrice),
     sellPrice: Number(sp.product.sellPrice),
     active: sp.product.active,
+    satUnitKey: sp.product.satUnitKey,
   }));
 };
 

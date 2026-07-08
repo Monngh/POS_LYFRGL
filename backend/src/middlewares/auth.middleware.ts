@@ -30,7 +30,18 @@ export const authenticateJWT = async (req: Request, res: Response, next: NextFun
   // se compartía entre workers de PM2 en modo cluster; la BD sí es una fuente de
   // verdad común para cualquier instancia del proceso).
   if (decoded.role === "ADMIN" || decoded.role === "GERENTE") {
-    const session = await prisma.adminSession.findUnique({ where: { userId: decoded.userId as number } });
+    let session;
+    try {
+      session = await prisma.adminSession.findUnique({ where: { userId: decoded.userId as number } });
+    } catch (err) {
+      // La BD no respondió (p. ej. caída/latencia del servidor remoto). Antes, este
+      // throw en un middleware async quedaba como unhandled rejection y TUMBABA todo
+      // el proceso. Ahora se falla en cerrado: se rechaza esta petición con 503 y el
+      // servidor sigue vivo para el resto.
+      console.error("authenticateJWT: no se pudo validar la sesión contra la BD:", (err as Error)?.message ?? err);
+      res.status(503).json({ message: "Servicio no disponible temporalmente. Inténtalo de nuevo en unos momentos." });
+      return;
+    }
 
     // Permisivo si NO hay fila registrada (p.ej. justo después de desplegar esta
     // funcionalidad, antes del próximo login) para no expulsar tokens vigentes sin

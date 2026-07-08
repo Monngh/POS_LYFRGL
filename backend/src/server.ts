@@ -29,3 +29,11 @@ const gracefulShutdown = () => {
 
 process.on("SIGTERM", gracefulShutdown);
 process.on("SIGINT", gracefulShutdown);
+
+// Red de seguridad: una promesa rechazada sin manejar (p. ej. un fallo transitorio
+// de la BD remota en algún await no protegido) NO debe tumbar todo el backend. Se
+// registra para poder diagnosticarla, pero el proceso sigue vivo atendiendo al resto.
+process.on("unhandledRejection", (reason) => {
+  const message = reason instanceof Error ? reason.stack || reason.message : String(reason);
+  console.error("⚠️  Unhandled promise rejection (el servidor sigue en pie):", message);
+});
