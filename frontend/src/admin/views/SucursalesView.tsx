@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, MapPin, Pencil, Phone, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, MapPin, Pencil, Phone, Plus, Users, Search } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
 import { DataTable, ActionModal } from "../../shared/ui";
@@ -152,6 +152,11 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
   // Acordeón de empleados dentro del modal (sustituye la tabla con scroll horizontal)
   const [expandedEmp, setExpandedEmp] = useState<Record<number, boolean>>({});
 
+  // Asignación opcional de empleados al registrar una nueva sucursal
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignIds, setAssignIds] = useState<number[]>([]);
+  const [assignSearch, setAssignSearch] = useState("");
+
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(t);
@@ -226,6 +231,9 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
     setForm({ ...emptyForm });
     setFieldErrors({ ...emptyErrors });
     setFormError(null);
+    setAssignOpen(false);
+    setAssignIds([]);
+    setAssignSearch("");
     setEditing("create");
   };
 
@@ -305,12 +313,33 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
         active: form.active,
       };
       if (editing === "create") {
-        await api.post("/api/admin/branches", payload);
+        const res = await api.post<{ branch: { id: number } }>("/api/admin/branches", payload);
+        const newBranchId = res.data?.branch?.id;
+        // Reasignación opcional de empleados existentes a la sucursal recién creada.
+        if (newBranchId && assignIds.length > 0) {
+          const results = await Promise.allSettled(
+            assignIds.map((id) => api.put(`/api/admin/employees/${id}`, { branchId: newBranchId }))
+          );
+          const okCount = results.filter((r) => r.status === "fulfilled").length;
+          await refetchEmployees();
+          showToast(
+            okCount === assignIds.length
+              ? `Sucursal creada y ${okCount} empleado(s) asignado(s).`
+              : `Sucursal creada. Se asignaron ${okCount} de ${assignIds.length} empleado(s).`,
+            okCount === assignIds.length ? "success" : "warning"
+          );
+        } else {
+          showToast("Sucursal creada correctamente.", "success");
+        }
       } else {
         await api.put(`/api/admin/branches/${editing}`, payload);
+        showToast("Cambios guardados.", "success");
       }
       setEditing(null);
       setFieldErrors({ ...emptyErrors });
+      setAssignOpen(false);
+      setAssignIds([]);
+      setAssignSearch("");
       await refetch();
     } catch (err: any) {
       setFormError(err.response?.data?.message || "No se pudo guardar la sucursal.");
@@ -415,12 +444,12 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
       header: "Acción",
       align: "center",
       render: (b) => (
-        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-          <button style={ui.linkBtn} className="active-tap" onClick={() => openEmployeesModal(b)}>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", whiteSpace: "nowrap" }}>
+          <button style={{ ...ui.linkBtn, whiteSpace: "nowrap" }} className="active-tap" onClick={() => openEmployeesModal(b)}>
             Empleados
           </button>
-          <button style={ui.linkBtn} className="active-tap" onClick={() => openEdit(b)}>
-            <Pencil size={14} style={{ verticalAlign: "-2px" }} /> Editar
+          <button style={{ ...ui.linkBtn, whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 4 }} className="active-tap" onClick={() => openEdit(b)}>
+            <Pencil size={14} /> Editar
           </button>
         </div>
       ),
@@ -441,16 +470,38 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
       <Toolbar>
         <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre o dirección" />
-        <span style={{ fontSize: 13, color: "var(--color-success)", fontWeight: 700 }}>{activeCount} activa(s)</span>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as "all" | "active" | "inactive")}
-          style={{ ...ui.input, width: "auto", padding: "4px 10px", fontSize: 13 }}
-        >
-          <option value="all">Todas ({rows.length})</option>
-          <option value="active">Solo activas ({activeCount})</option>
-          <option value="inactive">Solo inactivas ({inactiveCount})</option>
-        </select>
+        <div style={{ display: "inline-flex", gap: 2, padding: 3, borderRadius: 9, background: "var(--surface-2)", border: "1px solid var(--border)", flexWrap: "wrap" }}>
+          {([
+            { k: "all", label: "Todas", count: rows.length },
+            { k: "active", label: "Activas", count: activeCount },
+            { k: "inactive", label: "Inactivas", count: inactiveCount },
+          ] as const).map((opt) => {
+            const on = statusFilter === opt.k;
+            return (
+              <button
+                key={opt.k}
+                type="button"
+                onClick={() => setStatusFilter(opt.k)}
+                className="active-tap"
+                aria-pressed={on}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 7, border: "none",
+                  background: on ? "var(--surface)" : "transparent",
+                  color: on ? "var(--text)" : "var(--text-muted)",
+                  boxShadow: on ? "0 1px 2px rgba(0,0,0,0.10)" : "none",
+                  borderRadius: 7, padding: "6px 13px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+                }}
+              >
+                {opt.label}
+                <span style={{
+                  fontSize: 11, fontWeight: 800, minWidth: 18, textAlign: "center", borderRadius: 999, padding: "1px 6px",
+                  background: on ? "var(--accent-soft)" : "transparent",
+                  color: on ? "var(--accent-strong)" : "var(--text-faint)",
+                }}>{opt.count}</span>
+              </button>
+            );
+          })}
+        </div>
         <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
           {filteredRows.length} sucursal{filteredRows.length === 1 ? "" : "es"}
         </span>
@@ -641,6 +692,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
         onClose={closeModal}
         title={editing === "create" ? "Registrar nueva sucursal" : "Editar sucursal"}
         size="md"
+        contentStyle={{ maxWidth: 520 }}
       >
         <form onSubmit={submit}>
           {/* Nombre */}
@@ -698,6 +750,72 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
             <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Sucursal activa</span>
           </label>
 
+          {/* Asignación opcional de empleados (solo al crear) */}
+          {editing === "create" && (
+            <div style={{ marginTop: 16, border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+              <button
+                type="button"
+                onClick={() => setAssignOpen((o) => !o)}
+                className="active-tap"
+                style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "11px 14px", background: "var(--surface-2)", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+              >
+                <span style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+                  <Users size={16} color="var(--accent-strong)" style={{ flexShrink: 0 }} />
+                  <span>
+                    <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+                      Asignar empleados <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>(opcional)</span>
+                    </span>
+                    <span style={{ display: "block", fontSize: 11.5, color: "var(--text-muted)" }}>Mueve empleados existentes a esta nueva sucursal</span>
+                  </span>
+                </span>
+                <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                  {assignIds.length > 0 && (
+                    <span style={{ fontSize: 11, fontWeight: 800, background: "var(--accent-soft)", color: "var(--accent-strong)", borderRadius: 999, padding: "2px 8px" }}>{assignIds.length}</span>
+                  )}
+                  {assignOpen ? <ChevronUp size={16} color="var(--text-muted)" /> : <ChevronDown size={16} color="var(--text-muted)" />}
+                </span>
+              </button>
+              {assignOpen && (
+                <div style={{ padding: 12, borderTop: "1px solid var(--border)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, border: "1px solid var(--border)", borderRadius: 8, padding: "0 10px", height: 36, marginBottom: 10, background: "var(--input-bg)" }}>
+                    <Search size={15} color="var(--text-muted)" />
+                    <input value={assignSearch} onChange={(e) => setAssignSearch(e.target.value)} placeholder="Buscar empleado…" style={{ border: "none", outline: "none", background: "transparent", width: "100%", fontSize: 13, color: "var(--text)", fontFamily: "inherit" }} />
+                  </div>
+                  <div style={{ maxHeight: 190, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+                    {(() => {
+                      const q = assignSearch.trim().toLowerCase();
+                      const list = allEmployees.filter((e: any) => e.active && (!q || String(e.name).toLowerCase().includes(q)));
+                      if (list.length === 0) {
+                        return <div style={{ textAlign: "center", color: "var(--text-muted)", fontSize: 13, padding: 14 }}>No hay empleados que coincidan.</div>;
+                      }
+                      return list.map((e: any) => {
+                        const checked = assignIds.includes(e.id);
+                        const branchName = e.branch ?? rows.find((r) => r.id === e.branchId)?.name ?? "—";
+                        return (
+                          <label key={e.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, cursor: "pointer", background: checked ? "var(--accent-soft)" : "transparent", border: `1px solid ${checked ? "var(--accent-soft)" : "var(--border-soft)"}` }}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => setAssignIds((prev) => (checked ? prev.filter((x) => x !== e.id) : [...prev, e.id]))}
+                              style={{ width: 16, height: 16, accentColor: "var(--accent)", cursor: "pointer", flexShrink: 0 }}
+                            />
+                            <span style={{ minWidth: 0, flex: 1 }}>
+                              <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--text)", overflowWrap: "anywhere" }}>{e.name}</span>
+                              <span style={{ display: "block", fontSize: 11, color: "var(--text-muted)" }}>{e.role} · Actual: {branchName}</span>
+                            </span>
+                          </label>
+                        );
+                      });
+                    })()}
+                  </div>
+                  <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8, lineHeight: 1.5 }}>
+                    Los empleados seleccionados se moverán a esta sucursal al crearla. Para dar de alta un empleado nuevo, usa el módulo <strong>Empleados</strong>.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Error general del servidor */}
           {formError && (
             <p style={{ color: "var(--color-danger)", fontSize: 13, fontWeight: 600, marginTop: 14 }}>{formError}</p>
@@ -734,11 +852,13 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
         isOpen={showEmployeesModal && !!selectedBranch}
         onClose={() => setShowEmployeesModal(false)}
         title={`Empleados — ${selectedBranch?.name ?? ""}`}
-        size="lg"
+        size="md"
         contentStyle={{
-          width: "calc(100% - 24px)",
-          maxWidth: 1080,
-          padding: isMobile ? 16 : 24,
+          width: isMobile ? "100%" : "calc(100% - 24px)",
+          maxWidth: isMobile ? "none" : 600,
+          maxHeight: isMobile ? "94vh" : "86vh",
+          padding: isMobile ? 16 : 22,
+          borderRadius: isMobile ? 16 : 8,
         }}
       >
         {selectedBranch && (() => {
@@ -751,7 +871,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
             </p>
           ) : (
             <>
-              <div style={{ maxHeight: "56vh", overflowY: "auto", paddingRight: 4 }}>
+              <div style={{ maxHeight: isMobile ? "64vh" : "46vh", overflowY: "auto", paddingRight: 4 }}>
                 {branchEmployees.map((emp: any) => {
                   const open = !!expandedEmp[emp.id];
                   const roleTone = emp.role === "ADMIN" ? "red" : emp.role === "GERENTE" ? "amber" : "blue";
