@@ -43,6 +43,8 @@ interface SalesTerminalViewProps {
   onGoHome?: () => void;
   onLogout?: () => void;
   onLock?: () => void;
+  onReprintTicket?: (saleId: number) => void;
+  onStartReturn?: (saleId: number) => void;
 }
 
 const styles: { [key: string]: React.CSSProperties } = {
@@ -89,8 +91,10 @@ export function SalesTerminalView({
   onGoHome,
   onLogout,
   onLock,
+  onReprintTicket,
+  onStartReturn,
 }: SalesTerminalViewProps) {
-  const { session, sessionStats } = sessionData;
+  const { session, sessionStats, recentSales } = sessionData;
   const {
     checkoutModalOpen, setCheckoutModalOpen,
     checkoutLoading, checkoutError, checkoutFieldErrors, setCheckoutFieldErrors,
@@ -344,9 +348,12 @@ export function SalesTerminalView({
       <SalesLayoutView
         session={session}
         sessionStats={sessionStats}
+        recentSales={recentSales}
         onOpenModal={onOpenModal}
         onLock={onLock || (() => {})}
         onGoHome={onGoHome || (() => {})}
+        onReprintTicket={onReprintTicket}
+        onStartReturn={onStartReturn}
         isSidebarCollapsed={isSidebarCollapsed}
         setIsSidebarCollapsed={setIsSidebarCollapsed}
       >

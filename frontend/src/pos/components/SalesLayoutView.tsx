@@ -2,13 +2,18 @@ import React from "react";
 import { Lock, Store } from "lucide-react";
 import { QuickActionsCarousel } from "./QuickActionsCarousel";
 import { CashInfoPanel } from "./CashInfoPanel";
+import { RecentSalesPanel } from "./RecentSalesPanel";
+import { ShortcutsHelpPanel } from "./ShortcutsHelpPanel";
 
 interface SalesLayoutViewProps {
   session: any;
   sessionStats: any;
+  recentSales?: any[];
   onOpenModal: (modal: string) => void;
   onLock: () => void;
   onGoHome: () => void;
+  onReprintTicket?: (saleId: number) => void;
+  onStartReturn?: (saleId: number) => void;
   children: React.ReactNode;
   isSidebarCollapsed: boolean;
   setIsSidebarCollapsed: (collapsed: boolean) => void;
@@ -17,9 +22,12 @@ interface SalesLayoutViewProps {
 export function SalesLayoutView({
   session,
   sessionStats,
+  recentSales = [],
   onOpenModal,
   onLock,
   onGoHome,
+  onReprintTicket,
+  onStartReturn,
   children,
   isSidebarCollapsed,
   setIsSidebarCollapsed,
@@ -47,6 +55,18 @@ export function SalesLayoutView({
 
           {/* Cash Session Status & Info */}
           <CashInfoPanel session={session} sessionStats={sessionStats} />
+
+          {/* Últimas ventas del turno */}
+          {recentSales.length > 0 && (
+            <RecentSalesPanel
+              recentSales={recentSales}
+              onReprintTicket={onReprintTicket || (() => {})}
+              onStartReturn={onStartReturn || (() => {})}
+            />
+          )}
+
+          {/* Panel de atajos colapsable */}
+          <ShortcutsHelpPanel />
 
           {/* Cerrar Caja Button */}
           <div className="pos-sidebar-close-cash-wrapper">

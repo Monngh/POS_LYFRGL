@@ -156,6 +156,7 @@ const Dashboard: React.FC = () => {
 
   const [selectedSale, setSelectedSale] = useState<any>(null);
   const [depositTab, setDepositTab] = useState<"registrar" | "buscar">("registrar");
+  const [initialReturnFolio, setInitialReturnFolio] = useState<string | null>(null);
 
   const cartData = usePosCart({
     user,
@@ -304,6 +305,29 @@ const Dashboard: React.FC = () => {
       showToast(e.response?.data?.message || "Error al recuperar los detalles de la venta.", "error");
     } finally {
       setDashboardTicketLoadingId(null);
+    }
+  };
+
+  const handleReprintRecentSale = async (saleId: number) => {
+    try {
+      const res = await api.get(`/api/sales/detail?id=${saleId}`);
+      setSelectedSale({
+        ...res.data.sale,
+        isNewSale: false
+      });
+      setActiveModal("ticket-view");
+    } catch (e: any) {
+      showToast(e.response?.data?.message || "Error al recuperar los detalles de la venta.", "error");
+    }
+  };
+
+  const handleStartReturnFromRecent = (saleId: number) => {
+    const sale = recentSales.find((s) => s.id === saleId);
+    if (sale) {
+      setInitialReturnFolio(sale.invoiceNumber);
+      setActiveModal("returns");
+    } else {
+      showToast("No se pudo encontrar el folio de la venta seleccionada.", "error");
     }
   };
 
@@ -1187,6 +1211,8 @@ const Dashboard: React.FC = () => {
           onGoHome={() => setView("dashboard")}
           onLogout={handleLogoutClick}
           onLock={lock}
+          onReprintTicket={handleReprintRecentSale}
+          onStartReturn={handleStartReturnFromRecent}
         />
       ) : (
         <DashboardHomeView
@@ -1555,11 +1581,15 @@ const Dashboard: React.FC = () => {
             {/* MODAL: MÓDULO DE DEVOLUCIONES */}
       <ReturnsModal
         isOpen={activeModal === "returns"}
-        onClose={() => setActiveModal(null)}
+        onClose={() => {
+          setActiveModal(null);
+          setInitialReturnFolio(null);
+        }}
         user={user}
         onReturnCompleted={loadDashboardData}
         onToast={showToast}
         onOpenEmailModal={openTicketEmailModal}
+        initialFolio={initialReturnFolio}
       />
 
             {/* MODAL: CONFIRMACIÓN DE BORRADOR DE VENTA */}

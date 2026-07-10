@@ -1,5 +1,5 @@
-import React from "react";
-import { Banknote, CreditCard, Ticket, ArrowLeftRight, QrCode } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { Banknote, CreditCard, Ticket, ArrowLeftRight, QrCode, Calculator } from "lucide-react";
 import { usePosCart } from "../hooks/usePosCart";
 
 interface CheckoutPanelProps {
@@ -45,6 +45,27 @@ export function CheckoutPanel({
 
   const isEmpty = cart.length === 0;
   const hasDiscount = cartDiscount > 0;
+
+  // Calculadora rápida de cambio
+  const [quickCash, setQuickCash] = useState("");
+  const quickCashRef = useRef<HTMLInputElement>(null);
+  const quickChange = quickCash !== "" ? (parseFloat(quickCash) || 0) - cartTotal : null;
+
+  // Limpiar la calculadora cuando cambia el carrito o se cancela
+  useEffect(() => { setQuickCash(""); }, [cartTotal]);
+
+  // Atajo F3 para enfocar la calculadora
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "F3" && !isEmpty) {
+        e.preventDefault();
+        quickCashRef.current?.focus();
+        quickCashRef.current?.select();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isEmpty]);
 
   // Encontrar info del método de pago activo
   const activeMethod = PAYMENT_METHODS.find((m) => m.id === paymentMethod);
@@ -153,6 +174,37 @@ export function CheckoutPanel({
           <div className={`pos-active-payment-indicator ${activeMethod.cls}`}>
             <activeMethod.icon size={12} />
             <span>Pago: {activeMethod.label}</span>
+          </div>
+        )}
+
+        {/* ===== CALCULADORA RÁPIDA DE CAMBIO ===== */}
+        {!isEmpty && (
+          <div className="pos-quick-calc">
+            <div className="pos-quick-calc-row">
+              <Calculator size={13} className="pos-quick-calc-icon" />
+              <label className="pos-quick-calc-label" htmlFor="quick-cash-input">Recibido $</label>
+              <input
+                id="quick-cash-input"
+                ref={quickCashRef}
+                type="number"
+                min="0"
+                step="0.5"
+                className="pos-quick-calc-input"
+                placeholder="0.00"
+                value={quickCash}
+                onChange={(e) => setQuickCash(e.target.value)}
+                data-shortcut-key="F3"
+                title="Calculadora de cambio (F3)"
+              />
+            </div>
+            {quickChange !== null && (
+              <div className={`pos-quick-calc-change ${quickChange < 0 ? "insufficient" : ""}`}>
+                {quickChange < 0
+                  ? `Falta: $${Math.abs(quickChange).toFixed(2)}`
+                  : `Cambio: $${quickChange.toFixed(2)}`
+                }
+              </div>
+            )}
           </div>
         )}
 

@@ -188,9 +188,99 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
 
   return (
     <div className="card-premium" style={styles.terminalSearchArea}>
+
+      {/* ===== CLIENTE — siempre visible en la parte superior ===== */}
+      <div className="pos-customer-bar">
+        {selectedCustomer ? (
+          // Cliente asociado
+          <div className="pos-customer-bar-found">
+            <div className="pos-customer-bar-avatar">
+              {(selectedCustomer.name || "C").charAt(0).toUpperCase()}
+            </div>
+            <div className="pos-customer-bar-info">
+              <span className="pos-customer-bar-name">
+                {selectedCustomer.isNew
+                  ? "Cliente registrado para puntos"
+                  : maskCustomerName(selectedCustomer.name || "Cliente")}
+              </span>
+              <span className="pos-customer-bar-phone">
+                Tel: {maskPhoneLast2(selectedCustomer.phone)}
+              </span>
+            </div>
+            <span className="pos-customer-bar-points">
+              ⭐ {selectedCustomer.points} pts
+            </span>
+            <button
+              type="button"
+              className="pos-customer-bar-remove"
+              onClick={() => {
+                setSelectedCustomer(null);
+                setUsePoints(false);
+                setPointsToRedeem(0);
+                setInvoiceRequested(false);
+                onToast("Cliente removido del carrito.", "info");
+              }}
+              title="Quitar cliente"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          // Sin cliente — campo de búsqueda + etiqueta anónima
+          <div className="pos-customer-bar-empty">
+            <div className="pos-customer-bar-anon-label">
+              👤 VENTA ANÓNIMA
+            </div>
+            <div className="pos-customer-bar-phone-wrap">
+              <input
+                type="text"
+                ref={phoneInputRef}
+                className="input-corporate pos-customer-phone-input"
+                placeholder="Teléfono cliente (F6)"
+                data-shortcut-key="F6"
+                value={localShowPhone ? localPhone : maskPhoneLast2(localPhone)}
+                onChange={(e) => {
+                  const next = getNextRealPhone(e.target.value, localPhone);
+                  setLocalPhone(next);
+                  if (localShowPhone) setLocalShowPhone(false);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setLocalShowPhone(!localShowPhone)}
+                className="pos-customer-eye-btn"
+                tabIndex={-1}
+              >
+                {localShowPhone ? <EyeOff size={15} color="#64748b" /> : <Eye size={15} color="#64748b" />}
+              </button>
+            </div>
+
+            {/* Estados de búsqueda */}
+            {localError && <p className="pos-customer-bar-error">{localError}</p>}
+            {searchStatus === "searching" && (
+              <p className="pos-customer-bar-searching">Buscando...</p>
+            )}
+            {searchStatus === "not_found" && (
+              <div className="pos-customer-bar-not-found">
+                <span>⚠️ No registrado</span>
+                <button
+                  type="button"
+                  onClick={() => { setConfirmInput(""); setConfirmError(""); setConfirmOpen(true); }}
+                  className="pos-customer-bar-register-btn"
+                  data-shortcut-letter="R"
+                  title="Registrar cliente (Alt+R)"
+                >
+                  + Registrar
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ===== BUSCADOR DE PRODUCTOS ===== */}
       <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }} className="pos-cashier-search-row">
-        {/* Buscador de Productos */}
-        <form onSubmit={handleProductBarcodeSearch} style={{ flex: "1 1 50%", display: "flex", gap: "10px", margin: 0 }} className="pos-cashier-search-form">
+        <form onSubmit={handleProductBarcodeSearch} style={{ flex: "1 1 100%", display: "flex", gap: "10px", margin: 0 }} className="pos-cashier-search-form">
           <div style={{ flex: 1, position: "relative" }}>
             <Search size={18} color="#94a3b8" style={{ position: "absolute", left: "12px", top: "12px" }} />
             <input
@@ -209,125 +299,58 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
           </div>
           <button type="submit" className="btn-primary" data-shortcut-letter="B" title="Buscar (Alt+B)">Buscar</button>
         </form>
-
-        <div style={{ flex: "1 1 40%", display: "flex", gap: "10px", position: "relative" }} className="pos-cashier-customer-search">
-          {selectedCustomer ? (
-            <div style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "6px",
-              padding: "8px 12px", width: "100%", fontSize: "13px"
-            }} className="pos-cashier-customer-selected">
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ fontWeight: "700", color: "#166534" }}>
-                  👤 {selectedCustomer.isNew ? "Cliente registrado para puntos" : maskCustomerName(selectedCustomer.name || "Cliente registrado")}
-                </span>
-                <span style={{ color: "var(--text-secondary)" }}>(Teléfono: {maskPhoneLast2(selectedCustomer.phone)})</span>
-                <span style={{ backgroundColor: "#dcfce7", color: "#15803d", padding: "2px 6px", borderRadius: "4px", fontWeight: "700" }}>
-                  ⭐ {selectedCustomer.points} pts
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedCustomer(null);
-                  setUsePoints(false);
-                  setPointsToRedeem(0);
-                  setInvoiceRequested(false);
-                  onToast("Cliente removido del carrito.", "info");
-                }}
-                style={{ border: "none", background: "transparent", color: "#991b1b", cursor: "pointer", fontWeight: "700" }}
-              >
-                Quitar
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", width: "100%", gap: "8px" }}>
-              <div style={{ display: "flex", gap: "10px", width: "100%", alignItems: "center" }}>
-                <div style={{ flex: 1, position: "relative" }}>
-                  <input
-                    type="text"
-                    ref={phoneInputRef}
-                    className="input-corporate"
-                    style={{ paddingRight: "40px" }}
-                    placeholder="Teléfono del cliente (10 dígitos)"
-                    data-shortcut-key="F6"
-                    value={localShowPhone ? localPhone : maskPhoneLast2(localPhone)}
-                    onChange={(e) => {
-                      const next = getNextRealPhone(e.target.value, localPhone);
-                      setLocalPhone(next);
-                      if (localShowPhone) setLocalShowPhone(false);
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setLocalShowPhone(!localShowPhone)}
-                    style={{ position: "absolute", right: "12px", top: "11px", border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
-                  >
-                    {localShowPhone ? <EyeOff size={18} color="#64748b" /> : <Eye size={18} color="#64748b" />}
-                  </button>
-                </div>
-              </div>
-
-              {localError && <p style={styles.fieldError}>{localError}</p>}
-              
-              {searchStatus === "searching" && (
-                <p style={{ fontSize: "12px", color: "#2563eb", margin: 0, fontWeight: "600" }}>
-                  Buscando cliente...
-                </p>
-              )}
-
-              {searchStatus === "not_found" && (
-                <div style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  backgroundColor: "#fffbeb", border: "1px solid #fde68a", padding: "8px 12px",
-                  borderRadius: "6px", width: "100%"
-                }}>
-                  <span style={{ fontSize: "12px", color: "#b45309", fontWeight: "600" }}>
-                    ⚠️ El cliente no está registrado.
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setConfirmInput("");
-                      setConfirmError("");
-                      setConfirmOpen(true);
-                    }}
-                    className="btn-primary"
-                    data-shortcut-letter="R"
-                    title="Registrar cliente (Alt+R)"
-                    style={{ fontSize: "11px", padding: "4px 8px", backgroundColor: "var(--text)", border: "none", borderRadius: "4px", color: "white", cursor: "pointer" }}
-                  >
-                    + Registrar (R)
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* Dropdown de búsqueda multi-producto */}
+      {/* Dropdown de búsqueda multi-producto — con chip de stock */}
       {searchResults.length > 0 && (
         <div style={styles.searchResultsDropdown} ref={searchResultsRef}>
-          {searchResults.map((p, idx) => (
-            <div
-              key={p.id}
-              onMouseEnter={() => setSelectedIndex(idx)}
-              onClick={() => {
-                addProductToCart(p);
-                setSearchResults([]);
-                setBarcodeSearch("");
-                setSelectedIndex(-1);
-              }}
-              style={{
-                ...styles.dropdownItem,
-                backgroundColor: idx === selectedIndex ? "var(--surface-2)" : "transparent",
-              }}
-            >
-              <span>{p.name}</span>
-              <span style={{ fontWeight: "700", color: "#0d9488" }}>${p.sellPrice.toFixed(2)}</span>
-            </div>
-          ))}
+          {searchResults.map((p, idx) => {
+            const stockColor =
+              p.stock === 0 ? "#b91c1c" :
+              p.stock < (p.minStock || 1) ? "#d97706" :
+              "#15803d";
+            const stockBg =
+              p.stock === 0 ? "#fee2e2" :
+              p.stock < (p.minStock || 1) ? "#fef3c7" :
+              "#dcfce7";
+            return (
+              <div
+                key={p.id}
+                onMouseEnter={() => setSelectedIndex(idx)}
+                onClick={() => {
+                  addProductToCart(p);
+                  setSearchResults([]);
+                  setBarcodeSearch("");
+                  setSelectedIndex(-1);
+                }}
+                style={{
+                  ...styles.dropdownItem,
+                  backgroundColor: idx === selectedIndex ? "var(--surface-2)" : "transparent",
+                }}
+              >
+                {/* Nombre + stock */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                  <span style={{ fontWeight: "600" }}>{p.name}</span>
+                  <span style={{
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    color: stockColor,
+                    backgroundColor: stockBg,
+                    padding: "1px 6px",
+                    borderRadius: "4px",
+                    display: "inline-block",
+                    width: "fit-content",
+                  }}>
+                    {p.stock === 0 ? "❌ Sin stock" : `✓ ${p.stock} en stock`}
+                  </span>
+                </div>
+                {/* Precio */}
+                <span style={{ fontWeight: "700", color: "#0d9488", flexShrink: 0 }}>
+                  ${p.sellPrice.toFixed(2)}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
 

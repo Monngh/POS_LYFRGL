@@ -26,6 +26,7 @@ interface ReturnsModalProps {
   onReturnCompleted: () => void;
   onToast: (msg: string, type?: "error" | "success" | "info" | "warning") => void;
   onOpenEmailModal: (config: { subject: string; htmlContent?: string; defaultEmail?: string | null }) => void;
+  initialFolio?: string | null;
 }
 
 
@@ -60,6 +61,7 @@ export default function ReturnsModal({
   onReturnCompleted,
   onToast,
   onOpenEmailModal,
+  initialFolio,
 }: ReturnsModalProps) {
   const [returnStep, setReturnStep] = useState<"search" | "select" | "confirm" | "receipt">("search");
   const [returnFolio, setReturnFolio] = useState("");
@@ -93,10 +95,44 @@ export default function ReturnsModal({
   };
 
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      if (initialFolio) {
+        setReturnFolio(initialFolio);
+        // Disparar la búsqueda automáticamente
+        const timer = setTimeout(() => {
+          triggerSearchWithFolio(initialFolio);
+        }, 100);
+        return () => clearTimeout(timer);
+      }
+    } else {
       handleReturnReset();
     }
-  }, [isOpen]);
+  }, [isOpen, initialFolio]);
+
+  const triggerSearchWithFolio = async (folioToSearch: string) => {
+    setReturnLoading(true);
+    try {
+      const res = await getEligibleReturn(folioToSearch);
+      const sale = (res.data as any).sale;
+      setReturnSaleData(sale);
+      setReturnItems(
+        (res.data as any).items.map((item: any) => ({
+          ...item,
+          selected: false,
+          qtyToReturn: 0,
+          destination: "INVENTARIO_VENDIBLE",
+          serialNumberInput: "",
+          batchNumberInput: "",
+        }))
+      );
+      setReturnPaymentMethod("VALE_DEVOLUCION");
+      setReturnStep("select");
+    } catch (err: any) {
+      onToast(err.response?.data?.message || "Error al buscar la venta.", "error");
+    } finally {
+      setReturnLoading(false);
+    }
+  };
 
   // Auto-focus primer checkbox al entrar al paso select
   useEffect(() => {
