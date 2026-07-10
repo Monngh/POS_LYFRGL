@@ -117,6 +117,7 @@ export const listInventory = async (branchId?: number, search?: string) => {
       active: p.active,
       sellPrice: Number(p.sellPrice),
       costPrice: Number(p.costPrice),
+      satUnitKey: p.satUnitKey,
       stock,
       minStock,
       low,
