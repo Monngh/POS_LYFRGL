@@ -1,102 +1,381 @@
-/* pos-modern.css - Premium visual styling for the refactored POS */
+/* ==========================================================================
+   pos-modern.css — POS Terminal de Ventas v2
+   Design System: Light Mode Corporativo (estilo Walmart / OXXO)
+   ========================================================================== */
 
 /* ============================================================
-   Terminal Navbar — Navy gradient with chips (reference design)
+   Design Tokens — POS Terminal (Light Mode Corporativo)
+   ============================================================ */
+[data-pos-view="sales-terminal"] {
+  /* Fondos */
+  --pos-bg:            #f1f5f9;
+  --pos-surface:       #ffffff;
+  --pos-surface-2:     #f8fafc;
+  --pos-surface-3:     #f1f5f9;
+
+  /* Bordes */
+  --pos-border:        #e2e8f0;
+  --pos-border-strong: #cbd5e1;
+
+  /* Tipografía */
+  --pos-text:          #0f172a;
+  --pos-text-2:        #475569;
+  --pos-text-muted:    #94a3b8;
+
+  /* Acentos Corporativos */
+  --pos-blue:          #1e40af;
+  --pos-blue-mid:      #2563eb;
+  --pos-blue-light:    #dbeafe;
+  --pos-blue-soft:     #eff6ff;
+
+  --pos-green:         #15803d;
+  --pos-green-light:   #dcfce7;
+  --pos-green-soft:    #f0fdf4;
+
+  --pos-red:           #b91c1c;
+  --pos-red-light:     #fee2e2;
+  --pos-red-soft:      #fef2f2;
+
+  --pos-amber:         #d97706;
+  --pos-amber-light:   #fef3c7;
+  --pos-amber-soft:    #fffbeb;
+
+  --pos-slate:         #334155;
+  --pos-slate-light:   #f8fafc;
+
+  /* Header */
+  --pos-header-h:      52px;
+
+  /* Status Bar */
+  --pos-status-h:      32px;
+}
+
+/* ============================================================
+   Terminal Header — Light mode corporativo con borde azul
    ============================================================ */
 .pos-terminal-navbar {
-  height: 56px;
-  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+  height: var(--pos-header-h);
+  background: #ffffff;
+  border-bottom: 3px solid var(--pos-blue);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
-  box-shadow: 0 4px 12px rgba(30, 58, 138, 0.15);
+  padding: 0 16px;
+  box-shadow: 0 2px 8px rgba(30, 64, 175, 0.08);
   position: relative;
   z-index: 15;
+  gap: 12px;
 }
 
 .pos-terminal-navbar-left {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-shrink: 0;
 }
 
-.pos-terminal-home-btn,
-.pos-terminal-menu-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background-color: rgba(255, 255, 255, 0.08);
-  color: #ffffff;
-  cursor: pointer;
-  display: inline-flex;
+.pos-terminal-navbar-center {
+  display: flex;
   align-items: center;
+  gap: 8px;
+  flex: 1;
   justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.pos-terminal-home-btn:hover,
-.pos-terminal-menu-btn:hover {
-  background-color: rgba(255, 255, 255, 0.18);
-  transform: scale(1.05);
-}
-
-.pos-terminal-store-icon {
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.pos-terminal-brand-text {
-  font-size: 16px;
-  font-weight: 800;
-  color: #ffffff;
-  letter-spacing: 0.3px;
 }
 
 .pos-terminal-navbar-right {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.pos-terminal-chip {
-  display: inline-flex;
-  align-items: center;
   gap: 6px;
-  padding: 5px 14px;
-  border-radius: 20px;
-  background-color: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  font-size: 12px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
-  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.pos-terminal-chip.clock {
-  background-color: rgba(255, 255, 255, 0.06);
-  font-variant-numeric: tabular-nums;
-}
-
-.pos-terminal-logout-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  border: 1px solid rgba(220, 38, 38, 0.3);
-  background-color: rgba(220, 38, 38, 0.12);
-  color: #fecaca;
+.pos-terminal-menu-btn,
+.pos-terminal-home-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  border: 1px solid var(--pos-border-strong);
+  background-color: var(--pos-surface-2);
+  color: var(--pos-blue);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
-  margin-left: 4px;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.pos-terminal-menu-btn:hover,
+.pos-terminal-home-btn:hover {
+  background-color: var(--pos-blue-light);
+  border-color: var(--pos-blue-mid);
+  transform: scale(1.05);
+}
+
+.pos-terminal-brand-text {
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--pos-blue);
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+/* Chips de info en el header */
+.pos-terminal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background-color: var(--pos-surface-2);
+  border: 1px solid var(--pos-border);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pos-text-2);
+  white-space: nowrap;
+}
+
+.pos-terminal-chip svg {
+  color: var(--pos-text-muted);
+}
+
+.pos-terminal-chip.clock {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--pos-text);
+  border-color: var(--pos-border-strong);
+}
+
+/* Badge de ventas del turno en header */
+.pos-terminal-chip.sales-count {
+  background-color: var(--pos-blue-soft);
+  border-color: var(--pos-blue-light);
+  color: var(--pos-blue);
+  font-weight: 700;
+}
+
+/* Badge de estado de caja en header */
+.pos-terminal-session-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.pos-terminal-session-badge.open {
+  background-color: var(--pos-green-light);
+  color: var(--pos-green);
+  border: 1px solid rgba(21, 128, 61, 0.2);
+}
+
+.pos-terminal-session-badge.open::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--pos-green);
+  animation: pos-pulse-green 2s infinite;
+}
+
+@keyframes pos-pulse-green {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.pos-terminal-session-badge.closed {
+  background-color: var(--pos-red-light);
+  color: var(--pos-red);
+  border: 1px solid rgba(185, 28, 28, 0.2);
+}
+
+/* Botón de usuario/cajero en header */
+.pos-terminal-user-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--pos-surface-2);
+  border: 1px solid var(--pos-border);
+  cursor: default;
+}
+
+.pos-terminal-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: var(--pos-blue);
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pos-terminal-user-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--pos-text);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Botón logout */
+.pos-terminal-logout-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  border: 1px solid rgba(185, 28, 28, 0.3);
+  background-color: var(--pos-red-soft);
+  color: var(--pos-red);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
 }
 
 .pos-terminal-logout-btn:hover {
-  background-color: rgba(220, 38, 38, 0.3);
-  color: #ffffff;
+  background-color: var(--pos-red-light);
+  border-color: rgba(185, 28, 28, 0.5);
   transform: scale(1.05);
+}
+
+/* Chip de F-key en botones del header */
+.pos-fkey-badge {
+  position: absolute;
+  bottom: -3px;
+  right: -3px;
+  background: var(--pos-blue);
+  color: white;
+  font-size: 7px;
+  font-weight: 800;
+  padding: 1px 3px;
+  border-radius: 3px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+/* ============================================================
+   Status Bar inferior — resumen del turno en tiempo real
+   ============================================================ */
+.pos-status-bar {
+  height: var(--pos-status-h);
+  background: #1e293b;
+  border-top: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 0;
+  position: relative;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.pos-status-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border-right: 1px solid #334155;
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pos-status-bar-item:first-child {
+  padding-left: 0;
+}
+
+.pos-status-bar-item:last-child {
+  border-right: none;
+  margin-left: auto;
+  padding-right: 0;
+}
+
+.pos-status-bar-item .label {
+  color: #64748b;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.3px;
+}
+
+.pos-status-bar-item .value {
+  color: #e2e8f0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.pos-status-bar-item .value.green {
+  color: #4ade80;
+}
+
+.pos-status-bar-item .value.amber {
+  color: #fbbf24;
+}
+
+.pos-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pos-status-dot.green {
+  background-color: #4ade80;
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.5);
+  animation: pos-pulse-green 2s infinite;
+}
+
+.pos-status-dot.red {
+  background-color: #f87171;
+}
+
+/* Indicador de método de pago en status bar */
+.pos-payment-mode-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.pos-payment-mode-chip.cash {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(74, 222, 128, 0.2);
+}
+
+.pos-payment-mode-chip.card {
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(96, 165, 250, 0.2);
+}
+
+.pos-payment-mode-chip.qr {
+  background: rgba(167, 139, 250, 0.15);
+  color: #a78bfa;
+  border: 1px solid rgba(167, 139, 250, 0.2);
+}
+
+.pos-payment-mode-chip.mixed {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.2);
 }
 
 /* ============================================================
@@ -105,63 +384,67 @@
 .pos-sales-layout {
   display: flex;
   flex-direction: row;
-  min-height: calc(100vh - 56px); /* minus header height */
+  min-height: calc(100vh - var(--pos-header-h) - var(--pos-status-h));
   width: 100%;
-  background-color: var(--surface-2);
+  background-color: var(--pos-bg);
   position: relative;
   transition: all 0.3s ease;
 }
 
+/* ============================================================
+   Sidebar — más compacto, información más densa
+   ============================================================ */
 .pos-sales-sidebar {
-  width: 352px;
-  min-width: 352px;
-  background-color: var(--surface);
-  border-right: 1px solid var(--border);
+  width: 288px;
+  min-width: 288px;
+  background-color: var(--pos-surface);
+  border-right: 1px solid var(--pos-border);
   display: flex;
   flex-direction: column;
   position: relative;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 10;
-  padding: 20px;
+  padding: 14px;
+  overflow: hidden;
 }
 
 .pos-sidebar-inner-content {
-  width: 312px; /* 352 - 40px padding */
+  width: 260px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
   transition: opacity 0.2s ease;
   position: relative;
 }
 
-/* Close sidebar X button — top right inside sidebar padding area */
+/* Botón cerrar sidebar */
 .pos-sidebar-close-btn {
   position: absolute;
-  top: 14px;   /* raised to align with the carousel title row */
-  right: 20px;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
+  top: 10px;
+  right: 14px;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid var(--pos-border);
   background-color: transparent;
-  color: var(--text-muted);
+  color: var(--pos-text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   z-index: 5;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .pos-sidebar-close-btn:hover {
-  background-color: var(--surface-3);
-  color: var(--text);
-  border-color: var(--border-strong);
+  background-color: var(--pos-surface-3);
+  color: var(--pos-text);
+  border-color: var(--pos-border-strong);
 }
 
-/* Collapsed Sidebar State */
+/* Collapsed state */
 .pos-sales-layout.sidebar-collapsed .pos-sales-sidebar {
   width: 0;
   min-width: 0;
@@ -176,189 +459,211 @@
   position: absolute;
 }
 
-/* Cerrar Caja Button */
+/* Botón Cerrar Caja */
 .pos-sidebar-close-cash-wrapper {
-  border-top: 1px solid var(--border);
-  padding-top: 16px;
-  margin-top: 4px;
+  border-top: 1px solid var(--pos-border);
+  padding-top: 10px;
+  margin-top: 2px;
 }
 
 .pos-sidebar-close-cash-btn {
   width: 100%;
-  background-color: rgba(220, 38, 38, 0.08);
-  color: #dc2626;
-  border: 1px solid rgba(220, 38, 38, 0.2);
+  background-color: var(--pos-red-soft);
+  color: var(--pos-red);
+  border: 1px solid rgba(185, 28, 28, 0.2);
   border-radius: 6px;
-  padding: 8px;
+  padding: 7px 8px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s;
+  letter-spacing: 0.2px;
+}
+
+.pos-sidebar-close-cash-btn:hover {
+  background-color: var(--pos-red-light);
+  border-color: rgba(185, 28, 28, 0.4);
+}
+
+/* Botón Lock */
+.pos-sidebar-lock-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  border-top: 1px solid var(--pos-border);
+  padding-top: 10px;
+  margin-top: 2px;
+}
+
+.pos-sidebar-lock-btn {
+  width: 100%;
+  background-color: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 7px 8px;
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  transition: all 0.2s;
+  gap: 6px;
+  transition: all 0.15s;
 }
 
-.pos-sidebar-close-cash-btn:hover {
-  background-color: rgba(220, 38, 38, 0.15);
-  border-color: rgba(220, 38, 38, 0.35);
-  transform: scale(1.02);
+.pos-sidebar-lock-btn:hover {
+  background-color: #0f172a;
+  border-color: #475569;
 }
 
-/* Go Home Link */
+.pos-lock-shortcut-label {
+  font-size: 9px;
+  color: var(--pos-text-muted);
+  font-weight: 600;
+}
+
+/* Ir a menú link */
 .pos-go-home-link {
   display: inline-flex !important;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .pos-sales-main-content {
   flex: 1;
-  padding: 20px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   overflow-y: auto;
-  min-width: 0; /* Important for flex child truncation */
+  min-width: 0;
 }
 
 /* ============================================================
-   Quick Actions Carousel Styles
+   Quick Actions — Grid compacto sin carousel
    ============================================================ */
 .pos-quick-actions-container {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .pos-quick-actions-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--pos-border);
 }
 
 .pos-sidebar-title {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
-  color: var(--text-muted);
-  letter-spacing: 0.5px;
+  color: var(--pos-text-muted);
+  letter-spacing: 0.6px;
   margin: 0;
   text-transform: uppercase;
-}
-
-.pos-carousel-controls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  align-self: flex-end;
-}
-
-.pos-carousel-arrow {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.pos-carousel-arrow:hover:not(:disabled) {
-  border-color: var(--border-strong);
-  color: var(--accent-strong);
-  background-color: var(--surface-2);
-}
-
-.pos-carousel-arrow:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.pos-carousel-indicator {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--text-muted);
 }
 
 .pos-quick-actions-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  gap: 6px;
 }
 
 .pos-quick-action-btn {
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 28px 6px;
+  background-color: var(--pos-surface-2);
+  border: 1px solid var(--pos-border);
+  border-radius: 6px;
+  padding: 8px 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   text-align: center;
+  position: relative;
+  min-height: 56px;
+  justify-content: center;
 }
 
 .pos-quick-action-btn:hover {
-  border-color: var(--accent);
-  background-color: var(--surface);
+  border-color: var(--pos-blue-mid);
+  background-color: var(--pos-blue-soft);
   transform: translateY(-1px);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
 }
 
 .pos-quick-action-icon-wrapper {
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  background-color: var(--surface);
+  background-color: var(--pos-surface);
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--border);
+  border: 1px solid var(--pos-border);
 }
 
 .pos-quick-action-label {
-  font-size: 10px;
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--pos-text-2);
+  line-height: 1.1;
+  letter-spacing: 0.1px;
+}
+
+.pos-quick-action-shortcut {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  font-size: 8px;
   font-weight: 700;
-  color: var(--text-secondary);
-  line-height: 1.2;
+  color: var(--pos-text-muted);
+  background: var(--pos-surface-3);
+  border: 1px solid var(--pos-border);
+  border-radius: 3px;
+  padding: 0 3px;
+  line-height: 12px;
 }
 
 .pos-quick-actions-footer {
   display: flex;
   justify-content: center;
+  padding-top: 2px;
 }
 
 .pos-carousel-link-btn {
   background: none;
   border: none;
-  color: var(--accent);
-  font-size: 11px;
+  color: var(--pos-blue-mid);
+  font-size: 10px;
   font-weight: 700;
   cursor: pointer;
   transition: color 0.15s;
 }
 
 .pos-carousel-link-btn:hover {
-  color: var(--accent-strong);
+  color: var(--pos-blue);
   text-decoration: underline;
 }
 
 /* ============================================================
-   Cash Info Panel Styles (Rows matching reference image)
+   Cash Info Panel — más compacto y denso
    ============================================================ */
 .pos-cash-info-container {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  border-top: 1px solid var(--border);
-  padding-top: 16px;
+  gap: 6px;
+  border-top: 1px solid var(--pos-border);
+  padding-top: 10px;
 }
 
 .pos-cash-info-header {
@@ -369,44 +674,44 @@
 .pos-cash-info-title-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .pos-cash-info-title-icon {
-  color: var(--text-muted);
+  color: var(--pos-text-muted);
 }
 
 .pos-cash-info-rows {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
 }
 
 .pos-cash-info-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 10px;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  padding: 5px 8px;
+  background-color: var(--pos-surface-2);
+  border: 1px solid var(--pos-border);
+  border-radius: 5px;
 }
 
 .pos-cash-info-row.highlighted {
-  border-color: #059669;
-  background-color: rgba(5, 150, 105, 0.03);
+  border-color: rgba(21, 128, 61, 0.3);
+  background-color: var(--pos-green-soft);
 }
 
 .pos-info-row-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--pos-text-muted);
 }
 
 .pos-info-row-value {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
-  color: var(--text-secondary);
+  color: var(--pos-text-2);
 }
 
 .pos-info-row-value.font-mono {
@@ -414,104 +719,461 @@
 }
 
 .pos-info-row-value.success {
-  color: #059669;
+  color: var(--pos-green);
   font-weight: 800;
 }
 
 .pos-status-badge {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
-  padding: 2px 8px;
+  padding: 2px 6px;
   border-radius: 4px;
+  letter-spacing: 0.2px;
 }
 
 .pos-status-badge.open {
-  background-color: rgba(5, 150, 105, 0.1);
-  color: #059669;
+  background-color: var(--pos-green-light);
+  color: var(--pos-green);
 }
 
 .pos-status-badge.closed {
-  background-color: rgba(220, 38, 38, 0.1);
-  color: #dc2626;
-}
-
-.pos-cash-info-note {
-  background-color: rgba(217, 119, 6, 0.04);
-  border: 1px dashed rgba(217, 119, 6, 0.25);
-  border-radius: 6px;
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.pos-note-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.pos-note-icon {
-  color: #d97706;
-}
-
-.pos-note-title {
-  font-size: 9px;
-  font-weight: 800;
-  color: #d97706;
-  letter-spacing: 0.5px;
-}
-
-.pos-note-text {
-  font-size: 10px;
-  color: var(--text-secondary);
-  line-height: 1.3;
-  margin: 0;
+  background-color: var(--pos-red-light);
+  color: var(--pos-red);
 }
 
 /* ============================================================
-   Lock Button & Screen Overlay Styles
+   Carrito — tabla de alta densidad
    ============================================================ */
-.pos-sidebar-lock-wrapper {
+.pos-cart-header-bar {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
-  border-top: 1px solid var(--border);
-  padding-top: 16px;
-  margin-top: 4px;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--pos-blue-soft);
+  border: 1px solid var(--pos-blue-light);
+  border-radius: 6px 6px 0 0;
+  border-bottom: none;
 }
 
-.pos-sidebar-lock-btn {
-  width: 100%;
-  background-color: rgba(30, 41, 59, 0.85);
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  padding: 8px;
+.pos-cart-title {
   font-size: 11px;
+  font-weight: 800;
+  color: var(--pos-blue);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.pos-cart-count-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--pos-blue);
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.pos-cart-table-wrapper {
+  border: 1px solid var(--pos-blue-light);
+  border-radius: 0 0 6px 6px;
+  overflow: hidden;
+}
+
+/* Tabla de carrito de alta densidad */
+.pos-cashier-cart-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.pos-cashier-cart-table thead tr {
+  background: #f1f5f9;
+  border-bottom: 2px solid var(--pos-border-strong);
+}
+
+.pos-cashier-cart-table th {
+  padding: 6px 8px;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--pos-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.pos-cashier-cart-table tbody tr {
+  border-bottom: 1px solid var(--pos-border);
+  transition: background 0.1s;
+}
+
+.pos-cashier-cart-table tbody tr:hover {
+  background: var(--pos-surface-2);
+}
+
+.pos-cashier-cart-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.pos-cashier-cart-table td {
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--pos-text-2);
+  vertical-align: middle;
+}
+
+/* Fila con promoción activa */
+.pos-cart-row-promo {
+  background-color: rgba(21, 128, 61, 0.03) !important;
+}
+
+/* Etiqueta de promo en el carrito */
+.pos-cart-promo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
   font-weight: 700;
+  color: var(--pos-green);
+  background: var(--pos-green-light);
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin-top: 2px;
+}
+
+/* Controles de cantidad compactos */
+.pos-qty-control {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--pos-border-strong);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--pos-surface);
+}
+
+.pos-qty-btn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: var(--pos-surface-3);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  transition: all 0.2s;
+  color: var(--pos-text-2);
+  transition: background 0.1s;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
 }
 
-.pos-sidebar-lock-btn:hover {
-  background-color: rgba(15, 23, 42, 1);
-  transform: scale(1.02);
+.pos-qty-btn:hover {
+  background: var(--pos-border);
 }
 
-.pos-lock-shortcut-label {
-  font-size: 9px;
-  color: var(--text-muted);
-  font-weight: 600;
+.pos-qty-input {
+  width: 36px;
+  border: none;
+  outline: none;
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  background: transparent;
+  color: var(--pos-text);
+  height: 22px;
+}
+
+/* Botón eliminar item del carrito */
+.pos-cart-remove-btn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--pos-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.15s;
+  padding: 0;
+}
+
+.pos-cart-remove-btn:hover {
+  background: var(--pos-red-light);
+  color: var(--pos-red);
 }
 
 /* ============================================================
-   Fullscreen Lock Overlay
+   Panel de totales + Cobro — Total siempre gigante y visible
+   ============================================================ */
+.pos-checkout-panel {
+  border-top: 2px solid var(--pos-border);
+  padding-top: 12px;
+  margin-top: auto;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.pos-totals-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 240px;
+  flex-shrink: 0;
+}
+
+/* Caja de total — grande y prominente */
+.pos-total-display {
+  background: var(--pos-blue-soft);
+  border: 2px solid var(--pos-blue-light);
+  border-radius: 8px;
+  padding: 10px 14px;
+  text-align: center;
+  margin-bottom: 6px;
+}
+
+.pos-total-display-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--pos-blue);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 2px 0;
+}
+
+.pos-total-display-amount {
+  font-size: clamp(1.8rem, 2.5vw, 2.6rem);
+  font-weight: 900;
+  color: var(--pos-blue);
+  font-family: "SF Mono", "Fira Code", "Courier New", monospace;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.pos-total-display-amount.has-discount {
+  color: var(--pos-green);
+}
+
+/* Indicador de método de pago activo */
+.pos-active-payment-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+}
+
+.pos-active-payment-indicator.cash {
+  background: var(--pos-green-light);
+  color: var(--pos-green);
+  border: 1px solid rgba(21, 128, 61, 0.2);
+}
+
+.pos-active-payment-indicator.card {
+  background: var(--pos-blue-light);
+  color: var(--pos-blue);
+  border: 1px solid rgba(30, 64, 175, 0.2);
+}
+
+.pos-active-payment-indicator.store_credit {
+  background: var(--pos-amber-light);
+  color: var(--pos-amber);
+  border: 1px solid rgba(217, 119, 6, 0.2);
+}
+
+.pos-active-payment-indicator.mixed {
+  background: var(--pos-amber-light);
+  color: var(--pos-amber);
+  border: 1px solid rgba(217, 119, 6, 0.2);
+}
+
+.pos-active-payment-indicator.qr {
+  background: #f5f3ff;
+  color: #7c3aed;
+  border: 1px solid rgba(124, 58, 237, 0.2);
+}
+
+/* Filas de resumen de totales */
+.pos-summary-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--pos-text-2);
+  padding: 2px 0;
+}
+
+.pos-summary-row .amount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.pos-summary-row.discount {
+  color: var(--pos-green);
+  font-weight: 700;
+}
+
+.pos-summary-row.total-row {
+  border-top: 1px solid var(--pos-border-strong);
+  padding-top: 6px;
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--pos-text);
+}
+
+/* Botones de acción en checkout */
+.pos-action-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.pos-btn-cancel {
+  flex: 1;
+  min-width: 100px;
+  padding: 9px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(185, 28, 28, 0.3);
+  background: var(--pos-red-soft);
+  color: var(--pos-red);
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+}
+
+.pos-btn-cancel:hover {
+  background: var(--pos-red-light);
+  border-color: rgba(185, 28, 28, 0.5);
+}
+
+.pos-btn-park {
+  flex: 1;
+  min-width: 100px;
+  padding: 9px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(217, 119, 6, 0.3);
+  background: var(--pos-amber-soft);
+  color: var(--pos-amber);
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+}
+
+.pos-btn-park:hover {
+  background: var(--pos-amber-light);
+  border-color: rgba(217, 119, 6, 0.5);
+}
+
+.pos-btn-park:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pos-btn-checkout {
+  flex: 1.5;
+  min-width: 120px;
+  padding: 9px 16px;
+  border-radius: 6px;
+  border: none;
+  background: var(--pos-green);
+  color: white;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  position: relative;
+}
+
+.pos-btn-checkout:hover:not(:disabled) {
+  background: #166534;
+  box-shadow: 0 4px 12px rgba(21, 128, 61, 0.3);
+  transform: translateY(-1px);
+}
+
+.pos-btn-checkout:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pos-btn-checkout-fkey {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #0f4c2a;
+  color: rgba(255,255,255,0.85);
+  font-size: 8px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 3px;
+  letter-spacing: 0;
+}
+
+/* ============================================================
+   Overlays y estados de carga
+   ============================================================ */
+.pos-cashier-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.25);
+  backdrop-filter: blur(2px);
+}
+
+.pos-cashier-loading-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border: 1px solid var(--pos-border-strong);
+  border-radius: 10px;
+  background: var(--pos-surface);
+  box-shadow: 0 16px 28px rgba(15, 23, 42, 0.15);
+  color: var(--pos-text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pos-cashier-loading-spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid var(--pos-blue-light);
+  border-top-color: var(--pos-blue);
+  border-radius: 999px;
+  animation: pos-spin 0.8s linear infinite;
+}
+
+@keyframes pos-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   Lock Screen
    ============================================================ */
 .pos-lock-overlay {
   position: fixed;
@@ -525,8 +1187,8 @@
 }
 
 .pos-lock-card {
-  background-color: var(--surface);
-  border: 1px solid var(--border);
+  background-color: var(--pos-surface);
+  border: 1px solid var(--pos-border);
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   border-radius: 16px;
   width: 360px;
@@ -538,14 +1200,8 @@
 }
 
 @keyframes lockReveal {
-  from {
-    opacity: 0;
-    transform: scale(0.96) translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 .pos-lock-header {
@@ -581,21 +1237,21 @@
   font-size: 15px;
   font-weight: 900;
   letter-spacing: 0.5px;
-  color: var(--text);
+  color: var(--pos-text);
   margin: 0;
   text-transform: uppercase;
 }
 
 .pos-lock-subtitle {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--pos-text-muted);
   margin: 0;
 }
 
 .pos-lock-user-badge {
   width: 100%;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
+  background-color: var(--pos-surface-2);
+  border: 1px solid var(--pos-border);
   border-radius: 8px;
   padding: 10px 12px;
   margin: 20px 0;
@@ -608,9 +1264,9 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background-color: var(--accent-strong);
+  background-color: var(--pos-blue);
   color: #ffffff;
-  font-weight: 850;
+  font-weight: 800;
   font-size: 12px;
   display: flex;
   align-items: center;
@@ -625,12 +1281,12 @@
 .pos-lock-user-name {
   font-size: 12px;
   font-weight: 700;
-  color: var(--text);
+  color: var(--pos-text);
 }
 
 .pos-lock-user-role {
   font-size: 10px;
-  color: var(--text-muted);
+  color: var(--pos-text-muted);
 }
 
 .pos-lock-dots-display {
@@ -643,21 +1299,21 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 2px solid var(--border-strong);
+  border: 2px solid var(--pos-border-strong);
   transition: all 0.15s ease;
 }
 
 .pos-lock-dot.filled {
-  background-color: var(--accent-strong);
-  border-color: var(--accent-strong);
+  background-color: var(--pos-blue);
+  border-color: var(--pos-blue);
   transform: scale(1.15);
-  box-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 0 6px rgba(37, 99, 235, 0.4);
 }
 
 .pos-lock-error-alert {
-  background-color: rgba(220, 38, 38, 0.08);
-  border: 1px solid rgba(220, 38, 38, 0.2);
-  color: #dc2626;
+  background-color: var(--pos-red-soft);
+  border: 1px solid rgba(185, 28, 28, 0.2);
+  color: var(--pos-red);
   font-size: 11px;
   font-weight: 700;
   padding: 6px 12px;
@@ -683,9 +1339,9 @@
 
 .pos-keypad-btn {
   height: 48px;
-  border: 1px solid var(--border);
-  background-color: var(--surface);
-  color: var(--text);
+  border: 1px solid var(--pos-border);
+  background-color: var(--pos-surface);
+  color: var(--pos-text);
   font-size: 16px;
   font-weight: 800;
   border-radius: 8px;
@@ -697,219 +1353,29 @@
 }
 
 .pos-keypad-btn:hover {
-  background-color: var(--surface-3);
-  border-color: var(--border-strong);
+  background-color: var(--pos-surface-3);
+  border-color: var(--pos-border-strong);
   transform: translateY(-0.5px);
 }
 
 .pos-keypad-btn.action {
-  background-color: var(--surface-2);
+  background-color: var(--pos-surface-2);
   font-size: 12px;
   font-weight: 700;
-  color: var(--text-secondary);
-}
-
-.pos-keypad-btn.action:hover {
-  background-color: var(--surface-3);
+  color: var(--pos-text-2);
 }
 
 .pos-lock-keyboard-tip {
   font-size: 10px;
-  color: var(--text-muted);
+  color: var(--pos-text-muted);
   margin-top: 16px;
   text-align: center;
   font-weight: 600;
 }
 
 /* ============================================================
-   Dashboard Navbar Visual Modernization
+   Registro de atajos globales (DOM oculto)
    ============================================================ */
-.pos-cashier-navbar {
-  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%) !important;
-  box-shadow: 0 4px 12px rgba(30, 58, 138, 0.12) !important;
-  border-bottom: none !important;
-}
-
-.pos-cashier-brand-text {
-  letter-spacing: 0.3px !important;
-  font-weight: 900 !important;
-}
-
-.pos-cashier-logout-btn {
-  background-color: rgba(220, 38, 38, 0.12) !important;
-  border: 1px solid rgba(220, 38, 38, 0.25) !important;
-  color: #fecaca !important;
-}
-
-.pos-cashier-logout-btn:hover {
-  background-color: rgba(220, 38, 38, 0.25) !important;
-  color: #ffffff !important;
-}
-
-/* ============================================================
-   Responsive Overrides (Ensuring NO horizontal scroll)
-   ============================================================ */
-@media (max-width: 1024px) {
-  /* Terminal navbar: collapse chips into single row that wraps */
-  .pos-terminal-navbar {
-    height: auto;
-    min-height: 52px;
-    flex-wrap: wrap;
-    padding: 8px 16px;
-    gap: 8px;
-  }
-
-  .pos-terminal-navbar-right {
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .pos-terminal-chip {
-    font-size: 11px;
-    padding: 3px 10px;
-  }
-
-  .pos-sales-layout {
-    flex-direction: column;
-  }
-  
-  .pos-sales-sidebar {
-    width: 100%;
-    min-width: 100%;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-    padding: 16px;
-  }
-
-  /* Reset collapsed state styles on tablet/mobile to keep it expanded */
-  .pos-sales-layout.sidebar-collapsed .pos-sales-sidebar {
-    width: 100%;
-    min-width: 100%;
-    padding: 16px;
-  }
-  
-  .pos-sales-layout.sidebar-collapsed .pos-sidebar-inner-content {
-    opacity: 1;
-    pointer-events: auto;
-    position: relative;
-  }
-  
-  .pos-sidebar-inner-content {
-    width: 100%;
-    flex-direction: row;
-    align-items: stretch;
-    justify-content: space-between;
-    gap: 16px;
-  }
-  
-  .pos-quick-actions-container {
-    flex: 1.2;
-  }
-  
-  .pos-cash-info-container {
-    flex: 1;
-    border-top: none;
-    padding-top: 0;
-    border-left: 1px solid var(--border);
-    padding-left: 16px;
-  }
-  
-  .pos-sidebar-lock-wrapper {
-    border-top: none;
-    padding-top: 0;
-    margin-top: 0;
-    justify-content: center;
-    min-width: 120px;
-  }
-  
-  /* Convert cart table into responsive card layout to eliminate horizontal scrolls */
-  .pos-cashier-cart-card table,
-  .pos-cashier-cart-card thead,
-  .pos-cashier-cart-card tbody,
-  .pos-cashier-cart-card th,
-  .pos-cashier-cart-card td,
-  .pos-cashier-cart-card tr {
-    display: block;
-    width: 100%;
-  }
-  
-  .pos-cashier-cart-card thead tr {
-    position: absolute;
-    top: -9999px;
-    left: -9999px;
-  }
-  
-  .pos-cashier-cart-card tr {
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    margin-bottom: 12px;
-    padding: 10px;
-    background-color: var(--surface);
-  }
-  
-  .pos-cashier-cart-card td {
-    border: none;
-    position: relative;
-    padding-left: 45% !important;
-    text-align: right;
-    min-height: 32px;
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    border-bottom: 1px dashed var(--border-light);
-  }
-  
-  .pos-cashier-cart-card td:last-child {
-    border-bottom: none;
-  }
-  
-  .pos-cashier-cart-card td:before {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    left: 12px;
-    width: 40%;
-    padding-right: 10px;
-    white-space: nowrap;
-    text-align: left;
-    font-weight: 700;
-    color: var(--text-muted);
-    font-size: 11px;
-    content: attr(data-label);
-  }
-}
-
-@media (max-width: 768px) {
-  .pos-terminal-navbar-left {
-    width: 100%;
-  }
-
-  .pos-terminal-navbar-right {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .pos-sidebar-inner-content {
-    flex-direction: column;
-    gap: 16px;
-  }
-  
-  .pos-cash-info-container {
-    border-left: none;
-    padding-left: 0;
-    border-top: 1px solid var(--border);
-    padding-top: 16px;
-    width: 100%;
-  }
-  
-  .pos-sidebar-lock-wrapper {
-    width: 100%;
-    border-top: 1px solid var(--border);
-    padding-top: 12px;
-  }
-}
-
-/* Registro oculto de atajos globales (siempre en DOM, fuera del sidebar colapsado) */
 .pos-shortcut-registry {
   position: absolute;
   width: 0;
@@ -931,4 +1397,164 @@
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   border: 0;
+}
+
+/* ============================================================
+   Responsive Overrides
+   ============================================================ */
+@media (max-width: 1024px) {
+  .pos-terminal-navbar {
+    height: auto;
+    min-height: 48px;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    gap: 6px;
+  }
+
+  .pos-terminal-navbar-right {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .pos-terminal-chip {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+
+  .pos-sales-layout {
+    flex-direction: column;
+  }
+
+  .pos-sales-sidebar {
+    width: 100%;
+    min-width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--pos-border);
+    padding: 12px;
+  }
+
+  .pos-sales-layout.sidebar-collapsed .pos-sales-sidebar {
+    width: 100%;
+    min-width: 100%;
+    padding: 12px;
+  }
+
+  .pos-sales-layout.sidebar-collapsed .pos-sidebar-inner-content {
+    opacity: 1;
+    pointer-events: auto;
+    position: relative;
+  }
+
+  .pos-sidebar-inner-content {
+    width: 100%;
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .pos-quick-actions-container { flex: 1.2; }
+
+  .pos-cash-info-container {
+    flex: 1;
+    border-top: none;
+    padding-top: 0;
+    border-left: 1px solid var(--pos-border);
+    padding-left: 12px;
+  }
+
+  .pos-sidebar-lock-wrapper {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+    justify-content: center;
+    min-width: 110px;
+  }
+
+  /* Cart responsive */
+  .pos-cashier-cart-card table,
+  .pos-cashier-cart-card thead,
+  .pos-cashier-cart-card tbody,
+  .pos-cashier-cart-card th,
+  .pos-cashier-cart-card td,
+  .pos-cashier-cart-card tr { display: block; width: 100%; }
+
+  .pos-cashier-cart-card thead tr {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+  }
+
+  .pos-cashier-cart-card tr {
+    border: 1px solid var(--pos-border);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    padding: 8px;
+    background-color: var(--pos-surface);
+  }
+
+  .pos-cashier-cart-card td {
+    border: none;
+    position: relative;
+    padding-left: 45% !important;
+    text-align: right;
+    min-height: 28px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    border-bottom: 1px dashed var(--pos-border);
+  }
+
+  .pos-cashier-cart-card td:last-child { border-bottom: none; }
+
+  .pos-cashier-cart-card td:before {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    left: 10px;
+    width: 40%;
+    padding-right: 10px;
+    white-space: nowrap;
+    text-align: left;
+    font-weight: 700;
+    color: var(--pos-text-muted);
+    font-size: 10px;
+    content: attr(data-label);
+  }
+}
+
+@media (max-width: 768px) {
+  .pos-terminal-navbar-left { width: 100%; }
+  .pos-terminal-navbar-right { width: 100%; justify-content: flex-start; }
+
+  .pos-sidebar-inner-content {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .pos-cash-info-container {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid var(--pos-border);
+    padding-top: 12px;
+    width: 100%;
+  }
+
+  .pos-sidebar-lock-wrapper {
+    width: 100%;
+    border-top: 1px solid var(--pos-border);
+    padding-top: 10px;
+  }
+
+  .pos-status-bar {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 6px 12px;
+    gap: 6px;
+  }
+
+  .pos-status-bar-item {
+    border-right: none;
+    padding: 2px 8px;
+  }
 }

@@ -1,5 +1,5 @@
 import React from "react";
-import { Minus, Plus, XCircle } from "lucide-react";
+import { Minus, Plus, XCircle, Tag } from "lucide-react";
 import { usePosCart } from "../hooks/usePosCart";
 
 interface ActivePromotion {
@@ -81,152 +81,193 @@ interface CartPanelProps {
   onToast: (msg: string, type?: "error" | "success" | "info") => void;
 }
 
-const styles: { [key: string]: React.CSSProperties } = {
-  table: { width: "100%", borderCollapse: "collapse" as const, textAlign: "left" as const },
-  tableHeaderRow: { borderBottom: "2px solid var(--border)" },
-  th: { padding: "10px 12px", fontSize: "11px", fontWeight: "700", color: "var(--text-secondary)", textTransform: "uppercase" as const },
-  tableRow: { borderBottom: "1px solid var(--surface-3)" },
-  td: { padding: "12px", fontSize: "13px", color: "var(--text-secondary)" },
-  qtyContainer: { display: "flex", alignItems: "center", border: "1px solid var(--border-strong)", borderRadius: "4px", width: "fit-content", overflow: "hidden" },
-  qtyBtn: { width: "28px", height: "28px", border: "none", backgroundColor: "var(--surface-3)", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center" },
-  qtyInput: { padding: "0 12px", fontSize: "13px", fontWeight: "700", width: "40px", textAlign: "center" as const, border: "none", outline: "none", backgroundColor: "transparent" },
-};
-
-export function CartPanel({ cartData, onToast }: CartPanelProps) {
+export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
   const { cart, cartQtyDraft, setCartQtyDraft, updateCartQty, applyCartQty, removeCartItem } = cartData;
 
+  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const hasDiscounts = cart.some((item) => calculateItemPromotion(item).promoApplied);
+
   return (
-    <div style={{ flex: 1, overflowY: "auto", maxHeight: "40vh" }} className="pos-cashier-cart-scroll">
-      <table style={styles.table} className="pos-cashier-cart-table">
-        <thead>
-          <tr style={styles.tableHeaderRow}>
-            <th style={styles.th}>Código</th>
-            <th style={styles.th}>Producto</th>
-            <th style={styles.th}>Cantidad</th>
-            <th style={styles.th}>Precio</th>
-            <th style={styles.th}>Importe</th>
-            <th style={styles.th}></th>
-          </tr>
-        </thead>
-        <tbody>
-          {cart.map((item) => {
-            const promoDetails = calculateItemPromotion(item);
-            const hasDiscount = promoDetails.discountAmount > 0;
-            const promoApplied = promoDetails.promoApplied ?? hasDiscount;
-            return (
-              <tr key={item.product.id} style={styles.tableRow}>
-                <td style={styles.td}>{item.product.sku}</td>
-                <td style={{ ...styles.td, fontWeight: "600" }}>
-                  <div>{item.product.name}</div>
-                  {item.product.activePromotion && promoApplied && (
-                    <span style={{ fontSize: "10px", backgroundColor: "#dbeafe", color: "#1e40af", padding: "2px 6px", borderRadius: "4px", fontWeight: "700", marginTop: "4px", display: "inline-block" }}>
-                      🏷️ {item.product.activePromotion.name}
-                    </span>
-                  )}
-                  {item.product.activePromotion && !promoApplied && (
-                    <span style={{ fontSize: "9px", backgroundColor: "var(--surface-3)", color: "var(--text-faint)", padding: "2px 6px", borderRadius: "4px", fontWeight: "600", marginTop: "4px", display: "inline-block" }}>
-                      🏷️ {item.product.activePromotion.name} (mín. {item.product.activePromotion.minQuantity || 1})
-                    </span>
-                  )}
-                </td>
-                <td style={styles.td}>
-                  <div style={styles.qtyContainer}>
-                    <button onClick={() => updateCartQty(item.product.id, -1)} style={styles.qtyBtn}>
-                      <Minus size={12} />
-                    </button>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      style={styles.qtyInput}
-                      value={cartQtyDraft[item.product.id] ?? String(item.quantity)}
-                      onFocus={() => setCartQtyDraft((prev) => ({ ...prev, [item.product.id]: String(item.quantity) }))}
-                      onChange={(e) => {
-                        const digits = e.target.value.replace(/\D/g, "");
-                        if (digits === "") {
-                          setCartQtyDraft((prev) => ({ ...prev, [item.product.id]: digits }));
-                          return;
-                        }
-                        const parsed = parseInt(digits, 10);
-                        const maxStock = item.product.stock;
-                        if (parsed > maxStock) {
-                          onToast(`Solo hay ${maxStock} piezas en stock.`);
-                          setCartQtyDraft((prev) => ({ ...prev, [item.product.id]: String(maxStock) }));
-                          return;
-                        }
-                        setCartQtyDraft((prev) => ({ ...prev, [item.product.id]: digits }));
-                      }}
-                      onBlur={() => {
-                        const raw = cartQtyDraft[item.product.id] ?? String(item.quantity);
-                        const parsed = parseInt(raw, 10);
-                        const minQty = Number.isFinite(parsed) && parsed >= 1 ? parsed : 1;
-                        const finalQty = Math.min(minQty, item.product.stock);
-                        setCartQtyDraft((prev) => {
-                          const next = { ...prev };
-                          delete next[item.product.id];
-                          return next;
-                        });
-                        applyCartQty(item.product.id, finalQty);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "ArrowUp") {
-                          e.preventDefault();
-                          setCartQtyDraft((prev) => { const next = { ...prev }; delete next[item.product.id]; return next; });
-                          updateCartQty(item.product.id, 1);
-                        } else if (e.key === "ArrowDown") {
-                          e.preventDefault();
-                          setCartQtyDraft((prev) => { const next = { ...prev }; delete next[item.product.id]; return next; });
-                          updateCartQty(item.product.id, -1);
-                        } else if (e.key === "Enter") {
-                          e.currentTarget.blur();
-                        }
-                      }}
-                    />
-                    <button onClick={() => updateCartQty(item.product.id, 1)} style={styles.qtyBtn}>
-                      <Plus size={12} />
-                    </button>
-                  </div>
-                </td>
-                <td style={styles.td}>
-                  {hasDiscount ? (
-                    <>
-                      <span style={{ textDecoration: "line-through", color: "var(--text-faint)", marginRight: "6px", fontSize: "12px" }}>
-                        ${item.product.sellPrice.toFixed(2)}
-                      </span>
-                      <span style={{ color: "#059669", fontWeight: "700" }}>
-                        ${(promoDetails.finalPrice).toFixed(2)}
-                      </span>
-                    </>
-                  ) : (
-                    `$${item.product.sellPrice.toFixed(2)}`
-                  )}
-                </td>
-                <td style={{ ...styles.td, fontWeight: "700" }}>
-                  {hasDiscount ? (
-                    <>
-                      <div style={{ textDecoration: "line-through", color: "var(--text-faint)", fontSize: "11px", fontWeight: "400" }}>
-                        ${(item.product.sellPrice * item.quantity).toFixed(2)}
-                      </div>
-                      <div style={{ color: "#059669" }}>
-                        ${(promoDetails.finalPrice * item.quantity).toFixed(2)}
-                      </div>
-                      <div style={{ fontSize: "10px", color: "#059669", fontWeight: "600" }}>
-                        Ahorro: -${promoDetails.discountAmount.toFixed(2)}
-                      </div>
-                    </>
-                  ) : (
-                    `$${(item.product.sellPrice * item.quantity).toFixed(2)}`
-                  )}
-                </td>
-                <td style={styles.td}>
-                  <button onClick={() => removeCartItem(item.product.id)} style={{ border: "none", background: "none", cursor: "pointer" }}>
-                    <XCircle size={18} color="#dc2626" />
-                  </button>
-                </td>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {/* Header del carrito con badge de artículos */}
+      <div className="pos-cart-header-bar">
+        <span className="pos-cart-title">Detalle de venta</span>
+        <span className="pos-cart-count-badge">
+          {totalItems} {totalItems === 1 ? "artículo" : "artículos"}
+        </span>
+      </div>
+
+      {/* Tabla de alta densidad */}
+      <div
+        className="pos-cart-table-wrapper pos-cashier-cart-scroll"
+        style={{ flex: 1, overflowY: "auto", maxHeight: "38vh" }}
+      >
+        {cart.length === 0 ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+              minHeight: "80px",
+              flexDirection: "column",
+              gap: "6px",
+              color: "var(--pos-text-muted, #94a3b8)",
+              fontSize: "12px",
+              fontWeight: "600",
+              background: "var(--pos-surface-2, #f8fafc)",
+            }}
+          >
+            <span style={{ fontSize: "22px" }}>🛒</span>
+            <span>Sin productos. Escanee o busque para agregar.</span>
+          </div>
+        ) : (
+          <table className="pos-cashier-cart-table">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Producto</th>
+                <th style={{ textAlign: "center" }}>Cant.</th>
+                <th style={{ textAlign: "right" }}>Precio</th>
+                {hasDiscounts && <th style={{ textAlign: "right", color: "#15803d" }}>Dto.</th>}
+                <th style={{ textAlign: "right" }}>Importe</th>
+                <th style={{ width: "28px" }} />
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            </thead>
+            <tbody>
+              {cart.map((item) => {
+                const promoDetails = calculateItemPromotion(item);
+                const hasDiscount = promoDetails.discountAmount > 0;
+                const subtotal = promoDetails.finalPrice * item.quantity;
+                const draftVal = cartQtyDraft[item.product.id];
+                const displayQty = draftVal !== undefined ? draftVal : item.quantity;
+
+                return (
+                  <tr
+                    key={item.product.id}
+                    className={hasDiscount ? "pos-cart-row-promo" : ""}
+                  >
+                    {/* Código */}
+                    <td
+                      data-label="Código"
+                      style={{ fontSize: "11px", color: "var(--pos-text-muted, #94a3b8)", fontFamily: "monospace" }}
+                    >
+                      {item.product.sku}
+                    </td>
+
+                    {/* Nombre */}
+                    <td data-label="Producto" style={{ fontWeight: "600", color: "var(--pos-text, #0f172a)", maxWidth: "160px" }}>
+                      <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {item.product.name}
+                      </div>
+                      {hasDiscount && (
+                        <div className="pos-cart-promo-badge">
+                          <Tag size={9} />
+                          {promoDetails.label}
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Cantidad */}
+                    <td data-label="Cant." style={{ textAlign: "center" }}>
+                      <div className="pos-qty-control">
+                        <button
+                          type="button"
+                          className="pos-qty-btn"
+                          onClick={() => updateCartQty(item.product.id, item.quantity - 1)}
+                          title="Disminuir cantidad"
+                        >
+                          <Minus size={10} />
+                        </button>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          className="pos-qty-input"
+                          value={displayQty}
+                          onChange={(e) =>
+                            setCartQtyDraft((prev: Record<number, string>) => ({
+                              ...prev,
+                              [item.product.id]: e.target.value,
+                            }))
+                          }
+                          onBlur={() => applyCartQty(item.product.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") applyCartQty(item.product.id);
+                          }}
+                          aria-label={`Cantidad de ${item.product.name}`}
+                        />
+                        <button
+                          type="button"
+                          className="pos-qty-btn"
+                          onClick={() => updateCartQty(item.product.id, item.quantity + 1)}
+                          title="Aumentar cantidad"
+                        >
+                          <Plus size={10} />
+                        </button>
+                      </div>
+                    </td>
+
+                    {/* Precio unitario */}
+                    <td data-label="Precio" style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                      {hasDiscount ? (
+                        <div>
+                          <span style={{ textDecoration: "line-through", color: "var(--pos-text-muted, #94a3b8)", fontSize: "10px" }}>
+                            ${item.product.sellPrice.toFixed(2)}
+                          </span>
+                          <br />
+                          <span style={{ color: "#15803d", fontWeight: "700" }}>
+                            ${promoDetails.finalPrice.toFixed(2)}
+                          </span>
+                        </div>
+                      ) : (
+                        <span>${item.product.sellPrice.toFixed(2)}</span>
+                      )}
+                    </td>
+
+                    {/* Descuento (solo si hay alguna promo en el carrito) */}
+                    {hasDiscounts && (
+                      <td data-label="Dto." style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                        {hasDiscount ? (
+                          <span style={{ color: "#15803d", fontWeight: "700" }}>
+                            -${promoDetails.discountAmount.toFixed(2)}
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--pos-text-muted, #94a3b8)" }}>—</span>
+                        )}
+                      </td>
+                    )}
+
+                    {/* Importe */}
+                    <td
+                      data-label="Importe"
+                      style={{
+                        textAlign: "right",
+                        fontWeight: "700",
+                        color: "var(--pos-text, #0f172a)",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      ${subtotal.toFixed(2)}
+                    </td>
+
+                    {/* Eliminar */}
+                    <td style={{ textAlign: "center", padding: "4px" }}>
+                      <button
+                        type="button"
+                        className="pos-cart-remove-btn"
+                        onClick={() => removeCartItem(item.product.id)}
+                        title={`Eliminar ${item.product.name}`}
+                      >
+                        <XCircle size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }

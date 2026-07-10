@@ -1,5 +1,6 @@
 import React from "react";
-import { Menu, MapPin, User, Clock, LogOut, AlertTriangle, Banknote, CreditCard, ArrowLeftRight, QrCode, ExternalLink, Home, Ticket } from "lucide-react";
+import { Menu, MapPin, Clock, LogOut, AlertTriangle, Banknote, CreditCard, ArrowLeftRight, QrCode, ExternalLink, Home, Ticket } from "lucide-react";
+import { StatusBar } from "./StatusBar";
 import { TICKET_PRINT_MEDIA_STYLES } from "../../shared/utils/ticketEmailDocument.util";
 import { DECIMAL_INPUT_REGEX, handleDecimalInputChange } from "../../shared/utils/decimalInput";
 import { useCashSession } from "../hooks/useCashSession";
@@ -230,9 +231,10 @@ export function SalesTerminalView({
       </div>
       <style>{TICKET_PRINT_MEDIA_STYLES}</style>
 
-      {/* Header Terminal — nuevo diseño de Fer */}
+      {/* Header Terminal — Light mode corporativo */}
       <header className="pos-terminal-navbar">
         <div className="pos-terminal-navbar-left">
+          {/* Toggle sidebar */}
           <button
             type="button"
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -241,24 +243,75 @@ export function SalesTerminalView({
             title={isSidebarCollapsed ? "Mostrar panel (F7)" : "Ocultar panel (F7)"}
             aria-label="Alternar panel lateral"
           >
-            <Menu size={20} />
+            <Menu size={18} />
+            <span className="pos-fkey-badge">F7</span>
           </button>
-          <span className="pos-terminal-brand-text">POS - Punto de Venta</span>
+          <span className="pos-terminal-brand-text">POS</span>
+
+          {/* Sucursal */}
+          <div className="pos-terminal-chip">
+            <MapPin size={12} />
+            <span>{user?.branch?.name || "Sucursal"}</span>
+          </div>
+        </div>
+
+        {/* Centro: cajero + estado */}
+        <div className="pos-terminal-navbar-center">
+          <div className="pos-terminal-user-btn">
+            <div className="pos-terminal-avatar">
+              {(user?.name || "C").charAt(0).toUpperCase()}
+            </div>
+            <span className="pos-terminal-user-name">{user?.name || "Cajero"}</span>
+          </div>
+
+          {/* Estado de caja */}
+          <div className={`pos-terminal-session-badge ${
+            session?.status === "ABIERTA" || session?.status === "active" ? "open" : "closed"
+          }`}>
+            {session?.status === "ABIERTA" || session?.status === "active" ? "CAJA ABIERTA" : "CAJA CERRADA"}
+          </div>
+
+          {/* Ventas del turno */}
+          {sessionStats && sessionStats.salesCount > 0 && (
+            <div className="pos-terminal-chip sales-count">
+              {sessionStats.salesCount} {sessionStats.salesCount === 1 ? "venta" : "ventas"}
+            </div>
+          )}
         </div>
 
         <div className="pos-terminal-navbar-right">
-          <div className="pos-terminal-chip">
-            <MapPin size={14} />
-            <span>{user?.branch?.name || "Sucursal"}</span>
-          </div>
-          <div className="pos-terminal-chip">
-            <User size={14} />
-            <span>Cajero: {user?.name || "—"}</span>
-          </div>
+          {/* Reloj */}
           <div className="pos-terminal-chip clock">
-            <Clock size={14} />
+            <Clock size={12} />
             <span>{formattedTime}</span>
           </div>
+
+          {/* Ventas pausadas */}
+          <button
+            type="button"
+            onClick={() => setParkedModalOpen(true)}
+            className="pos-terminal-home-btn active-tap"
+            data-shortcut-letter="K"
+            title="Ventas en Espera (Alt+K)"
+            aria-label="Ver ventas pausadas"
+          >
+            <div style={{ position: "relative" }}>
+              <Clock size={15} />
+              {parkedSales.length > 0 && (
+                <span style={{
+                  position: "absolute", top: -7, right: -7,
+                  backgroundColor: "#b91c1c", color: "white",
+                  fontSize: "9px", padding: "1px 4px",
+                  borderRadius: "8px", fontWeight: "800",
+                  lineHeight: "1.2",
+                }}>
+                  {parkedSales.length}
+                </span>
+              )}
+            </div>
+          </button>
+
+          {/* Inicio */}
           {onGoHome && (
             <button
               type="button"
@@ -268,27 +321,12 @@ export function SalesTerminalView({
               title="Ir al inicio (F1)"
               aria-label="Ir al dashboard"
             >
-              <Home size={16} />
+              <Home size={15} />
+              <span className="pos-fkey-badge">F1</span>
             </button>
           )}
-          
-          <button
-            type="button"
-            onClick={() => setParkedModalOpen(true)}
-            className="pos-terminal-home-btn active-tap"
-            data-shortcut-letter="K"
-            title="Ventas en Espera"
-            aria-label="Ver ventas pausadas"
-          >
-            <div style={{ position: "relative" }}>
-              <Clock size={16} />
-              {parkedSales.length > 0 && (
-                <span style={{ position: "absolute", top: -8, right: -8, backgroundColor: "#dc2626", color: "white", fontSize: "10px", padding: "2px 4px", borderRadius: "8px", fontWeight: "bold" }}>
-                  {parkedSales.length}
-                </span>
-              )}
-            </div>
-          </button>
+
+          {/* Cerrar sesión */}
           <button
             type="button"
             onClick={onLogout}
@@ -297,7 +335,7 @@ export function SalesTerminalView({
             title="Cerrar Sesión (Alt+L)"
             aria-label="Cerrar sesión del cajero"
           >
-            <LogOut size={16} />
+            <LogOut size={15} />
           </button>
         </div>
       </header>
@@ -317,10 +355,9 @@ export function SalesTerminalView({
           customerData={customerData}
           cartData={cartData}
           onToast={onToast}
-            />
+        />
 
-        <div className="card-premium pos-cashier-cart-card" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "20px" }}>
-          <h3 className="pos-cashier-cart-mobile-title">Detalle de Productos</h3>
+        <div className="card-premium pos-cashier-cart-card" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "14px" }}>
           <CartPanel cartData={cartData} onToast={onToast} />
           <CheckoutPanel
             cartData={cartData}
@@ -334,6 +371,13 @@ export function SalesTerminalView({
           />
         </div>
       </SalesLayoutView>
+
+      {/* Status Bar inferior — resumen del turno */}
+      <StatusBar
+        session={session}
+        sessionStats={sessionStats}
+        activePaymentMethod={paymentMethod as string | null}
+      />
       <ParkedSalesModal
         isOpen={parkedModalOpen}
         onClose={() => setParkedModalOpen(false)}
