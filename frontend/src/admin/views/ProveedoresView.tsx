@@ -366,8 +366,24 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
     return list;
   }, [suppliers, search, statusFilter, sortBy]);
 
+  // Calcula cuántas filas caben en pantalla según la altura disponible.
+  // 64px topbar + 24px padding-top + 24px padding-bottom + ~60px sectionHeader
+  // + ~54px toolbar + ~46px pagination (reservado) + 42px thead = 314px fijos.
+  // Cada fila ocupa ~50px (padding 13px×2 + contenido ~24px).
+  const [dynPageSize, setDynPageSize] = useState(10);
+  useEffect(() => {
+    const ROW_H = 50;
+    const FIXED = 314; // offsets fijos arriba descritos
+    const compute = () =>
+      setDynPageSize(Math.max(5, Math.floor((window.innerHeight - FIXED) / ROW_H)));
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, []);
+
   const paged = usePagination(filteredAndSortedSuppliers, {
     resetKey: `${search}|${statusFilter}|${sortBy}`,
+    pageSize: dynPageSize,
   });
 
   const isFirstRender = useRef(true);
@@ -871,8 +887,8 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
       </Toolbar>
 
       {isMobile ? (
-        /* ── Mobile / Tablet: Card-based layout (DevolucionesView pattern) ── */
-        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
+        /* ── Mobile / Tablet: Card-based layout ── */
+        <div style={{ padding: "8px 0" }}>
           {loading && (
             <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
@@ -1151,7 +1167,21 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
             })}
         </div>
       ) : (
-        <div className="table-sticky-head">
+        <div
+          className="table-sticky-head"
+          style={{ ...ui.tableWrap, overflowX: "auto", height: "calc(100vh - 275px)" }}
+        >
+          <style>{`
+            .table-sticky-head table {
+              min-width: 900px;
+            }
+            .table-sticky-head thead th {
+              position: sticky;
+              top: 0;
+              z-index: 1;
+              background: var(--surface-2);
+            }
+          `}</style>
           <DataTable
             columns={columns}
             data={paged.pageItems}
@@ -1164,7 +1194,15 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
       )}
 
       {!loading && !error && (
-        <Pagination page={paged.page} pageCount={paged.pageCount} total={paged.total} from={paged.from} to={paged.to} onPage={paged.setPage} itemLabel="proveedores" />
+        <Pagination
+          page={paged.page}
+          pageCount={paged.pageCount}
+          total={paged.total}
+          from={paged.from}
+          to={paged.to}
+          onPage={paged.setPage}
+          itemLabel="proveedores"
+        />
       )}
 
       {/* Modal alta / edición de proveedor */}
