@@ -248,7 +248,23 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     { params: debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {} }
   );
   const rows = data?.customers ?? [];
-  const paged = usePagination(rows, { resetKey: debouncedSearch });
+
+  // Calcula cuántas filas caben en pantalla según la altura disponible.
+  // 64px topbar + 24px padding-top + 24px padding-bottom + ~60px sectionHeader
+  // + ~54px toolbar + ~46px pagination (reservado) + 42px thead = 314px fijos.
+  // Cada fila ocupa ~50px (padding 13px×2 + contenido ~24px).
+  const [dynPageSize, setDynPageSize] = useState(10);
+  useEffect(() => {
+    const ROW_H = 50;
+    const FIXED = 314; // offsets fijos arriba descritos
+    const compute = () =>
+      setDynPageSize(Math.max(5, Math.floor((window.innerHeight - FIXED) / ROW_H)));
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, []);
+
+  const paged = usePagination(rows, { resetKey: debouncedSearch, pageSize: dynPageSize });
 
   const isFirstRender = useRef(true);
   useEffect(() => {
@@ -444,7 +460,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+    <div>
       <SectionHeader
         title="Clientes"
         subtitle="Directorio de clientes — incluye datos CFDI 4.0 para facturación"
@@ -644,12 +660,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
       ) : (
         <div
           className="table-sticky-head"
-          style={{
-            ...ui.tableWrap,
-            flex: 1,
-            minHeight: 0,
-            overflowY: "auto",
-          }}
+          style={{ ...ui.tableWrap, overflowX: "auto" }}
         >
           <style>{`
             .table-sticky-head table {

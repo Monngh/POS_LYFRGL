@@ -991,7 +991,7 @@ const styles: { [k: string]: React.CSSProperties } = {
     height: 38,
     boxShadow: "0 4px 12px -5px rgba(37,99,235,0.55)",
   },
-  content: { padding: 24, overflowY: "auto", overflowX: "hidden", minWidth: 0, flex: 1, color: "var(--text)", display: "flex", flexDirection: "column" },
+  content: { padding: 24, overflowY: "auto", overflowX: "hidden", minWidth: 0, flex: 1, color: "var(--text)" },
 };
 
 export default AdminDashboard;
