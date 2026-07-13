@@ -12,12 +12,9 @@ import {
   Landmark,
   Scale,
   BadgePercent,
-  CreditCard,
-  Clock,
-  Lock,
 } from "lucide-react";
 import api from "../../shared/services/api";
-import { ui, type ViewProps, SectionHeader, money, useMediaQuery, Badge, fmtDate, fmtTime } from "./shared";
+import { ui, type ViewProps, SectionHeader, money, useMediaQuery } from "./shared";
 
 interface DashboardMetrics {
   ventasHoy: number;
@@ -45,23 +42,19 @@ interface TopProduct {
   name: string;
   unidades: number;
 }
-interface ActivityItem {
-  id: string;
-  type: "SALE" | "SESSION_CLOSED";
-  timestamp: string;
+interface TopSeller {
+  userId: number;
+  userName: string;
   branchName: string;
-  title: string;
-  subtitle: string;
-  amount: number | string;
-  statusLabel: string;
-  statusTone: "green" | "red" | "amber" | "blue" | "slate";
+  total: number;
+  salesCount: number;
 }
 interface DashboardResponse {
   metrics: DashboardMetrics;
   ventas7dias: DayPoint[];
   ventasPorSucursal: BranchSales[];
   productosMasVendidos: TopProduct[];
-  recentActivity: ActivityItem[];
+  topSellers: TopSeller[];
 }
 interface CashSessionRow {
   id: number;
@@ -221,6 +214,7 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken, navigateTo
       <style>{`
         .dash-metric-card { transition: box-shadow .15s ease, transform .15s ease; }
         .dash-metric-card:hover { box-shadow: 0 6px 16px -4px rgba(15,23,42,0.18); transform: translateY(-1px); }
+        .dash-row:hover { background-color: var(--surface-2); }
       `}</style>
       <SectionHeader title="Dashboard" subtitle="Métricas en tiempo real" />
 
@@ -394,7 +388,7 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken, navigateTo
           <h3 style={s.panelTitle}>Productos más vendidos</h3>
           <div style={{ marginTop: 8 }}>
             {(data?.productosMasVendidos ?? []).map((p, i) => (
-              <div key={p.id} style={s.productRow}>
+              <div key={p.id} style={s.productRow} className="dash-row">
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={s.rankBadge}>{i + 1}</span>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>{p.name}</span>
@@ -407,64 +401,33 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken, navigateTo
         </div>
 
         <div style={{ ...ui.panel, padding: 20, flex: "1 1 0%", minWidth: 0 }}>
-          <h3 style={s.panelTitle}>Actividad reciente</h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12, maxHeight: 340, overflowY: "auto" }}>
-            {(data?.recentActivity ?? []).map((item) => {
-              const isForcedClose = item.type === "SESSION_CLOSED" && item.statusTone === "red";
-              return (
-                <div
-                  key={item.id}
-                  style={{
-                    padding: 12,
-                    backgroundColor: "var(--surface)",
-                    borderRadius: 8,
-                    border: "1px solid var(--border)",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 10,
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                    <div
-                      style={{
-                        width: 30,
-                        height: 30,
-                        borderRadius: 8,
-                        flexShrink: 0,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: item.type === "SALE" ? "var(--icon-bg-blue)" : isForcedClose ? "var(--icon-bg-red)" : "var(--surface-2)",
-                      }}
-                    >
-                      {item.type === "SALE" ? (
-                        <CreditCard size={15} color="#2563eb" />
-                      ) : isForcedClose ? (
-                        <Lock size={15} color="#dc2626" />
-                      ) : (
-                        <Clock size={15} color="#64748b" />
-                      )}
+          <h3 style={s.panelTitle}>Top Vendedores</h3>
+          <div style={{ marginTop: 8 }}>
+            {(data?.topSellers ?? []).map((seller, i) => (
+              <div
+                key={seller.userId}
+                style={{ ...s.productRow, cursor: "pointer" }}
+                className="dash-row active-tap"
+                onClick={() => navigateTo?.("ventas", { userId: seller.userId })}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                  <span style={s.rankBadge}>{i + 1}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {seller.userName}
                     </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {item.title}
-                      </div>
-                      <div style={{ fontSize: 11, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {item.subtitle} · {item.branchName} · {fmtDate(item.timestamp)} {fmtTime(item.timestamp)}
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {typeof item.amount === "number" ? money(item.amount) : item.amount}
-                    </span>
-                    <Badge tone={item.statusTone}>{item.statusLabel}</Badge>
+                    <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{seller.branchName}</div>
                   </div>
                 </div>
-              );
-            })}
-            {!loading && (data?.recentActivity ?? []).length === 0 && <EmptyState message="Sin actividad reciente." />}
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text)" }}>{money(seller.total)}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-faint)" }}>
+                    {seller.salesCount} venta{seller.salesCount === 1 ? "" : "s"}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {!loading && (data?.topSellers ?? []).length === 0 && <EmptyState />}
           </div>
         </div>
       </div>
@@ -472,9 +435,9 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken, navigateTo
   );
 };
 
-const EmptyState: React.FC<{ message?: string }> = ({ message }) => (
+const EmptyState: React.FC = () => (
   <p style={{ fontSize: 13, color: "var(--text-faint)", padding: "24px 4px", textAlign: "center" }}>
-    {message ?? "Aún no hay datos registrados para este periodo."}
+    Aún no hay datos registrados para este periodo.
   </p>
 );
 
@@ -538,8 +501,11 @@ const s: { [k: string]: React.CSSProperties } = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: "11px 0",
+    padding: "11px 12px",
+    margin: "0 -12px",
+    borderRadius: 8,
     borderBottom: "1px solid var(--border-soft)",
+    transition: "background-color 0.15s ease",
   },
   rankBadge: {
     width: 22,

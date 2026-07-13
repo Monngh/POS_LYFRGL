@@ -159,6 +159,15 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFilter
   const [status, setStatus] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [userIdFilter, setUserIdFilter] = useState("all");
+  const [employees, setEmployees] = useState<{ id: number; name: string }[]>([]);
+
+  useEffect(() => {
+    api
+      .get<{ employees: { id: number; name: string }[] }>("/api/admin/employees")
+      .then((res) => setEmployees(res.data.employees))
+      .catch(() => setEmployees([]));
+  }, []);
 
   const [detail, setDetail] = useState<SaleDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -190,12 +199,16 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFilter
     if (!initialFilters) return;
     if (typeof initialFilters.from === "string") setDateFrom(initialFilters.from);
     if (typeof initialFilters.to === "string") setDateTo(initialFilters.to);
+    if (typeof initialFilters.userId === "number" || typeof initialFilters.userId === "string") {
+      setUserIdFilter(String(initialFilters.userId));
+    }
   }, [initialFilters]);
 
   const invalidRange = Boolean(dateFrom && dateTo && dateFrom > dateTo);
   const filterParams: Record<string, unknown> = {};
   if (branchId !== "all") filterParams.branchId = branchId;
   if (status !== "all") filterParams.status = status;
+  if (userIdFilter !== "all") filterParams.userId = userIdFilter;
   if (debouncedSearch.trim()) filterParams.search = debouncedSearch.trim();
   if (!invalidRange) {
     if (dateFrom) filterParams.from = dateFrom;
@@ -207,7 +220,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFilter
     { params: filterParams }
   );
   const rows = data?.sales ?? [];
-  const paged = usePagination(rows, { resetKey: `${branchId}|${status}|${debouncedSearch}|${dateFrom}|${dateTo}` });
+  const paged = usePagination(rows, { resetKey: `${branchId}|${status}|${userIdFilter}|${debouncedSearch}|${dateFrom}|${dateTo}` });
 
   const isFirstRender = useRef(true);
   useEffect(() => {
@@ -356,6 +369,14 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFilter
             { value: "all", label: "Todos los estados" },
             { value: "COMPLETADA", label: "Completadas" },
             { value: "CANCELADA", label: "Canceladas" },
+          ]}
+        />
+        <FilterSelect
+          value={userIdFilter}
+          onChange={setUserIdFilter}
+          options={[
+            { value: "all", label: "Todos los cajeros" },
+            ...employees.map((e) => ({ value: String(e.id), label: e.name })),
           ]}
         />
         <label style={inlineLabel}>Desde</label>

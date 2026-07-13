@@ -10,20 +10,6 @@ import { prisma } from "../app";
  * Soporta el filtro opcional ?branchId= para acotar las métricas a una sucursal.
  * Las gráficas comparativas (ventas por sucursal) siempre muestran todas las sucursales.
  */
-
-// Feed unificado de "Actividad reciente" del Dashboard: combina ventas
-// completadas y cierres de turno en una sola línea de tiempo.
-interface ActivityItem {
-  id: string;
-  type: "SALE" | "SESSION_CLOSED";
-  timestamp: Date;
-  branchName: string;
-  title: string;
-  subtitle: string;
-  amount: number | string;
-  statusLabel: string;
-  statusTone: "green" | "red" | "amber" | "blue" | "slate";
-}
 export const getAdminMetrics = async (req: Request, res: Response): Promise<void> => {
   if (!req.user) {
     res.status(401).json({ message: "No autenticado." });
@@ -62,8 +48,7 @@ export const getAdminMetrics = async (req: Request, res: Response): Promise<void
       branches,
       ventasPorSucursalRaw,
       promocionesActivas,
-      recentSalesRaw,
-      recentClosedSessionsRaw,
+      topSellersRaw,
     ] = await Promise.all([
       // Ventas y tickets de hoy
       prisma.sale.aggregate({
@@ -111,25 +96,14 @@ export const getAdminMetrics = async (req: Request, res: Response): Promise<void
       prisma.promotion.count({
         where: { isActive: true, startDate: { lte: now }, endDate: { gte: now } },
       }),
-      // Actividad reciente: últimas 10 ventas completadas (mismo include que VentasView)
-      prisma.sale.findMany({
-        where: { ...branchFilter, status: COMPLETADA },
-        take: 10,
-        orderBy: { createdAt: "desc" },
-        include: {
-          branch: { select: { name: true } },
-          user: { select: { name: true } },
-        },
-      }),
-      // Actividad reciente: últimos 10 turnos cerrados (mismo include que CajasView)
-      prisma.cashSession.findMany({
-        where: { ...branchFilter, status: "CERRADA" },
-        take: 10,
-        orderBy: { closedAt: "desc" },
-        include: {
-          branch: { select: { name: true } },
-          user: { select: { name: true } },
-        },
+      // Top 5 vendedores del mes por total vendido, respetando el filtro de sucursal
+      prisma.sale.groupBy({
+        by: ["userId"],
+        where: { ...branchFilter, status: COMPLETADA, createdAt: { gte: startOfMonth } },
+        _sum: { totalAmount: true },
+        _count: { _all: true },
+        orderBy: { _sum: { totalAmount: "desc" } },
+        take: 5,
       }),
     ]);
 
@@ -215,38 +189,30 @@ export const getAdminMetrics = async (req: Request, res: Response): Promise<void
     }));
 
     // -----------------------------------------------------------------------
-    // Actividad reciente: combina ventas y cierres de turno en un solo feed
+    // Top vendedores del mes (resuelve nombre y sucursal de cada userId)
     // -----------------------------------------------------------------------
-    const recentSalesActivity: ActivityItem[] = recentSalesRaw.map((s) => ({
-      id: `sale-${s.id}`,
-      type: "SALE",
-      timestamp: s.createdAt,
-      branchName: s.branch.name,
-      title: s.invoiceNumber,
-      subtitle: s.user.name,
-      amount: Number(s.totalAmount),
-      statusLabel: "Completada",
-      statusTone: "green",
-    }));
+    const topSellerUserIds = topSellersRaw.map((t) => t.userId);
 
-    const recentSessionActivity: ActivityItem[] = recentClosedSessionsRaw.map((s) => {
-      const forced = s.forcedByUserId !== null;
-      return {
-        id: `session-${s.id}`,
-        type: "SESSION_CLOSED",
-        timestamp: s.closedAt ?? s.updatedAt,
-        branchName: s.branch.name,
-        title: `Turno #${s.id}`,
-        subtitle: s.user.name,
-        amount: s.forceCloseReason ? s.forceCloseReason : Number(s.difference ?? 0),
-        statusLabel: forced ? "Cierre forzado" : "Cerrada",
-        statusTone: forced ? "red" : "slate",
-      };
-    });
+    let topSellers: { userId: number; userName: string; branchName: string; total: number; salesCount: number }[] = [];
 
-    const recentActivity = [...recentSalesActivity, ...recentSessionActivity]
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, 10);
+    if (topSellerUserIds.length > 0) {
+      const topSellerUsers = await prisma.user.findMany({
+        where: { id: { in: topSellerUserIds } },
+        select: { id: true, name: true, branch: { select: { name: true } } },
+      });
+      const sellerInfoById = new Map(topSellerUsers.map((u) => [u.id, { name: u.name, branchName: u.branch.name }]));
+
+      topSellers = topSellersRaw.map((t) => {
+        const info = sellerInfoById.get(t.userId);
+        return {
+          userId: t.userId,
+          userName: info?.name ?? `Usuario #${t.userId}`,
+          branchName: info?.branchName ?? "—",
+          total: Number(t._sum.totalAmount ?? 0),
+          salesCount: t._count._all,
+        };
+      });
+    }
 
     // -----------------------------------------------------------------------
     // Respuesta consolidada
@@ -266,7 +232,7 @@ export const getAdminMetrics = async (req: Request, res: Response): Promise<void
       ventas7dias: week,
       ventasPorSucursal,
       productosMasVendidos,
-      recentActivity,
+      topSellers,
       branches,
     });
   } catch (error: any) {
