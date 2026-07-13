@@ -416,8 +416,8 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
     if (s.active) {
       try {
         const res = await api.get<any[]>(`/api/admin/suppliers/${s.id}/products`);
-        if (res.length > 0) {
-          showToast(`No se puede desactivar el proveedor "${s.name}". Tiene ${res.length} producto(s) asociado(s).`, "warning");
+        if (res.data.length > 0) {
+          showToast(`No se puede desactivar el proveedor "${s.name}". Tiene ${res.data.length} producto(s) asociado(s).`, "warning");
           return;
         }
         
