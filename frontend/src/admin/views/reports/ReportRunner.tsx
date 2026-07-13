@@ -167,6 +167,7 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
           backgroundColor: "var(--surface)",
           border: "1px solid var(--border)",
           borderRadius: 12,
+          width: "100%",
         }}
       >
         <div style={{ width: 60, height: 60, borderRadius: 14, backgroundColor: "#fef3c7", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
@@ -240,84 +241,208 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
   };
 
   return (
-    <div>
-      {/* Barra de filtros */}
-      <div style={ui.toolbar}>
+    // Contenedor principal sin padding/margen para ocupar todo el ancho
+    <div style={{ width: "100%", maxWidth: "100%", padding: 0, margin: 0 }}>
+      {/* Barra de filtros — padding reducido al mínimo */}
+      <div
+        style={{
+          backgroundColor: "var(--surface)",
+          border: "1px solid var(--border)",
+          borderRadius: 12,
+          padding: isMobile ? "12px 12px" : "8px 12px",
+          marginBottom: 16,
+          boxShadow: "0 1px 3px rgba(15,23,42,0.05)",
+          width: "100%",
+        }}
+      >
+        {/* Fila principal de filtros con gap reducido */}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: isMobile ? "wrap" : "nowrap",
+            alignItems: "flex-end",
+            gap: 8,
+            width: "100%",
+          }}
+        >
+          {has("dateRange") && (
+            <>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: isMobile ? "1 1 200px" : "0 1 160px" }}>
+                <label style={ui.fieldLabel}>Periodo</label>
+                <select
+                  style={{ ...ui.filterSelect, height: 38, width: "100%" }}
+                  value={period}
+                  onChange={(e) => handlePeriodChange(e.target.value)}
+                >
+                  {REPORT_PERIOD_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: isMobile ? "1 1 150px" : "1 1 0" }}>
+                <label style={ui.fieldLabel}>Desde</label>
+                <input
+                  type="date"
+                  style={{
+                    ...ui.filterSelect,
+                    height: 38,
+                    width: "100%",
+                    ...(dateRangeError ? { borderColor: "#fca5a5" } : {}),
+                  }}
+                  value={filters.from}
+                  onChange={(e) => setDateFilter("from", e.target.value)}
+                  aria-invalid={Boolean(dateRangeError)}
+                />
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: isMobile ? "1 1 150px" : "1 1 0" }}>
+                <label style={ui.fieldLabel}>Hasta</label>
+                <input
+                  type="date"
+                  style={{
+                    ...ui.filterSelect,
+                    height: 38,
+                    width: "100%",
+                    ...(dateRangeError ? { borderColor: "#fca5a5" } : {}),
+                  }}
+                  value={filters.to}
+                  onChange={(e) => setDateFilter("to", e.target.value)}
+                  aria-invalid={Boolean(dateRangeError)}
+                />
+              </div>
+            </>
+          )}
+
+          {has("status") && def.statusOptions && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: isMobile ? "1 1 160px" : "0 1 140px" }}>
+              <label style={ui.fieldLabel}>Estado</label>
+              <FilterSelect value={filters.status} onChange={(v) => setFilter("status", v)} options={def.statusOptions} />
+            </div>
+          )}
+          {has("movementType") && def.movementOptions && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: isMobile ? "1 1 160px" : "0 1 140px" }}>
+              <label style={ui.fieldLabel}>Tipo</label>
+              <FilterSelect value={filters.movementType} onChange={(v) => setFilter("movementType", v)} options={def.movementOptions} />
+            </div>
+          )}
+          {has("search") && (
+            <div style={{ flex: isMobile ? "1 1 200px" : "1 1 0", minWidth: isMobile ? 160 : 100 }}>
+              <label style={ui.fieldLabel}>Buscar</label>
+              <SearchInput value={filters.search} onChange={(v) => setFilter("search", v)} placeholder="Buscar..." />
+            </div>
+          )}
+
+          {/* Acciones */}
+          <div style={{ display: "flex", gap: 6, alignItems: "flex-end", flexShrink: 0, flexWrap: "wrap", marginLeft: isMobile ? 0 : "auto" }}>
+            <button
+              style={{ ...ui.primaryBtn, padding: "6px 14px", fontSize: 13 }}
+              className="active-tap"
+              onClick={load}
+              disabled={loading || Boolean(dateRangeError)}
+              title="Actualizar"
+            >
+              <RefreshCw size={14} /> {loading ? "Generando..." : "Generar"}
+            </button>
+            <button
+              style={{ ...ui.ghostBtn, opacity: rows.length ? 1 : 0.5, padding: "6px 14px", fontSize: 13 }}
+              className="active-tap"
+              onClick={handlePrint}
+              disabled={!rows.length || loading}
+              title="Imprimir / exportar a PDF"
+            >
+              <Printer size={14} /> Imprimir
+            </button>
+          </div>
+        </div>
+
+        {/* Fila inferior: indicador de periodo + contador */}
         {has("dateRange") && (
-          <>
-            <div>
-              <label style={ui.fieldLabel}>Periodo del reporte</label>
-              <select style={{ ...ui.filterSelect, minWidth: 180 }} value={period} onChange={(e) => handlePeriodChange(e.target.value)}>
-                {REPORT_PERIOD_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label style={ui.fieldLabel}>Desde</label>
-              <input
-                type="date"
-                style={{ ...ui.filterSelect, height: 38, ...(dateRangeError ? { borderColor: "#fca5a5" } : {}) }}
-                value={filters.from}
-                onChange={(e) => setDateFilter("from", e.target.value)}
-                aria-invalid={Boolean(dateRangeError)}
-              />
-            </div>
-            <div>
-              <label style={ui.fieldLabel}>Hasta</label>
-              <input
-                type="date"
-                style={{ ...ui.filterSelect, height: 38, ...(dateRangeError ? { borderColor: "#fca5a5" } : {}) }}
-                value={filters.to}
-                onChange={(e) => setDateFilter("to", e.target.value)}
-                aria-invalid={Boolean(dateRangeError)}
-              />
-            </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 8,
+              marginTop: 10,
+              paddingTop: 10,
+              borderTop: "1px solid var(--border-soft)",
+            }}
+          >
             <span
               style={{
-                alignSelf: "flex-end",
-                height: 38,
+                fontSize: 12,
+                color: dateRangeError ? "#b91c1c" : "var(--text-muted)",
+                fontWeight: 600,
                 display: "inline-flex",
                 alignItems: "center",
-                fontSize: 12,
-                color: dateRangeError ? "#b91c1c" : "#64748b",
-                fontWeight: 700,
+                gap: 5,
               }}
             >
-              {dateRangeError || `Periodo seleccionado: ${formatReportRangeLabel(filters.from, filters.to)}`}
+              {dateRangeError ? (
+                <span style={{ color: "#b91c1c" }}>{dateRangeError}</span>
+              ) : (
+                <>
+                  <span style={{ color: "var(--text-faint)" }}>Periodo:</span>
+                  {formatReportRangeLabel(filters.from, filters.to)}
+                </>
+              )}
             </span>
-          </>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                fontSize: 12,
+                fontWeight: 700,
+                color: "var(--accent-strong)",
+                backgroundColor: "var(--accent-soft)",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                padding: "3px 10px",
+              }}
+            >
+              {rows.length} registro{rows.length === 1 ? "" : "s"}
+            </span>
+          </div>
         )}
-        {has("status") && def.statusOptions && (
-          <FilterSelect value={filters.status} onChange={(v) => setFilter("status", v)} options={def.statusOptions} />
+        {!has("dateRange") && (
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                fontSize: 12,
+                fontWeight: 700,
+                color: "var(--accent-strong)",
+                backgroundColor: "var(--accent-soft)",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                padding: "3px 10px",
+              }}
+            >
+              {rows.length} registro{rows.length === 1 ? "" : "s"}
+            </span>
+          </div>
         )}
-        {has("movementType") && def.movementOptions && (
-          <FilterSelect value={filters.movementType} onChange={(v) => setFilter("movementType", v)} options={def.movementOptions} />
-        )}
-        {has("search") && <SearchInput value={filters.search} onChange={(v) => setFilter("search", v)} placeholder="Buscar..." />}
-
-        <button style={{ ...ui.primaryBtn }} className="active-tap" onClick={load} disabled={loading || Boolean(dateRangeError)} title="Actualizar">
-          <RefreshCw size={15} /> {loading ? "Generando..." : "Generar"}
-        </button>
-        <button
-          style={{ ...ui.ghostBtn, opacity: rows.length ? 1 : 0.5 }}
-          className="active-tap"
-          onClick={handlePrint}
-          disabled={!rows.length || loading}
-          title="Imprimir / exportar a PDF"
-        >
-          <Printer size={15} /> Imprimir
-        </button>
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
-          {rows.length} registro{rows.length === 1 ? "" : "s"}
-        </span>
       </div>
 
       {/* KPIs */}
       {kpis.length > 0 && (
-        <div style={{ ...ui.kpiGrid, gridTemplateColumns: isMobile ? `repeat(2, 1fr)` : `repeat(${Math.min(kpis.length, 6)}, 1fr)`, marginBottom: 20 }}>
+        <div
+          style={{
+            ...ui.kpiGrid,
+            gridTemplateColumns: isMobile
+              ? `repeat(2, 1fr)`
+              : `repeat(auto-fit, minmax(150px, 1fr))`,
+            marginBottom: 16,
+            gap: 10,
+          }}
+        >
           {kpis.map((k) => (
             <div key={k.label} style={ui.kpiCard}>
               <div style={ui.kpiLabel}>{k.label}</div>
@@ -365,7 +490,6 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      {/* Folio & Total */}
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                         <span style={{ fontWeight: 700, color: "var(--accent-strong)", fontSize: 16 }}>
                           {row.invoiceNumber}
@@ -374,21 +498,15 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                           {money(row.totalAmount)}
                         </span>
                       </div>
-
-                      {/* Sucursal / Cajero */}
                       <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 8, wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
                         {row.branch} · {row.cajero}
                       </div>
-
-                      {/* Fecha */}
                       <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", marginBottom: 6 }}>
                         <Calendar size={14} color="#2563eb" style={{ flexShrink: 0 }} />
                         <span style={{ wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
                           {fmtDate(row.createdAt)} {fmtTime(row.createdAt)}
                         </span>
                       </div>
-
-                      {/* Cliente */}
                       <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
                         <User size={14} color="#2563eb" style={{ flexShrink: 0 }} />
                         <span style={{ wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
@@ -396,8 +514,6 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                         </span>
                       </div>
                     </div>
-
-                    {/* Chevron Button */}
                     <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
                       <button
                         onClick={() => toggleExpandSale(i)}
@@ -420,8 +536,6 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                       </button>
                     </div>
                   </div>
-
-                  {/* Detalle expandido */}
                   {isExpanded && (
                     <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
                       <div style={{
@@ -430,7 +544,6 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                         border: "1px solid var(--border)",
                         padding: 16,
                       }}>
-                        {/* Datos de la Venta */}
                         <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Datos de la Venta</h4>
                         <div style={reportDetailRowStyle}>
                           <span style={reportDetailLabelStyle}>Folio:</span>
@@ -444,8 +557,6 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                           <span style={reportDetailLabelStyle}>Artículos:</span>
                           <span style={reportDetailValueStyle}>{row.items}</span>
                         </div>
-
-                        {/* Detalle de Operación */}
                         <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginTop: 16, marginBottom: 10 }}>Detalle de Operación</h4>
                         <div style={reportDetailRowStyle}>
                           <span style={reportDetailLabelStyle}>Fecha:</span>
@@ -459,8 +570,6 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                           <span style={reportDetailLabelStyle}>Cliente:</span>
                           <span style={reportDetailValueStyle}>{row.customer || "Público General"}</span>
                         </div>
-
-                        {/* Resumen Económico */}
                         <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginTop: 16, marginBottom: 10 }}>Resumen Económico</h4>
                         <div style={reportDetailRowStyle}>
                           <span style={reportDetailLabelStyle}>Subtotal:</span>
@@ -531,7 +640,6 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      {/* Name & Rank / SKU */}
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                         <span style={{ fontWeight: 800, color: "var(--accent-strong)", fontSize: 14 }}>
                           #{row.rank} · <span style={{ fontFamily: "monospace", color: "var(--text-muted)", fontSize: 13 }}>{row.sku}</span>
@@ -540,20 +648,14 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                           {money(row.importe)}
                         </span>
                       </div>
-
-                      {/* Product Name */}
                       <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", marginBottom: 8, wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
                         {row.name}
                       </div>
-
-                      {/* Cantidad Vendida */}
                       <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
                         <Package size={14} color="#2563eb" style={{ flexShrink: 0 }} />
                         <span>Cantidad vendida: <strong>{row.cantidad}</strong> unidades</span>
                       </div>
                     </div>
-
-                    {/* Chevron Button */}
                     <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
                       <button
                         onClick={() => toggleExpandSale(i)}
@@ -576,8 +678,6 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                       </button>
                     </div>
                   </div>
-
-                  {/* Detalle expandido */}
                   {isExpanded && (
                     <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
                       <div style={{
@@ -586,7 +686,6 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                         border: "1px solid var(--border)",
                         padding: 16,
                       }}>
-                        {/* Detalles del Producto */}
                         <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Detalles del Producto</h4>
                         <div style={reportDetailRowStyle}>
                           <span style={reportDetailLabelStyle}>Nombre:</span>
@@ -640,39 +739,28 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
               <div key={i} style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border-soft)", borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)", textAlign: "left" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    {/* SKU & Estado chip */}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                       <span style={{ fontFamily: "monospace", fontWeight: 700, color: "var(--text-muted)", fontSize: 12, wordBreak: "break-word", overflowWrap: "anywhere" }}>{row.sku}</span>
                       <span style={{ flexShrink: 0, marginLeft: 8 }}>{getCell(row, "estado")}</span>
                     </div>
-
-                    {/* Nombre */}
                     <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", marginBottom: 8, wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
                       {row.name}
                     </div>
-
-                    {/* Stock */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>
                       <Layers size={14} color="#2563eb" style={{ flexShrink: 0 }} />
                       <span>Stock: <strong>{row.stock}</strong> uds · Mínimo: <strong>{row.minStock}</strong></span>
                     </div>
-
-                    {/* Precio venta */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
                       <TrendingUp size={14} color="#16a34a" style={{ flexShrink: 0 }} />
                       <span>Precio venta: <strong>{getCell(row, "sellPrice")}</strong></span>
                     </div>
                   </div>
-
-                  {/* Chevron */}
                   <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
                     <button onClick={() => toggleExpandSale(i)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--surface)", border: "1px solid var(--border-strong)", borderRadius: 8, width: 38, height: 38, cursor: "pointer", color: "var(--accent)", padding: 0 }} className="active-tap">
                       {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                     </button>
                   </div>
                 </div>
-
-                {/* Detalle expandido */}
                 {isExpanded && (
                   <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
                     <div style={{ backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)", padding: 16 }}>
@@ -710,18 +798,13 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
               <div key={i} style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border-soft)", borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)", textAlign: "left" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    {/* SKU & Tipo de movimiento */}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                       <span style={{ fontFamily: "monospace", fontWeight: 700, color: "var(--text-muted)", fontSize: 12, wordBreak: "break-word", overflowWrap: "anywhere" }}>{row.sku}</span>
                       <span style={{ flexShrink: 0, marginLeft: 8 }}>{getCell(row, "movementType")}</span>
                     </div>
-
-                    {/* Producto */}
                     <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", marginBottom: 8, wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
                       {row.product}
                     </div>
-
-                    {/* Cambio de cantidad */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>
                       {isPos ? <TrendingUp size={14} color="#16a34a" style={{ flexShrink: 0 }} /> : isNeg ? <TrendingDown size={14} color="#dc2626" style={{ flexShrink: 0 }} /> : <ArrowUpDown size={14} color="#64748b" style={{ flexShrink: 0 }} />}
                       <span style={{ color: isPos ? "#16a34a" : isNeg ? "#dc2626" : "#475569", fontWeight: 700 }}>
@@ -729,23 +812,17 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
                       </span>
                       <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>· Saldo: <strong style={{ color: "var(--text)" }}>{row.balanceAfter}</strong></span>
                     </div>
-
-                    {/* Fecha */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
                       <Activity size={14} color="#2563eb" style={{ flexShrink: 0 }} />
                       <span style={{ wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>{getCell(row, "createdAt")}</span>
                     </div>
                   </div>
-
-                  {/* Chevron */}
                   <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
                     <button onClick={() => toggleExpandSale(i)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--surface)", border: "1px solid var(--border-strong)", borderRadius: 8, width: 38, height: 38, cursor: "pointer", color: "var(--accent)", padding: 0 }} className="active-tap">
                       {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                     </button>
                   </div>
                 </div>
-
-                {/* Detalle expandido */}
                 {isExpanded && (
                   <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
                     <div style={{ backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)", padding: 16 }}>
@@ -782,39 +859,28 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
               <div key={i} style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border-soft)", borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)", textAlign: "left" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    {/* Referencia & Estado */}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                       <span style={{ fontFamily: "monospace", fontWeight: 700, color: "var(--text-muted)", fontSize: 12, wordBreak: "break-word", overflowWrap: "anywhere" }}>{row.reference}</span>
                       <span style={{ flexShrink: 0, marginLeft: 8 }}>{getCell(row, "status")}</span>
                     </div>
-
-                    {/* Proveedor */}
                     <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", marginBottom: 8, wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
                       {getCell(row, "supplier")}
                     </div>
-
-                    {/* Fecha */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>
                       <Calendar size={14} color="#2563eb" style={{ flexShrink: 0 }} />
                       <span style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}>{getCell(row, "purchaseDate")}</span>
                     </div>
-
-                    {/* Total */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
                       <TrendingUp size={14} color="#16a34a" style={{ flexShrink: 0 }} />
                       <span>Total: <strong>{getCell(row, "total")}</strong></span>
                     </div>
                   </div>
-
-                  {/* Chevron */}
                   <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
                     <button onClick={() => toggleExpandSale(i)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--surface)", border: "1px solid var(--border-strong)", borderRadius: 8, width: 38, height: 38, cursor: "pointer", color: "var(--accent)", padding: 0 }} className="active-tap">
                       {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                     </button>
                   </div>
                 </div>
-
-                {/* Detalle expandido */}
                 {isExpanded && (
                   <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
                     <div style={{ backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)", padding: 16 }}>
@@ -851,39 +917,28 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
               <div key={i} style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border-soft)", borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)", textAlign: "left" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    {/* Nombre & Rol */}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                       <span style={{ fontWeight: 800, color: "var(--accent-strong)", fontSize: 13, wordBreak: "break-word", overflowWrap: "anywhere" }}>{row.name}</span>
                       <span style={{ flexShrink: 0, marginLeft: 8 }}>{getCell(row, "role")}</span>
                     </div>
-
-                    {/* Sucursal */}
                     <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8, wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
                       {row.branch || "Sin sucursal"}
                     </div>
-
-                    {/* Ventas */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>
                       <Activity size={14} color="#2563eb" style={{ flexShrink: 0 }} />
                       <span><strong>{row.ventasCount}</strong> ventas realizadas</span>
                     </div>
-
-                    {/* Total vendido */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
                       <TrendingUp size={14} color="#16a34a" style={{ flexShrink: 0 }} />
                       <span>Total vendido: <strong>{getCell(row, "totalVendido")}</strong></span>
                     </div>
                   </div>
-
-                  {/* Chevron */}
                   <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
                     <button onClick={() => toggleExpandSale(i)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--surface)", border: "1px solid var(--border-strong)", borderRadius: 8, width: 38, height: 38, cursor: "pointer", color: "var(--accent)", padding: 0 }} className="active-tap">
                       {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                     </button>
                   </div>
                 </div>
-
-                {/* Detalle expandido */}
                 {isExpanded && (
                   <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
                     <div style={{ backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)", padding: 16 }}>
@@ -919,39 +974,28 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
               <div key={i} style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border-soft)", borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)", textAlign: "left" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    {/* Nombre & Rol */}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                       <span style={{ fontWeight: 800, color: "var(--accent-strong)", fontSize: 13, wordBreak: "break-word", overflowWrap: "anywhere" }}>{row.name}</span>
                       <span style={{ flexShrink: 0, marginLeft: 8 }}>{getCell(row, "role")}</span>
                     </div>
-
-                    {/* Sucursal */}
                     <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8, wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
                       {row.branch || "Sin sucursal"}
                     </div>
-
-                    {/* Tickets */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>
                       <Activity size={14} color="#2563eb" style={{ flexShrink: 0 }} />
                       <span><strong>{row.ventasCount}</strong> tickets realizados</span>
                     </div>
-
-                    {/* Total vendido */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
                       <TrendingUp size={14} color="#16a34a" style={{ flexShrink: 0 }} />
                       <span>Importe: <strong>{getCell(row, "totalVendido")}</strong></span>
                     </div>
                   </div>
-
-                  {/* Chevron */}
                   <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
                     <button onClick={() => toggleExpandSale(i)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--surface)", border: "1px solid var(--border-strong)", borderRadius: 8, width: 38, height: 38, cursor: "pointer", color: "var(--accent)", padding: 0 }} className="active-tap">
                       {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                     </button>
                   </div>
                 </div>
-
-                {/* Detalle expandido */}
                 {isExpanded && (
                   <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
                     <div style={{ backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)", padding: 16 }}>
@@ -1026,8 +1070,18 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
         </div>
       ) : (
         /* ── Standard Dynamic Table ── */
-        <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-          <table style={ui.table}>
+        <div
+          className="table-sticky-head"
+          style={{
+            ...ui.tableWrap,
+            overflowX: "auto",
+            overflowY: "auto",
+            maxHeight: "62vh",
+            width: "100%",
+            maxWidth: "100%",
+          }}
+        >
+          <table style={{ ...ui.table, width: "100%", tableLayout: "auto", minWidth: "max-content" }}>
             <thead>
               <tr style={ui.theadRow}>
                 {cols.map((c) => (
@@ -1080,7 +1134,8 @@ const ReportRunner: React.FC<{ def: ReportDef; branchId: string; branchLabel: st
           borderBottomLeftRadius: 12,
           borderBottomRightRadius: 12,
           fontSize: 13,
-          color: "#475569"
+          color: "#475569",
+          width: "100%",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span>Mostrar</span>

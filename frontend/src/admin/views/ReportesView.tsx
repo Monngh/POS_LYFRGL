@@ -25,7 +25,7 @@ const ReportesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [branches, setBranches] = useState<BranchOption[]>([]);
 
   useEffect(() => {
-    api.get<{ branches: BranchOption[] }>("/api/auth/branches").then((r) => setBranches(r.data.branches)).catch(() => {});
+    api.get<{ branches: BranchOption[] }>("/api/auth/branches").then((r) => setBranches(r.data.branches)).catch(() => { });
   }, []);
 
   const branchLabel =
@@ -33,11 +33,28 @@ const ReportesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const selected = selectedKey ? REPORTS.find((r) => r.key === selectedKey) ?? null : null;
 
-  // ---------------- Vista de un reporte seleccionado ----------------
   if (selected) {
     return (
-      <div>
-        <button style={{ ...ui.ghostBtn, marginBottom: 16 }} className="active-tap" onClick={() => setSelectedKey(null)}>
+      <div style={{ padding: 0, margin: 0, width: '100%', maxWidth: '100%' }}>
+        <button
+          style={{
+            ...ui.ghostBtn,
+            marginBottom: 16,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "8px 14px",
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 700,
+            color: "var(--accent-strong)",
+            border: "1px solid var(--border-strong)",
+            backgroundColor: "var(--surface)",
+            cursor: "pointer",
+          }}
+          className="active-tap"
+          onClick={() => setSelectedKey(null)}
+        >
           <ArrowLeft size={15} /> Catálogo de reportes
         </button>
         <SectionHeader
@@ -45,8 +62,22 @@ const ReportesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           subtitle={selected.description}
           right={
             selected.branchScoped ? (
-              <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
-                Sucursal: <span style={{ color: "var(--accent-strong)", fontWeight: 700 }}>{branchLabel}</span>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 12,
+                  color: "var(--text-muted)",
+                  fontWeight: 600,
+                  backgroundColor: "var(--accent-soft)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  padding: "5px 10px",
+                }}
+              >
+                Sucursal:
+                <span style={{ color: "var(--accent-strong)", fontWeight: 800 }}>{branchLabel}</span>
               </span>
             ) : undefined
           }
@@ -75,8 +106,6 @@ const ReportesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       </div>
     );
   }
-
-  // ---------------- Catálogo ----------------
   return (
     <div>
       <SectionHeader title="Reportes" subtitle="Centro de reportes — seleccione el documento que desea generar" />
@@ -85,8 +114,10 @@ const ReportesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         const items = REPORTS.filter((r) => r.category === category && (!r.adminOnly || user?.role === "ADMIN"));
         if (items.length === 0) return null;
         return (
-          <div key={category} style={{ marginBottom: 28 }}>
-            <div style={styles.catLabel}>{category}</div>
+          <div key={category} style={{ marginBottom: 32 }}>
+            <div style={styles.catLabel}>
+              <span style={styles.catLabelText}>{category}</span>
+            </div>
             <div style={styles.grid}>
               {items.map((def) => (
                 <ReportCard key={def.key} def={def} onClick={() => setSelectedKey(def.key)} />
@@ -101,14 +132,37 @@ const ReportesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
 const ReportCard: React.FC<{ def: ReportDef; onClick: () => void }> = ({ def, onClick }) => {
   const Icon = def.icon;
+  const [hovered, setHovered] = React.useState(false);
   return (
-    <button onClick={onClick} className="active-tap" style={styles.card}>
+    <button
+      onClick={onClick}
+      className="active-tap"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        ...styles.card,
+        borderColor: hovered ? "var(--accent)" : "var(--border)",
+        boxShadow: hovered
+          ? "0 8px 24px rgba(37,99,235,0.15), 0 2px 6px rgba(0,0,0,0.08)"
+          : "0 1px 3px rgba(0,0,0,0.06)",
+        transform: hovered ? "translateY(-2px)" : "translateY(0)",
+      }}
+    >
       <div style={styles.cardHead}>
-        <div style={styles.cardIcon}>
+        <div style={{
+          ...styles.cardIcon,
+          background: hovered
+            ? "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)"
+            : "#eff6ff",
+        }}>
           <Icon size={20} color="#2563eb" />
         </div>
         {!def.available && <Badge tone="amber">Próximamente</Badge>}
-        <ChevronRight size={16} color="#cbd5e1" style={{ marginLeft: "auto" }} />
+        <ChevronRight
+          size={16}
+          color={hovered ? "#2563eb" : "#cbd5e1"}
+          style={{ marginLeft: "auto", flexShrink: 0, transition: "color 0.15s ease" }}
+        />
       </div>
       <div style={styles.cardTitle}>{def.title}</div>
       <div style={styles.cardDesc}>{def.description}</div>
@@ -118,27 +172,34 @@ const ReportCard: React.FC<{ def: ReportDef; onClick: () => void }> = ({ def, on
 
 const styles: { [k: string]: React.CSSProperties } = {
   catLabel: {
-    fontSize: 12,
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottom: "1px solid var(--border)",
+  },
+  catLabelText: {
+    fontSize: 11,
     fontWeight: 800,
-    color: "var(--text-faint)",
-    textTransform: "uppercase",
-    letterSpacing: "0.6px",
-    marginBottom: 12,
+    color: "var(--text-muted)",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.7px",
   },
   grid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-    gap: 16,
+    gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+    gap: 14,
   },
   card: {
     textAlign: "left",
     backgroundColor: "var(--surface)",
     border: "1px solid var(--border)",
-    borderRadius: 12,
-    padding: 18,
+    borderRadius: 14,
+    padding: "18px 20px",
     cursor: "pointer",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-    transition: "border-color 0.15s ease, box-shadow 0.15s ease",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+    transition: "border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease",
     display: "flex",
     flexDirection: "column",
     gap: 8,
@@ -146,16 +207,18 @@ const styles: { [k: string]: React.CSSProperties } = {
   },
   cardHead: { display: "flex", alignItems: "center", gap: 10 },
   cardIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: "#eff6ff",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
+    transition: "background 0.2s ease",
   },
-  cardTitle: { fontSize: 15, fontWeight: 800, color: "var(--text)", marginTop: 2 },
-  cardDesc: { fontSize: 12.5, color: "var(--text-muted)", lineHeight: 1.5 },
+  cardTitle: { fontSize: 14.5, fontWeight: 800, color: "var(--text)", marginTop: 2, lineHeight: 1.3 },
+  cardDesc: { fontSize: 12.5, color: "var(--text-muted)", lineHeight: 1.55 },
 };
 
 export default ReportesView;

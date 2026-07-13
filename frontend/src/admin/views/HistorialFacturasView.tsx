@@ -61,7 +61,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   return (
     <div>
-  
+
 
       <Panel>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", backgroundColor: "var(--surface-2)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
@@ -76,12 +76,15 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
               <option value="Facturas">Sólo Facturas</option>
               <option value="Notas de Crédito">Sólo Notas de Crédito</option>
             </select>
-            <button onClick={fetchHistory} style={ui.ghostBtn}>
+            <button
+              onClick={fetchHistory}
+              style={{ ...ui.ghostBtn, whiteSpace: "nowrap", flexShrink: 0 }}
+            >
               Actualizar
             </button>
           </div>
         </div>
-        
+
         {isMobile ? (
           /* ── Mobile / Tablet: Card-based layout ── */
           <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>

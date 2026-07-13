@@ -6,35 +6,22 @@ import {
 import { printReport, downloadReportPdf } from "./exports";
 import type { ReportDocMeta } from "./components";
 
-// ============================================================================
-// ReportShell — plantilla maestra (PrintLayout + visor de documento) que TODOS
-// los reportes reutilizan. Aporta: panel de configuración (host), barra de
-// vista previa (zoom, navegación, exportar), índice lateral (TOC), visor con
-// scroll propio y toda la lógica de imprimir / descargar PDF. Los módulos solo
-// aportan su panel de filtros y sus páginas A4; el resto es idéntico.
-// ============================================================================
-
-// Una página A4 del documento: se renderiza con <ReportPage> dentro de `render`.
 export interface ReportPageDef {
   id: string;
-  toc?: string; // etiqueta para el índice lateral (si aplica)
+  toc?: string;
   render: (page: number, meta: ReportDocMeta) => React.ReactNode;
 }
 
 export interface ReportDocBundle {
   docMeta: Omit<ReportDocMeta, "totalPages">;
   pages: ReportPageDef[];
-  filenameBase: string; // p. ej. "Reporte_Ejecutivo"
+  filenameBase: string;
   onExcel?: () => void;
   onCsv?: () => void;
 }
 
-const A4_PX = 794; // ancho A4 @96dpi para el cálculo de zoom-al-ancho
+const A4_PX = 794;
 
-// ---------------------------------------------------------------------------
-// Panel de configuración (host de filtros) — chrome común; los campos los
-// aporta cada módulo como children dentro de la rejilla.
-// ---------------------------------------------------------------------------
 export const ReportConfigPanel: React.FC<{
   open: boolean;
   onToggle?: () => void;
@@ -71,9 +58,6 @@ export const ReportConfigPanel: React.FC<{
   </div>
 );
 
-// ---------------------------------------------------------------------------
-// Shell del documento.
-// ---------------------------------------------------------------------------
 export const ReportShell: React.FC<{
   configPanel: React.ReactNode;
   ready: boolean;
@@ -91,14 +75,19 @@ export const ReportShell: React.FC<{
 
   const folio = doc?.docMeta.folio;
 
-  // Zoom-al-ancho automático (responsive 1024–1920). Se desactiva si el
-  // usuario ajusta el zoom manualmente, hasta la próxima generación.
   const fitZoom = useCallback(() => {
-    const w = scrollRef.current?.clientWidth ?? 0;
-    if (w > 0) setZoom(Math.min(1, Math.max(0.55, Math.floor(((w - 44) / A4_PX) * 100) / 100)));
+    const container = scrollRef.current;
+    if (!container) return;
+    const style = getComputedStyle(container);
+    const paddingLeft = parseFloat(style.paddingLeft) || 0;
+    const paddingRight = parseFloat(style.paddingRight) || 0;
+    const availableWidth = container.clientWidth - paddingLeft - paddingRight;
+    if (availableWidth <= 0) return;
+    const ideal = availableWidth / A4_PX;
+    const clamped = Math.min(1, Math.max(0.35, ideal));
+    setZoom(Math.round(clamped * 100) / 100);
   }, []);
 
-  // Al generar (cambia el folio): reinicia zoom/scroll/página.
   useEffect(() => {
     if (!folio) return;
     setManualZoom(false);
@@ -137,17 +126,17 @@ export const ReportShell: React.FC<{
     try {
       await downloadReportPdf(`${doc.filenameBase}_${new Date().toISOString().slice(0, 10)}`);
     } catch {
-      printReport(); // respaldo: impresión nativa (mismo documento)
+      printReport();
     } finally {
       setDownloading(false);
     }
   };
 
-  if (error) return <div className="erp-doc">{configPanel}<div className="erp-empty" style={{ color: "#b91c1c" }}>{error}</div></div>;
+  if (error) return <div className="erp-doc" style={{ padding: 0, margin: 0, width: "100%" }}>{configPanel}<div className="erp-empty" style={{ color: "#b91c1c" }}>{error}</div></div>;
 
   if (!ready || !doc) {
     return (
-      <div className="erp-doc">
+      <div className="erp-doc" style={{ padding: 0, margin: 0, width: "100%" }}>
         {configPanel}
         <div className="erp-empty">
           {loading
@@ -171,7 +160,7 @@ export const ReportShell: React.FC<{
   };
 
   return (
-    <div className="erp-doc">
+    <div className="erp-doc" style={{ padding: 0, margin: 0, width: "100%" }}>
       {configPanel}
 
       {/* Barra de la vista previa */}
@@ -183,7 +172,7 @@ export const ReportShell: React.FC<{
         <button className="erp-btn erp-btn-ghost erp-btn-icon" onClick={() => goPage(current - 1, pages.length)} title="Página anterior"><ChevronLeft size={15} /></button>
         <span className="erp-pageind">Página {current + 1} de {pages.length}</span>
         <button className="erp-btn erp-btn-ghost erp-btn-icon" onClick={() => goPage(current + 1, pages.length)} title="Página siguiente"><ChevronRight size={15} /></button>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div className="erp-previewbar-actions">
           <button className="erp-btn erp-btn-primary" onClick={onDownloadPdf} disabled={downloading} title="Descargar el documento como PDF vectorial">
             <Download size={15} /> {downloading ? "Generando PDF…" : "Descargar PDF"}
           </button>
@@ -193,8 +182,7 @@ export const ReportShell: React.FC<{
         </div>
       </div>
 
-      <div className="erp-shell">
-        {/* Índice lateral */}
+      <div className="erp-shell" style={{ padding: 0 }}>
         {tocEntries.length > 0 && (
           <nav className="erp-toc erp-no-print">
             <div className="erp-toc-title">Contenido del reporte</div>
@@ -207,9 +195,17 @@ export const ReportShell: React.FC<{
           </nav>
         )}
 
-        {/* Documento — visor con scroll vertical propio */}
-        <div className="erp-main">
-          <div className="erp-doc-scroll" ref={scrollRef} onScroll={onDocScroll}>
+        <div className="erp-main" style={{ padding: 0 }}>
+          <div
+            className="erp-doc-scroll"
+            ref={scrollRef}
+            onScroll={onDocScroll}
+            style={{
+              overflowY: "auto",
+              touchAction: "pan-y",
+              padding: 0,
+            }}
+          >
             <div className="erp-zoom" style={{ zoom } as React.CSSProperties}>
               {pages.map((p, i) => (
                 <div key={p.id} ref={(el) => { pageRefs.current[i] = el; }}>
