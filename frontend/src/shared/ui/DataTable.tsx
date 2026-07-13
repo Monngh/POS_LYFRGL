@@ -16,6 +16,7 @@ interface DataTableProps<T> {
   emptyMessage?: string;
   keyExtractor: (row: T, index: number) => string | number;
   maxHeight?: string;
+  height?: string;
 }
 
 export function DataTable<T>({
@@ -26,6 +27,7 @@ export function DataTable<T>({
   emptyMessage = "No hay registros para mostrar.",
   keyExtractor,
   maxHeight = "62vh",
+  height,
 }: DataTableProps<T>) {
   const colSpan = columns.length;
 
@@ -41,7 +43,8 @@ export function DataTable<T>({
       style={{
         overflowX: "auto",
         overflowY: "auto",
-        maxHeight,
+        maxHeight: height ? undefined : maxHeight,
+        height: height || undefined,
         backgroundColor: "var(--surface)",
         border: "1px solid var(--border)",
         borderRadius: 12,

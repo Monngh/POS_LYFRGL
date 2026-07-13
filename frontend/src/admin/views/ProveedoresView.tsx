@@ -1206,7 +1206,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
             error={error}
             emptyMessage="Aún no hay proveedores registrados con esos filtros."
             keyExtractor={(s) => s.id}
-            maxHeight="calc(100vh - 275px)"
+            height="calc(100vh - 275px)"
           />
         </div>
       )}

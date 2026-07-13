@@ -21,6 +21,7 @@ import {
   fmtDateTime,
   fmtTime,
   useMediaQuery,
+  Pagination,
 } from "./shared";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -775,8 +776,37 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             })}
         </div>
       ) : (
-        <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "74vh" }}>
-          <table style={{ ...ui.table, minWidth: 680 }}>
+        <div
+          className="table-sticky-head"
+          style={{
+            ...ui.tableWrap,
+            overflowX: "auto",
+            overflowY: "auto",
+            height: "calc(100vh - 275px)",
+          }}
+        >
+          <style>{`
+            /* Permite que el scrollbar vertical se superponga (overlay) para que las filas ocupen el 100% del ancho */
+            .table-sticky-head {
+              overflow-y: overlay !important;
+            }
+            /* Estilos premium para los scrollbars del contenedor de la tabla */
+            .table-sticky-head::-webkit-scrollbar {
+              width: 8px;
+              height: 8px;
+            }
+            .table-sticky-head::-webkit-scrollbar-track {
+              background: transparent;
+            }
+            .table-sticky-head::-webkit-scrollbar-thumb {
+              background: var(--border-strong);
+              border-radius: 4px;
+            }
+            .table-sticky-head::-webkit-scrollbar-thumb:hover {
+              background: var(--accent);
+            }
+          `}</style>
+          <table style={{ ...ui.table, minWidth: 680, width: "100%" }}>
             <thead>
               <tr style={ui.theadRow}>
                 <th style={ui.th}>Folio Devolución</th>
@@ -840,26 +870,16 @@ const DevolucionesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       )}
 
       {/* Paginación */}
-      {totalPages > 1 && (
-        <div style={pageWrap}>
-          <button
-            style={{ ...ui.ghostBtn, opacity: page <= 1 ? 0.4 : 1 }}
-            disabled={page <= 1}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            ← Anterior
-          </button>
-          <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
-            Página {page} de {totalPages}
-          </span>
-          <button
-            style={{ ...ui.ghostBtn, opacity: page >= totalPages ? 0.4 : 1 }}
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Siguiente →
-          </button>
-        </div>
+      {!loading && !error && (
+        <Pagination
+          page={page}
+          pageCount={totalPages}
+          total={totalRows}
+          from={totalRows === 0 ? 0 : (page - 1) * LIMIT + 1}
+          to={Math.min(totalRows, page * LIMIT)}
+          onPage={setPage}
+          itemLabel="devoluciones"
+        />
       )}
     </div>
   );
@@ -879,15 +899,6 @@ const dateInput: React.CSSProperties = {
   cursor: "pointer",
   fontFamily: "inherit",
   outline: "none",
-};
-
-const pageWrap: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 12,
-  marginTop: 16,
-  padding: "12px 0",
 };
 
 const secTitle: React.CSSProperties = {

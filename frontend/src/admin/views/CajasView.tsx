@@ -543,8 +543,37 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             })}
         </div>
       ) : (
-        <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-          <table style={ui.table}>
+        <div
+          className="table-sticky-head"
+          style={{
+            ...ui.tableWrap,
+            overflowX: "auto",
+            overflowY: "auto",
+            height: "calc(100vh - 275px)",
+          }}
+        >
+          <style>{`
+            /* Permite que el scrollbar vertical se superponga (overlay) para que las filas ocupen el 100% del ancho */
+            .table-sticky-head {
+              overflow-y: overlay !important;
+            }
+            /* Estilos premium para los scrollbars del contenedor de la tabla */
+            .table-sticky-head::-webkit-scrollbar {
+              width: 8px;
+              height: 8px;
+            }
+            .table-sticky-head::-webkit-scrollbar-track {
+              background: transparent;
+            }
+            .table-sticky-head::-webkit-scrollbar-thumb {
+              background: var(--border-strong);
+              border-radius: 4px;
+            }
+            .table-sticky-head::-webkit-scrollbar-thumb:hover {
+              background: var(--accent);
+            }
+          `}</style>
+          <table style={{ ...ui.table, width: "100%" }}>
             <thead>
               <tr style={ui.theadRow}>
                 <th style={ui.th}>#</th>

@@ -630,7 +630,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             error={error}
             emptyMessage="No hay ventas con los filtros seleccionados."
             keyExtractor={(s) => s.id}
-            maxHeight="calc(100vh - 275px)"
+            height="calc(100vh - 275px)"
           />
         </div>
       )}
