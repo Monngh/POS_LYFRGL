@@ -362,6 +362,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     {
       key: "name",
       header: "Nombre / Razón Social",
+      width: "250px",
       render: (c) => (
         <span style={{ fontWeight: 700, color: "var(--text)", whiteSpace: "normal" }}>{c.name}</span>
       ),
@@ -369,6 +370,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     {
       key: "taxId",
       header: "RFC",
+      width: "120px",
       render: (c) => (
         <span style={{ color: "var(--text-muted)", fontFamily: "monospace", fontSize: 12 }}>{c.taxId || "—"}</span>
       ),
@@ -376,6 +378,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     {
       key: "cfdi",
       header: "CP · Régimen · Uso CFDI",
+      width: "180px",
       render: (c) => (
         c.zipCode || c.taxRegime || c.cfdiUse ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 1, color: "var(--text-secondary)", fontSize: 12, whiteSpace: "normal" }}>
@@ -391,6 +394,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     {
       key: "email",
       header: "Contacto",
+      width: "200px",
       render: (c) => (
         <div style={{ whiteSpace: "normal" }}>
           <div>{c.email || "—"}</div>
@@ -402,6 +406,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
       key: "balance",
       header: "Saldo",
       align: "right",
+      width: "100px",
       render: (c) => (
         <span style={{ fontWeight: 700, color: c.balance > 0 ? "var(--color-danger)" : "var(--text-secondary)" }}>
           {money(c.balance)}
@@ -412,17 +417,20 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
       key: "salesCount",
       header: "Compras",
       align: "center",
+      width: "90px",
       render: (c) => <span style={{ fontWeight: 700 }}>{c.salesCount}</span>,
     },
     {
       key: "createdAt",
       header: "Alta",
+      width: "100px",
       render: (c) => <span style={{ color: "var(--text-muted)" }}>{fmtDate(c.createdAt)}</span>,
     },
     {
       key: "edit",
       header: "",
       align: "center",
+      width: "50px",
       render: (c) => (
         <button
           onClick={() => openEdit(c)}
@@ -456,7 +464,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
       {isMobile ? (
         /* ── Mobile / Tablet: Card-based layout ── */
-        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
+        <div style={{ padding: "8px 0" }}>
           {loading && (
             <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
@@ -634,7 +642,18 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
             })}
         </div>
       ) : (
-        <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowY: "auto", maxHeight: "70vh" }}>
+        <div className="table-sticky-head" style={{ ...ui.tableWrap }}>
+          <style>{`
+            .table-sticky-head table {
+              min-width: 820px;
+            }
+            .table-sticky-head thead th {
+              position: sticky;
+              top: 0;
+              z-index: 1;
+              background: var(--surface-2);
+            }
+          `}</style>
           <DataTable
             columns={columns}
             data={paged.pageItems}

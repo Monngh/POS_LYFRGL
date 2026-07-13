@@ -18,6 +18,7 @@ import {
   useMediaQuery,
   usePagination,
   Pagination,
+  ui,
 } from "./shared";
 import { useToast } from "../../shared/context/ToastContext";
 
@@ -278,9 +279,9 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       key: "status",
       header: "Confirmado",
       align: "center",
-      width: "80px",
+      width: "90px",
       render: (d) => (
-        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: "4px" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
           <input
             type="checkbox"
             checked={d.status === "COMPLETED" || d.status === "CONFIRMADO"}
@@ -301,8 +302,8 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 d.status === "CONFIRMADO"
                   ? "not-allowed"
                   : "pointer",
-              width: "18px",
-              height: "18px",
+              width: "16px",
+              height: "16px",
             }}
           />
           <button
@@ -312,12 +313,12 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               border: "none",
               cursor: "pointer",
               fontSize: "11px",
+              color: "var(--accent)",
+              fontWeight: 600,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               padding: 0,
-              color: "var(--accent)",
-              fontWeight: 600,
               gap: "4px"
             }}
             title="Ver detalles"
@@ -360,23 +361,33 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         <FilterSelect
           value={account}
           onChange={(val) => setAccount(val)}
+          style={{
+            fontFamily: "monospace",
+            fontSize: isMobile ? "12px" : "13px",
+            maxWidth: "100%",
+            width: isMobile ? "100%" : "280px",
+            height: isMobile ? "34px" : "38px",
+          }}
           options={[
             { value: "", label: "Todas las cuentas" },
-            ...accounts.map(acc => ({
-              value: acc.accountNumber,
-              label: (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                  <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{acc.targetName}</span>
-                  <span style={{ fontFamily: 'monospace', fontSize: '12px', color: 'var(--text-faint)' }}>{acc.accountMasked}</span>
-                </div>
-              )
-            }))
+            ...accounts.map(acc => {
+              // Format the options with monospace padding so columns are defined and clear
+              const paddedName = acc.targetName.slice(0, 15).padEnd(15, "\u00A0");
+              const shortMask = acc.accountMasked.replace(/[\s*]/g, "");
+              const displayMask = `****${shortMask.slice(-4)}`;
+              return { value: acc.accountNumber, label: `${paddedName} ${displayMask}` };
+            })
           ]}
-          style={{ minWidth: '240px', maxWidth: '300px', flex: '1 1 240px' }}
         />
         <FilterSelect
           value={paymentType}
           onChange={(val) => setPaymentType(val)}
+          style={{
+            fontSize: isMobile ? "12px" : "13px",
+            maxWidth: "100%",
+            width: isMobile ? "100%" : "180px",
+            height: isMobile ? "34px" : "38px",
+          }}
           options={[
             { value: "", label: "Todos los tipos" },
             { value: "EFECTIVO", label: "Efectivo" },
@@ -400,6 +411,7 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             Limpiar filtros
           </button>
         )}
+
         <span style={{ marginLeft: isMobile ? "0" : "auto", fontSize: 13, color: "var(--text-secondary)", fontWeight: 700 }}>
           Total depositado: <span style={{ color: "var(--accent-strong)", fontWeight: 800 }}>{money(total)}</span>
         </span>
