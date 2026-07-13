@@ -11,6 +11,7 @@ import {
   Wallet,
   Landmark,
   Scale,
+  BadgePercent,
 } from "lucide-react";
 import api from "../../shared/services/api";
 import { ui, type ViewProps, SectionHeader, money, useMediaQuery } from "./shared";
@@ -24,6 +25,7 @@ interface DashboardMetrics {
   productosActivos: number;
   clientesNuevos: number;
   inventarioBajo: number;
+  promocionesActivas: number;
 }
 interface DayPoint {
   label: string;
@@ -127,6 +129,7 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken, navigateTo
   const goCajasAbiertas = () => navigateTo?.("cajas", { estado: "Abiertas" });
   const goDepositosHoy = () => navigateTo?.("depositos", { from: todayISO, to: todayISO });
   const goCajasCerradas = () => navigateTo?.("cajas", { estado: "Cerradas" });
+  const goPromosVigentes = () => navigateTo?.("promociones", { statusFilter: "vigente" });
 
   const cards = [
     { label: "Ventas de hoy", value: m ? money(m.ventasHoy) : "—", icon: TrendingUp, onClick: goVentasHoy },
@@ -143,6 +146,7 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken, navigateTo
       warning: !!m && m.inventarioBajo > 0,
       onClick: goInventarioBajo,
     },
+    { label: "Promos vigentes", value: m ? `${m.promocionesActivas} vigentes` : "—", icon: BadgePercent, onClick: goPromosVigentes },
   ];
 
   const maxDay = Math.max(1, ...(data?.ventas7dias.map((d) => d.total) ?? [0]));

@@ -47,6 +47,7 @@ export const getAdminMetrics = async (req: Request, res: Response): Promise<void
       weekSales,
       branches,
       ventasPorSucursalRaw,
+      promocionesActivas,
     ] = await Promise.all([
       // Ventas y tickets de hoy
       prisma.sale.aggregate({
@@ -89,6 +90,10 @@ export const getAdminMetrics = async (req: Request, res: Response): Promise<void
         by: ["branchId"],
         where: { status: COMPLETADA, createdAt: { gte: startOfMonth } },
         _sum: { totalAmount: true },
+      }),
+      // Promociones vigentes ahora mismo (activas y dentro de su vigencia)
+      prisma.promotion.count({
+        where: { isActive: true, startDate: { lte: now }, endDate: { gte: now } },
       }),
     ]);
 
@@ -186,6 +191,7 @@ export const getAdminMetrics = async (req: Request, res: Response): Promise<void
         productosActivos,
         clientesNuevos,
         inventarioBajo,
+        promocionesActivas,
       },
       ventas7dias: week,
       ventasPorSucursal,

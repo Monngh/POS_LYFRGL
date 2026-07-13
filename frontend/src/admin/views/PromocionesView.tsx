@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Eye, PackagePlus, Pencil, Plus, Power, Tags, X, Calendar } from "lucide-react";
 import api from "../../shared/services/api";
 import { ConfirmModal } from "../../shared/ui";
@@ -16,6 +16,7 @@ import {
   type ViewProps,
   Toolbar,
   SearchInput,
+  FilterSelect,
   Badge,
   TableState,
   SectionHeader,
@@ -24,6 +25,8 @@ import {
   useMediaQuery,
   filterProductsBySearch,
 } from "./shared";
+
+type PromotionStatusFilter = "all" | "vigente" | "programada" | "inactiva";
 
 const promoDetailRow: React.CSSProperties = {
   display: "flex",
@@ -348,7 +351,7 @@ const ProductSelector: React.FC<{
   );
 };
 
-const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
+const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) => {
   const { showToast } = useToast();
   const [rows, setRows] = useState<PromotionRow[]>([]);
   const [promotionTypes, setPromotionTypes] = useState<PromotionTypeOption[]>([]);
@@ -357,6 +360,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<PromotionStatusFilter>("all");
 
   const [editing, setEditing] = useState<"create" | PromotionRow | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
@@ -409,6 +413,32 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     const timer = window.setTimeout(load, 300);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  // Aplica el filtro entregado por la vista de origen (ej. tarjetas del Dashboard)
+  // una sola vez al montar, sin quedar "pegado" a cambios manuales posteriores.
+  const appliedInitialFilters = useRef(false);
+  useEffect(() => {
+    if (appliedInitialFilters.current) return;
+    appliedInitialFilters.current = true;
+    const allowed: PromotionStatusFilter[] = ["all", "vigente", "programada", "inactiva"];
+    const value = initialFilters?.statusFilter;
+    if (typeof value === "string" && (allowed as string[]).includes(value)) {
+      setStatusFilter(value as PromotionStatusFilter);
+    }
+  }, [initialFilters]);
+
+  // Filtro de estado en frontend, sobre la lista ya calculada con getStatus() —
+  // no toca el backend, igual que hoy calcula los badges. "Vencida" (vigencia
+  // expirada) se agrupa junto con "Inactiva" ya que ambas dejaron de aplicar.
+  const filteredRows = useMemo(() => {
+    if (statusFilter === "all") return rows;
+    return rows.filter((promotion) => {
+      const label = getStatus(promotion).label;
+      if (statusFilter === "vigente") return label === "Vigente";
+      if (statusFilter === "programada") return label === "Programada";
+      return label === "Inactiva" || label === "Vencida";
+    });
+  }, [rows, statusFilter]);
 
   const selectedType = useMemo(
     () => promotionTypes.find((type) => type.id === Number(form.promotionTypeId)) ?? null,
@@ -868,11 +898,21 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
       <Toolbar>
         <SearchInput value={search} onChange={setSearch} placeholder="Buscar por promocion, tipo o producto" />
+        <FilterSelect
+          value={statusFilter}
+          onChange={(v) => setStatusFilter(v as PromotionStatusFilter)}
+          options={[
+            { value: "all", label: "Todos los estados" },
+            { value: "vigente", label: "Vigentes" },
+            { value: "programada", label: "Programadas" },
+            { value: "inactiva", label: "Inactivas" },
+          ]}
+        />
         <span style={styles.metricGreen}>
           <Tags size={16} /> {activeCount} vigente{activeCount === 1 ? "" : "s"}
         </span>
         {inactiveCount > 0 && <span style={styles.metricMuted}>{inactiveCount} inactiva{inactiveCount === 1 ? "" : "s"}</span>}
-        <span style={styles.resultCount}>{rows.length} resultado{rows.length === 1 ? "" : "s"}</span>
+        <span style={styles.resultCount}>{filteredRows.length} resultado{filteredRows.length === 1 ? "" : "s"}</span>
       </Toolbar>
 
       {notice && (
@@ -894,15 +934,17 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
               {error}
             </div>
           )}
-          {!loading && !error && rows.length === 0 && (
+          {!loading && !error && filteredRows.length === 0 && (
             <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              {search.trim() ? "No hay promociones que coincidan con la búsqueda." : "No hay promociones registradas."}
+              {search.trim() || statusFilter !== "all"
+                ? "No hay promociones que coincidan con los filtros."
+                : "No hay promociones registradas."}
             </div>
           )}
 
           {!loading &&
             !error &&
-            rows.map((promotion) => {
+            filteredRows.map((promotion) => {
               const status = getStatus(promotion);
               const busy = loadingActionId === promotion.id;
               const isExpanded = expandedPromotions[promotion.id];
@@ -1215,12 +1257,16 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                 colSpan={7}
                 loading={loading}
                 error={error}
-                empty={!loading && rows.length === 0}
-                emptyText={search.trim() ? "No hay promociones que coincidan con la busqueda." : "No hay promociones registradas."}
+                empty={!loading && filteredRows.length === 0}
+                emptyText={
+                  search.trim() || statusFilter !== "all"
+                    ? "No hay promociones que coincidan con los filtros."
+                    : "No hay promociones registradas."
+                }
               />
               {!loading &&
                 !error &&
-                rows.map((promotion) => {
+                filteredRows.map((promotion) => {
                   const status = getStatus(promotion);
                   const busy = loadingActionId === promotion.id;
 
