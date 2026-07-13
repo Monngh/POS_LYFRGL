@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Search, Eye, EyeOff } from "lucide-react";
+import { Search } from "lucide-react";
 import { usePosSearch } from "../hooks/usePosSearch";
-import { usePosCustomer } from "../hooks/usePosCustomer";
 import { usePosCart } from "../hooks/usePosCart";
 
 const validateTextInput = (value: string): string =>
@@ -52,9 +51,8 @@ const isInvalidPhonePattern = (digits: string): boolean => {
 
 interface ProductSearchPanelProps {
   searchData: ReturnType<typeof usePosSearch>;
-  customerData: ReturnType<typeof usePosCustomer>;
   cartData: ReturnType<typeof usePosCart>;
-  onToast: (msg: string, type?: "error" | "success" | "info") => void;
+  onToast: (msg: string, type?: "error" | "success" | "info" | "warning") => void;
 }
 
 const styles: { [key: string]: React.CSSProperties } = {
@@ -62,8 +60,9 @@ const styles: { [key: string]: React.CSSProperties } = {
   searchResultsDropdown: {
     position: "absolute" as const,
     top: "100%",
-    left: "16px",
-    right: "16px",
+    marginTop: "8px",
+    left: "0",
+    right: "0",
     backgroundColor: "var(--surface)",
     border: "1px solid var(--border-strong)",
     borderRadius: "6px",
@@ -83,7 +82,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   fieldError: { color: "#b91c1c", fontSize: "12px", fontWeight: "600", marginTop: "5px", marginBottom: 0 },
 };
 
-export function ProductSearchPanel({ searchData, customerData, cartData, onToast }: ProductSearchPanelProps) {
+export function ProductSearchPanel({ searchData, cartData, onToast }: ProductSearchPanelProps) {
   const {
     barcodeSearch, setBarcodeSearch, handleProductBarcodeSearch, barcodeSearchError,
     searchResults, setSearchResults,
@@ -127,181 +126,35 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
     }
   }, [selectedIndex]);
 
-  const {
-    selectedCustomer, setSelectedCustomer,
-    handleSearchCustomerByPhone,
-    handleRegisterMinimalCustomer,
-  } = customerData;
-
-  const { addProductToCart, setUsePoints, setPointsToRedeem, setInvoiceRequested } = cartData;
-
-  // Local states for zero latencies in phone typing
-  const [localPhone, setLocalPhone] = useState("");
-  const [localShowPhone, setLocalShowPhone] = useState(false);
-  const [searchStatus, setSearchStatus] = useState<"idle" | "searching" | "found" | "not_found">("idle");
-  const [localError, setLocalError] = useState("");
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmInput, setConfirmInput] = useState("");
-  const [confirmError, setConfirmError] = useState("");
-  const [confirmShowPhone, setConfirmShowPhone] = useState(false);
-
-  useEffect(() => {
-    if (!confirmOpen) return;
-    const timer = window.setTimeout(() => confirmInputRef.current?.focus(), 0);
-    return () => window.clearTimeout(timer);
-  }, [confirmOpen]);
-
-  // Silent search on 10 digits
-  useEffect(() => {
-    const clean = localPhone.replace(/\D/g, "");
-    if (clean.length === 10) {
-      if (isInvalidPhonePattern(clean)) {
-        setLocalError("Número de teléfono inválido.");
-        setSearchStatus("idle");
-        return;
-      }
-      setLocalError("");
-      
-      const doSilentSearch = async () => {
-        setSearchStatus("searching");
-        try {
-          const { found } = await handleSearchCustomerByPhone(clean);
-          if (found) {
-            setSearchStatus("found");
-            setLocalPhone("");
-          } else {
-            setSearchStatus("not_found");
-          }
-        } catch (err) {
-          console.error("Error al buscar cliente silenciosamente:", err);
-          setSearchStatus("idle");
-          setLocalError("Error al buscar el cliente.");
-        }
-      };
-      
-      doSilentSearch();
-    } else {
-      setSearchStatus("idle");
-      setLocalError("");
-    }
-  }, [localPhone]);
+  const { addProductToCart } = cartData;
 
   return (
-    <div className="card-premium" style={styles.terminalSearchArea}>
-
-      {/* ===== CLIENTE — siempre visible en la parte superior ===== */}
-      <div className="pos-customer-bar">
-        {selectedCustomer ? (
-          // Cliente asociado
-          <div className="pos-customer-bar-found">
-            <div className="pos-customer-bar-avatar">
-              {(selectedCustomer.name || "C").charAt(0).toUpperCase()}
-            </div>
-            <div className="pos-customer-bar-info">
-              <span className="pos-customer-bar-name">
-                {selectedCustomer.isNew
-                  ? "Cliente registrado para puntos"
-                  : maskCustomerName(selectedCustomer.name || "Cliente")}
-              </span>
-              <span className="pos-customer-bar-phone">
-                Tel: {maskPhoneLast2(selectedCustomer.phone)}
-              </span>
-            </div>
-            <span className="pos-customer-bar-points">
-              ⭐ {selectedCustomer.points} pts
-            </span>
-            <button
-              type="button"
-              className="pos-customer-bar-remove"
-              onClick={() => {
-                setSelectedCustomer(null);
-                setUsePoints(false);
-                setPointsToRedeem(0);
-                setInvoiceRequested(false);
-                onToast("Cliente removido del carrito.", "info");
-              }}
-              title="Quitar cliente"
-            >
-              ✕
-            </button>
-          </div>
-        ) : (
-          // Sin cliente — campo de búsqueda + etiqueta anónima
-          <div className="pos-customer-bar-empty">
-            <div className="pos-customer-bar-anon-label">
-              👤 VENTA ANÓNIMA
-            </div>
-            <div className="pos-customer-bar-phone-wrap">
-              <input
-                type="text"
-                ref={phoneInputRef}
-                className="input-corporate pos-customer-phone-input"
-                placeholder="Teléfono cliente (F6)"
-                data-shortcut-key="F6"
-                value={localShowPhone ? localPhone : maskPhoneLast2(localPhone)}
-                onChange={(e) => {
-                  const next = getNextRealPhone(e.target.value, localPhone);
-                  setLocalPhone(next);
-                  if (localShowPhone) setLocalShowPhone(false);
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => setLocalShowPhone(!localShowPhone)}
-                className="pos-customer-eye-btn"
-                tabIndex={-1}
-              >
-                {localShowPhone ? <EyeOff size={15} color="#64748b" /> : <Eye size={15} color="#64748b" />}
-              </button>
-            </div>
-
-            {/* Estados de búsqueda */}
-            {localError && <p className="pos-customer-bar-error">{localError}</p>}
-            {searchStatus === "searching" && (
-              <p className="pos-customer-bar-searching">Buscando...</p>
-            )}
-            {searchStatus === "not_found" && (
-              <div className="pos-customer-bar-not-found">
-                <span>⚠️ No registrado</span>
-                <button
-                  type="button"
-                  onClick={() => { setConfirmInput(""); setConfirmError(""); setConfirmOpen(true); }}
-                  className="pos-customer-bar-register-btn"
-                  data-shortcut-letter="R"
-                  title="Registrar cliente (Alt+R)"
-                >
-                  + Registrar
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+    <div style={{ position: "relative", flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
 
       {/* ===== BUSCADOR DE PRODUCTOS ===== */}
-      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }} className="pos-cashier-search-row">
+      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: 0 }} className="pos-cashier-search-row">
         <form onSubmit={handleProductBarcodeSearch} style={{ flex: "1 1 100%", display: "flex", gap: "10px", margin: 0 }} className="pos-cashier-search-form">
           <div style={{ flex: 1, position: "relative" }}>
-            <Search size={18} color="#94a3b8" style={{ position: "absolute", left: "12px", top: "12px" }} />
+            <Search size={15} color="#94a3b8" style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)" }} />
             <input
               ref={searchInputRef}
               type="text"
               className="input-corporate"
-              style={{ paddingLeft: "38px" }}
+              style={{ paddingLeft: "30px", paddingRight: "50px", fontSize: "12px", padding: "4px 50px 4px 30px", height: "28px" }}
               placeholder="Ingrese código o nombre del producto..."
               data-shortcut-key="F2"
-              title="Buscar producto (F2)"
+              data-shortcut-letter="B"
+              title="Buscar producto (Alt+B)"
               value={barcodeSearch}
               onChange={(e) => setBarcodeSearch(validateTextInput(e.target.value))}
               onKeyDown={handleSearchInputKeyDown}
             />
+            <span className="pos-fkey-badge" style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", fontSize: "10px", padding: "2px 6px", pointerEvents: "none" }}>Alt+B</span>
             {barcodeSearchError && <p style={styles.fieldError}>{barcodeSearchError}</p>}
           </div>
-          <button type="submit" className="btn-primary" data-shortcut-letter="B" title="Buscar (Alt+B)">Buscar</button>
         </form>
       </div>
-
-      {/* Dropdown de búsqueda multi-producto — con chip de stock */}
+        {/* Dropdown de búsqueda multi-producto con chip de stock */}
       {searchResults.length > 0 && (
         <div style={styles.searchResultsDropdown} ref={searchResultsRef}>
           {searchResults.map((p, idx) => {
@@ -325,7 +178,12 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
                 }}
                 style={{
                   ...styles.dropdownItem,
-                  backgroundColor: idx === selectedIndex ? "var(--surface-2)" : "transparent",
+                  backgroundColor: idx === selectedIndex ? "#eff6ff" : "transparent",
+                  outline: idx === selectedIndex ? "2px solid #3b82f6" : "none",
+                  outlineOffset: "-2px",
+                  borderRadius: "6px",
+                  margin: "0 4px",
+                  transition: "all 0.1s ease-in-out",
                 }}
               >
                 {/* Nombre + stock */}
@@ -341,7 +199,7 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
                     display: "inline-block",
                     width: "fit-content",
                   }}>
-                    {p.stock === 0 ? "❌ Sin stock" : `✓ ${p.stock} en stock`}
+                    {p.stock === 0 ? "❌ Sin stock" : `✅ ${p.stock} en stock`}
                   </span>
                 </div>
                 {/* Precio */}
@@ -354,102 +212,6 @@ export function ProductSearchPanel({ searchData, customerData, cartData, onToast
         </div>
       )}
 
-      {confirmOpen && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: "rgba(15, 23, 42, 0.4)", display: "flex",
-          justifyContent: "center", alignItems: "center", zIndex: 110
-        }} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
-          <div style={{
-            width: "400px", backgroundColor: "var(--surface)", borderRadius: "12px",
-            padding: "28px", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
-            display: "flex", flexDirection: "column", gap: "16px"
-          }} className="pos-cashier-modal">
-            <h3 style={{ textAlign: "center", fontSize: "16px", color: "var(--text)", fontWeight: "700", margin: 0 }}>
-              Confirmar teléfono del cliente
-            </h3>
-            
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              const cleanConfirm = confirmInput.replace(/\D/g, "");
-              const cleanOriginal = localPhone.replace(/\D/g, "");
-              if (cleanConfirm !== cleanOriginal) {
-                setConfirmError("Los teléfonos no coinciden");
-                return;
-              }
-              setConfirmError("");
-              const res = await handleRegisterMinimalCustomer(cleanOriginal);
-              if (res.success) {
-                setLocalPhone("");
-                setConfirmOpen(false);
-                setSearchStatus("idle");
-              } else {
-                setConfirmError(res.error || "Error al registrar cliente.");
-              }
-            }} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }} className="pos-cashier-input-group">
-                <div style={{ position: "relative", width: "100%" }}>
-                  <input
-                    type="text"
-                    required
-                    className="input-corporate"
-                    placeholder="Ingrese el telefono nuevamente"
-                    ref={confirmInputRef}
-                    value={confirmShowPhone ? confirmInput : maskPhoneLast2(confirmInput)}
-                    onChange={(e) => {
-                      const next = getNextRealPhone(e.target.value, confirmInput);
-                      setConfirmInput(next);
-                      if (confirmShowPhone) setConfirmShowPhone(false);
-                    }}
-                    style={{ textAlign: "center", fontSize: "16px", letterSpacing: "1px", paddingRight: "40px" }}
-                  />
-                  <button
-                    type="button"
-                    data-shortcut-letter="M"
-                    title="Mostrar u ocultar telefono (Alt+M)"
-                    onClick={() => setConfirmShowPhone(!confirmShowPhone)}
-                    style={{ position: "absolute", right: "12px", top: "11px", border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
-                  >
-                    {confirmShowPhone ? <EyeOff size={18} color="#64748b" /> : <Eye size={18} color="#64748b" />}
-                  </button>
-                </div>
-                {confirmError && <p style={styles.fieldError}>{confirmError}</p>}
-              </div>
-
-              <div style={{ display: "flex", gap: "10px", marginTop: "16px" }} className="pos-cashier-modal-actions">
-                <button
-                  type="button"
-                  data-shortcut="cancel"
-                  data-shortcut-letter="X"
-                  onClick={() => {
-                    setConfirmOpen(false);
-                    setConfirmInput("");
-                    setConfirmError("");
-                  }}
-                  style={{
-                    flex: 1, padding: "10px", borderRadius: "6px", border: "none",
-                    fontWeight: "700", cursor: "pointer", backgroundColor: "#dc2626", color: "white"
-                  }}
-                >
-                  CANCELAR
-                </button>
-                <button
-                  type="submit"
-                  data-shortcut="confirm"
-                  data-shortcut-letter="R"
-                  style={{
-                    flex: 1, padding: "10px", borderRadius: "6px", border: "none",
-                    fontWeight: "700", cursor: "pointer", backgroundColor: "#059669", color: "white"
-                  }}
-                >
-                  CONTINUAR
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

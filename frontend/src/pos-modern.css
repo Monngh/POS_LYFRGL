@@ -168,21 +168,23 @@
 }
 
 .pos-terminal-session-badge.open {
-  background-color: var(--pos-green-light);
-  color: var(--pos-green);
-  border: 1px solid rgba(21, 128, 61, 0.2);
+  background-color: var(--pos-surface-2);
+  border-color: var(--pos-border-strong);
+  color: var(--pos-text);
 }
 
 .pos-terminal-session-badge.open::before {
-  content: '';
+  content: "";
+  display: inline-block;
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: var(--pos-green);
-  animation: pos-pulse-green 2s infinite;
+  background-color: var(--pos-blue-mid);
+  box-shadow: 0 0 6px var(--pos-blue-mid);
+  animation: pos-pulse-blue 2s infinite;
 }
 
-@keyframes pos-pulse-green {
+@keyframes pos-pulse-blue {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
 }
@@ -384,19 +386,20 @@
 .pos-sales-layout {
   display: flex;
   flex-direction: row;
-  min-height: calc(100vh - var(--pos-header-h) - var(--pos-status-h));
+  height: calc(100vh - 56px); /* Restando exactamente la altura del header (56px) */
   width: 100%;
   background-color: var(--pos-bg);
   position: relative;
   transition: all 0.3s ease;
+  overflow: hidden;
 }
 
 /* ============================================================
    Sidebar — más compacto, información más densa
    ============================================================ */
 .pos-sales-sidebar {
-  width: 288px;
-  min-width: 288px;
+  width: 72px;
+  min-width: 72px;
   background-color: var(--pos-surface);
   border-right: 1px solid var(--pos-border);
   display: flex;
@@ -409,7 +412,7 @@
 }
 
 .pos-sidebar-inner-content {
-  width: 260px;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -606,6 +609,7 @@
   height: 26px;
   border-radius: 50%;
   background-color: var(--pos-surface);
+  color: var(--pos-blue-mid);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -805,7 +809,13 @@
 
 .pos-cashier-cart-table tbody tr {
   border-bottom: 1px solid var(--pos-border);
-  transition: background 0.1s;
+  transition: background-color 0.15s;
+  animation: flash-row 0.8s ease-out;
+}
+
+@keyframes flash-row {
+  0% { background-color: rgba(59, 130, 246, 0.2); }
+  100% { background-color: transparent; }
 }
 
 .pos-cashier-cart-table tbody tr:hover {
@@ -825,7 +835,7 @@
 
 /* Fila con promoción activa */
 .pos-cart-row-promo {
-  background-color: rgba(21, 128, 61, 0.03) !important;
+  background-color: var(--pos-surface-2) !important;
 }
 
 /* Etiqueta de promo en el carrito */
@@ -835,8 +845,8 @@
   gap: 3px;
   font-size: 9px;
   font-weight: 700;
-  color: var(--pos-green);
-  background: var(--pos-green-light);
+  color: var(--pos-blue-mid);
+  background: var(--pos-blue-soft);
   border-radius: 3px;
   padding: 1px 4px;
   margin-top: 2px;
@@ -850,6 +860,7 @@
   border-radius: 4px;
   overflow: hidden;
   background: var(--pos-surface);
+  margin: 0 auto;
 }
 
 .pos-qty-btn {
@@ -910,20 +921,21 @@
    Panel de totales + Cobro — Total siempre gigante y visible
    ============================================================ */
 .pos-checkout-panel {
-  border-top: 2px solid var(--pos-border);
   padding-top: 12px;
-  margin-top: auto;
   display: flex;
+  flex-direction: column;
   gap: 16px;
-  align-items: flex-start;
+  width: 100%;
+  height: 100%;
+  flex: 1;
 }
 
 .pos-totals-col {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-width: 240px;
-  flex-shrink: 0;
+  width: 100%;
+  margin-top: auto;
 }
 
 /* Caja de total — grande y prominente */
@@ -934,6 +946,7 @@
   padding: 10px 14px;
   text-align: center;
   margin-bottom: 6px;
+  container-type: inline-size;
 }
 
 .pos-total-display-label {
@@ -946,7 +959,8 @@
 }
 
 .pos-total-display-amount {
-  font-size: clamp(1.8rem, 2.5vw, 2.6rem);
+  font-size: clamp(2rem, 14cqw, 4.5rem);
+  white-space: nowrap;
   font-weight: 900;
   color: var(--pos-blue);
   font-family: "SF Mono", "Fira Code", "Courier New", monospace;
@@ -1018,7 +1032,7 @@
 }
 
 .pos-summary-row.discount {
-  color: var(--pos-green);
+  color: var(--pos-amber);
   font-weight: 700;
 }
 
@@ -1044,8 +1058,8 @@
   min-width: 100px;
   padding: 9px 12px;
   border-radius: 6px;
-  border: 1px solid rgba(185, 28, 28, 0.3);
-  background: var(--pos-red-soft);
+  border: 1px solid var(--pos-red);
+  background: transparent;
   color: var(--pos-red);
   font-size: 11px;
   font-weight: 800;
@@ -1056,8 +1070,7 @@
 }
 
 .pos-btn-cancel:hover {
-  background: var(--pos-red-light);
-  border-color: rgba(185, 28, 28, 0.5);
+  background: var(--pos-red-soft);
 }
 
 .pos-btn-park {
@@ -1065,9 +1078,9 @@
   min-width: 100px;
   padding: 9px 12px;
   border-radius: 6px;
-  border: 1px solid rgba(217, 119, 6, 0.3);
-  background: var(--pos-amber-soft);
-  color: var(--pos-amber);
+  border: 1px solid var(--pos-blue-mid);
+  background: transparent;
+  color: var(--pos-blue-mid);
   font-size: 11px;
   font-weight: 800;
   cursor: pointer;
@@ -1077,13 +1090,14 @@
 }
 
 .pos-btn-park:hover {
-  background: var(--pos-amber-light);
-  border-color: rgba(217, 119, 6, 0.5);
+  background: var(--pos-blue-soft);
 }
 
 .pos-btn-park:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+  border-color: var(--pos-border-strong);
+  color: var(--pos-text-muted);
 }
 
 .pos-btn-checkout {
@@ -1092,7 +1106,7 @@
   padding: 9px 16px;
   border-radius: 6px;
   border: none;
-  background: var(--pos-green);
+  background: #059669;
   color: white;
   font-size: 12px;
   font-weight: 900;
@@ -1108,8 +1122,8 @@
 }
 
 .pos-btn-checkout:hover:not(:disabled) {
-  background: #166534;
-  box-shadow: 0 4px 12px rgba(21, 128, 61, 0.3);
+  background: #047857;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
   transform: translateY(-1px);
 }
 
@@ -1426,8 +1440,8 @@
   }
 
   .pos-sales-sidebar {
-    width: 100%;
-    min-width: 100%;
+    width: 72px;
+    min-width: 72px;
     border-right: none;
     border-bottom: 1px solid var(--pos-border);
     padding: 12px;
@@ -2007,3 +2021,84 @@
   margin-left: 4px;
 }
 
+
+/* Header Cash Info (Fase 4: Info en navbar) */
+.pos-header-cash-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background-color: var(--pos-surface-2);
+  border: 1px solid var(--pos-border);
+  padding: 6px 16px;
+  border-radius: 8px;
+  margin-left: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.pos-header-cash-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.pos-header-cash-chip .label {
+  color: var(--pos-text-muted);
+  font-weight: 600;
+}
+
+.pos-header-cash-chip .value {
+  color: var(--pos-text);
+  font-weight: 800;
+  font-family: monospace;
+}
+
+.pos-header-cash-chip.highlighted .value {
+  color: var(--pos-green);
+}
+
+.pos-header-cash-toggle {
+  background: none;
+  border: none;
+  color: var(--pos-text-muted);
+  cursor: pointer;
+  padding: 2px;
+  margin-left: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s;
+}
+
+.pos-header-cash-toggle:hover {
+  color: var(--pos-text);
+}
+
+
+
+.pos-checkout-focusable-item:focus { border-color: #2563eb !important; box-shadow: 0 0 0 3px #bfdbfe !important; outline: none; }
+
+.pos-action-shortcut-pill {
+  opacity: 0;
+  visibility: hidden;
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #0f172a;
+  color: white;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 9px;
+  font-weight: 800;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  transition: all 0.15s;
+  z-index: 10;
+  border: 1px solid #475569;
+}
+
+.pos-checkout-focusable-item:focus .pos-action-shortcut-pill {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(-2px);
+}

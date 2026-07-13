@@ -21,7 +21,7 @@ const validateFolioInput = (value: string): string =>
 const validateNameInput = (value: string): string =>
   value
     .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
-    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ\s]/g, "");
+    .replace(/[^a-záéíóú èìòùäëïöüâêîôûñçA-ZÉÓÚÀÈÌÒÙÄËÖÜÂÊÎÁƒâ€ÛÑÇ\s]/g, "");
 
 interface TicketHistoryModalProps {
   isOpen: boolean;

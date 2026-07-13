@@ -18,17 +18,17 @@ import {
 const validateNameInput = (value: string): string =>
   value
     .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
-    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ\s]/g, "");
+    .replace(/[^a-záéíóú èìòùäëïöüâêîôûñçA-ZÉÓÚÀÈÌÒÙÄËÖÜÂÊÎÁƒâ€ÛÑÇ\s]/g, "");
 
 const validateReasonInput = (value: string): string =>
   value
     .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
-    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ0-9\s.,]/g, "");
+    .replace(/[^a-záéíóú èìòùäëïöüâêîôûñçA-ZÉÓÚÀÈÌÒÙÄËÖÜÂÊÎÁƒâ€ÛÑÇ0-9\s.,]/g, "");
 
 const validateLongTextInput = (value: string): string =>
   value
     .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
-    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ0-9\s.,]/g, "");
+    .replace(/[^a-záéíóú èìòùäëïöüâêîôûñçA-ZÉÓÚÀÈÌÒÙÄËÖÜÂÊÎÁƒâ€ÛÑÇ0-9\s.,]/g, "");
 
 interface BankDepositModalProps {
   isOpen: boolean;
@@ -36,7 +36,7 @@ interface BankDepositModalProps {
   user: any;
   sessionStats: any;
   onOpenDepositReceipt: (deposit: any) => void;
-  onToast: (msg: string, type?: "error" | "success" | "info") => void;
+  onToast: (msg: string, type?: "error" | "success" | "info" | "warning") => void;
   onActionComplete?: () => void;
   initialTab?: "registrar" | "buscar";
   onTabChange?: (tab: "registrar" | "buscar") => void;

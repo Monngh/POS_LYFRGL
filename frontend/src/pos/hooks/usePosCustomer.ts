@@ -23,11 +23,11 @@ type NewCustomerForm = { name: string; phone: string; email: string };
 const validateNameInput = (value: string): string =>
   value
     .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
-    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ\s]/g, "");
+    .replace(/[^a-záéíóú èìòùäëïöüâêîôûñçA-ZÉÓÚÀÈÌÒÙÄËÖÜÂÊÎÁƒâ€ÛÑÇ\s]/g, "");
 
 interface UsePosCustomerProps {
-  onToast: (msg: string, type?: "error" | "success" | "info") => void;
-  view: "dashboard" | "apertura" | "sales-terminal";
+  onToast: (msg: string, type?: "error" | "success" | "info" | "warning") => void;
+  view: "apertura" | "sales-terminal";
 }
 
 export function usePosCustomer({ onToast, view }: UsePosCustomerProps) {

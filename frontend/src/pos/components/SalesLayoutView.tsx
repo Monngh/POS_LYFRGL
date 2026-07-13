@@ -1,101 +1,73 @@
 import React from "react";
-import { Lock, Store } from "lucide-react";
+import { Store } from "lucide-react";
 import { QuickActionsCarousel } from "./QuickActionsCarousel";
-import { CashInfoPanel } from "./CashInfoPanel";
-import { RecentSalesPanel } from "./RecentSalesPanel";
-import { ShortcutsHelpPanel } from "./ShortcutsHelpPanel";
+
+
 
 interface SalesLayoutViewProps {
-  session: any;
-  sessionStats: any;
+
   recentSales?: any[];
   onOpenModal: (modal: string) => void;
   onLock: () => void;
-  onGoHome: () => void;
+
   onReprintTicket?: (saleId: number) => void;
   onStartReturn?: (saleId: number) => void;
   children: React.ReactNode;
   isSidebarCollapsed: boolean;
   setIsSidebarCollapsed: (collapsed: boolean) => void;
+  cartData?: any;
+  onToast?: (msg: string, type?: "error" | "success" | "info" | "warning") => void;
 }
 
 export function SalesLayoutView({
-  session,
-  sessionStats,
+
   recentSales = [],
   onOpenModal,
   onLock,
-  onGoHome,
+
   onReprintTicket,
   onStartReturn,
   children,
   isSidebarCollapsed,
   setIsSidebarCollapsed,
+  cartData,
+  onToast,
 }: SalesLayoutViewProps) {
 
   return (
     <div className={`pos-sales-layout ${isSidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       {/* Sidebar Container */}
       <aside className="pos-sales-sidebar">
-        {/* Close sidebar button — positioned absolute inside sidebar padding area */}
-        <button
-          type="button"
-          onClick={() => setIsSidebarCollapsed(true)}
-          className="pos-sidebar-close-btn active-tap"
-          title="Ocultar panel lateral"
-          aria-label="Ocultar panel lateral"
-        >
-          ✕
-        </button>
-
         {/* Sidebar Content (hidden when collapsed via CSS) */}
-        <div className="pos-sidebar-inner-content">
+        <div className="pos-sidebar-inner-content" style={{ display: "flex", flexDirection: "column", height: "100%", justifyContent: "space-between", alignItems: "center" }}>
           {/* Quick Actions Carousel */}
-          <QuickActionsCarousel onOpenModal={onOpenModal} onGoHome={onGoHome} />
+          <QuickActionsCarousel onOpenModal={onOpenModal} onLock={onLock} />
 
-          {/* Cash Session Status & Info */}
-          <CashInfoPanel session={session} sessionStats={sessionStats} />
+          <div className="pos-sidebar-close-cash-wrapper" style={{ paddingBottom: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
 
-          {/* Últimas ventas del turno */}
-          {recentSales.length > 0 && (
-            <RecentSalesPanel
-              recentSales={recentSales}
-              onReprintTicket={onReprintTicket || (() => {})}
-              onStartReturn={onStartReturn || (() => {})}
-            />
-          )}
-
-          {/* Panel de atajos colapsable */}
-          <ShortcutsHelpPanel />
-
-          {/* Cerrar Caja Button */}
-          <div className="pos-sidebar-close-cash-wrapper">
             <button
               type="button"
               onClick={() => onOpenModal("close-options")}
-              className="pos-sidebar-close-cash-btn active-tap"
-              data-shortcut-letter="T"
+              className="pos-quick-action-icon-btn active-tap"
+              data-shortcut-letter="X"
               data-shortcut-key="F8"
-              title="Cerrar caja (Alt+T, F8)"
+              title="Cerrar caja (Alt+X, F8)"
+              style={{
+                width: "40px",
+                height: "40px",
+                borderRadius: "8px",
+                border: "1px solid var(--pos-border)",
+                backgroundColor: "#fee2e2",
+                color: "#dc2626",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                cursor: "pointer",
+                transition: "all 0.2s"
+              }}
             >
-              <Store size={16} />
-              <span>CERRAR CAJA</span>
+              <Store size={20} />
             </button>
-          </div>
-
-          {/* Lock Screen Button */}
-          <div className="pos-sidebar-lock-wrapper">
-            <button
-              type="button"
-              onClick={onLock}
-              className="pos-sidebar-lock-btn active-tap"
-              data-shortcut-key="F10"
-              title="Bloquear pantalla (F10)"
-            >
-              <Lock size={16} />
-              <span>BLOQUEAR PANTALLA</span>
-            </button>
-            <span className="pos-lock-shortcut-label">F10</span>
           </div>
         </div>
       </aside>

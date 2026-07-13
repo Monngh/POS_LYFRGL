@@ -35,7 +35,7 @@ Fuente de verdad del teclado del POS.
 | `Alt+Q` | Consultar precio | price-lookup |
 | `Alt+G` | Depósito banco | bank-deposit |
 | `Alt+N` | Cancelar venta | cancel-sale |
-| `Alt+E` | Devoluciones | returns |
+| `Alt+D` | Devoluciones | returns |
 | `Alt+H` | Reimprimir ticket | ticket-history |
 | `Alt+U` | Corte parcial | partial-cut-summary |
 | `Alt+I` | Autofacturación (nueva pestaña) | autofacturacion |
@@ -51,10 +51,16 @@ Implementación: registro oculto en [SalesTerminalView.tsx](components/SalesTerm
 | `Alt+R` | Registrar / confirmar cliente | Buscador / modales cliente | [ProductSearchPanel.tsx](components/ProductSearchPanel.tsx) |
 | `Alt+M` | Mostrar u ocultar teléfono del cliente | Buscador / confirmación teléfono | [ProductSearchPanel.tsx](components/ProductSearchPanel.tsx) |
 | `Alt+M` *(depósito)* | Tab "Registrar Resguardo" | Modal depósito banco (scope) | [BankDepositModal.tsx](components/modals/BankDepositModal.tsx) |
-| `Alt+K` | Ventas en espera | Terminal de ventas | [SalesTerminalView.tsx](components/SalesTerminalView.tsx) |
+| `Alt+E` | Abrir Ventas en espera | Terminal de ventas | [CheckoutPanel.tsx](components/CheckoutPanel.tsx) |
+| `Alt+S` | Abrir Pagos pendientes | Terminal de ventas | [CheckoutPanel.tsx](components/CheckoutPanel.tsx) |
+| `R` | Recuperar venta / Verificar pago (al tener foco) | Listas de espera/pendientes | [CheckoutPanel.tsx](components/CheckoutPanel.tsx) |
+| `E` | Eliminar venta / Ver QR (al tener foco) | Listas de espera/pendientes | [CheckoutPanel.tsx](components/CheckoutPanel.tsx) |
+| `Alt+K` | Ventas en espera (Deprecado/Anterior) | Terminal de ventas | [SalesTerminalView.tsx](components/SalesTerminalView.tsx) |
 | `Alt+K` *(depósito)* | Tab "Buscar / Historial" | Modal depósito banco (scope) | [BankDepositModal.tsx](components/modals/BankDepositModal.tsx) |
 | `Alt+T` | Opciones cierre de caja | Sidebar | [SalesLayoutView.tsx](components/SalesLayoutView.tsx) |
-| `Alt+P` | Pausar venta | Panel de cobro | [CheckoutPanel.tsx](components/CheckoutPanel.tsx) |
+| `Alt+W` | Pausar venta | Panel de cobro | [CheckoutPanel.tsx](components/CheckoutPanel.tsx) |
+| `Alt+P` | Enfocar promociones activas | Terminal de ventas | [PromotionsGrid.tsx](components/PromotionsGrid.tsx) |
+| `R` | Seleccionar promoción (al tener foco) | Promociones activas | [PromotionsGrid.tsx](components/PromotionsGrid.tsx) |
 | `Alt+V` | Cancelar compra (vaciar carrito) | Panel de cobro | [CheckoutPanel.tsx](components/CheckoutPanel.tsx) |
 | `Alt+X` | Cancelar / cerrar modal | Modales (footer) | Botones `data-shortcut="cancel"` |
 | `Alt+C` | Confirmar acción primaria | Modales y cobro | Botones `data-shortcut="confirm"` |
@@ -92,7 +98,7 @@ El modal de cobro opera en **dos fases** de teclado:
 - Si el método no tiene campos extra (tarjeta, crédito): se cobra directamente.
 - Método mixto: `Enter` abre el modal de cobro mixto.
 - `Alt+C` / `Alt+X`: cobrar / cancelar modal.
-- `Alt+P`: pausar venta.
+- `Alt+W`: pausar venta.
 - `Alt+J` / `Alt+W`: ver QR / verificar primer pago QR pendiente en la tabla.
 
 ### Cobro mixto

@@ -101,7 +101,7 @@ export function StatusBar({ sessionStats, session, activePaymentMethod }: Status
         <span className="value">{openedAt}</span>
       </div>
 
-      {/* Duración del turno — con alerta de jornada larga */}
+      {/* Duración del turno Á¢â‚¬â€ con alerta de jornada larga */}
       {isOpen && (
         <div className={`pos-status-bar-item ${isLongShift ? "pos-status-bar-item--alert" : ""}`}>
           {isLongShift ? (

@@ -10,12 +10,14 @@ const SHORTCUTS = [
   { key: "F10",    label: "Bloquear pantalla"  },
   { key: "Alt+B",  label: "Buscar producto"    },
   { key: "Alt+V",  label: "Cancelar compra"    },
-  { key: "Alt+P",  label: "Pausar venta"       },
+  { key: "Alt+W",  label: "Pausar venta"       },
   { key: "Alt+Q",  label: "Consultar precio"   },
-  { key: "Alt+E",  label: "Devolución"         },
+  { key: "Alt+D",  label: "Devolución"         },
   { key: "Alt+H",  label: "Historial tickets"  },
   { key: "Alt+L",  label: "Cerrar sesión"      },
-  { key: "Alt+K",  label: "Ventas pausadas"    },
+  { key: "Alt+E",  label: "Ventas pausadas"    },
+  { key: "Alt+S",  label: "Pagos pendientes"   },
+  { key: "Alt+P",  label: "Enfocar promociones"},
 ];
 
 export function ShortcutsHelpPanel() {

@@ -65,20 +65,28 @@ const findActionInScope = (scope: HTMLElement, action: string) => {
   return null;
 };
 
-const clickShortcut = (scope: HTMLElement | null, key: string, options?: { allowHidden?: boolean }) => {
+const clickShortcut = (scope: HTMLElement | null, key: string, options?: { allowHidden?: boolean; onToast?: (msg: string, type: "info") => void }) => {
   if (!scope) return false;
 
   const canUse = (el: HTMLElement) => (options?.allowHidden || isVisible(el)) && !isDisabled(el);
 
   const direct = scope.querySelector<HTMLElement>(`[data-shortcut-key="${key}"]`);
   if (direct && canUse(direct)) {
+    if (options?.onToast) {
+      const title = direct.getAttribute("title") || direct.innerText.trim();
+      if (title) options.onToast(`Atajo ${key}: ${title}`, "info");
+    }
     clickElement(direct);
     return true;
   }
 
   const letter = scope.querySelector<HTMLElement>(`[data-shortcut-letter="${key}"]`);
   if (letter && canUse(letter)) {
-    letter.click();
+    if (options?.onToast) {
+      const title = letter.getAttribute("title") || letter.innerText.trim();
+      if (title) options.onToast(`Atajo Alt+${key}: ${title}`, "info");
+    }
+    clickElement(letter);
     return true;
   }
 
@@ -112,7 +120,7 @@ const resolveCancelButton = (scope: HTMLElement | null) => {
   return queryShortcutInScope(scope, '[data-shortcut="dismiss"]');
 };
 
-export default function KeyboardShortcutsManager() {
+export default function KeyboardShortcutsManager({ onToast }: { onToast?: (msg: string, type: "info") => void }) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (isLockScreenActive()) return;
@@ -144,6 +152,7 @@ export default function KeyboardShortcutsManager() {
         if (letter === "S" && scope) {
           const sendBtn = findActionInScope(scope, "send-email");
           if (sendBtn) {
+            if (onToast) onToast(`Atajo Alt+S: Enviar Ticket`, "info");
             sendBtn.click();
             return;
           }
@@ -152,6 +161,7 @@ export default function KeyboardShortcutsManager() {
         if (letter === "W" && scope) {
           const verifyBtn = findActionInScope(scope, "verify-payment");
           if (verifyBtn) {
+            if (onToast) onToast(`Atajo Alt+W: Verificar Pago`, "info");
             verifyBtn.click();
             return;
           }
@@ -160,6 +170,9 @@ export default function KeyboardShortcutsManager() {
         if (letter === "B" && scope) {
           const searchBtn = scope.querySelector<HTMLElement>('[data-shortcut-letter="B"]');
           if (searchBtn && isVisible(searchBtn) && !isDisabled(searchBtn)) {
+            if (onToast) onToast(`Atajo Alt+B: Buscar producto`, "info");
+            const searchInput = scope.querySelector<HTMLInputElement>('input[placeholder*="código"]');
+            if (searchInput) searchInput.focus();
             searchBtn.click();
             return;
           }
@@ -171,6 +184,7 @@ export default function KeyboardShortcutsManager() {
             document.querySelector<HTMLElement>('[data-shortcut-letter="L"]') ??
             document.querySelector<HTMLElement>('[data-shortcut-action="logout"]');
           if (logoutBtn && !isDisabled(logoutBtn)) {
+            if (onToast) onToast(`Atajo Alt+L: Cerrar Sesión`, "info");
             logoutBtn.click();
             return;
           }
@@ -180,6 +194,7 @@ export default function KeyboardShortcutsManager() {
         if (letter === "V" && scope) {
           const cancelBtn = scope.querySelector<HTMLElement>('[data-shortcut-letter="V"]');
           if (cancelBtn && isVisible(cancelBtn) && !isDisabled(cancelBtn)) {
+            if (onToast) onToast(`Atajo Alt+V: Cancelar Venta`, "info");
             cancelBtn.click();
             return;
           }
@@ -188,12 +203,16 @@ export default function KeyboardShortcutsManager() {
         if (!modal && GLOBAL_QUICK_ACTION_LETTERS.includes(letter as (typeof GLOBAL_QUICK_ACTION_LETTERS)[number])) {
           const globalBtn = findGlobalAction(letter);
           if (globalBtn) {
+            if (onToast) {
+              const title = globalBtn.getAttribute("title") || globalBtn.innerText.trim();
+              if (title) onToast(`Atajo Alt+${letter}: ${title}`, "info");
+            }
             globalBtn.click();
             return;
           }
         }
 
-        if (clickShortcut(scope, letter)) {
+        if (clickShortcut(scope, letter, { onToast })) {
           return;
         }
 

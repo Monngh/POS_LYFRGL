@@ -14,3 +14,4 @@ export { default as ReturnsModal } from "./ReturnsModal";
 export { CartAuthorizationModal } from "./CartAuthorizationModal";
 export { ParkedSalesModal } from "./ParkedSalesModal";
 export { TicketEmailModal } from "./TicketEmailModal";
+export { ShiftSummaryModal } from "./ShiftSummaryModal";

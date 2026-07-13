@@ -17,7 +17,7 @@ const validateFolioInput = (value: string): string =>
 const validateMotivoDevoluccion = (value: string): string =>
   value
     .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
-    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ0-9\s.,\-']/g, "");
+    .replace(/[^a-záéíóú èìòùäëïöüâêîôûñçA-ZÉÓÚÀÈÌÒÙÄËÖÜÂÊÎÁƒâ€ÛÑÇ0-9\s.,\-']/g, "");
 
 interface ReturnsModalProps {
   isOpen: boolean;
@@ -460,7 +460,7 @@ export default function ReturnsModal({
             title="Atrás"
             style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
           >
-            ← Atrás
+            Á¢â€ Â Atrás
           </button>
           <button 
             onClick={handleReturnProceed}
@@ -484,7 +484,7 @@ export default function ReturnsModal({
             title="Atrás"
             style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
           >
-            ← Atrás
+            Á¢â€ Â Atrás
           </button>
           <button
             onClick={handleReturnProcess}
@@ -858,7 +858,7 @@ export default function ReturnsModal({
             {/* Resumen de artículos seleccionados */}
             <div style={{ border: "1px solid var(--border)", borderRadius: "8px", overflow: "hidden", marginBottom: "14px" }}>
               <div style={{ backgroundColor: "var(--surface-2)", padding: "8px 12px", fontSize: "11px", fontWeight: "700", color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>
-                ARTÍCULOS A DEVOLVER
+                ARTCULOS A DEVOLVER
               </div>
               {returnItems.filter((it) => it.selected && it.qtyToReturn > 0).map((item) => (
                 <div key={item.saleDetailId} style={{ padding: "8px 12px", borderBottom: "1px solid var(--surface-3)", display: "flex", justifyContent: "space-between", fontSize: "12px" }}>

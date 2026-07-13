@@ -111,11 +111,11 @@ export default function CloseReceiptModal({
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span>HORA APERTURA:</span>
-              <strong>{lastClosedStats.session?.openedAt ? new Date(lastClosedStats.session.openedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—"}</strong>
+              <strong>{lastClosedStats.session?.openedAt ? new Date(lastClosedStats.session.openedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Á¢â‚¬â€"}</strong>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span>HORA CIERRE:</span>
-              <strong>{lastClosedStats.session?.closedAt ? new Date(lastClosedStats.session.closedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—"}</strong>
+              <strong>{lastClosedStats.session?.closedAt ? new Date(lastClosedStats.session.closedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Á¢â‚¬â€"}</strong>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span>ESTADO:</span>

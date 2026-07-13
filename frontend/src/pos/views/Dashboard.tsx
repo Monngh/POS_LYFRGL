@@ -7,7 +7,6 @@ import { useLockScreen } from "../hooks/useLockScreen";
 import { LockScreen } from "../components/LockScreen";
 import {
   AperturaView,
-  DashboardHomeView,
   SalesTerminalView,
   PriceLookupModal,
   CancelSaleModal,
@@ -23,6 +22,7 @@ import {
   ReturnsModal,
   CartAuthorizationModal,
   TicketEmailModal,
+  ShiftSummaryModal,
 } from "../components";
 import api from "../../shared/services/api";
 import { useCashSession } from "../hooks/useCashSession";
@@ -41,18 +41,6 @@ import { Printer, AlertTriangle, Mail } from "lucide-react";
 
 
 
-interface Sale {
-  id: number;
-  invoiceNumber: string;
-  createdAt: string;
-  totalAmount: number;
-  paymentMethod: string;
-  cardType?: string;
-  status: string;
-  cajero: string;
-  refundStatus?: string | null;
-}
-
 const validateTextInput = (value: string): string =>
   value
     .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
@@ -61,7 +49,7 @@ const validateTextInput = (value: string): string =>
 const validateReasonInput = (value: string): string =>
   value
     .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
-    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÂÊÎÔÛÑÇ0-9\s.,]/g, "");
+    .replace(/[^a-záéíóúàèìòùäëïöüâêîôûñçA-ZÁÉÓÚÀÈÌÒÙÄËÖÜÂÊÎÔÛÑÇ0-9\s.,]/g, "");
 
 const validateFolioInput = (value: string): string =>
   value
@@ -88,17 +76,13 @@ const Dashboard: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Vistas del Cajero: "dashboard" | "apertura" | "sales-terminal"
-  const [view, setView] = useState<"dashboard" | "apertura" | "sales-terminal">("dashboard");
+  // Vistas del Cajero: "apertura" | "sales-terminal"
+  const [view, setView] = useState<"apertura" | "sales-terminal">("sales-terminal");
   // Bloqueo: el turno de caja del usuario está abierto en otro equipo
   const [cajaLockedByOtherDevice, setCajaLockedByOtherDevice] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Estado para filas expandidas en tablas responsive
-  const [expandedSalesRows, setExpandedSalesRows] = useState<Set<number>>(new Set());
-  const [expandedDepositRows, setExpandedDepositRows] = useState<Set<number>>(new Set());
-  const [openDashboardTableMenu, setOpenDashboardTableMenu] = useState<string | null>(null);
-  const [dashboardTicketLoadingId, setDashboardTicketLoadingId] = useState<number | null>(null);
+
 
   // Modales de Acción Rápida: null | "price-lookup" | "ticket-history" | "cancel-sale" | "close-cash" | "bank-deposit" | "close-options" | "partial-cut-summary" | "partial-cut-receipt"
   const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -183,6 +167,7 @@ const Dashboard: React.FC = () => {
     setSimulationData,
     setCheckoutModalOpen,
     setCheckoutError,
+    paymentMethod,
     setPaymentMethod,
     setCashReceived,
     setMixtoCash,
@@ -252,7 +237,6 @@ const Dashboard: React.FC = () => {
     setCartPinError("");
     setPendingCartAction(null);
     setActiveModal(null);
-    setView("dashboard");
   }
 
   const handleLogoutClick = () => {
@@ -263,50 +247,6 @@ const Dashboard: React.FC = () => {
     logout();
   };
 
-  // Funciones helper para toggle filas expandidas en tablas responsive
-  const toggleSalesRow = (saleId: number) => {
-    setExpandedSalesRows(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(saleId)) {
-        newSet.delete(saleId);
-      } else {
-        newSet.add(saleId);
-      }
-      return newSet;
-    });
-  };
-
-  const toggleDepositRow = (depositId: number) => {
-    setExpandedDepositRows(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(depositId)) {
-        newSet.delete(depositId);
-      } else {
-        newSet.add(depositId);
-      }
-      return newSet;
-    });
-  };
-
-  const handleOpenDashboardSaleTicket = async (sale: Sale) => {
-    if (dashboardTicketLoadingId !== null) return;
-
-    setOpenDashboardTableMenu(null);
-    setDashboardTicketLoadingId(sale.id);
-    try {
-      const res = await api.get(`/api/sales/detail?id=${sale.id}`);
-      setSelectedSale({
-        ...res.data.sale,
-        refundStatus: sale.refundStatus,
-        isNewSale: false
-      });
-      setActiveModal("ticket-view");
-    } catch (e: any) {
-      showToast(e.response?.data?.message || "Error al recuperar los detalles de la venta.", "error");
-    } finally {
-      setDashboardTicketLoadingId(null);
-    }
-  };
 
   const handleReprintRecentSale = async (saleId: number) => {
     try {
@@ -322,7 +262,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleStartReturnFromRecent = (saleId: number) => {
-    const sale = recentSales.find((s) => s.id === saleId);
+    const sale = sessionData.recentSales?.find((s: any) => s.id === saleId);
     if (sale) {
       setInitialReturnFolio(sale.invoiceNumber);
       setActiveModal("returns");
@@ -355,8 +295,8 @@ const Dashboard: React.FC = () => {
         className="toast-premium"
         style={{
           position: "fixed",
-          bottom: "24px",
-          right: "24px",
+          bottom: "80px",
+          left: "90px",
           backgroundColor: bg,
           border: `1px solid ${border}`,
           borderRadius: "10px",
@@ -374,19 +314,6 @@ const Dashboard: React.FC = () => {
       >
         <AlertTriangle size={18} color={textColor} />
         <span>{toast.message}</span>
-      </div>
-    );
-  };
-
-  const renderDashboardTicketLoading = () => {
-    if (dashboardTicketLoadingId === null) return null;
-
-    return (
-      <div className="pos-cashier-loading-overlay">
-        <div className="pos-cashier-loading-box">
-          <div className="pos-cashier-loading-spinner" />
-          <span>Cargando operación...</span>
-        </div>
       </div>
     );
   };
@@ -704,21 +631,6 @@ const Dashboard: React.FC = () => {
     setPartialCutData(null);
   };
 
-  // Handler para el botón "Nueva Venta" con confirmación de borrador
-  const handleNuevaVenta = () => {
-    const draft = loadDraft();
-    if (draft.length > 0 && cart.length === 0) {
-      // Hay borrador guardado pero el carrito actual está vacío, restaurar
-      setCart(draft);
-      setView("sales-terminal");
-    } else if (draft.length > 0 || cart.length > 0) {
-      // Hay borrador/carrito activo, preguntar
-      setShowDraftConfirm(true);
-    } else {
-      setView("sales-terminal");
-    }
-  };
-
   // ---------------------------------------------------------------------------
   // 9. DEPOSITOS BANCARIOS (Resguardo de Efectivo)
   // ---------------------------------------------------------------------------
@@ -966,8 +878,7 @@ const Dashboard: React.FC = () => {
       } else {
         // Cancelar definitivamente: limpiar el carrito y volver al dashboard
         setCart([]);
-        setSelectedCustomer(null);
-        setView("dashboard");
+        setPendingCartAction(null);
       }
 
       setViewingPendingQrSale(null);
@@ -1011,7 +922,7 @@ const Dashboard: React.FC = () => {
           textAlign: "center",
         }}
       >
-        <div style={{ fontSize: "48px", marginBottom: "16px", lineHeight: 1 }}>⚠️</div>
+        <div style={{ fontSize: "48px", marginBottom: "16px", lineHeight: 1 }}>⚠ </div>
         <h2
           style={{
             fontSize: "20px",
@@ -1180,7 +1091,7 @@ const Dashboard: React.FC = () => {
           currentTime={currentTime}
           onLogout={handleLogoutClick}
         />
-        {renderDashboardTicketLoading()}
+
         {renderToast()}
         {forcedCloseModal}
       </>
@@ -1188,53 +1099,30 @@ const Dashboard: React.FC = () => {
   }
 
   // ===========================================================================
-  // RENDER D: DASHBOARD PRINCIPAL DEL CAJERO (Mockup 7) / TERMINAL DE VENTAS (Mockup 5)
+  // RENDER D: TERMINAL DE VENTAS (Mockup 5)
   // ===========================================================================
   return (
     <>
-      {view === "sales-terminal" ? (
-        <SalesTerminalView
-          sessionData={sessionData}
-          cartData={cartData}
-          searchData={searchData}
-          customerData={customerData}
-          user={user}
-          currentTime={currentTime}
-          onOpenModal={setActiveModal}
-          onToast={showToast}
-          pendingQrSales={pendingQrSales}
-          pendingQrChecking={pendingQrChecking}
-          checkPendingQrStatus={checkPendingQrStatus}
-          setPendingCancelFieldErrors={setPendingCancelFieldErrors}
-          setViewingPendingQrSale={setViewingPendingQrSale}
-          addPendingQrSale={addPendingQrSale}
-          onGoHome={() => setView("dashboard")}
-          onLogout={handleLogoutClick}
-          onLock={lock}
-          onReprintTicket={handleReprintRecentSale}
-          onStartReturn={handleStartReturnFromRecent}
-        />
-      ) : (
-        <DashboardHomeView
-          sessionData={sessionData}
-          user={user}
-          currentTime={currentTime}
-          onOpenModal={setActiveModal}
-          onLogout={handleLogoutClick}
-          onNuevaVenta={handleNuevaVenta}
-          openDashboardTableMenu={openDashboardTableMenu}
-          onSetOpenDashboardTableMenu={setOpenDashboardTableMenu}
-          expandedSalesRows={expandedSalesRows}
-          onToggleSalesRow={toggleSalesRow}
-          expandedDepositRows={expandedDepositRows}
-          onToggleDepositRow={toggleDepositRow}
-          dashboardTicketLoadingId={dashboardTicketLoadingId}
-          onOpenDashboardSaleTicket={handleOpenDashboardSaleTicket}
-          onSetSelectedSale={setSelectedSale}
-          onToast={showToast}
-        />
-      )}
-
+      <SalesTerminalView
+        sessionData={sessionData}
+        cartData={cartData}
+        searchData={searchData}
+        customerData={customerData}
+        user={user}
+        currentTime={currentTime}
+        onOpenModal={setActiveModal}
+        onToast={showToast}
+        pendingQrSales={pendingQrSales}
+        pendingQrChecking={pendingQrChecking}
+        checkPendingQrStatus={checkPendingQrStatus}
+        setPendingCancelFieldErrors={setPendingCancelFieldErrors}
+        setViewingPendingQrSale={setViewingPendingQrSale}
+        addPendingQrSale={addPendingQrSale}
+        onLogout={handleLogoutClick}
+        onLock={lock}
+        onReprintTicket={handleReprintRecentSale}
+        onStartReturn={handleStartReturnFromRecent}
+      />
       {/* ========================================================================= */}
       {/* CAPA DE MODALES GLOBALES DE ACCIONES RÁPIDAS */}
       {/* ========================================================================= */}
@@ -1287,6 +1175,27 @@ const Dashboard: React.FC = () => {
         cancelSalePreview={cancelSalePreview}
         onSetField={setCancelField}
         onSubmit={handleCancelSaleSubmit}
+      />
+
+      {/* MODAL: ENVÍO DE TICKET POR CORREO */}
+      <TicketEmailModal
+        isOpen={activeModal === "ticket-email"}
+        onClose={() => setActiveModal(null)}
+        saleId={selectedSale?.id}
+        saleInvoice={selectedSale?.invoiceNumber}
+        saleTotal={selectedSale?.totalAmount || selectedSale?.total}
+        saleDate={selectedSale?.createdAt}
+        initialEmail={selectedCustomer?.email || ""}
+        onToast={showToast}
+      />
+
+      {/* MODAL: RESUMEN DE TURNO */}
+      <ShiftSummaryModal
+        isOpen={activeModal === "shift-summary"}
+        onClose={() => setActiveModal(null)}
+        sessionStats={sessionStats}
+        session={session}
+        activePaymentMethod={paymentMethod as string | null}
       />
 
       {/* MODAL 3: TICKET IMPRESO/PDF (Mockup 3) */}
@@ -1450,7 +1359,7 @@ const Dashboard: React.FC = () => {
                 gap: "10px"
               }}>
                 <div style={{ fontSize: "11px", fontWeight: "700", color: "#dc2626", textTransform: "uppercase" }}>
-                  ⚠️ Cancelar Venta (Revertir Stock)
+                  ⚠ ️Cancelar Venta (Revertir Stock)
                 </div>
                 
                 <div style={{ display: "flex", gap: "8px" }}>
@@ -1654,7 +1563,7 @@ const Dashboard: React.FC = () => {
           setTicketEmailError("");
         }}
       />
-      {renderDashboardTicketLoading()}
+
       {renderToast()}
       {isLocked && (
         <LockScreen

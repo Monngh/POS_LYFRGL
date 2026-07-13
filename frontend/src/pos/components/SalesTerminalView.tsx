@@ -1,5 +1,6 @@
 import React from "react";
-import { Menu, MapPin, Clock, LogOut, AlertTriangle, Banknote, CreditCard, ArrowLeftRight, QrCode, ExternalLink, Home, Ticket } from "lucide-react";
+import { Menu, MapPin, Clock, LogOut, AlertTriangle, Banknote, CreditCard, ArrowLeftRight, QrCode, ExternalLink, Ticket } from "lucide-react";
+import { HeaderCashInfo } from "./HeaderCashInfo";
 import { StatusBar } from "./StatusBar";
 import { TICKET_PRINT_MEDIA_STYLES } from "../../shared/utils/ticketEmailDocument.util";
 import { DECIMAL_INPUT_REGEX, handleDecimalInputChange } from "../../shared/utils/decimalInput";
@@ -8,11 +9,14 @@ import { usePosCart } from "../hooks/usePosCart";
 import { usePosSearch } from "../hooks/usePosSearch";
 import { usePosCustomer } from "../hooks/usePosCustomer";
 import { ProductSearchPanel } from "./ProductSearchPanel";
+import { CustomerCheckoutBar } from "./CustomerCheckoutBar";
 import { CartPanel } from "./CartPanel";
 import { CheckoutPanel } from "./CheckoutPanel";
+import { PromotionsGrid } from "./PromotionsGrid";
 import { SalesLayoutView } from "./SalesLayoutView";
+
 import { useParkedSales } from "../hooks/useParkedSales";
-import { ParkedSalesModal, MixedPaymentModal } from "./modals";
+import { MixedPaymentModal } from "./modals";
 import KeyboardShortcutsManager from "./KeyboardShortcutsManager";
 import { useModalInitialFocus } from "../hooks/useModalInitialFocus";
 import { GLOBAL_QUICK_ACTIONS, type GlobalQuickActionLetter } from "../constants/posShortcuts";
@@ -33,14 +37,14 @@ interface SalesTerminalViewProps {
   user: SalesTerminalUser | null;
   currentTime?: Date;
   onOpenModal: (modal: string) => void;
-  onToast: (msg: string, type?: "error" | "success" | "info") => void;
+  onToast: (msg: string, type?: "error" | "success" | "info" | "warning") => void;
   pendingQrSales: any[];
   pendingQrChecking: string | null;
   checkPendingQrStatus: (invoiceNumber: string) => void;
   setPendingCancelFieldErrors: (errors: Partial<Record<"pin" | "reason", string>>) => void;
   setViewingPendingQrSale: (sale: any) => void;
   addPendingQrSale: () => void;
-  onGoHome?: () => void;
+
   onLogout?: () => void;
   onLock?: () => void;
   onReprintTicket?: (saleId: number) => void;
@@ -48,7 +52,7 @@ interface SalesTerminalViewProps {
 }
 
 const styles: { [key: string]: React.CSSProperties } = {
-  appContainer: { minHeight: "100vh", display: "flex", flexDirection: "column" as const, backgroundColor: "var(--surface-2)" },
+  appContainer: { height: "100vh", display: "flex", flexDirection: "column" as const, backgroundColor: "var(--surface-2)", overflow: "hidden" },
   terminalHeader: { height: "56px", backgroundColor: "var(--surface)", borderBottom: "2px solid #3b82f6", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 24px" },
   terminalBackBtn: { width: "38px", height: "38px", borderRadius: "6px", border: "1px solid var(--border-strong)", backgroundColor: "var(--surface)", color: "var(--accent-strong)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 2px rgba(15,23,42,0.06)" },
   terminalBody: { flex: 1, padding: "20px", display: "flex", flexDirection: "column" as const, gap: "16px" },
@@ -88,7 +92,7 @@ export function SalesTerminalView({
   setPendingCancelFieldErrors,
   setViewingPendingQrSale,
   addPendingQrSale,
-  onGoHome,
+
   onLogout,
   onLock,
   onReprintTicket,
@@ -125,6 +129,8 @@ export function SalesTerminalView({
   const { parkedSales, fetchParkedSales, parkSale, deleteParkedSale, loading: parkedLoading } = useParkedSales(user?.branch?.id);
   const [parkedModalOpen, setParkedModalOpen] = React.useState(false);
   const [mixedModalOpen, setMixedModalOpen] = React.useState(false);
+  // State variables for various modals
+  const [isCashInfoExpanded, setIsCashInfoExpanded] = React.useState(false);
   const checkoutModalRef = useModalInitialFocus(checkoutModalOpen);
 
   // Cobro en dos fases: primero elegir método con flechas, Enter confirma y da foco al input/botón, luego Enter cobra
@@ -181,6 +187,20 @@ export function SalesTerminalView({
       return;
     }
 
+    if (e.key >= "1" && e.key <= "5" && checkoutPhase === "select-method") {
+      e.preventDefault();
+      const methods = ["EFECTIVO", "TARJETA", "STORE_CREDIT", "MIXTO", "QR_MERCADOPAGO"];
+      const index = parseInt(e.key) - 1;
+      setPaymentMethod(methods[index] as any);
+      return;
+    }
+
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setCheckoutModalOpen(false);
+      return;
+    }
+
     if (e.key === "Enter") {
       const active = document.activeElement;
       const isTyping = active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || (active as HTMLElement).isContentEditable);
@@ -221,7 +241,7 @@ export function SalesTerminalView({
 
   return (
     <div style={styles.appContainer} className="pos-cashier-app" data-pos-view="sales-terminal">
-      <KeyboardShortcutsManager />
+      <KeyboardShortcutsManager onToast={onToast} />
       <div className="pos-shortcut-registry" aria-hidden="true">
         {(Object.entries(GLOBAL_QUICK_ACTIONS) as [GlobalQuickActionLetter, string][]).map(([letter, actionId]) => (
           <button
@@ -268,19 +288,29 @@ export function SalesTerminalView({
             <span className="pos-terminal-user-name">{user?.name || "Cajero"}</span>
           </div>
 
-          {/* Estado de caja */}
-          <div className={`pos-terminal-session-badge ${
-            session?.status === "ABIERTA" || session?.status === "active" ? "open" : "closed"
-          }`}>
-            {session?.status === "ABIERTA" || session?.status === "active" ? "CAJA ABIERTA" : "CAJA CERRADA"}
-          </div>
-
-          {/* Ventas del turno */}
-          {sessionStats && sessionStats.salesCount > 0 && (
-            <div className="pos-terminal-chip sales-count">
-              {sessionStats.salesCount} {sessionStats.salesCount === 1 ? "venta" : "ventas"}
+          {/* Estado de caja + Totales inline */}
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginLeft: "16px" }}>
+            <div 
+              className={`pos-terminal-session-badge active-tap ${
+                session?.status === "ABIERTA" || session?.status === "active" ? "open" : "closed"
+              }`}
+              style={{ cursor: "pointer", userSelect: "none" }}
+              onClick={() => onOpenModal("shift-summary")}
+              title="Ver detalles de caja"
+            >
+              {session?.status === "ABIERTA" || session?.status === "active" ? "CAJA ABIERTA" : "CAJA CERRADA"}
             </div>
-          )}
+
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <HeaderCashInfo sessionStats={sessionStats} onOpenSummary={() => onOpenModal("shift-summary")} />
+              
+              {sessionStats && sessionStats.salesCount > 0 && (
+                <div className="pos-terminal-chip sales-count" style={{ display: "flex", alignItems: "center", height: "28px" }}>
+                  {sessionStats.salesCount} {sessionStats.salesCount === 1 ? "venta" : "ventas"}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="pos-terminal-navbar-right">
@@ -289,132 +319,87 @@ export function SalesTerminalView({
             <Clock size={12} />
             <span>{formattedTime}</span>
           </div>
-
-          {/* Ventas pausadas */}
-          <button
-            type="button"
-            onClick={() => setParkedModalOpen(true)}
-            className="pos-terminal-home-btn active-tap"
-            data-shortcut-letter="K"
-            title="Ventas en Espera (Alt+K)"
-            aria-label="Ver ventas pausadas"
-          >
-            <div style={{ position: "relative" }}>
-              <Clock size={15} />
-              {parkedSales.length > 0 && (
-                <span style={{
-                  position: "absolute", top: -7, right: -7,
-                  backgroundColor: "#b91c1c", color: "white",
-                  fontSize: "9px", padding: "1px 4px",
-                  borderRadius: "8px", fontWeight: "800",
-                  lineHeight: "1.2",
-                }}>
-                  {parkedSales.length}
-                </span>
-              )}
-            </div>
-          </button>
-
-          {/* Inicio */}
-          {onGoHome && (
-            <button
-              type="button"
-              onClick={onGoHome}
-              className="pos-terminal-home-btn active-tap"
-              data-shortcut-key="F1"
-              title="Ir al inicio (F1)"
-              aria-label="Ir al dashboard"
-            >
-              <Home size={15} />
-              <span className="pos-fkey-badge">F1</span>
-            </button>
-          )}
-
-          {/* Cerrar sesión */}
-          <button
-            type="button"
-            onClick={onLogout}
-            className="pos-terminal-logout-btn active-tap"
-            data-shortcut-letter="L"
-            title="Cerrar Sesión (Alt+L)"
-            aria-label="Cerrar sesión del cajero"
-          >
-            <LogOut size={15} />
-          </button>
         </div>
       </header>
 
       {/* Cuerpo Terminal */}
       <SalesLayoutView
-        session={session}
-        sessionStats={sessionStats}
         recentSales={recentSales}
         onOpenModal={onOpenModal}
         onLock={onLock || (() => {})}
-        onGoHome={onGoHome || (() => {})}
         onReprintTicket={onReprintTicket}
         onStartReturn={onStartReturn}
         isSidebarCollapsed={isSidebarCollapsed}
         setIsSidebarCollapsed={setIsSidebarCollapsed}
+        cartData={cartData}
+        onToast={onToast}
       >
-        <ProductSearchPanel
-          searchData={searchData}
-          customerData={customerData}
-          cartData={cartData}
-          onToast={onToast}
-        />
+        <div style={{ flex: 1, display: "flex", flexDirection: "row", overflow: "hidden", gap: "20px" }}>
+          
+          <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", overflow: "hidden", gap: "16px" }}>
+            <div className="card-premium" style={{ display: "flex", gap: "24px", flexShrink: 0, alignItems: "center", padding: "8px 16px", minHeight: "44px" }}>
+              <div style={{ flex: "2 1 0", minWidth: 0 }}>
+                <ProductSearchPanel
+                  searchData={searchData}
+                  customerData={customerData}
+                  cartData={cartData}
+                  onToast={onToast}
+                />
+              </div>
+              <div style={{ width: "1px", backgroundColor: "var(--border-strong)", height: "28px" }} />
+              <div style={{ width: "360px", flexShrink: 0 }}>
+                <div style={{ width: "100%" }}>
+                  <CustomerCheckoutBar customerData={customerData} cartData={cartData} onToast={onToast} />
+                </div>
+              </div>
+            </div>
 
-        <div className="card-premium pos-cashier-cart-card" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "14px" }}>
-          <CartPanel cartData={cartData} onToast={onToast} />
-          <CheckoutPanel
-            cartData={cartData}
-            pendingQrSales={pendingQrSales}
-            pendingQrChecking={pendingQrChecking}
-            checkPendingQrStatus={checkPendingQrStatus}
-            setPendingCancelFieldErrors={setPendingCancelFieldErrors}
-            setViewingPendingQrSale={setViewingPendingQrSale}
-            onOpenCheckout={() => setCheckoutModalOpen(true)}
-            onParkSale={handleParkSale}
-          />
+            <div className="card-premium pos-cashier-cart-card" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "14px", gap: "10px" }}>
+              <CartPanel cartData={cartData} onToast={onToast} />
+              <PromotionsGrid cart={cartData.cart} onAddProduct={cartData.addProductToCart} onToast={onToast} cartDiscount={cartData.cartDiscount} />
+            </div>
+          </div>
+
+          <div className="card-premium" style={{ width: "340px", flexShrink: 0, display: "flex", flexDirection: "column", overflowY: "auto", position: "relative", padding: "14px", paddingRight: "14px" }}>
+            <CheckoutPanel
+              cartData={cartData}
+              customerData={customerData}
+              pendingQrSales={pendingQrSales}
+              pendingQrChecking={pendingQrChecking}
+              checkPendingQrStatus={checkPendingQrStatus}
+              setPendingCancelFieldErrors={setPendingCancelFieldErrors}
+              setViewingPendingQrSale={setViewingPendingQrSale}
+              onOpenCheckout={() => setCheckoutModalOpen(true)}
+              onParkSale={handleParkSale}
+              parkedSales={parkedSales}
+              onRecoverParkedSale={async (sale) => {
+                try {
+                  const parsedCart = JSON.parse(sale.cartData);
+                  cartData.setCart(parsedCart);
+                  if (sale.customer && customerData.setSelectedCustomer) {
+                    customerData.setSelectedCustomer(sale.customer as any);
+                  } else if (customerData.setSelectedCustomer) {
+                    customerData.setSelectedCustomer(null);
+                  }
+                  await deleteParkedSale(sale.id);
+                  onToast("Venta recuperada", "success");
+                } catch(e: any) {
+                  onToast(e.message, "error");
+                }
+              }}
+              onDeleteParkedSale={async (id) => {
+                try {
+                  await deleteParkedSale(id);
+                  onToast("Venta en espera eliminada", "success");
+                } catch(e: any) {
+                  onToast(e.message, "error");
+                }
+              }}
+            />
+          </div>
         </div>
       </SalesLayoutView>
 
-      {/* Status Bar inferior — resumen del turno */}
-      <StatusBar
-        session={session}
-        sessionStats={sessionStats}
-        activePaymentMethod={paymentMethod as string | null}
-      />
-      <ParkedSalesModal
-        isOpen={parkedModalOpen}
-        onClose={() => setParkedModalOpen(false)}
-        parkedSales={parkedSales}
-        loading={parkedLoading}
-        onDelete={async (id) => {
-          try {
-            await deleteParkedSale(id);
-            onToast("Venta en espera eliminada", "success");
-          } catch(e: any) {
-            onToast(e.message, "error");
-          }
-        }}
-        onRecover={async (sale) => {
-          try {
-            const parsedCart = JSON.parse(sale.cartData);
-            cartData.setCart(parsedCart);
-            if (sale.customer && customerData.setSelectedCustomer) {
-               customerData.setSelectedCustomer(sale.customer as any);
-            } else if (customerData.setSelectedCustomer) {
-               customerData.setSelectedCustomer(null);
-            }
-            await deleteParkedSale(sale.id);
-            setParkedModalOpen(false);
-            onToast("Venta recuperada", "success");
-          } catch(e: any) {
-            onToast(e.message, "error");
-          }
-        }}
-      />
 
       <MixedPaymentModal
         isOpen={mixedModalOpen}

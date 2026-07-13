@@ -38,6 +38,8 @@ const styles = {
     display: "flex",
     flexDirection: "column" as const,
     gap: "4px",
+    flex: 1,
+    minWidth: 0,
   },
   time: {
     fontSize: "12px",
@@ -50,6 +52,9 @@ const styles = {
     fontSize: "14px",
     fontWeight: "600",
     color: "var(--text)",
+    whiteSpace: "nowrap" as const,
+    overflow: "hidden" as const,
+    textOverflow: "ellipsis" as const,
   },
   total: {
     fontSize: "16px",

@@ -1,4 +1,3 @@
-import React from "react";
 import { Minus, Plus, XCircle, Tag } from "lucide-react";
 import { usePosCart } from "../hooks/usePosCart";
 
@@ -28,7 +27,7 @@ interface CartItem {
 
 const calculateItemPromotion = (item: CartItem) => {
   const promo = item.product.activePromotion;
-  const originalPrice = item.product.sellPrice;
+  const originalPrice = Number(item.product.sellPrice);
   const quantity = item.quantity;
   const subtotalOriginal = originalPrice * quantity;
 
@@ -42,20 +41,20 @@ const calculateItemPromotion = (item: CartItem) => {
 
   if (promo.type === "Percentage") {
     if (quantity >= minQty) {
-      const val = promo.value || 0;
+      const val = Number(promo.value) || 0;
       const discountPerUnit = originalPrice * (val / 100);
       discountAmount = discountPerUnit * quantity;
       finalPrice = originalPrice - discountPerUnit;
     }
   } else if (promo.type === "FixedAmount") {
     if (quantity >= minQty) {
-      const val = promo.value || 0;
+      const val = Number(promo.value) || 0;
       discountAmount = val * quantity;
       finalPrice = Math.max(0, originalPrice - val);
     }
   } else if (promo.type === "BuyXPayY") {
-    const x = promo.minQuantity || 1;
-    const y = promo.payQuantity || 1;
+    const x = Number(promo.minQuantity) || 1;
+    const y = Number(promo.payQuantity) || 1;
     if (quantity >= x) {
       const groups = Math.floor(quantity / x);
       const remainder = quantity % x;
@@ -65,7 +64,7 @@ const calculateItemPromotion = (item: CartItem) => {
       finalPrice = lineCost / quantity;
     }
   } else if (promo.type === "SpecialPrice") {
-    const special = promo.specialPrice || originalPrice;
+    const special = Number(promo.specialPrice) || originalPrice;
     if (quantity >= minQty) {
       finalPrice = special;
       discountAmount = (originalPrice - special) * quantity;
@@ -78,7 +77,7 @@ const calculateItemPromotion = (item: CartItem) => {
 
 interface CartPanelProps {
   cartData: ReturnType<typeof usePosCart>;
-  onToast: (msg: string, type?: "error" | "success" | "info") => void;
+  onToast: (msg: string, type?: "error" | "success" | "info" | "warning") => void;
 }
 
 export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
@@ -90,52 +89,42 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       {/* Header del carrito con badge de artículos */}
-      <div className="pos-cart-header-bar">
+      <div className="pos-cart-header-bar" style={{ position: "sticky", top: 0, zIndex: 10, backgroundColor: "var(--pos-surface)", borderBottom: "1px solid var(--pos-border)" }}>
         <span className="pos-cart-title">Detalle de venta</span>
         <span className="pos-cart-count-badge">
-          {totalItems} {totalItems === 1 ? "artículo" : "artículos"}
+          {cart.length} {cart.length === 1 ? "producto" : "productos"} · {totalItems} {totalItems === 1 ? "artículo" : "artículos"}
         </span>
       </div>
 
       {/* Tabla de alta densidad */}
       <div
         className="pos-cart-table-wrapper pos-cashier-cart-scroll"
-        style={{ flex: 1, overflowY: "auto", maxHeight: "38vh" }}
+        style={{ flex: 1, overflowY: "scroll" }}
       >
-        {cart.length === 0 ? (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "100%",
-              minHeight: "80px",
-              flexDirection: "column",
-              gap: "6px",
-              color: "var(--pos-text-muted, #94a3b8)",
-              fontSize: "12px",
-              fontWeight: "600",
-              background: "var(--pos-surface-2, #f8fafc)",
-            }}
-          >
-            <span style={{ fontSize: "22px" }}>🛒</span>
-            <span>Sin productos. Escanee o busque para agregar.</span>
-          </div>
-        ) : (
-          <table className="pos-cashier-cart-table">
-            <thead>
+        <table className="pos-cashier-cart-table">
+          <thead>
+            <tr>
+              <th style={{ position: "sticky", top: 0, zIndex: 5, backgroundColor: "var(--pos-surface)" }}>Código</th>
+              <th style={{ position: "sticky", top: 0, zIndex: 5, backgroundColor: "var(--pos-surface)" }}>Producto</th>
+              <th style={{ textAlign: "center", position: "sticky", top: 0, zIndex: 5, backgroundColor: "var(--pos-surface)" }}>Cant.</th>
+              <th style={{ textAlign: "right", position: "sticky", top: 0, zIndex: 5, backgroundColor: "var(--pos-surface)" }}>Precio</th>
+              {hasDiscounts && <th style={{ textAlign: "right", color: "#d97706", position: "sticky", top: 0, zIndex: 5, backgroundColor: "var(--pos-surface)" }}>Dto.</th>}
+              <th style={{ textAlign: "right", position: "sticky", top: 0, zIndex: 5, backgroundColor: "var(--pos-surface)" }}>Importe</th>
+              <th style={{ width: "28px", position: "sticky", top: 0, zIndex: 5, backgroundColor: "var(--pos-surface)" }} />
+            </tr>
+          </thead>
+          <tbody>
+            {cart.length === 0 ? (
               <tr>
-                <th>Código</th>
-                <th>Producto</th>
-                <th style={{ textAlign: "center" }}>Cant.</th>
-                <th style={{ textAlign: "right" }}>Precio</th>
-                {hasDiscounts && <th style={{ textAlign: "right", color: "#15803d" }}>Dto.</th>}
-                <th style={{ textAlign: "right" }}>Importe</th>
-                <th style={{ width: "28px" }} />
+                <td colSpan={hasDiscounts ? 7 : 6} style={{ textAlign: "center", padding: "16px 0", color: "var(--pos-text-muted, #94a3b8)", background: "var(--pos-surface-2, #f8fafc)" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
+                    <span style={{ fontSize: "16px" }}>🛒</span>
+                    <span style={{ fontSize: "12px", fontWeight: "500" }}>Sin productos. Escanee o busque.</span>
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {cart.map((item) => {
+            ) : (
+              cart.map((item) => {
                 const promoDetails = calculateItemPromotion(item);
                 const hasDiscount = promoDetails.discountAmount > 0;
                 const subtotal = promoDetails.finalPrice * item.quantity;
@@ -174,7 +163,7 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
                         <button
                           type="button"
                           className="pos-qty-btn"
-                          onClick={() => updateCartQty(item.product.id, item.quantity - 1)}
+                          onClick={() => updateCartQty(item.product.id, -1)}
                           title="Disminuir cantidad"
                         >
                           <Minus size={10} />
@@ -190,16 +179,16 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
                               [item.product.id]: e.target.value,
                             }))
                           }
-                          onBlur={() => applyCartQty(item.product.id)}
+                          onBlur={() => applyCartQty(item.product.id, Number(cartQtyDraft[item.product.id] ?? item.quantity) || item.quantity)}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") applyCartQty(item.product.id);
+                            if (e.key === "Enter") applyCartQty(item.product.id, Number(cartQtyDraft[item.product.id] ?? item.quantity) || item.quantity);
                           }}
                           aria-label={`Cantidad de ${item.product.name}`}
                         />
                         <button
                           type="button"
                           className="pos-qty-btn"
-                          onClick={() => updateCartQty(item.product.id, item.quantity + 1)}
+                          onClick={() => updateCartQty(item.product.id, 1)}
                           title="Aumentar cantidad"
                         >
                           <Plus size={10} />
@@ -212,15 +201,15 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
                       {hasDiscount ? (
                         <div>
                           <span style={{ textDecoration: "line-through", color: "var(--pos-text-muted, #94a3b8)", fontSize: "10px" }}>
-                            ${item.product.sellPrice.toFixed(2)}
+                            ${Number(item.product.sellPrice).toFixed(2)}
                           </span>
                           <br />
-                          <span style={{ color: "#15803d", fontWeight: "700" }}>
+                          <span style={{ color: "#1e40af", fontWeight: "700" }}>
                             ${promoDetails.finalPrice.toFixed(2)}
                           </span>
                         </div>
                       ) : (
-                        <span>${item.product.sellPrice.toFixed(2)}</span>
+                        <span>${Number(item.product.sellPrice).toFixed(2)}</span>
                       )}
                     </td>
 
@@ -228,7 +217,7 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
                     {hasDiscounts && (
                       <td data-label="Dto." style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                         {hasDiscount ? (
-                          <span style={{ color: "#15803d", fontWeight: "700" }}>
+                          <span style={{ color: "#d97706", fontWeight: "700" }}>
                             -${promoDetails.discountAmount.toFixed(2)}
                           </span>
                         ) : (
@@ -263,10 +252,10 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
                     </td>
                   </tr>
                 );
-              })}
+              })
+            )}
             </tbody>
           </table>
-        )}
       </div>
     </div>
   );

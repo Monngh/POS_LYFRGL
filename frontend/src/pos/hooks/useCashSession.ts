@@ -34,8 +34,8 @@ interface Sale {
 
 interface UseCashSessionProps {
   user: any;
-  onToast: (msg: string, type?: "error" | "success" | "info") => void;
-  onSetView: (view: "dashboard" | "apertura" | "sales-terminal") => void;
+  onToast: (msg: string, type?: "error" | "success" | "info" | "warning") => void;
+  onSetView: (view: "apertura" | "sales-terminal") => void;
   onSetLoading: (loading: boolean) => void;
   onSetCajaLockedByOtherDevice: (locked: boolean) => void;
   onSetActiveModal: (modal: string | null) => void;
@@ -305,7 +305,7 @@ export function useCashSession({
           setSession(null);
         }
       } catch {
-        // silent — polling errors no deben interrumpir el POS
+        // silent Á¢â‚¬â€ polling errors no deben interrumpir el POS
       }
     }, 5000);
 

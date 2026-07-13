@@ -130,7 +130,7 @@ export function AperturaView({ sessionData, user, currentTime, onLogout }: Apert
               className="btn-primary active-tap"
               style={{ ...styles.submitBtn, width: "100%", marginTop: "24px" }}
             >
-              {openingLoading ? "Abriendo Caja..." : "ABRIR TURNO ➜"}
+              {openingLoading ? "Abriendo Caja..." : "ABRIR TURNO ➔"}
             </button>
           </div>
         </div>

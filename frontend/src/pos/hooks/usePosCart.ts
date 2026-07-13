@@ -212,7 +212,7 @@ export function usePosCart({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  const addProductToCart = (prod: Product) => {
+  const addProductToCart = (prod: Product, qty: number = 1) => {
     if (prod.stock <= 0) {
       onToast("No hay existencias de este producto en la sucursal.");
       return;
@@ -220,15 +220,16 @@ export function usePosCart({
     setCart((prev) => {
       const existing = prev.find((item) => item.product.id === prod.id);
       if (existing) {
-        if (existing.quantity >= prod.stock) {
+        if (existing.quantity + qty > prod.stock) {
           onToast(`Límite alcanzado. Solo hay ${prod.stock} piezas disponibles.`);
+          // Opcional: añadir hasta el límite en lugar de rebotar todo, pero de momento respetamos la lógica original
           return prev;
         }
         return prev.map((item) =>
-          item.product.id === prod.id ? { ...item, quantity: item.quantity + 1 } : item
+          item.product.id === prod.id ? { ...item, quantity: item.quantity + qty } : item
         );
       }
-      return [...prev, { product: prod, quantity: 1 }];
+      return [...prev, { product: prod, quantity: qty > prod.stock ? prod.stock : qty }];
     });
   };
 

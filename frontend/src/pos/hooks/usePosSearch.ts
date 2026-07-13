@@ -24,7 +24,7 @@ interface Product {
 }
 
 interface UsePosSearchProps {
-  view: "dashboard" | "apertura" | "sales-terminal";
+  view: "apertura" | "sales-terminal";
   activeModal: string | null;
   onProductFound: (product: Product) => void;
 }
