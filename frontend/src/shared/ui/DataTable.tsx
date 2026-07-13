@@ -38,13 +38,12 @@ export function DataTable<T>({
     fontWeight: 500,
   };
 
-  return (
+  const card = (
     <div
       style={{
         overflowX: "auto",
         overflowY: "auto",
-        maxHeight: height ? undefined : maxHeight,
-        height: height || undefined,
+        maxHeight: height ? "100%" : maxHeight,
         backgroundColor: "var(--surface)",
         border: "1px solid var(--border)",
         borderRadius: 12,
@@ -124,4 +123,17 @@ export function DataTable<T>({
       </table>
     </div>
   );
+
+  // When 'height' is provided, wrap in a transparent spacer that reserves the fixed
+  // height so pagination stays consistently positioned. The card inside only grows
+  // as tall as its content — hiding the empty background space below it.
+  if (height) {
+    return (
+      <div style={{ height, display: "flex", flexDirection: "column", justifyContent: "flex-start" }}>
+        {card}
+      </div>
+    );
+  }
+
+  return card;
 }
