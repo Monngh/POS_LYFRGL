@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Edit2, Pencil, Plus, FileText, Mail, Phone, User, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Edit2, Pencil, Plus, FileText, Mail, Phone, User, Trash2, Power } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
 import { DataTable, ActionModal } from "../../shared/ui";
@@ -382,6 +382,7 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [expandedSuppliers, setExpandedSuppliers] = useState<Record<number, boolean>>({});
+  const [hoveredToggleId, setHoveredToggleId] = useState<number | null>(null);
 
   const toggleExpandSupplier = (id: number) => {
     setExpandedSuppliers((prev) => ({
@@ -775,23 +776,52 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
     {
       key: "actions",
       header: "Acciones",
-      render: (s) => (
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button style={ui.linkBtn} onClick={() => openEdit(s)}>
-            <Edit2 size={13} style={{ marginRight: 4, verticalAlign: "middle" }} />
-            Editar
-          </button>
-          <button
-            style={{
-              ...ui.linkBtn,
-              color: s.active ? "var(--color-danger)" : "var(--color-success)"
-            }}
-            onClick={() => handleToggleActive(s)}
-          >
-            {s.active ? "Desactivar" : "Activar"}
-          </button>
-        </div>
-      ),
+      render: (s) => {
+        const isHovered = hoveredToggleId === s.id;
+        return (
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <button style={ui.linkBtn} onClick={() => openEdit(s)}>
+              <Edit2 size={13} style={{ marginRight: 4, verticalAlign: "middle" }} />
+              Editar
+            </button>
+            <button
+              style={{
+                ...ui.linkBtn,
+                color: s.active ? "var(--color-danger)" : "var(--color-success)",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: isHovered ? 6 : 0,
+                padding: "4px 8px",
+                borderRadius: "6px",
+                backgroundColor: isHovered
+                  ? (s.active ? "rgba(239, 68, 68, 0.08)" : "rgba(34, 197, 94, 0.08)")
+                  : "transparent",
+                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+              }}
+              onMouseEnter={() => setHoveredToggleId(s.id)}
+              onMouseLeave={() => setHoveredToggleId(null)}
+              onClick={() => handleToggleActive(s)}
+              title={s.active ? "Desactivar" : "Activar"}
+            >
+              <Power size={14} style={{ flexShrink: 0 }} />
+              <span
+                style={{
+                  maxWidth: isHovered ? "80px" : "0px",
+                  overflow: "hidden",
+                  transition: "max-width 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s ease",
+                  opacity: isHovered ? 1 : 0,
+                  whiteSpace: "nowrap",
+                  display: "inline-block",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                }}
+              >
+                {s.active ? "Desactivar" : "Activar"}
+              </span>
+            </button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -1079,11 +1109,13 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                         </button>
                         <button
                           onClick={() => handleToggleActive(s)}
+                          onMouseEnter={() => setHoveredToggleId(s.id)}
+                          onMouseLeave={() => setHoveredToggleId(null)}
                           style={{
                             ...ui.linkBtn,
                             display: "inline-flex",
                             alignItems: "center",
-                            gap: 6,
+                            gap: hoveredToggleId === s.id ? 6 : 0,
                             backgroundColor: s.active ? "rgba(239,68,68,0.08)" : "rgba(34,197,94,0.08)",
                             border: `1px solid ${s.active ? "rgba(239,68,68,0.2)" : "rgba(34,197,94,0.2)"}`,
                             borderRadius: 8,
@@ -1092,10 +1124,24 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                             fontWeight: 700,
                             color: s.active ? "var(--color-danger)" : "var(--color-success)",
                             cursor: "pointer",
+                            transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                           }}
+                          title={s.active ? "Desactivar" : "Activar"}
                           className="active-tap"
                         >
-                          {s.active ? "Desactivar" : "Activar"}
+                          <Power size={13} style={{ flexShrink: 0 }} />
+                          <span
+                            style={{
+                              maxWidth: hoveredToggleId === s.id ? "80px" : "0px",
+                              overflow: "hidden",
+                              transition: "max-width 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s ease",
+                              opacity: hoveredToggleId === s.id ? 1 : 0,
+                              whiteSpace: "nowrap",
+                              display: "inline-block",
+                            }}
+                          >
+                            {s.active ? "Desactivar" : "Activar"}
+                          </span>
                         </button>
                       </div>
                     </div>
