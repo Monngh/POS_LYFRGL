@@ -27,6 +27,19 @@ export const listCashSessions = async (params: {
     },
   });
 
+  const forcedByUserIds = [...new Set(sessions.map((s) => s.forcedByUserId).filter(Boolean))] as number[];
+  let adminNames: Record<number, string> = {};
+  if (forcedByUserIds.length > 0) {
+    const admins = await prisma.user.findMany({
+      where: { id: { in: forcedByUserIds } },
+      select: { id: true, name: true },
+    });
+    adminNames = admins.reduce((acc, a) => {
+      acc[a.id] = a.name;
+      return acc;
+    }, {} as Record<number, string>);
+  }
+
   return sessions.map((s) => {
     const expected = Number(s.initialAmount) + Number(s.cashIn) - Number(s.cashOut);
     return {
@@ -42,7 +55,9 @@ export const listCashSessions = async (params: {
       declaredAmount: s.declaredAmount !== null ? Number(s.declaredAmount) : null,
       difference: s.difference !== null ? Number(s.difference) : null,
       salesCount: s._count.sales,
-      status: s.status,
+      status: s.forcedByUserId !== null ? "REVOCADO" : s.status,
+      forceCloseReason: s.forceCloseReason,
+      forcedByAdmin: s.forcedByUserId ? adminNames[s.forcedByUserId] : null,
     };
   });
 };
@@ -137,6 +152,12 @@ export const getCashSessionDetail = async (
     balance: m.balance,
   }));
 
+  let forcedByAdmin = null;
+  if (session.forcedByUserId) {
+    const adminUser = await prisma.user.findUnique({ where: { id: session.forcedByUserId }, select: { name: true } });
+    if (adminUser) forcedByAdmin = adminUser.name;
+  }
+
   const expected = Number(session.initialAmount) + Number(session.cashIn) - Number(session.cashOut);
   const s = session as any;
 
@@ -154,8 +175,9 @@ export const getCashSessionDetail = async (
       declaredAmount: session.declaredAmount !== null ? Number(session.declaredAmount) : null,
       difference: session.difference !== null ? Number(session.difference) : null,
       salesCount: session.sales.filter((sale) => sale.status === "COMPLETADA").length,
-      status: session.status,
+      status: session.forcedByUserId !== null ? "REVOCADO" : session.status,
       forceCloseReason: s.forceCloseReason ?? null,
+      forcedByAdmin,
     },
     payBreakdown: { efectivo, tarjetaCredito, tarjetaDebito, mercadoPago, totalVentas },
     movements,
