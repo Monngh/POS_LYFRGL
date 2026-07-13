@@ -12,9 +12,12 @@ import {
   Landmark,
   Scale,
   BadgePercent,
+  CreditCard,
+  Clock,
+  Lock,
 } from "lucide-react";
 import api from "../../shared/services/api";
-import { ui, type ViewProps, SectionHeader, money, useMediaQuery } from "./shared";
+import { ui, type ViewProps, SectionHeader, money, useMediaQuery, Badge, fmtDate, fmtTime } from "./shared";
 
 interface DashboardMetrics {
   ventasHoy: number;
@@ -42,11 +45,23 @@ interface TopProduct {
   name: string;
   unidades: number;
 }
+interface ActivityItem {
+  id: string;
+  type: "SALE" | "SESSION_CLOSED";
+  timestamp: string;
+  branchName: string;
+  title: string;
+  subtitle: string;
+  amount: number | string;
+  statusLabel: string;
+  statusTone: "green" | "red" | "amber" | "blue" | "slate";
+}
 interface DashboardResponse {
   metrics: DashboardMetrics;
   ventas7dias: DayPoint[];
   ventasPorSucursal: BranchSales[];
   productosMasVendidos: TopProduct[];
+  recentActivity: ActivityItem[];
 }
 interface CashSessionRow {
   id: number;
@@ -372,29 +387,94 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken, navigateTo
         </div>
       </div>
 
-      {/* Productos más vendidos */}
-      <div style={{ ...ui.panel, padding: 20, marginTop: 16 }}>
-        <h3 style={s.panelTitle}>Productos más vendidos</h3>
-        <div style={{ marginTop: 8 }}>
-          {(data?.productosMasVendidos ?? []).map((p, i) => (
-            <div key={p.id} style={s.productRow}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={s.rankBadge}>{i + 1}</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>{p.name}</span>
+      {/* Productos más vendidos + Actividad reciente: mismo layout de 2 columnas
+          usado arriba para Gráfica/Sucursales (apilado en mobile). */}
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 16, marginTop: 16 }}>
+        <div style={{ ...ui.panel, padding: 20, flex: "1 1 0%", minWidth: 0 }}>
+          <h3 style={s.panelTitle}>Productos más vendidos</h3>
+          <div style={{ marginTop: 8 }}>
+            {(data?.productosMasVendidos ?? []).map((p, i) => (
+              <div key={p.id} style={s.productRow}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={s.rankBadge}>{i + 1}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>{p.name}</span>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text)" }}>{p.unidades} u</span>
               </div>
-              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text)" }}>{p.unidades} u</span>
-            </div>
-          ))}
-          {!loading && (data?.productosMasVendidos ?? []).length === 0 && <EmptyState />}
+            ))}
+            {!loading && (data?.productosMasVendidos ?? []).length === 0 && <EmptyState />}
+          </div>
+        </div>
+
+        <div style={{ ...ui.panel, padding: 20, flex: "1 1 0%", minWidth: 0 }}>
+          <h3 style={s.panelTitle}>Actividad reciente</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12, maxHeight: 340, overflowY: "auto" }}>
+            {(data?.recentActivity ?? []).map((item) => {
+              const isForcedClose = item.type === "SESSION_CLOSED" && item.statusTone === "red";
+              return (
+                <div
+                  key={item.id}
+                  style={{
+                    padding: 12,
+                    backgroundColor: "var(--surface)",
+                    borderRadius: 8,
+                    border: "1px solid var(--border)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                    <div
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 8,
+                        flexShrink: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: item.type === "SALE" ? "var(--icon-bg-blue)" : isForcedClose ? "var(--icon-bg-red)" : "var(--surface-2)",
+                      }}
+                    >
+                      {item.type === "SALE" ? (
+                        <CreditCard size={15} color="#2563eb" />
+                      ) : isForcedClose ? (
+                        <Lock size={15} color="#dc2626" />
+                      ) : (
+                        <Clock size={15} color="#64748b" />
+                      )}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {item.title}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {item.subtitle} · {item.branchName} · {fmtDate(item.timestamp)} {fmtTime(item.timestamp)}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {typeof item.amount === "number" ? money(item.amount) : item.amount}
+                    </span>
+                    <Badge tone={item.statusTone}>{item.statusLabel}</Badge>
+                  </div>
+                </div>
+              );
+            })}
+            {!loading && (data?.recentActivity ?? []).length === 0 && <EmptyState message="Sin actividad reciente." />}
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-const EmptyState: React.FC = () => (
+const EmptyState: React.FC<{ message?: string }> = ({ message }) => (
   <p style={{ fontSize: 13, color: "var(--text-faint)", padding: "24px 4px", textAlign: "center" }}>
-    Aún no hay datos registrados para este periodo.
+    {message ?? "Aún no hay datos registrados para este periodo."}
   </p>
 );
 

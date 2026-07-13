@@ -10,6 +10,20 @@ import { prisma } from "../app";
  * Soporta el filtro opcional ?branchId= para acotar las métricas a una sucursal.
  * Las gráficas comparativas (ventas por sucursal) siempre muestran todas las sucursales.
  */
+
+// Feed unificado de "Actividad reciente" del Dashboard: combina ventas
+// completadas y cierres de turno en una sola línea de tiempo.
+interface ActivityItem {
+  id: string;
+  type: "SALE" | "SESSION_CLOSED";
+  timestamp: Date;
+  branchName: string;
+  title: string;
+  subtitle: string;
+  amount: number | string;
+  statusLabel: string;
+  statusTone: "green" | "red" | "amber" | "blue" | "slate";
+}
 export const getAdminMetrics = async (req: Request, res: Response): Promise<void> => {
   if (!req.user) {
     res.status(401).json({ message: "No autenticado." });
@@ -48,6 +62,8 @@ export const getAdminMetrics = async (req: Request, res: Response): Promise<void
       branches,
       ventasPorSucursalRaw,
       promocionesActivas,
+      recentSalesRaw,
+      recentClosedSessionsRaw,
     ] = await Promise.all([
       // Ventas y tickets de hoy
       prisma.sale.aggregate({
@@ -94,6 +110,26 @@ export const getAdminMetrics = async (req: Request, res: Response): Promise<void
       // Promociones vigentes ahora mismo (activas y dentro de su vigencia)
       prisma.promotion.count({
         where: { isActive: true, startDate: { lte: now }, endDate: { gte: now } },
+      }),
+      // Actividad reciente: últimas 10 ventas completadas (mismo include que VentasView)
+      prisma.sale.findMany({
+        where: { ...branchFilter, status: COMPLETADA },
+        take: 10,
+        orderBy: { createdAt: "desc" },
+        include: {
+          branch: { select: { name: true } },
+          user: { select: { name: true } },
+        },
+      }),
+      // Actividad reciente: últimos 10 turnos cerrados (mismo include que CajasView)
+      prisma.cashSession.findMany({
+        where: { ...branchFilter, status: "CERRADA" },
+        take: 10,
+        orderBy: { closedAt: "desc" },
+        include: {
+          branch: { select: { name: true } },
+          user: { select: { name: true } },
+        },
       }),
     ]);
 
@@ -179,6 +215,40 @@ export const getAdminMetrics = async (req: Request, res: Response): Promise<void
     }));
 
     // -----------------------------------------------------------------------
+    // Actividad reciente: combina ventas y cierres de turno en un solo feed
+    // -----------------------------------------------------------------------
+    const recentSalesActivity: ActivityItem[] = recentSalesRaw.map((s) => ({
+      id: `sale-${s.id}`,
+      type: "SALE",
+      timestamp: s.createdAt,
+      branchName: s.branch.name,
+      title: s.invoiceNumber,
+      subtitle: s.user.name,
+      amount: Number(s.totalAmount),
+      statusLabel: "Completada",
+      statusTone: "green",
+    }));
+
+    const recentSessionActivity: ActivityItem[] = recentClosedSessionsRaw.map((s) => {
+      const forced = s.forcedByUserId !== null;
+      return {
+        id: `session-${s.id}`,
+        type: "SESSION_CLOSED",
+        timestamp: s.closedAt ?? s.updatedAt,
+        branchName: s.branch.name,
+        title: `Turno #${s.id}`,
+        subtitle: s.user.name,
+        amount: s.forceCloseReason ? s.forceCloseReason : Number(s.difference ?? 0),
+        statusLabel: forced ? "Cierre forzado" : "Cerrada",
+        statusTone: forced ? "red" : "slate",
+      };
+    });
+
+    const recentActivity = [...recentSalesActivity, ...recentSessionActivity]
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 10);
+
+    // -----------------------------------------------------------------------
     // Respuesta consolidada
     // -----------------------------------------------------------------------
     res.status(200).json({
@@ -196,6 +266,7 @@ export const getAdminMetrics = async (req: Request, res: Response): Promise<void
       ventas7dias: week,
       ventasPorSucursal,
       productosMasVendidos,
+      recentActivity,
       branches,
     });
   } catch (error: any) {
