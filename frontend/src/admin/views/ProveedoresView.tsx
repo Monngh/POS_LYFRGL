@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Edit2, Pencil, Plus, FileText, Mail, Phone, User, Trash2, Power } from "lucide-react";
+import { ChevronDown, ChevronUp, Edit2, Pencil, Plus, FileText, Mail, Phone, User, Power } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
 import { DataTable, ActionModal } from "../../shared/ui";
