@@ -67,7 +67,10 @@ const pad2 = (n: number): string => String(n).padStart(2, "0");
 const formatLocalDate = (d: Date): string => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 
 const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken, navigateTo }) => {
-  const isMobile = useMediaQuery("(max-width: 1024px)");
+  // Mismo mecanismo de breakpoint que AdminDashboard.tsx (shell): evita un
+  // tercer sistema de detección de ancho independiente en esta vista.
+  const isMobile = useMediaQuery("(max-width: 768px)");
+  const isTablet = useMediaQuery("(min-width: 769px) and (max-width: 1024px)");
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -149,6 +152,13 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken, navigateTo
     { label: "Promos vigentes", value: m ? `${m.promocionesActivas} vigentes` : "—", icon: BadgePercent, onClick: goPromosVigentes },
   ];
 
+  // Columnas fijas por breakpoint (en vez de auto-fill) para que las 12 tarjetas
+  // siempre queden en filas parejas: 6+6 en desktop, 3 por fila en tablet
+  // (4 columnas bajaría de los ~165px mínimos por tarjeta en el extremo angosto
+  // del rango tablet una vez que el rail colapsado resta ancho al contenido),
+  // 2 por fila en mobile.
+  const cardsGridColumns = isMobile ? 2 : isTablet ? 3 : 6;
+
   const maxDay = Math.max(1, ...(data?.ventas7dias.map((d) => d.total) ?? [0]));
   const maxBranch = Math.max(1, ...(data?.ventasPorSucursal.map((b) => b.total) ?? [0]));
 
@@ -197,11 +207,12 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken, navigateTo
         .dash-metric-card { transition: box-shadow .15s ease, transform .15s ease; }
         .dash-metric-card:hover { box-shadow: 0 6px 16px -4px rgba(15,23,42,0.18); transform: translateY(-1px); }
       `}</style>
-      <SectionHeader title="Dashboard" subtitle="Métricas en tiempo real desde SQL Server" />
+      <SectionHeader title="Dashboard" subtitle="Métricas en tiempo real" />
 
-      {/* Tarjetas de métricas — grid único: auto-fill deja espacio vacío en la
-          última fila en vez de estirar las tarjetas existentes (auto-fit). */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(165px, 1fr))", gap: 16 }}>
+      {/* Tarjetas de métricas — grid único con columnas fijas por breakpoint
+          (6 desktop / 3 tablet / 2 mobile) para un acomodo 6+6 predecible en
+          vez de que auto-fill decida cuántas caben según el ancho disponible. */}
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${cardsGridColumns}, 1fr)`, gap: 16 }}>
         {cards.map((card) => {
           const Icon = card.icon;
           return (
