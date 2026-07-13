@@ -9,12 +9,11 @@ import {
   UserPlus,
   AlertTriangle,
   Wallet,
-  CreditCard,
   Landmark,
   Scale,
 } from "lucide-react";
 import api from "../../shared/services/api";
-import { ui, type ViewProps, SectionHeader, money } from "./shared";
+import { ui, type ViewProps, SectionHeader, money, useMediaQuery } from "./shared";
 
 interface DashboardMetrics {
   ventasHoy: number;
@@ -56,17 +55,17 @@ interface CashSessionRow {
   status: string;
   difference: number | null;
 }
-interface CustomerRow {
-  id: number;
-  balance: number;
-}
 interface DepositRow {
   id: number;
   amount: number;
   createdAt: string;
 }
 
-const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+const pad2 = (n: number): string => String(n).padStart(2, "0");
+const formatLocalDate = (d: Date): string => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken, navigateTo }) => {
+  const isMobile = useMediaQuery("(max-width: 1024px)");
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +90,6 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   }, [load]);
 
   const [sessions, setSessions] = useState<CashSessionRow[]>([]);
-  const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [deposits, setDeposits] = useState<DepositRow[]>([]);
   const [loadingCash, setLoadingCash] = useState(true);
 
@@ -99,13 +97,11 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setLoadingCash(true);
     try {
       const params = branchId !== "all" ? { branchId } : {};
-      const [sessRes, custRes, depRes] = await Promise.all([
+      const [sessRes, depRes] = await Promise.all([
         api.get<{ sessions: CashSessionRow[] }>("/api/admin/cash-sessions", { params }),
-        api.get<{ customers: CustomerRow[] }>("/api/admin/customers"),
         api.get<{ deposits: DepositRow[] }>("/api/admin/bank-deposits", { params }),
       ]);
       setSessions(sessRes.data.sessions);
-      setCustomers(custRes.data.customers);
       setDeposits(depRes.data.deposits);
     } catch {
       // widgets muestran "—" si falla
@@ -119,19 +115,33 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   }, [loadCash]);
 
   const m = data?.metrics;
+  const todayISO = formatLocalDate(new Date());
+  const firstDayOfMonthISO = formatLocalDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+
+  const goVentasHoy = () => navigateTo?.("ventas", { from: todayISO, to: todayISO });
+  const goVentasMes = () => navigateTo?.("ventas", { from: firstDayOfMonthISO, to: todayISO });
+  const goResumenEjecutivo = () => navigateTo?.("reportes", { tab: "resumen-ejecutivo" });
+  const goProductosActivos = () => navigateTo?.("inventario", { estado: "Todos" });
+  const goClientesNuevos = () => navigateTo?.("clientes");
+  const goInventarioBajo = () => navigateTo?.("inventario", { estado: "Bajo" });
+  const goCajasAbiertas = () => navigateTo?.("cajas", { estado: "Abiertas" });
+  const goDepositosHoy = () => navigateTo?.("depositos", { from: todayISO, to: todayISO });
+  const goCajasCerradas = () => navigateTo?.("cajas", { estado: "Cerradas" });
+
   const cards = [
-    { label: "Ventas de hoy", value: m ? money(m.ventasHoy) : "—", icon: TrendingUp },
-    { label: "Ventas del mes", value: m ? money(m.ventasMes) : "—", icon: CalendarDays },
-    { label: "Utilidad del mes", value: m ? money(m.utilidadMes) : "—", icon: Coins },
-    { label: "Tickets de hoy", value: m ? String(m.ticketsHoy) : "—", icon: Receipt },
-    { label: "Ticket promedio", value: m ? money(m.ticketPromedio) : "—", icon: Tag },
-    { label: "Productos activos", value: m ? String(m.productosActivos) : "—", icon: Package },
-    { label: "Clientes nuevos", value: m ? String(m.clientesNuevos) : "—", icon: UserPlus },
+    { label: "Ventas de hoy", value: m ? money(m.ventasHoy) : "—", icon: TrendingUp, onClick: goVentasHoy },
+    { label: "Ventas del mes", value: m ? money(m.ventasMes) : "—", icon: CalendarDays, onClick: goVentasMes },
+    { label: "Utilidad del mes", value: m ? money(m.utilidadMes) : "—", icon: Coins, onClick: goResumenEjecutivo },
+    { label: "Tickets de hoy", value: m ? String(m.ticketsHoy) : "—", icon: Receipt, onClick: goResumenEjecutivo },
+    { label: "Ticket promedio", value: m ? money(m.ticketPromedio) : "—", icon: Tag, onClick: goResumenEjecutivo },
+    { label: "Productos activos", value: m ? String(m.productosActivos) : "—", icon: Package, onClick: goProductosActivos },
+    { label: "Clientes nuevos", value: m ? String(m.clientesNuevos) : "—", icon: UserPlus, onClick: goClientesNuevos },
     {
       label: "Inventario bajo",
       value: m ? `${m.inventarioBajo} ${m.inventarioBajo === 1 ? "producto" : "productos"}` : "—",
       icon: AlertTriangle,
       warning: !!m && m.inventarioBajo > 0,
+      onClick: goInventarioBajo,
     },
   ];
 
@@ -146,9 +156,6 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const minutosDesdeApertura = ultimaApertura
     ? Math.round((Date.now() - new Date(ultimaApertura.openedAt).getTime()) / 60000)
     : null;
-
-  const cobranzaTotal = customers.reduce((acc, c) => acc + (c.balance > 0 ? c.balance : 0), 0);
-  const creditosConSaldo = customers.filter((c) => c.balance > 0).length;
 
   const hoy = new Date().toDateString();
   const depositosHoy = deposits.filter((d) => new Date(d.createdAt).toDateString() === hoy);
@@ -182,14 +189,24 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   return (
     <div>
+      <style>{`
+        .dash-metric-card { transition: box-shadow .15s ease, transform .15s ease; }
+        .dash-metric-card:hover { box-shadow: 0 6px 16px -4px rgba(15,23,42,0.18); transform: translateY(-1px); }
+      `}</style>
       <SectionHeader title="Dashboard" subtitle="Métricas en tiempo real desde SQL Server" />
 
-      {/* Tarjetas de métricas */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))", gap: 16 }}>
+      {/* Tarjetas de métricas — grid único: auto-fill deja espacio vacío en la
+          última fila en vez de estirar las tarjetas existentes (auto-fit). */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(165px, 1fr))", gap: 16 }}>
         {cards.map((card) => {
           const Icon = card.icon;
           return (
-            <div key={card.label} style={s.metricCard}>
+            <div
+              key={card.label}
+              style={{ ...s.metricCard, cursor: "pointer" }}
+              className="dash-metric-card active-tap"
+              onClick={card.onClick}
+            >
               <div style={s.metricHead}>
                 <span style={s.metricLabel}>{card.label}</span>
                 <div style={{ ...s.metricIcon, backgroundColor: card.warning ? "var(--icon-bg-amber)" : "var(--icon-bg-blue)" }}>
@@ -202,12 +219,13 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </div>
           );
         })}
-      </div>
 
-      {/* ── Fila 3: Operaciones del día ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))", gap: 16, marginTop: 16 }}>
         {/* Widget: Estado de cajas */}
-        <div style={s.metricCard}>
+        <div
+          style={{ ...s.metricCard, cursor: "pointer" }}
+          className="dash-metric-card active-tap"
+          onClick={goCajasAbiertas}
+        >
           <div style={s.metricHead}>
             <span style={s.metricLabel}>Estado de cajas</span>
             <div style={{ ...s.metricIcon, backgroundColor: "var(--icon-bg-blue)" }}>
@@ -226,24 +244,12 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           </p>
         </div>
 
-        {/* Widget: Cobranza pendiente */}
-        <div style={s.metricCard}>
-          <div style={s.metricHead}>
-            <span style={s.metricLabel}>Cobranza pendiente</span>
-            <div style={{ ...s.metricIcon, backgroundColor: creditosConSaldo > 0 ? "var(--icon-bg-amber)" : "var(--icon-bg-blue)" }}>
-              <CreditCard size={16} color={creditosConSaldo > 0 ? "#d97706" : "#2563eb"} />
-            </div>
-          </div>
-          <h2 style={{ ...s.metricValue, color: creditosConSaldo > 0 ? "var(--color-warning)" : "var(--text)" }}>
-            {loadingCash ? "…" : money(cobranzaTotal)}
-          </h2>
-          <p style={s.metricSecondary}>
-            {!loadingCash ? `${creditosConSaldo} cliente${creditosConSaldo !== 1 ? "s" : ""} con saldo` : ""}
-          </p>
-        </div>
-
         {/* Widget: Depósitos hoy */}
-        <div style={s.metricCard}>
+        <div
+          style={{ ...s.metricCard, cursor: "pointer" }}
+          className="dash-metric-card active-tap"
+          onClick={goDepositosHoy}
+        >
           <div style={s.metricHead}>
             <span style={s.metricLabel}>Depósitos hoy</span>
             <div style={{ ...s.metricIcon, backgroundColor: "var(--icon-bg-green)" }}>
@@ -259,7 +265,11 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         </div>
 
         {/* Widget: Diferencia de caja */}
-        <div style={s.metricCard}>
+        <div
+          style={{ ...s.metricCard, cursor: "pointer" }}
+          className="dash-metric-card active-tap"
+          onClick={goCajasCerradas}
+        >
           <div style={s.metricHead}>
             <span style={s.metricLabel}>Diferencia de caja</span>
             <div style={{ ...s.metricIcon, backgroundColor: hasDiferencias ? "var(--icon-bg-red)" : "var(--icon-bg-green)" }}>
@@ -303,32 +313,32 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         </div>
       </div>
 
-      {/* Gráfica de 7 días */}
-      <div style={{ ...ui.panel, padding: 20, marginTop: 16 }}>
-        <h3 style={s.panelTitle}>Ventas de los últimos 7 días</h3>
-        <div style={s.chart}>
-          {(data?.ventas7dias ?? []).map((d, i) => {
-            const h = Math.round((d.total / maxDay) * 150);
-            return (
-              <div key={i} style={s.chartCol}>
-                <span style={s.chartValue}>{d.total > 0 ? money(d.total) : ""}</span>
-                <div
-                  style={{
-                    ...s.bar,
-                    height: `${Math.max(h, d.total > 0 ? 6 : 2)}px`,
-                    backgroundColor: d.total > 0 ? "#3b82f6" : "#e2e8f0",
-                  }}
-                />
-                <span style={s.chartLabel}>{d.label}</span>
-              </div>
-            );
-          })}
+      {/* Gráfica de 7 días + Ventas por sucursal: 2 columnas en desktop (2/3 + 1/3),
+          apiladas verticalmente en mobile. */}
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 16, marginTop: 16 }}>
+        <div style={{ ...ui.panel, padding: 20, flex: isMobile ? "1 1 auto" : "2 1 0%", minWidth: 0 }}>
+          <h3 style={s.panelTitle}>Ventas de los últimos 7 días</h3>
+          <div style={s.chart}>
+            {(data?.ventas7dias ?? []).map((d, i) => {
+              const h = Math.round((d.total / maxDay) * 150);
+              return (
+                <div key={i} style={s.chartCol}>
+                  <span style={s.chartValue}>{d.total > 0 ? money(d.total) : ""}</span>
+                  <div
+                    style={{
+                      ...s.bar,
+                      height: `${Math.max(h, d.total > 0 ? 6 : 2)}px`,
+                      backgroundColor: d.total > 0 ? "#3b82f6" : "#e2e8f0",
+                    }}
+                  />
+                  <span style={s.chartLabel}>{d.label}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
 
-      {/* Comparativos */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
-        <div style={{ ...ui.panel, padding: 20 }}>
+        <div style={{ ...ui.panel, padding: 20, flex: isMobile ? "1 1 auto" : "1 1 0%", minWidth: 0 }}>
           <h3 style={s.panelTitle}>Ventas por sucursal</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 16 }}>
             {(data?.ventasPorSucursal ?? []).map((b) => (
@@ -345,21 +355,22 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             {!loading && (data?.ventasPorSucursal ?? []).length === 0 && <EmptyState />}
           </div>
         </div>
+      </div>
 
-        <div style={{ ...ui.panel, padding: 20 }}>
-          <h3 style={s.panelTitle}>Productos más vendidos</h3>
-          <div style={{ marginTop: 8 }}>
-            {(data?.productosMasVendidos ?? []).map((p, i) => (
-              <div key={p.id} style={s.productRow}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={s.rankBadge}>{i + 1}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>{p.name}</span>
-                </div>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text)" }}>{p.unidades} u</span>
+      {/* Productos más vendidos */}
+      <div style={{ ...ui.panel, padding: 20, marginTop: 16 }}>
+        <h3 style={s.panelTitle}>Productos más vendidos</h3>
+        <div style={{ marginTop: 8 }}>
+          {(data?.productosMasVendidos ?? []).map((p, i) => (
+            <div key={p.id} style={s.productRow}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={s.rankBadge}>{i + 1}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>{p.name}</span>
               </div>
-            ))}
-            {!loading && (data?.productosMasVendidos ?? []).length === 0 && <EmptyState />}
-          </div>
+              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text)" }}>{p.unidades} u</span>
+            </div>
+          ))}
+          {!loading && (data?.productosMasVendidos ?? []).length === 0 && <EmptyState />}
         </div>
       </div>
     </div>
@@ -409,7 +420,7 @@ const s: { [k: string]: React.CSSProperties } = {
     alignItems: "flex-end",
     justifyContent: "space-between",
     gap: 12,
-    height: 200,
+    height: 150,
     marginTop: 18,
     paddingTop: 10,
     borderBottom: "1px solid var(--border-soft)",

@@ -80,7 +80,7 @@ const detailValueStyle: React.CSSProperties = {
   color: "var(--text-secondary)",
 };
 
-const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFilters }) => {
   const { showToast } = useToast();
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [expandedDeposits, setExpandedDeposits] = useState<Record<number, boolean>>({});
@@ -123,6 +123,17 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     refetch();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshToken]);
+
+  // Aplica el filtro entregado por la vista de origen (ej. tarjetas del Dashboard)
+  // una sola vez al montar, sin quedar "pegado" a cambios manuales posteriores.
+  const appliedInitialFilters = useRef(false);
+  useEffect(() => {
+    if (appliedInitialFilters.current) return;
+    appliedInitialFilters.current = true;
+    if (!initialFilters) return;
+    if (typeof initialFilters.from === "string") setFrom(initialFilters.from);
+    if (typeof initialFilters.to === "string") setTo(initialFilters.to);
+  }, [initialFilters]);
 
   useEffect(() => {
     if (rows.length > 0 && accounts.length === 0) {

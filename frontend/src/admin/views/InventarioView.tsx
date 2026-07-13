@@ -498,7 +498,18 @@ const formatTaxRate = (rate: number | string) => {
   })}%`;
 };
 
-const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+// Traduce el `estado` recibido desde el Dashboard al valor interno de statusFilter.
+const mapInventarioEstadoFilter = (estado?: string): string | null => {
+  if (!estado) return null;
+  const normalized = estado.trim().toLowerCase();
+  if (normalized === "todos") return "all";
+  if (normalized === "bajo") return "bajo";
+  if (normalized === "disponible") return "disponible";
+  if (normalized === "inactivo") return "inactivo";
+  return null;
+};
+
+const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFilters }) => {
   const { showToast } = useToast();
   const confirm = useConfirm();
   const { user } = useAuth();
@@ -519,6 +530,16 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
+
+  // Aplica el filtro entregado por la vista de origen (ej. tarjetas del Dashboard)
+  // una sola vez al montar, sin quedar "pegado" a cambios manuales posteriores.
+  const appliedInitialFilters = useRef(false);
+  useEffect(() => {
+    if (appliedInitialFilters.current) return;
+    appliedInitialFilters.current = true;
+    const mapped = mapInventarioEstadoFilter(initialFilters?.estado);
+    if (mapped) setStatusFilter(mapped);
+  }, [initialFilters]);
 
   // Detail modal
   const [detailOpen, setDetailOpen] = useState(false);

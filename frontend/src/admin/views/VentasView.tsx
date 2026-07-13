@@ -142,7 +142,7 @@ const detailValueStyle: React.CSSProperties = {
   flex: 1,
 };
 
-const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFilters }) => {
   const { showToast } = useToast();
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const [expandedSales, setExpandedSales] = useState<Record<number, boolean>>({});
@@ -180,6 +180,17 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(t);
   }, [search]);
+
+  // Aplica el filtro entregado por la vista de origen (ej. tarjetas del Dashboard)
+  // una sola vez al montar, sin quedar "pegado" a cambios manuales posteriores.
+  const appliedInitialFilters = useRef(false);
+  useEffect(() => {
+    if (appliedInitialFilters.current) return;
+    appliedInitialFilters.current = true;
+    if (!initialFilters) return;
+    if (typeof initialFilters.from === "string") setDateFrom(initialFilters.from);
+    if (typeof initialFilters.to === "string") setDateTo(initialFilters.to);
+  }, [initialFilters]);
 
   const invalidRange = Boolean(dateFrom && dateTo && dateFrom > dateTo);
   const filterParams: Record<string, unknown> = {};

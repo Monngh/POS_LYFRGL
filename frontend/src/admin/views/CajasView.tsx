@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useAuth } from "../../auth";
 import { AlertTriangle, Ban, Calendar, ChevronDown, ChevronUp, DollarSign, Eye, Printer, X } from "lucide-react";
 import api from "../../shared/services/api";
@@ -58,7 +58,16 @@ interface SessionDetail extends SessionRow {
   }[];
 }
 
-const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+// Traduce el `estado` recibido desde el Dashboard al valor interno de status.
+const mapCajasEstadoFilter = (estado?: string): string | null => {
+  if (!estado) return null;
+  const normalized = estado.trim().toLowerCase();
+  if (normalized === "abiertas" || normalized === "abierta") return "ABIERTA";
+  if (normalized === "cerradas" || normalized === "cerrada") return "CERRADA";
+  return null;
+};
+
+const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFilters }) => {
   const { showToast } = useToast();
   const { user } = useAuth();
   const isMobile = useMediaQuery("(max-width: 1024px)");
@@ -81,6 +90,16 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const paged = usePagination(rows, { resetKey: `${branchId}|${status}|${from}|${to}|${filterUserId}` });
 
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
+
+  // Aplica el filtro entregado por la vista de origen (ej. tarjetas del Dashboard)
+  // una sola vez al montar, sin quedar "pegado" a cambios manuales posteriores.
+  const appliedInitialFilters = useRef(false);
+  useEffect(() => {
+    if (appliedInitialFilters.current) return;
+    appliedInitialFilters.current = true;
+    const mapped = mapCajasEstadoFilter(initialFilters?.estado);
+    if (mapped) setStatus(mapped);
+  }, [initialFilters]);
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState<SessionDetail | null>(null);
