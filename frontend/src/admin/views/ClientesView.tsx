@@ -444,7 +444,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
   ];
 
   return (
-    <div>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <SectionHeader
         title="Clientes"
         subtitle="Directorio de clientes — incluye datos CFDI 4.0 para facturación"
@@ -642,7 +642,15 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
             })}
         </div>
       ) : (
-        <div className="table-sticky-head" style={{ ...ui.tableWrap }}>
+        <div
+          className="table-sticky-head"
+          style={{
+            ...ui.tableWrap,
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+          }}
+        >
           <style>{`
             .table-sticky-head table {
               min-width: 820px;
