@@ -32,7 +32,7 @@ interface PromotionsGridProps {
   cartDiscount?: number;
 }
 
-export function PromotionsGrid({ cart, onAddProduct, onToast, cartDiscount = 0 }: PromotionsGridProps) {
+export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscount = 0 }: PromotionsGridProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const [promotions, setPromotions] = useState<Promotion[]>([]);

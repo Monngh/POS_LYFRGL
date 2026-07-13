@@ -1177,18 +1177,6 @@ const Dashboard: React.FC = () => {
         onSubmit={handleCancelSaleSubmit}
       />
 
-      {/* MODAL: ENVÍO DE TICKET POR CORREO */}
-      <TicketEmailModal
-        isOpen={activeModal === "ticket-email"}
-        onClose={() => setActiveModal(null)}
-        saleId={selectedSale?.id}
-        saleInvoice={selectedSale?.invoiceNumber}
-        saleTotal={selectedSale?.totalAmount || selectedSale?.total}
-        saleDate={selectedSale?.createdAt}
-        initialEmail={selectedCustomer?.email || ""}
-        onToast={showToast}
-      />
-
       {/* MODAL: RESUMEN DE TURNO */}
       <ShiftSummaryModal
         isOpen={activeModal === "shift-summary"}

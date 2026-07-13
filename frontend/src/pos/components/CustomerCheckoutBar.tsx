@@ -73,7 +73,6 @@ export function CustomerCheckoutBar({ customerData, cartData, onToast }: Custome
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmInput, setConfirmInput] = useState("");
   const [confirmError, setConfirmError] = useState("");
-  const [confirmShowPhone, setConfirmShowPhone] = useState(false);
 
   useEffect(() => {
     if (!confirmOpen) return;
@@ -212,13 +211,13 @@ export function CustomerCheckoutBar({ customerData, cartData, onToast }: Custome
                       return;
                     }
                     try {
-                      const { found, error } = await handleRegisterMinimalCustomer(cPhone, cName);
-                      if (found) {
+                      const res = await handleRegisterMinimalCustomer(cPhone);
+                      if (res.success && res.customer) {
                         setConfirmOpen(false);
                         setLocalPhone("");
                         onToast("Cliente registrado y seleccionado.", "success");
                       } else {
-                        setConfirmError(error || "Error al registrar");
+                        setConfirmError(res.error || "Error al registrar");
                       }
                     } catch (err) {
                       setConfirmError("Error de red");

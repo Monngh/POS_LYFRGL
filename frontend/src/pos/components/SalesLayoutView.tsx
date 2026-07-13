@@ -20,18 +20,10 @@ interface SalesLayoutViewProps {
 }
 
 export function SalesLayoutView({
-
-  recentSales = [],
   onOpenModal,
   onLock,
-
-  onReprintTicket,
-  onStartReturn,
   children,
   isSidebarCollapsed,
-  setIsSidebarCollapsed,
-  cartData,
-  onToast,
 }: SalesLayoutViewProps) {
 
   return (

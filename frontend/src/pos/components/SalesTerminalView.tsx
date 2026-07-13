@@ -1,7 +1,6 @@
 import React from "react";
-import { Menu, MapPin, Clock, LogOut, AlertTriangle, Banknote, CreditCard, ArrowLeftRight, QrCode, ExternalLink, Ticket } from "lucide-react";
+import { Menu, MapPin, Clock, AlertTriangle, Banknote, CreditCard, ArrowLeftRight, QrCode, ExternalLink, Ticket } from "lucide-react";
 import { HeaderCashInfo } from "./HeaderCashInfo";
-import { StatusBar } from "./StatusBar";
 import { TICKET_PRINT_MEDIA_STYLES } from "../../shared/utils/ticketEmailDocument.util";
 import { DECIMAL_INPUT_REGEX, handleDecimalInputChange } from "../../shared/utils/decimalInput";
 import { useCashSession } from "../hooks/useCashSession";
@@ -93,7 +92,6 @@ export function SalesTerminalView({
   setViewingPendingQrSale,
   addPendingQrSale,
 
-  onLogout,
   onLock,
   onReprintTicket,
   onStartReturn,
@@ -126,11 +124,8 @@ export function SalesTerminalView({
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
 
-  const { parkedSales, fetchParkedSales, parkSale, deleteParkedSale, loading: parkedLoading } = useParkedSales(user?.branch?.id);
-  const [parkedModalOpen, setParkedModalOpen] = React.useState(false);
+  const { parkedSales, fetchParkedSales, parkSale, deleteParkedSale } = useParkedSales(user?.branch?.id);
   const [mixedModalOpen, setMixedModalOpen] = React.useState(false);
-  // State variables for various modals
-  const [isCashInfoExpanded, setIsCashInfoExpanded] = React.useState(false);
   const checkoutModalRef = useModalInitialFocus(checkoutModalOpen);
 
   // Cobro en dos fases: primero elegir método con flechas, Enter confirma y da foco al input/botón, luego Enter cobra
@@ -341,9 +336,7 @@ export function SalesTerminalView({
               <div style={{ flex: "2 1 0", minWidth: 0 }}>
                 <ProductSearchPanel
                   searchData={searchData}
-                  customerData={customerData}
                   cartData={cartData}
-                  onToast={onToast}
                 />
               </div>
               <div style={{ width: "1px", backgroundColor: "var(--border-strong)", height: "28px" }} />
@@ -363,7 +356,7 @@ export function SalesTerminalView({
           <div className="card-premium" style={{ width: "340px", flexShrink: 0, display: "flex", flexDirection: "column", overflowY: "auto", position: "relative", padding: "14px", paddingRight: "14px" }}>
             <CheckoutPanel
               cartData={cartData}
-              customerData={customerData}
+              searchData={searchData}
               pendingQrSales={pendingQrSales}
               pendingQrChecking={pendingQrChecking}
               checkPendingQrStatus={checkPendingQrStatus}

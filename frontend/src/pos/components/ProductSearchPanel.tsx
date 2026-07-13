@@ -8,51 +8,11 @@ const validateTextInput = (value: string): string =>
     .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
     .replace(/[^\p{L}\p{N}\s\-,.]/gu, "");
 
-const maskPhoneLast2 = (phone: string): string => {
-  const clean = phone.replace(/\D/g, "");
-  if (clean.length === 0) return "";
-  if (clean.length === 10) {
-    return "•".repeat(8) + clean.slice(-2);
-  }
-  if (clean.length === 1) {
-    return clean;
-  }
-  return "•".repeat(clean.length - 1) + clean.slice(-1);
-};
-
-const maskCustomerName = (name: string): string => {
-  if (!name) return "";
-  const parts = name.trim().split(/\s+/);
-  if (parts.length <= 1) return parts[0];
-  const firstWord = parts[0];
-  const restLength = name.length - firstWord.length;
-  const dots = "•".repeat(Math.min(8, restLength > 0 ? restLength : 5));
-  return `${firstWord} ${dots}`;
-};
-
-const getNextRealPhone = (newValue: string, prevReal: string): string => {
-  if (!newValue) return "";
-  if (!newValue.includes("•")) {
-    return newValue.replace(/\D/g, "").slice(0, 10);
-  }
-  const prevMask = maskPhoneLast2(prevReal);
-  const prevBulletCount = (prevMask.match(/•/g) || []).length;
-  const prefix = prevReal.slice(0, prevBulletCount);
-  const suffix = newValue.slice(prevBulletCount).replace(/\D/g, "");
-  return (prefix + suffix).slice(0, 10);
-};
-
-const isInvalidPhonePattern = (digits: string): boolean => {
-  if (digits.length !== 10) return true;
-  if (/^(.)\1+$/.test(digits)) return true;
-  if (digits === "1234567890") return true;
-  return false;
-};
+// maskPhoneLast2 removed
 
 interface ProductSearchPanelProps {
   searchData: ReturnType<typeof usePosSearch>;
   cartData: ReturnType<typeof usePosCart>;
-  onToast: (msg: string, type?: "error" | "success" | "info" | "warning") => void;
 }
 
 const styles: { [key: string]: React.CSSProperties } = {
@@ -82,15 +42,13 @@ const styles: { [key: string]: React.CSSProperties } = {
   fieldError: { color: "#b91c1c", fontSize: "12px", fontWeight: "600", marginTop: "5px", marginBottom: 0 },
 };
 
-export function ProductSearchPanel({ searchData, cartData, onToast }: ProductSearchPanelProps) {
+export function ProductSearchPanel({ searchData, cartData }: ProductSearchPanelProps) {
   const {
     barcodeSearch, setBarcodeSearch, handleProductBarcodeSearch, barcodeSearchError,
     searchResults, setSearchResults,
   } = searchData;
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const phoneInputRef = useRef<HTMLInputElement | null>(null);
-  const confirmInputRef = useRef<HTMLInputElement | null>(null);
   const searchResultsRef = useRef<HTMLDivElement | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
 

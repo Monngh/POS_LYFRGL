@@ -1,10 +1,9 @@
 import { useRef, useEffect, useState } from "react";
 import { usePosCart } from "../hooks/usePosCart";
-import { usePosCustomer } from "../hooks/usePosCustomer";
 
 interface CheckoutPanelProps {
   cartData: ReturnType<typeof usePosCart>;
-  customerData: ReturnType<typeof usePosCustomer>;
+  searchData?: any;
   pendingQrSales: any[];
   pendingQrChecking: string | null;
   checkPendingQrStatus: (invoiceNumber: string) => void;
@@ -12,7 +11,7 @@ interface CheckoutPanelProps {
   setViewingPendingQrSale: (sale: any) => void;
   onOpenCheckout: () => void;
   onParkSale: () => void;
-  onToast: (msg: string, type?: "error" | "success" | "info" | "warning") => void;
+  isSidebarCollapsed?: boolean;
   parkedSales?: any[];
   onRecoverParkedSale?: (sale: any) => void;
   onDeleteParkedSale?: (id: number) => void;
@@ -21,7 +20,7 @@ interface CheckoutPanelProps {
 
 export function CheckoutPanel({
   cartData,
-  customerData,
+  searchData: _searchData,
   pendingQrSales,
   pendingQrChecking,
   checkPendingQrStatus,
@@ -29,7 +28,7 @@ export function CheckoutPanel({
   setViewingPendingQrSale,
   onOpenCheckout,
   onParkSale,
-  onToast,
+  isSidebarCollapsed: _isSidebarCollapsed,
   parkedSales = [],
   onRecoverParkedSale,
   onDeleteParkedSale,
@@ -189,7 +188,6 @@ export function CheckoutPanel({
                 style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px", paddingRight: "4px", paddingBottom: "4px" }}
               >
               {[...parkedSales].reverse().map((sale) => {
-                const isRecovering = false; // Add state if needed
                 return (
                   <div 
                     key={sale.id} 
@@ -282,11 +280,10 @@ export function CheckoutPanel({
                 onKeyDown={handleListKeyDown}
                 style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px", paddingRight: "4px", paddingBottom: "4px" }}
               >
-              {[...pendingQrSales].reverse().map((sale, index) => {
+              {[...pendingQrSales].reverse().map((sale) => {
                 const isChecking = pendingQrChecking === sale.invoiceNumber;
                 const isApproved = sale.status === "approved";
                 const isRejected = sale.status === "rejected";
-                const isFirstPending = index === 0 && !isApproved && !isRejected;
                 
                 const bgColor = isApproved ? "#f0fdf4" : isRejected ? "#fef2f2" : "#fffbeb";
                 const borderColor = isApproved ? "#bbf7d0" : isRejected ? "#fecaca" : "#fef08a";
