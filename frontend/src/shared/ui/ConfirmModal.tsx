@@ -1,5 +1,6 @@
 import React from "react";
 import { X } from "lucide-react";
+import { useBodyScrollLock } from "../hooks";
 
 export type ConfirmModalVariant = "danger" | "warning" | "info";
 
@@ -12,6 +13,10 @@ interface ConfirmModalProps {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: ConfirmModalVariant;
+  isConfirming?: boolean;
+  confirmDisabled?: boolean;
+  closeDisabled?: boolean;
+  confirmingLabel?: string;
 }
 
 const VARIANT_COLORS: Record<ConfirmModalVariant, string> = {
@@ -99,30 +104,63 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   confirmLabel = "Confirmar",
   cancelLabel = "Cancelar",
   variant = "warning",
+  isConfirming = false,
+  confirmDisabled = false,
+  closeDisabled = false,
+  confirmingLabel = "Procesando...",
 }) => {
+  useBodyScrollLock(isOpen);
+
   if (!isOpen) return null;
 
+  const isCloseDisabled = closeDisabled || isConfirming;
+  const isConfirmDisabled = confirmDisabled || isConfirming;
+  const disabledButtonStyle: React.CSSProperties = {
+    opacity: 0.6,
+    cursor: "not-allowed",
+  };
+  const handleClose = () => {
+    if (isCloseDisabled) return;
+    onClose();
+  };
+
   return (
-    <div style={styles.overlay} onClick={onClose}>
+    <div style={styles.overlay} onClick={handleClose}>
       <div style={styles.modal} onClick={(event) => event.stopPropagation()}>
         <div style={styles.modalHeader}>
           <span style={styles.modalTitle}>{title}</span>
-          <button type="button" style={styles.linkBtn} onClick={onClose} aria-label="Cerrar">
+          <button
+            type="button"
+            style={{ ...styles.linkBtn, ...(isCloseDisabled ? disabledButtonStyle : {}) }}
+            onClick={handleClose}
+            aria-label="Cerrar"
+            disabled={isCloseDisabled}
+          >
             <X size={18} />
           </button>
         </div>
         <div style={styles.modalBody}>
           <p style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.5, margin: 0, whiteSpace: "pre-line" }}>{message}</p>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24 }}>
-            <button type="button" style={styles.ghostBtn} onClick={onClose}>
+            <button
+              type="button"
+              style={{ ...styles.ghostBtn, ...(isCloseDisabled ? disabledButtonStyle : {}) }}
+              onClick={handleClose}
+              disabled={isCloseDisabled}
+            >
               {cancelLabel}
             </button>
             <button
               type="button"
-              style={{ ...styles.primaryBtn, backgroundColor: VARIANT_COLORS[variant] }}
+              style={{
+                ...styles.primaryBtn,
+                backgroundColor: VARIANT_COLORS[variant],
+                ...(isConfirmDisabled ? disabledButtonStyle : {}),
+              }}
               onClick={onConfirm}
+              disabled={isConfirmDisabled}
             >
-              {confirmLabel}
+              {isConfirming ? confirmingLabel : confirmLabel}
             </button>
           </div>
         </div>

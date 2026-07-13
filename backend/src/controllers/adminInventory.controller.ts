@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { AppError } from "../utils/AppError";
 import { parseOptionalDateRange } from "../utils/dateRange.util";
 import {
+  type InventoryStatusFilter,
   listInventory as listInventoryService,
   listKardex as listKardexService,
   adjustInventory as adjustInventoryService,
@@ -19,6 +20,27 @@ const trimQuery = (v: unknown): string | undefined => {
   return s.length > 0 ? s : undefined;
 };
 
+const parseInventoryStatus = (value: unknown): InventoryStatusFilter | null => {
+  if (value === undefined) return "all";
+  if (typeof value !== "string") return null;
+
+  const status = value.trim().toLowerCase();
+  if (status === "all" || status === "active" || status === "inactive") {
+    return status;
+  }
+  return null;
+};
+
+const parseOptionalBoolean = (value: unknown): boolean | null => {
+  if (value === undefined) return false;
+  if (typeof value !== "string") return null;
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1") return true;
+  if (normalized === "false" || normalized === "0") return false;
+  return null;
+};
+
 const cleanBodyText = (value: unknown): string => String(value ?? "").trim();
 
 const parseInteger = (value: unknown): number | null => {
@@ -30,8 +52,25 @@ const parseInteger = (value: unknown): number | null => {
 
 export const listInventory = async (req: Request, res: Response): Promise<void> => {
   try {
-    const products = await listInventoryService(parseBranch(req), trimQuery(req.query.search));
-    res.status(200).json({ products });
+    const status = parseInventoryStatus(req.query.status);
+    if (status === null) {
+      res.status(400).json({ message: "Filtro de estado invalido." });
+      return;
+    }
+
+    const lowStock = parseOptionalBoolean(req.query.lowStock);
+    if (lowStock === null) {
+      res.status(400).json({ message: "Filtro de stock bajo invalido." });
+      return;
+    }
+
+    const result = await listInventoryService({
+      branchId: parseBranch(req),
+      search: trimQuery(req.query.search),
+      status,
+      lowStock,
+    });
+    res.status(200).json(result);
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ message: "Error al listar inventario." });

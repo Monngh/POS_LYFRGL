@@ -6,6 +6,7 @@ import {
   listProducts as listProductsService,
   getProductDetail as getProductDetailService,
   updateProduct as updateProductService,
+  updateProductStatus as updateProductStatusService,
   deleteProduct as deleteProductService,
   listSuppliers as listSuppliersService,
   createSupplier as createSupplierService,
@@ -76,8 +77,8 @@ export const listProducts = async (req: Request, res: Response): Promise<void> =
 
 export const getProductDetail = async (req: Request, res: Response): Promise<void> => {
   try {
-    const id = Number(req.params.id);
-    if (isNaN(id)) { res.status(400).json({ message: "Identificador de producto inválido." }); return; }
+    const id = parseIntParam(req.params.id);
+    if (!id || id <= 0) { res.status(400).json({ message: "Identificador de producto invalido." }); return; }
 
     const product = await getProductDetailService(id);
     if (!product) { res.status(404).json({ message: "Producto no encontrado." }); return; }
@@ -119,17 +120,48 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
   }
 };
 
-export const deleteProduct = async (req: Request, res: Response): Promise<void> => {
+export const updateProductStatus = async (req: Request, res: Response): Promise<void> => {
   try {
-    const id = Number(req.params.id);
-    if (isNaN(id)) { res.status(400).json({ message: "Identificador de producto inválido." }); return; }
+    const id = parseIntParam(req.params.id);
+    if (!id || id <= 0) { res.status(400).json({ message: "Identificador de producto invalido." }); return; }
 
-    const updated = await deleteProductService(id);
-    res.status(200).json({ message: "Producto desactivado exitosamente.", product: { id: updated.id, sku: updated.sku, active: updated.active } });
+    if (!req.body || typeof req.body.active !== "boolean") {
+      res.status(400).json({ message: "El estado active debe ser booleano." });
+      return;
+    }
+
+    const updated = await updateProductStatusService(id, req.body.active);
+    res.status(200).json({
+      message: "Producto desactivado correctamente.",
+      product: {
+        id: updated.id,
+        sku: updated.sku,
+        name: updated.name,
+        active: updated.active,
+        updatedAt: updated.updatedAt,
+      },
+    });
   } catch (error: any) {
     if (error instanceof AppError) { res.status(error.statusCode).json({ message: error.message }); return; }
     console.error(error);
-    res.status(500).json({ message: "Error al desactivar el producto." });
+    res.status(500).json({ message: "Error al cambiar el estado del producto." });
+  }
+};
+
+export const deleteProduct = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseIntParam(req.params.id);
+    if (!id || id <= 0) { res.status(400).json({ message: "Identificador de producto invalido." }); return; }
+
+    const deleted = await deleteProductService(id);
+    res.status(200).json({
+      message: "Producto dado de baja definitivamente.",
+      product: { id: deleted.id, sku: deleted.sku, name: deleted.name },
+    });
+  } catch (error: any) {
+    if (error instanceof AppError) { res.status(error.statusCode).json({ message: error.message }); return; }
+    console.error(error);
+    res.status(500).json({ message: "Error al dar de baja el producto." });
   }
 };
 

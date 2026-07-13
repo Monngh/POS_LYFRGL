@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { AlertTriangle, Printer, X, Plus, Eye, ChevronDown, ChevronUp, Search, Tags, FolderTree } from "lucide-react";
+import { AlertTriangle, Printer, X, Plus, Eye, ChevronDown, ChevronUp, Search, Tags, FolderTree, Power, Loader2, Trash2 } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAuth } from "../../auth";
 import {
@@ -9,6 +9,7 @@ import {
 } from "../../shared/utils/decimalInput";
 import { validateInteger } from "../../shared/utils/formValidation";
 import { useToast } from "../../shared/context/ToastContext";
+import { useBodyScrollLock } from "../../shared/hooks";
 import { ConfirmModal } from "../../shared/ui";
 import KardexView from "./KardexView";
 import { CategoryManagementView } from "../components/categories/CategoryManagementView";
@@ -20,6 +21,7 @@ import {
   Toolbar,
   SearchInput,
   FilterSelect,
+  MobileFilterDisclosure,
   Badge,
   TableState,
   SectionHeader,
@@ -71,6 +73,36 @@ interface ProductRow {
   categories: ProductCategorySummary[];
 }
 
+type ProductStatusFilter = "all" | "active" | "inactive";
+
+const PRODUCT_STATUS_OPTIONS: { value: ProductStatusFilter; label: string }[] = [
+  { value: "all", label: "Todos" },
+  { value: "active", label: "Activos" },
+  { value: "inactive", label: "Inactivos" },
+];
+
+const getInventoryEmptyText = (params: {
+  search: string;
+  statusFilter: ProductStatusFilter;
+  showLowStock: boolean;
+}) => {
+  if (params.search) return "No se encontraron productos con los filtros seleccionados.";
+  if (params.showLowStock && params.statusFilter === "active") return "No hay productos activos con stock bajo.";
+  if (params.showLowStock && params.statusFilter === "inactive") return "No hay productos inactivos con stock bajo.";
+  if (params.showLowStock) return "No hay productos con stock bajo.";
+  if (params.statusFilter === "active") return "No hay productos activos.";
+  if (params.statusFilter === "inactive") return "No hay productos inactivos.";
+  return "No hay productos registrados.";
+};
+
+const lowStockFilterButtonStyle = (active: boolean): React.CSSProperties => ({
+  ...ui.ghostBtn,
+  color: active ? "#92400e" : "#b45309",
+  borderColor: active ? "#d97706" : "#fcd34d",
+  backgroundColor: active ? "#fef3c7" : "#fffbeb",
+  boxShadow: active ? "0 0 0 2px rgba(217,119,6,0.14)" : "none",
+});
+
 interface ProductDetail {
   id: number;
   sku: string;
@@ -107,6 +139,17 @@ interface ProductDetail {
     reason: string | null;
   }[];
 }
+
+interface DeactivationTarget {
+  id: number;
+  name: string;
+  stock: number;
+}
+
+const getProductTotalStock = (product: ProductRow | ProductDetail): number => {
+  if ("stock" in product) return product.stock;
+  return product.inventories.reduce((total, inventory) => total + inventory.quantity, 0);
+};
 
 interface SupplierOption {
   id: number;
@@ -499,6 +542,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const { showToast } = useToast();
   const { user } = useAuth();
   const isMobile = useMediaQuery("(max-width: 1024px)");
+  const isSmallScreen = useMediaQuery("(max-width: 640px)");
+  const canDeactivateProducts = user?.role === "ADMIN";
   const [expandedProducts, setExpandedProducts] = useState<Record<number, boolean>>({});
 
   const toggleExpandProduct = (id: number) => {
@@ -510,10 +555,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const [activeTab, setActiveTab] = useState<"existencias" | "kardex">("existencias");
   const [rows, setRows] = useState<ProductRow[]>([]);
+  const [lowStockCount, setLowStockCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<ProductStatusFilter>("all");
+  const [showLowStock, setShowLowStock] = useState(false);
+  const [inventoryFiltersOpen, setInventoryFiltersOpen] = useState(false);
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
 
   // Detail modal
@@ -521,7 +569,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [selectedProduct, setSelectedProduct] = useState<ProductDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
-  const [statusSaving, setStatusSaving] = useState(false);
+  const [deactivationTarget, setDeactivationTarget] = useState<DeactivationTarget | null>(null);
+  const [deactivatingProductId, setDeactivatingProductId] = useState<number | null>(null);
+  const [deactivationError, setDeactivationError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeactivationTarget | null>(null);
+  const [deletingProductId, setDeletingProductId] = useState<number | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const productActionInProgress = deactivatingProductId !== null || deletingProductId !== null;
 
   // Feature 1: edit prices
   const [editMode, setEditMode] = useState(false);
@@ -590,9 +644,21 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     categoryIds: number[];
     validatedProduct: ValidatedProductForm;
   } | null>(null);
+  const inventoryModalOpen =
+    detailOpen ||
+    adjustOpen ||
+    transferOpen ||
+    showForm ||
+    categoryAdminOpen ||
+    deactivationTarget !== null ||
+    deleteTarget !== null ||
+    categoryRemovalConfirm !== null ||
+    promotionCompatibilityConfirm !== null;
+  useBodyScrollLock(inventoryModalOpen);
   const categoryRequestId = useRef(0);
   const [skuLoading, setSkuLoading] = useState(false);
   const skuRequestId = useRef(0);
+  const inventoryRequestId = useRef(0);
 
   const [promotions, setPromotions] = useState<ProductPromotion[]>([]);
   const [selectedPromotionIds, setSelectedPromotionIds] = useState<number[]>([]);
@@ -1058,27 +1124,80 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     }
   };
 
-  const handleToggleActive = async (p: ProductRow | ProductDetail) => {
-    if (statusSaving) return;
-    setStatusSaving(true);
+  const openDeactivateProductModal = (p: ProductRow | ProductDetail) => {
+    if (!canDeactivateProducts || !p.active || productActionInProgress) return;
+    setDeactivationTarget({
+      id: p.id,
+      name: p.name,
+      stock: getProductTotalStock(p),
+    });
+    setDeactivationError(null);
+  };
+
+  const closeDeactivateProductModal = () => {
+    if (productActionInProgress) return;
+    setDeactivationTarget(null);
+    setDeactivationError(null);
+  };
+
+  const confirmDeactivateProduct = async () => {
+    if (!deactivationTarget || productActionInProgress) return;
+
+    const target = deactivationTarget;
+    setDeactivatingProductId(target.id);
+    setDeactivationError(null);
+
     try {
-      if (p.active) {
-        // Soft delete (desactivar)
-        await api.delete(`/api/admin/products/${p.id}`);
-      } else {
-        // Activar (usando PUT con active: true)
-        await api.put(`/api/admin/products/${p.id}`, {
-          active: true,
-        });
-      }
-      if (detailOpen && selectedProduct?.id === p.id) {
-        await fetchDetail(p.id);
+      await api.patch(`/api/admin/products/${target.id}/status`, { active: false });
+      if (detailOpen && selectedProduct?.id === target.id) {
+        await fetchDetail(target.id);
       }
       await load();
+      setDeactivationTarget(null);
+      showToast("El producto fue desactivado correctamente.", "success");
     } catch (err: unknown) {
-      showToast(getErrorMessage(err, "No se pudo cambiar el estado del producto."), "error");
+      setDeactivationError(getErrorMessage(err, "No se pudo desactivar el producto."));
     } finally {
-      setStatusSaving(false);
+      setDeactivatingProductId(null);
+    }
+  };
+
+  const openDeleteProductModal = (p: ProductRow | ProductDetail) => {
+    if (!canDeactivateProducts || p.active || productActionInProgress) return;
+    setDeleteTarget({
+      id: p.id,
+      name: p.name,
+      stock: getProductTotalStock(p),
+    });
+    setDeleteError(null);
+  };
+
+  const closeDeleteProductModal = () => {
+    if (productActionInProgress) return;
+    setDeleteTarget(null);
+    setDeleteError(null);
+  };
+
+  const confirmDeleteProduct = async () => {
+    if (!deleteTarget || productActionInProgress) return;
+
+    const target = deleteTarget;
+    setDeletingProductId(target.id);
+    setDeleteError(null);
+
+    try {
+      await api.delete(`/api/admin/products/${target.id}`);
+      if (detailOpen && selectedProduct?.id === target.id) {
+        setDetailOpen(false);
+        setSelectedProduct(null);
+      }
+      await load();
+      setDeleteTarget(null);
+      showToast("El producto fue dado de baja definitivamente.", "success");
+    } catch (err: unknown) {
+      setDeleteError(getErrorMessage(err, "No se pudo dar de baja definitivamente el producto."));
+    } finally {
+      setDeletingProductId(null);
     }
   };
 
@@ -1269,22 +1388,31 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const load = useCallback(async () => {
     void refreshToken;
+    const requestId = inventoryRequestId.current + 1;
+    inventoryRequestId.current = requestId;
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get<{ products: ProductRow[] }>("/api/admin/inventory", {
+      const res = await api.get<{ products: ProductRow[]; lowStockCount: number }>("/api/admin/inventory", {
         params: {
           ...(branchId !== "all" ? { branchId } : {}),
           ...(search.trim() ? { search: search.trim() } : {}),
+          ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+          ...(showLowStock ? { lowStock: true } : {}),
         },
       });
+      if (inventoryRequestId.current !== requestId) return;
       setRows(res.data.products);
+      setLowStockCount(res.data.lowStockCount);
     } catch (err: unknown) {
+      if (inventoryRequestId.current !== requestId) return;
       setError(getErrorMessage(err, "No se pudo cargar el inventario."));
     } finally {
-      setLoading(false);
+      if (inventoryRequestId.current === requestId) {
+        setLoading(false);
+      }
     }
-  }, [branchId, search, refreshToken]);
+  }, [branchId, search, statusFilter, showLowStock, refreshToken]);
 
   useEffect(() => {
     const t = setTimeout(load, 300);
@@ -1327,7 +1455,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   }, []);
 
   const closeDetail = () => {
-    if (priceSaving || adjustSaving || transferSaving || suppliersSaving || statusSaving) return;
+    if (priceSaving || adjustSaving || transferSaving || suppliersSaving || productActionInProgress) return;
     setDetailOpen(false);
     setEditMode(false);
     setAdjustOpen(false);
@@ -1587,14 +1715,37 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     }
   };
 
-  const filteredRows = rows.filter((p) => {
-    if (statusFilter === "disponible") return p.active && !p.low;
-    if (statusFilter === "bajo") return p.active && p.low;
-    if (statusFilter === "inactivo") return !p.active;
-    return true;
+  const inventoryEmptyText = getInventoryEmptyText({
+    search: search.trim(),
+    statusFilter,
+    showLowStock,
   });
-
-  const lowCount = filteredRows.filter((r) => r.low).length;
+  const inventoryActiveFilterLabels = [
+    statusFilter !== "all"
+      ? PRODUCT_STATUS_OPTIONS.find((option) => option.value === statusFilter)?.label
+      : null,
+    showLowStock ? "Stock bajo" : null,
+  ].filter((label): label is string => Boolean(label));
+  const inventoryFilterSummary = inventoryActiveFilterLabels.length > 0
+    ? inventoryActiveFilterLabels.join(", ")
+    : "Sin filtros adicionales";
+  const deactivationMessage = deactivationTarget
+    ? [
+        `Deseas desactivar el producto "${deactivationTarget.name}"?`,
+        "El producto dejara de estar disponible para nuevas ventas, pero conservara su informacion e historial.",
+        deactivationTarget.stock > 0
+          ? `Este producto todavia tiene ${deactivationTarget.stock} unidades en existencia. Al desactivarlo no podra venderse, pero su inventario se conservara.`
+          : "",
+        deactivationError ? `Error: ${deactivationError}` : "",
+      ].filter(Boolean).join("\n\n")
+    : "";
+  const deleteMessage = deleteTarget
+    ? [
+        `Deseas dar de baja definitivamente el producto "${deleteTarget.name}"?`,
+        "Esta accion eliminara el producto de forma permanente si no tiene movimientos ni registros relacionados.",
+        deleteError ? `Error: ${deleteError}` : "",
+      ].filter(Boolean).join("\n\n")
+    : "";
   const scope = branchId !== "all" ? "en la sucursal seleccionada" : "consolidado de todas las sucursales";
 
   const editCostNumber = Number(editCost);
@@ -1647,37 +1798,80 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
       {activeTab === "existencias" && (
         <>
-          <Toolbar>
-            <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre o SKU" />
-            <FilterSelect
-              value={statusFilter}
-              onChange={setStatusFilter}
-              options={[
-                { value: "all", label: "Todos los estados" },
-                { value: "disponible", label: "Disponible" },
-                { value: "bajo", label: "Stock bajo" },
-                { value: "inactivo", label: "Inactivo" },
-              ]}
-            />
-            {lowCount > 0 && (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#b45309", fontSize: 13, fontWeight: 700 }}>
-                <AlertTriangle size={16} /> {lowCount} con stock bajo
+          {isSmallScreen ? (
+            <div style={styles.mobileFilterStack}>
+              <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre o SKU" />
+              <MobileFilterDisclosure
+                id="inventory-existence-mobile-filters"
+                title="Filtros"
+                activeCount={inventoryActiveFilterLabels.length}
+                summary={inventoryFilterSummary}
+                isOpen={inventoryFiltersOpen}
+                onToggle={() => setInventoryFiltersOpen((current) => !current)}
+              >
+                <div style={styles.mobileFilterControls}>
+                  <FilterSelect
+                    value={statusFilter}
+                    onChange={(value) => setStatusFilter(value as ProductStatusFilter)}
+                    options={PRODUCT_STATUS_OPTIONS}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowLowStock((current) => !current)}
+                    aria-pressed={showLowStock}
+                    style={{ ...lowStockFilterButtonStyle(showLowStock), justifyContent: "center" }}
+                  >
+                    <AlertTriangle size={16} /> Stock bajo ({lowStockCount})
+                  </button>
+                </div>
+              </MobileFilterDisclosure>
+              <div style={styles.mobileResultCount}>
+                {rows.length} producto{rows.length === 1 ? "" : "s"}
+              </div>
+              <div style={styles.mobileActionRow}>
+                {user?.role === "ADMIN" && (
+                  <button onClick={() => setCategoryAdminOpen(true)} style={{ ...ui.ghostBtn, flex: "1 1 160px", justifyContent: "center" }}>
+                    <FolderTree size={15} /> Administrar categorias
+                  </button>
+                )}
+                {user?.role !== "GERENTE" && (
+                  <button onClick={handleOpenCreate} style={{ ...ui.primaryBtn, flex: "1 1 150px", justifyContent: "center" }}>
+                    <Plus size={15} /> Nuevo producto
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <Toolbar>
+              <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre o SKU" />
+              <FilterSelect
+                value={statusFilter}
+                onChange={(value) => setStatusFilter(value as ProductStatusFilter)}
+                options={PRODUCT_STATUS_OPTIONS}
+              />
+              <button
+                type="button"
+                onClick={() => setShowLowStock((current) => !current)}
+                aria-pressed={showLowStock}
+                style={lowStockFilterButtonStyle(showLowStock)}
+              >
+                <AlertTriangle size={16} /> Stock bajo ({lowStockCount})
+              </button>
+              <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
+                {rows.length} producto{rows.length === 1 ? "" : "s"}
               </span>
-            )}
-            <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
-              {filteredRows.length} producto{filteredRows.length === 1 ? "" : "s"}
-            </span>
-            {user?.role === "ADMIN" && (
-              <button onClick={() => setCategoryAdminOpen(true)} style={ui.ghostBtn}>
-                <FolderTree size={15} /> Administrar categorias
-              </button>
-            )}
-            {user?.role !== "GERENTE" && (
-              <button onClick={handleOpenCreate} style={ui.primaryBtn}>
-                <Plus size={15} /> Nuevo producto
-              </button>
-            )}
-          </Toolbar>
+              {user?.role === "ADMIN" && (
+                <button onClick={() => setCategoryAdminOpen(true)} style={ui.ghostBtn}>
+                  <FolderTree size={15} /> Administrar categorias
+                </button>
+              )}
+              {user?.role !== "GERENTE" && (
+                <button onClick={handleOpenCreate} style={ui.primaryBtn}>
+                  <Plus size={15} /> Nuevo producto
+                </button>
+              )}
+            </Toolbar>
+          )}
 
           {isMobile ? (
             /* ── Mobile / Tablet: Card-based layout ── */
@@ -1685,7 +1879,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               {/* Header row mirroring the fields */}
               <div style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 72px 44px 80px",
+                gridTemplateColumns: canDeactivateProducts ? "1fr 72px 44px 122px" : "1fr 72px 44px 80px",
                 padding: "12px 16px",
                 fontWeight: 700,
                 fontSize: 11,
@@ -1696,7 +1890,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 <div>Producto</div>
                 <div style={{ textAlign: "right" }}>Precio</div>
                 <div style={{ textAlign: "center" }}>Stock</div>
-                <div style={{ textAlign: "right", paddingRight: 4 }}>Acción</div>
+                <div style={{ textAlign: "right", paddingRight: 4 }}>Acciones</div>
               </div>
 
               {loading && (
@@ -1704,17 +1898,17 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   Cargando información...
                 </div>
               )}
-              {!loading && filteredRows.length === 0 && (
+              {!loading && rows.length === 0 && (
                 <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-                  {search.trim()
-                    ? "No se encontraron productos con esa b\u00fasqueda."
-                    : "No hay productos registrados."}
+                  {inventoryEmptyText}
                 </div>
               )}
 
               {!loading &&
-                filteredRows.map((p) => {
+                rows.map((p) => {
                   const isExpanded = expandedProducts[p.id];
+                  const isDeactivating = deactivatingProductId === p.id;
+                  const isDeleting = deletingProductId === p.id;
                   return (
                     <div
                       key={p.id}
@@ -1753,7 +1947,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       {/* Fila principal */}
                       <div style={{
                         display: "grid",
-                        gridTemplateColumns: "1fr 72px 44px 80px",
+                        gridTemplateColumns: canDeactivateProducts ? "1fr 72px 44px 122px" : "1fr 72px 44px 80px",
                         padding: "12px 16px",
                         alignItems: "center",
                       }}>
@@ -1779,6 +1973,60 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                         {/* Botones de Acción */}
                         <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+                          {canDeactivateProducts && (
+                            p.active ? (
+                              <button
+                                type="button"
+                                onClick={() => openDeactivateProductModal(p)}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  backgroundColor: isDeactivating ? "#fee2e2" : "var(--surface)",
+                                  border: "1px solid #fecaca",
+                                  borderRadius: 8,
+                                  width: 34,
+                                  height: 34,
+                                  cursor: productActionInProgress ? "not-allowed" : "pointer",
+                                  color: "#b91c1c",
+                                  opacity: productActionInProgress && !isDeactivating ? 0.5 : 1,
+                                  padding: 0,
+                                }}
+                                className="active-tap"
+                                title={isDeactivating ? "Desactivando..." : "Desactivar"}
+                                aria-label={isDeactivating ? `Desactivando ${p.name}` : `Desactivar ${p.name}`}
+                                disabled={productActionInProgress}
+                              >
+                                {isDeactivating ? <Loader2 size={16} style={{ animation: "spin 0.8s linear infinite" }} /> : <Power size={16} />}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => openDeleteProductModal(p)}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  backgroundColor: isDeleting ? "#fee2e2" : "var(--surface)",
+                                  border: "1px solid #fecaca",
+                                  borderRadius: 8,
+                                  width: 34,
+                                  height: 34,
+                                  cursor: productActionInProgress ? "not-allowed" : "pointer",
+                                  color: "#b91c1c",
+                                  opacity: productActionInProgress && !isDeleting ? 0.5 : 1,
+                                  padding: 0,
+                                }}
+                                className="active-tap"
+                                title={isDeleting ? "Dando de baja..." : "Dar de baja"}
+                                aria-label={isDeleting ? `Dando de baja ${p.name}` : `Dar de baja ${p.name}`}
+                                disabled={productActionInProgress}
+                              >
+                                {isDeleting ? <Loader2 size={16} style={{ animation: "spin 0.8s linear infinite" }} /> : <Trash2 size={16} />}
+                              </button>
+                            )
+                          )}
+
                           {/* Eye/Detalle */}
                           <button
                             onClick={() => openProductDetail(p.id)}
@@ -1905,19 +2153,23 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     <th style={{ ...ui.th, textAlign: "center" }}>Stock</th>
                     <th style={{ ...ui.th, textAlign: "center" }}>Mínimo</th>
                     <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                    {canDeactivateProducts && <th style={{ ...ui.th, textAlign: "center" }}>Acciones</th>}
                   </tr>
                 </thead>
                 <tbody>
                   <TableState
-                    colSpan={7}
+                    colSpan={canDeactivateProducts ? 8 : 7}
                     loading={loading}
                     error={error}
-                    empty={!loading && filteredRows.length === 0}
-                    emptyText={search.trim() ? "No se encontraron productos con esa b\u00fasqueda." : "No hay productos registrados."}
+                    empty={!loading && rows.length === 0}
+                    emptyText={inventoryEmptyText}
                   />
                   {!loading &&
                     !error &&
-                    filteredRows.map((p) => (
+                    rows.map((p) => {
+                      const isDeactivating = deactivatingProductId === p.id;
+                      const isDeleting = deletingProductId === p.id;
+                      return (
                       <tr
                         key={p.id}
                         onClick={() => openProductDetail(p.id)}
@@ -1957,8 +2209,76 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             <Badge tone="green">Disponible</Badge>
                           )}
                         </td>
+                        {canDeactivateProducts && (
+                          <td style={{ ...ui.td, textAlign: "center" }}>
+                            {p.active ? (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openDeactivateProductModal(p);
+                                }}
+                                disabled={productActionInProgress}
+                                style={{
+                                  ...ui.ghostBtn,
+                                  padding: "6px 10px",
+                                  color: "#b91c1c",
+                                  borderColor: "#fecaca",
+                                  backgroundColor: isDeactivating ? "#fee2e2" : "var(--surface)",
+                                  cursor: productActionInProgress ? "not-allowed" : "pointer",
+                                  opacity: productActionInProgress && !isDeactivating ? 0.5 : 1,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {isDeactivating ? (
+                                  <>
+                                    <Loader2 size={14} style={{ animation: "spin 0.8s linear infinite" }} />
+                                    Procesando...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Power size={14} />
+                                    Desactivar
+                                  </>
+                                )}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openDeleteProductModal(p);
+                                }}
+                                disabled={productActionInProgress}
+                                style={{
+                                  ...ui.ghostBtn,
+                                  padding: "6px 10px",
+                                  color: "#b91c1c",
+                                  borderColor: "#fecaca",
+                                  backgroundColor: isDeleting ? "#fee2e2" : "var(--surface)",
+                                  cursor: productActionInProgress ? "not-allowed" : "pointer",
+                                  opacity: productActionInProgress && !isDeleting ? 0.5 : 1,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {isDeleting ? (
+                                  <>
+                                    <Loader2 size={14} style={{ animation: "spin 0.8s linear infinite" }} />
+                                    Procesando...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Trash2 size={14} />
+                                    Dar de baja
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </td>
+                        )}
                       </tr>
-                    ))}
+                      );
+                    })}
                 </tbody>
               </table>
             </div>
@@ -2431,28 +2751,81 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               >
                 {selectedProduct && (
                   <>
-                    <button
-                      onClick={() => handleToggleActive(selectedProduct)}
-                      disabled={statusSaving}
-                      style={{
-                        ...ui.ghostBtn,
-                        color: selectedProduct.active ? "#b91c1c" : "#15803d",
-                        borderColor: selectedProduct.active ? "#fca5a5" : "#86efac",
-                        marginRight: "auto",
-                        whiteSpace: "nowrap",
-                        ...(isMobile
-                          ? {
-                            width: "100%",
-                            justifyContent: "center",
-                            fontSize: 12,
-                            padding: "8px 10px",
-                            order: 3,
-                          }
-                          : {}),
-                      }}
-                    >
-                      {statusSaving ? "Procesando..." : selectedProduct.active ? "Desactivar" : "Activar"}
-                    </button>
+                    {canDeactivateProducts && (
+                      selectedProduct.active ? (
+                        <button
+                          onClick={() => openDeactivateProductModal(selectedProduct)}
+                          disabled={productActionInProgress}
+                          style={{
+                            ...ui.ghostBtn,
+                            color: "#b91c1c",
+                            borderColor: "#fecaca",
+                            backgroundColor: deactivatingProductId === selectedProduct.id ? "#fee2e2" : "var(--surface)",
+                            marginRight: "auto",
+                            whiteSpace: "nowrap",
+                            opacity: productActionInProgress && deactivatingProductId !== selectedProduct.id ? 0.5 : 1,
+                            cursor: productActionInProgress ? "not-allowed" : "pointer",
+                            ...(isMobile
+                              ? {
+                                width: "100%",
+                                justifyContent: "center",
+                                fontSize: 12,
+                                padding: "8px 10px",
+                                order: 3,
+                              }
+                              : {}),
+                          }}
+                        >
+                          {deactivatingProductId === selectedProduct.id ? (
+                            <>
+                              <Loader2 size={14} style={{ animation: "spin 0.8s linear infinite" }} />
+                              Procesando...
+                            </>
+                          ) : (
+                            <>
+                              <Power size={14} />
+                              Desactivar
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => openDeleteProductModal(selectedProduct)}
+                          disabled={productActionInProgress}
+                          style={{
+                            ...ui.ghostBtn,
+                            color: "#b91c1c",
+                            borderColor: "#fecaca",
+                            backgroundColor: deletingProductId === selectedProduct.id ? "#fee2e2" : "var(--surface)",
+                            marginRight: "auto",
+                            whiteSpace: "nowrap",
+                            opacity: productActionInProgress && deletingProductId !== selectedProduct.id ? 0.5 : 1,
+                            cursor: productActionInProgress ? "not-allowed" : "pointer",
+                            ...(isMobile
+                              ? {
+                                width: "100%",
+                                justifyContent: "center",
+                                fontSize: 12,
+                                padding: "8px 10px",
+                                order: 3,
+                              }
+                              : {}),
+                          }}
+                        >
+                          {deletingProductId === selectedProduct.id ? (
+                            <>
+                              <Loader2 size={14} style={{ animation: "spin 0.8s linear infinite" }} />
+                              Procesando...
+                            </>
+                          ) : (
+                            <>
+                              <Trash2 size={14} />
+                              Dar de baja
+                            </>
+                          )}
+                        </button>
+                      )
+                    )}
                     {!isMobile && <span style={{ flex: 1 }} />}
                     {user?.role !== "GERENTE" && (
                       <button
@@ -3277,6 +3650,32 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       )}
 
       <ConfirmModal
+        isOpen={deactivationTarget !== null}
+        onClose={closeDeactivateProductModal}
+        onConfirm={confirmDeactivateProduct}
+        variant="danger"
+        title="Desactivar producto"
+        message={deactivationMessage}
+        confirmLabel="Desactivar"
+        cancelLabel="Cancelar"
+        isConfirming={deactivatingProductId !== null}
+        closeDisabled={deactivatingProductId !== null}
+      />
+
+      <ConfirmModal
+        isOpen={deleteTarget !== null}
+        onClose={closeDeleteProductModal}
+        onConfirm={confirmDeleteProduct}
+        variant="danger"
+        title="Dar de baja definitivamente"
+        message={deleteMessage}
+        confirmLabel="Dar de baja"
+        cancelLabel="Cancelar"
+        isConfirming={deletingProductId !== null}
+        closeDisabled={deletingProductId !== null}
+      />
+
+      <ConfirmModal
         isOpen={categoryRemovalConfirm !== null}
         onClose={() => setCategoryRemovalConfirm(null)}
         onConfirm={confirmCategoryRemoval}
@@ -3300,6 +3699,27 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 };
 
 const styles: { [key: string]: React.CSSProperties } = {
+  mobileFilterStack: {
+    display: "grid",
+    gap: 10,
+    marginBottom: 14,
+  },
+  mobileFilterControls: {
+    display: "grid",
+    gap: 10,
+    paddingTop: 12,
+  },
+  mobileResultCount: {
+    fontSize: 13,
+    color: "var(--text-muted)",
+    fontWeight: 700,
+    padding: "0 2px",
+  },
+  mobileActionRow: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
   fieldError: {
     color: "var(--color-danger)",
     fontSize: 12,

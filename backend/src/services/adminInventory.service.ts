@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../app";
 import { AppError } from "../utils/AppError";
 
@@ -19,7 +20,16 @@ const splitSearchTerms = (search: string): string[] =>
     .filter(Boolean);
 
 // Construye el bloque AND de condiciones OR para multi-palabra en Inventario
-const buildInventorySearchWhere = (search: string): any => {
+export type InventoryStatusFilter = "all" | "active" | "inactive";
+
+interface ListInventoryParams {
+  branchId?: number;
+  search?: string;
+  status?: InventoryStatusFilter;
+  lowStock?: boolean;
+}
+
+const buildInventorySearchWhere = (search: string): Prisma.ProductWhereInput => {
   const terms = splitSearchTerms(search);
   if (terms.length === 0) return {};
   if (terms.length === 1) {
@@ -43,6 +53,59 @@ const buildInventorySearchWhere = (search: string): any => {
         { description: { contains: t } },
       ],
     })),
+  };
+};
+
+const buildLowStockInventoryWhere = (branchId?: number): Prisma.InventoryWhereInput => ({
+  ...(branchId ? { branchId } : {}),
+  quantity: { lte: prisma.inventory.fields.minStock },
+});
+
+const buildInventoryProductWhere = (params: ListInventoryParams): Prisma.ProductWhereInput => {
+  const where: Prisma.ProductWhereInput = {};
+  const and: Prisma.ProductWhereInput[] = [];
+
+  if (params.search) {
+    and.push(buildInventorySearchWhere(params.search));
+  }
+
+  if (params.status === "active") {
+    where.active = true;
+  } else if (params.status === "inactive") {
+    where.active = false;
+  }
+
+  if (params.lowStock) {
+    and.push({
+      inventories: {
+        some: buildLowStockInventoryWhere(params.branchId),
+      },
+    });
+  }
+
+  if (and.length > 0) {
+    where.AND = and;
+  }
+
+  return where;
+};
+
+const buildActiveLowStockCountWhere = (params: ListInventoryParams): Prisma.ProductWhereInput => {
+  const and: Prisma.ProductWhereInput[] = [
+    {
+      inventories: {
+        some: buildLowStockInventoryWhere(params.branchId),
+      },
+    },
+  ];
+
+  if (params.search) {
+    and.unshift(buildInventorySearchWhere(params.search));
+  }
+
+  return {
+    active: true,
+    AND: and,
   };
 };
 
@@ -78,52 +141,59 @@ const buildKardexProductSearchWhere = (search: string): any => {
   };
 };
 
-export const listInventory = async (branchId?: number, search?: string) => {
-  const where: any = search ? buildInventorySearchWhere(search) : {};
+export const listInventory = async (params: ListInventoryParams) => {
+  const where = buildInventoryProductWhere(params);
+  const activeLowStockCountWhere = buildActiveLowStockCountWhere(params);
 
-  const products = await prisma.product.findMany({
-    where,
-    orderBy: { name: "asc" },
-    include: {
-      inventories: branchId ? { where: { branchId } } : true,
-      categories: {
-        orderBy: { categoryId: "asc" },
-        include: {
-          category: {
-            select: {
-              id: true,
-              code: true,
-              name: true,
-              level: true,
-              active: true,
+  const [products, lowStockCount] = await prisma.$transaction([
+    prisma.product.findMany({
+      where,
+      orderBy: { name: "asc" },
+      include: {
+        inventories: params.branchId ? { where: { branchId: params.branchId } } : true,
+        categories: {
+          orderBy: { categoryId: "asc" },
+          include: {
+            category: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                level: true,
+                active: true,
+              },
             },
           },
         },
       },
-    },
-  });
+    }),
+    prisma.product.count({ where: activeLowStockCountWhere }),
+  ]);
 
-  return products.map((p) => {
-    const invs = p.inventories;
-    const stock = invs.reduce((acc, i) => acc + i.quantity, 0);
-    const minStock = invs.reduce((acc, i) => acc + i.minStock, 0);
-    const low = invs.some((i) => i.quantity <= i.minStock);
-    return {
-      id: p.id,
-      sku: p.sku,
-      barcode: p.barcode,
-      name: p.name,
-      description: p.description,
-      active: p.active,
-      sellPrice: Number(p.sellPrice),
-      costPrice: Number(p.costPrice),
-      stock,
-      minStock,
-      low,
-      branchCount: invs.length,
-      categories: p.categories.map((row) => row.category),
-    };
-  });
+  return {
+    products: products.map((p) => {
+      const invs = p.inventories;
+      const stock = invs.reduce((acc, i) => acc + i.quantity, 0);
+      const minStock = invs.reduce((acc, i) => acc + i.minStock, 0);
+      const low = invs.some((i) => i.quantity <= i.minStock);
+      return {
+        id: p.id,
+        sku: p.sku,
+        barcode: p.barcode,
+        name: p.name,
+        description: p.description,
+        active: p.active,
+        sellPrice: Number(p.sellPrice),
+        costPrice: Number(p.costPrice),
+        stock,
+        minStock,
+        low,
+        branchCount: invs.length,
+        categories: p.categories.map((row) => row.category),
+      };
+    }),
+    lowStockCount,
+  };
 };
 
 export const listKardex = async (params: {
