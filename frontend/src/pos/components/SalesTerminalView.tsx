@@ -64,7 +64,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   inputPrefix: { padding: "8px 12px", backgroundColor: "var(--surface-3)", borderRight: "1px solid var(--border-strong)", color: "var(--text-muted)", fontSize: "14px", fontWeight: "700" },
   input: { border: "none", outline: "none", padding: "8px 12px", fontSize: "14px", color: "var(--text)", flex: 1, backgroundColor: "transparent" },
   paymentMethodsGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" },
-  paymentMethodBtn: { padding: "12px 6px", border: "1px solid var(--border-strong)", borderRadius: "6px", cursor: "pointer", fontSize: "11px", fontWeight: "700", display: "flex", flexDirection: "column" as const, alignItems: "center", gap: "6px", backgroundColor: "var(--surface)", color: "var(--text-muted)", transition: "all 0.15s ease" },
+  paymentMethodBtn: { padding: "12px 6px", border: "1px solid var(--border-strong)", borderRadius: "6px", cursor: "pointer", fontSize: "11px", fontWeight: "700", display: "flex", flexDirection: "column" as const, alignItems: "center", gap: "6px", backgroundColor: "var(--surface)", color: "var(--text-muted)", transition: "all 0.15s ease", position: "relative" as const },
   paymentMethodBtnActive: { border: "1px solid var(--accent)", backgroundColor: "var(--accent-soft)", color: "var(--accent)" },
   cardTypesGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" },
   cardTypeBtn: { padding: "8px", border: "1px solid var(--border-strong)", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "700", textAlign: "center" as const, backgroundColor: "var(--surface)", color: "var(--text-muted)", transition: "all 0.15s ease" },
@@ -479,7 +479,8 @@ export function SalesTerminalView({
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "EFECTIVO" ? styles.paymentMethodBtnActive : {}) }}
               >
                 <Banknote size={20} />
-                <span>EFECTIVO <small style={{opacity: 0.7}}>(Alt+1)</small></span>
+                <span>EFECTIVO</span>
+                <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px" }}>Alt+1</span>
               </button>
               <button
                 type="button"
@@ -488,7 +489,8 @@ export function SalesTerminalView({
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "TARJETA" ? styles.paymentMethodBtnActive : {}) }}
               >
                 <CreditCard size={20} />
-                <span>TARJETA <small style={{opacity: 0.7}}>(Alt+2)</small></span>
+                <span>TARJETA</span>
+                <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px" }}>Alt+2</span>
               </button>
               <button
                 type="button"
@@ -497,7 +499,8 @@ export function SalesTerminalView({
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "STORE_CREDIT" ? styles.paymentMethodBtnActive : {}) }}
               >
                 <Ticket size={20} />
-                <span>VALE <small style={{opacity: 0.7}}>(Alt+3)</small></span>
+                <span>VALE</span>
+                <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px" }}>Alt+3</span>
               </button>
               <button
                 type="button"
@@ -506,7 +509,8 @@ export function SalesTerminalView({
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "MIXTO" ? styles.paymentMethodBtnActive : {}) }}
               >
                 <ArrowLeftRight size={20} />
-                <span>MIXTO <small style={{opacity: 0.7}}>(Alt+4)</small></span>
+                <span>MIXTO</span>
+                <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px" }}>Alt+4</span>
               </button>
               <button
                 type="button"
@@ -515,7 +519,8 @@ export function SalesTerminalView({
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "QR_MERCADOPAGO" ? styles.paymentMethodBtnActive : {}) }}
               >
                 <QrCode size={20} />
-                <span>QR MP <small style={{opacity: 0.7}}>(Alt+5)</small></span>
+                <span>QR MP</span>
+                <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px" }}>Alt+5</span>
               </button>
             </div>
 
