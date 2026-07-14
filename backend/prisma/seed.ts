@@ -164,7 +164,7 @@ async function main() {
       // Proveedor
       await prisma.supplierProduct.upsert({
         where: { supplierId_productId: { supplierId: suppliersMap[cat.supplier], productId: product.id } },
-        update: {}, create: { supplierId: suppliersMap[cat.supplier], productId: product.id }
+        update: { isPrimary: true }, create: { supplierId: suppliersMap[cat.supplier], productId: product.id, isPrimary: true }
       });
 
       // Inventario

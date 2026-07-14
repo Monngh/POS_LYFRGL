@@ -36,6 +36,7 @@ import {
   getSupplierProducts,
   assignProductToSupplier,
   removeProductFromSupplier,
+  syncProductSuppliers,
   getProductSuppliers,
   deleteProduct,
   getReportAuditLogs,
@@ -76,7 +77,8 @@ router.post("/inventory/transfer", authorizeRoles(["ADMIN", "GERENTE"]), transfe
 router.get("/products", authorizeRoles(["ADMIN", "GERENTE"]), listProducts);
 router.post("/products", authorizeRoles(["ADMIN"]), createProduct);
 router.get("/products/next-sku", authorizeRoles(["ADMIN"]), getNextProductSku);
-router.get("/products/:productId/suppliers", authorizeRoles(["ADMIN"]), getProductSuppliers);
+router.get("/products/:productId/suppliers", authorizeRoles(["ADMIN", "GERENTE"]), getProductSuppliers);
+router.put("/products/:productId/suppliers", authorizeRoles(["ADMIN"]), syncProductSuppliers);
 router.patch("/products/:id/status", authorizeRoles(["ADMIN"]), updateProductStatus);
 router.get("/products/:id", authorizeRoles(["ADMIN", "GERENTE"]), getProductDetail);
 router.put("/products/:id", authorizeRoles(["ADMIN"]), updateProduct);

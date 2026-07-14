@@ -195,6 +195,7 @@ async function main() {
       "id",
       "supplierId",
       "productId",
+      "isPrimary",
     ]);
 
     // 11. PromotionType

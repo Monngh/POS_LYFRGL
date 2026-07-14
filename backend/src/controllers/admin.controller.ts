@@ -60,6 +60,7 @@ export {
   getSupplierProducts,
   assignProductToSupplier,
   removeProductFromSupplier,
+  syncProductSuppliers,
   getProductSuppliers,
 } from "./adminProduct.controller";
 

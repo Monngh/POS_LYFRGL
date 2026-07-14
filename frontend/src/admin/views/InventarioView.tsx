@@ -11,6 +11,8 @@ import { validateInteger } from "../../shared/utils/formValidation";
 import { useToast } from "../../shared/context/ToastContext";
 import { useBodyScrollLock } from "../../shared/hooks";
 import { ConfirmModal } from "../../shared/ui";
+import { getApiErrorMessage, priceAdjustmentsApi, type ApplyPriceAdjustmentPayload } from "../utils/priceAdjustmentsApi";
+import type { PreviewResult } from "../types/priceAdjustments.types";
 import KardexView from "./KardexView";
 import { CategoryManagementView } from "../components/categories/CategoryManagementView";
 import { getCategoryDisplayColor } from "../components/categories/categoryColors";
@@ -156,6 +158,12 @@ const getProductTotalStock = (product: ProductRow | ProductDetail): number => {
 interface SupplierOption {
   id: number;
   name: string;
+}
+
+interface ProductSupplierLink extends SupplierOption {
+  rfc?: string | null;
+  email?: string | null;
+  isPrimary: boolean;
 }
 
 interface PromotionTypeSummary {
@@ -586,6 +594,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [priceFieldErrors, setPriceFieldErrors] = useState<Partial<Record<"cost" | "price", string>>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
   const [priceSaving, setPriceSaving] = useState(false);
+  const [pricePreview, setPricePreview] = useState<PreviewResult | null>(null);
+  const [pricePreviewLoading, setPricePreviewLoading] = useState(false);
+  const [priceNotes, setPriceNotes] = useState("");
+  const [priceConfirmBelowCost, setPriceConfirmBelowCost] = useState(false);
+  const [priceConfirmOpen, setPriceConfirmOpen] = useState(false);
 
   // Feature 2: adjust stock
   const [adjustOpen, setAdjustOpen] = useState(false);
@@ -614,9 +627,19 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
 
   const [productSuppliers, setProductSuppliers] = useState<number[]>([]);
+  const [primarySupplierId, setPrimarySupplierId] = useState<number | null>(null);
   const [editingSuppliersMode, setEditingSuppliersMode] = useState(false);
   const [suppliersError, setSuppliersError] = useState<string | null>(null);
   const [suppliersSaving, setSuppliersSaving] = useState(false);
+  const productSupplierDisplayIds = useMemo(() => {
+    return [...productSuppliers].sort((a, b) => {
+      if (a === primarySupplierId) return -1;
+      if (b === primarySupplierId) return 1;
+      const nameA = suppliers.find((supplier) => supplier.id === a)?.name ?? "";
+      const nameB = suppliers.find((supplier) => supplier.id === b)?.name ?? "";
+      return nameA.localeCompare(nameB, "es");
+    });
+  }, [primarySupplierId, productSuppliers, suppliers]);
 
   const [showForm, setShowForm] = useState(false);
   const [categoryAdminOpen, setCategoryAdminOpen] = useState(false);
@@ -829,7 +852,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     }
     handleDecimalInputChange(rawValue, (nextValue) => {
       if (key === "cost") setEditCost(nextValue);
-      else setEditPrice(nextValue);
+      else {
+        setEditPrice(nextValue);
+        setPricePreview(null);
+        setPriceNotes("");
+        setPriceConfirmBelowCost(false);
+        setPriceConfirmOpen(false);
+      }
       const validation = validateMoneyField(nextValue, key === "cost" ? "costo" : "precio");
       const error = getValidationError(validation);
       setPriceFieldErrors((prev) => {
@@ -1465,6 +1494,24 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setEditPrice(String(res.data.product.sellPrice));
   };
 
+  const applyProductSupplierLinks = (items: ProductSupplierLink[]) => {
+    setProductSuppliers(items.map((supplier) => supplier.id));
+    setPrimarySupplierId(items.find((supplier) => supplier.isPrimary)?.id ?? null);
+  };
+
+  const fetchProductSuppliers = async (id: number) => {
+    const spRes = await api.get<ProductSupplierLink[]>(`/api/admin/products/${id}/suppliers`);
+    applyProductSupplierLinks(spRes.data);
+  };
+
+  const resetProductPriceAdjustmentState = () => {
+    setPricePreview(null);
+    setPricePreviewLoading(false);
+    setPriceNotes("");
+    setPriceConfirmBelowCost(false);
+    setPriceConfirmOpen(false);
+  };
+
   const openProductDetail = useCallback(async (id: number) => {
     setDetailOpen(true);
     setDetailLoading(true);
@@ -1472,28 +1519,38 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setSelectedProduct(null);
     setEditMode(false);
     setSaveError(null);
+    resetProductPriceAdjustmentState();
     setEditingSuppliersMode(false);
     setProductSuppliers([]);
+    setPrimarySupplierId(null);
     setSuppliersError(null);
     try {
       await fetchDetail(id);
-      const spRes = await api.get<SupplierOption[]>(`/api/admin/products/${id}/suppliers`);
-      setProductSuppliers(spRes.data.map((s) => s.id));
     } catch (err: unknown) {
       setDetailError(getErrorMessage(err, "No se pudo cargar el detalle del producto."));
+      setDetailLoading(false);
+      return;
+    }
+
+    try {
+      await fetchProductSuppliers(id);
+    } catch (err: unknown) {
+      setSuppliersError(getErrorMessage(err, "Error al obtener proveedores del producto."));
     } finally {
       setDetailLoading(false);
     }
   }, []);
 
   const closeDetail = () => {
-    if (priceSaving || adjustSaving || transferSaving || suppliersSaving || productActionInProgress) return;
+    if (priceSaving || pricePreviewLoading || adjustSaving || transferSaving || suppliersSaving || productActionInProgress) return;
     setDetailOpen(false);
     setEditMode(false);
     setAdjustOpen(false);
     setTransferOpen(false);
+    resetProductPriceAdjustmentState();
     setEditingSuppliersMode(false);
     setProductSuppliers([]);
+    setPrimarySupplierId(null);
     setSuppliersError(null);
   };
 
@@ -1554,48 +1611,126 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     );
   }, [selectedProduct]);
 
-  // Feature 1: save price/cost edits
-  const saveProductChanges = async () => {
-    if (!selectedProduct || priceSaving) return;
+  const validateEditedSellPrice = (): MoneyField | null => {
+    if (!selectedProduct) return null;
     setSaveError(null);
 
-    const cost = validateMoneyField(editCost, "costo");
-    const costError = getValidationError(cost);
-    if (costError) {
-      setPriceFieldErrors((prev) => ({ ...prev, cost: costError }));
-      setSaveError("Revisa los campos marcados antes de guardar.");
-      return;
+    if (!selectedProduct.active) {
+      setSaveError("No puedes modificar precios de productos inactivos.");
+      return null;
     }
+
     const price = validateMoneyField(editPrice, "precio");
     const priceError = getValidationError(price);
     if (priceError) {
       setPriceFieldErrors((prev) => ({ ...prev, price: priceError }));
       setSaveError("Revisa los campos marcados antes de guardar.");
+      return null;
+    }
+    const priceValue = getValidationValue(price);
+    if (!priceValue) return null;
+
+    if (priceValue.value <= 0) {
+      setPriceFieldErrors((prev) => ({ ...prev, price: "El precio debe ser mayor a 0." }));
+      setSaveError("Revisa los campos marcados antes de guardar.");
+      return null;
+    }
+
+    if (priceValue.value === Number(selectedProduct.sellPrice.toFixed(2))) {
+      setPriceFieldErrors((prev) => ({ ...prev, price: "El nuevo precio debe ser diferente al precio actual." }));
+      setSaveError("No hay cambios de precio para aplicar.");
+      return null;
+    }
+
+    setPriceFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next.price;
+      return next;
+    });
+
+    return priceValue;
+  };
+
+  const generateProductPricePreview = async () => {
+    if (!selectedProduct || priceSaving || pricePreviewLoading) return;
+
+    const priceValue = validateEditedSellPrice();
+    if (!priceValue) return;
+
+    if (priceValue.roundedMessage) {
+      showToast(priceValue.roundedMessage, "warning");
+    }
+
+    setPricePreviewLoading(true);
+    setSaveError(null);
+    try {
+      const preview = await priceAdjustmentsApi.preview({
+        operation: "SET_EXACT",
+        value: priceValue.value,
+        productIds: [selectedProduct.id],
+      });
+      setPricePreview(preview);
+      setPriceNotes("");
+      setPriceConfirmBelowCost(false);
+      setPriceConfirmOpen(false);
+    } catch (err: unknown) {
+      setPricePreview(null);
+      setSaveError(getApiErrorMessage(err, "No se pudo generar la vista previa del ajuste."));
+    } finally {
+      setPricePreviewLoading(false);
+    }
+  };
+
+  const openProductPriceConfirm = () => {
+    if (!pricePreview) {
+      setSaveError("Genera la vista previa antes de aplicar el ajuste.");
       return;
     }
-    const costValue = getValidationValue(cost);
-    const priceValue = getValidationValue(price);
-    if (!costValue || !priceValue) return;
+    if (pricePreview.requiresReason && !priceNotes.trim()) {
+      setSaveError("El motivo es obligatorio para este ajuste.");
+      return;
+    }
+    if (pricePreview.requiresBelowCostConfirmation && !priceConfirmBelowCost) {
+      setSaveError("Confirma el ajuste por debajo del costo antes de continuar.");
+      return;
+    }
+    setSaveError(null);
+    setPriceConfirmOpen(true);
+  };
 
-    const roundingMessages = [costValue.roundedMessage, priceValue.roundedMessage].filter((message): message is string => Boolean(message));
+  // Feature 1: apply individual sell price adjustment with history
+  const applyProductPriceAdjustment = async () => {
+    if (!selectedProduct || !pricePreview || priceSaving) return;
+
+    const priceValue = validateEditedSellPrice();
+    if (!priceValue) {
+      setPriceConfirmOpen(false);
+      return;
+    }
+
+    const payload: ApplyPriceAdjustmentPayload = {
+      scope: "SELECTED_PRODUCTS",
+      operation: "SET_EXACT",
+      value: priceValue.value,
+      productIds: [selectedProduct.id],
+      notes: priceNotes.trim() || undefined,
+      confirmBelowCost: priceConfirmBelowCost,
+    };
+
     setPriceSaving(true);
     try {
-      if (roundingMessages.length > 0) {
-        showToast(roundingMessages.join(" | "), "warning");
-      }
-
-      await api.put(`/api/admin/products/${selectedProduct.id}`, {
-        costPrice: costValue.value,
-        sellPrice: priceValue.value,
-      });
+      const result = await priceAdjustmentsApi.apply(payload);
+      showToast(`Precio actualizado correctamente. Ajuste #${result.id} registrado.`, "success");
       await fetchDetail(selectedProduct.id);
       setEditMode(false);
       setPriceFieldErrors({});
+      resetProductPriceAdjustmentState();
       await load();
     } catch (err: unknown) {
-      setSaveError(getErrorMessage(err, "Error al guardar."));
+      setSaveError(getApiErrorMessage(err, "No se pudo aplicar el ajuste de precio."));
     } finally {
       setPriceSaving(false);
+      setPriceConfirmOpen(false);
     }
   };
 
@@ -1732,24 +1867,44 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     }
   };
 
+  const updateProductSupplierSelection = (supplierId: number, checked: boolean) => {
+    const nextSupplierIds = checked
+      ? productSuppliers.includes(supplierId)
+        ? productSuppliers
+        : [...productSuppliers, supplierId]
+      : productSuppliers.filter((id) => id !== supplierId);
+
+    setProductSuppliers(nextSupplierIds);
+    setPrimarySupplierId((currentPrimaryId) => {
+      if (nextSupplierIds.length === 0) return null;
+      if (currentPrimaryId !== null && nextSupplierIds.includes(currentPrimaryId)) return currentPrimaryId;
+      return checked ? supplierId : nextSupplierIds[0] ?? null;
+    });
+    setSuppliersError(null);
+  };
+
+  const cancelSuppliersChanges = () => {
+    if (selectedProduct) {
+      void fetchProductSuppliers(selectedProduct.id).catch(() => { });
+    }
+    setEditingSuppliersMode(false);
+    setSuppliersError(null);
+  };
+
   const saveSuppliersChanges = async () => {
     if (!selectedProduct || suppliersSaving) return;
     setSuppliersError(null);
     setSuppliersSaving(true);
     try {
-      const res = await api.get<SupplierOption[]>(`/api/admin/products/${selectedProduct.id}/suppliers`);
-      const oldIds = res.data.map((s) => s.id);
+      if (productSuppliers.length > 0 && (primarySupplierId === null || !productSuppliers.includes(primarySupplierId))) {
+        throw new Error("Selecciona el proveedor principal del producto.");
+      }
 
-      for (const supplierId of oldIds) {
-        if (!productSuppliers.includes(supplierId)) {
-          await api.post("/api/admin/suppliers/products/remove", { supplierId, productId: selectedProduct.id });
-        }
-      }
-      for (const supplierId of productSuppliers) {
-        if (!oldIds.includes(supplierId)) {
-          await api.post("/api/admin/suppliers/products/assign", { supplierId, productId: selectedProduct.id });
-        }
-      }
+      const res = await api.put<{ suppliers: ProductSupplierLink[] }>(`/api/admin/products/${selectedProduct.id}/suppliers`, {
+        supplierIds: productSuppliers,
+        primarySupplierId,
+      });
+      applyProductSupplierLinks(res.data.suppliers);
       setEditingSuppliersMode(false);
     } catch (err: unknown) {
       setSuppliersError(getErrorMessage(err, "Error al guardar proveedores."));
@@ -1803,6 +1958,30 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     hasValidEditPrices
       ? (((editPriceNumber - editCostNumber) / editPriceNumber) * 100).toFixed(1)
       : "—";
+  const pricePreviewProduct = pricePreview?.products[0] ?? null;
+  const pricePreviewDifference = pricePreviewProduct
+    ? pricePreviewProduct.newSellPrice - pricePreviewProduct.currentSellPrice
+    : 0;
+  const pricePreviewRequiresReason = pricePreview?.requiresReason ?? false;
+  const pricePreviewRequiresBelowCostConfirmation = pricePreview?.requiresBelowCostConfirmation ?? false;
+  const priceNotesError = pricePreviewRequiresReason && !priceNotes.trim()
+    ? "El motivo es obligatorio para este ajuste."
+    : null;
+  const canApplyPricePreview =
+    Boolean(pricePreviewProduct) &&
+    !priceSaving &&
+    !priceNotesError &&
+    (!pricePreviewRequiresBelowCostConfirmation || priceConfirmBelowCost);
+  const priceConfirmMessage = pricePreviewProduct && selectedProduct
+    ? [
+      `Producto: ${selectedProduct.sku} - ${selectedProduct.name}`,
+      `Precio actual: ${money(pricePreviewProduct.currentSellPrice)}`,
+      `Precio nuevo: ${money(pricePreviewProduct.newSellPrice)}`,
+      `Diferencia: ${pricePreviewDifference >= 0 ? "+" : "-"}${money(Math.abs(pricePreviewDifference))}`,
+      pricePreviewProduct.isBelowCost ? "El precio nuevo queda por debajo del costo." : "",
+      priceNotes.trim() ? `Motivo: ${priceNotes.trim()}` : "",
+    ].filter(Boolean).join("\n")
+    : "";
 
   return (
     <div>
@@ -2391,12 +2570,15 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         </div>
                         {user?.role !== "GERENTE" && (
                           <button
-                            onClick={() => { setEditMode(true); setSaveError(null); setPriceFieldErrors({}); }}
+                            onClick={() => { setEditMode(true); setSaveError(null); setPriceFieldErrors({}); resetProductPriceAdjustmentState(); }}
+                            disabled={!selectedProduct.active}
                             style={{
                               ...ui.ghostBtn,
                               fontSize: 12,
                               color: "var(--accent)",
                               borderColor: "#93c5fd",
+                              opacity: selectedProduct.active ? 1 : 0.55,
+                              cursor: selectedProduct.active ? "pointer" : "not-allowed",
                             }}
                           >
                             Editar precios
@@ -2405,20 +2587,16 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       </>
                     ) : (
                       <>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                          <div>
-                            <label style={ui.fieldLabel}>Costo</label>
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={editCost}
-                              onChange={(e) => setEditMoney("cost")(e.target.value)}
-                              placeholder="0.00"
-                              style={ui.input}
-                            />
-                            {priceFieldErrors.cost && <p style={styles.fieldError}>{priceFieldErrors.cost}</p>}
+                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: 12, marginBottom: 12 }}>
+                          <div style={styles.adjustReadOnlyBox}>
+                            <span style={styles.adjustSummaryLabel}>Costo actual</span>
+                            <strong style={styles.adjustCurrentValue}>{money(selectedProduct.costPrice)}</strong>
                           </div>
-                          <div>
+                          <div style={styles.adjustReadOnlyBox}>
+                            <span style={styles.adjustSummaryLabel}>Precio actual</span>
+                            <strong style={styles.adjustCurrentValue}>{money(selectedProduct.sellPrice)}</strong>
+                          </div>
+                          <div style={{ minWidth: 0 }}>
                             <label style={ui.fieldLabel}>Precio venta</label>
                             <input
                               type="text"
@@ -2427,6 +2605,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               onChange={(e) => setEditMoney("price")(e.target.value)}
                               placeholder="0.00"
                               style={ui.input}
+                              disabled={priceSaving || pricePreviewLoading}
                             />
                             {priceFieldErrors.price && <p style={styles.fieldError}>{priceFieldErrors.price}</p>}
                           </div>
@@ -2434,12 +2613,92 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>
                           Margen calculado: <strong style={{ color: "var(--text)" }}>{liveMargem}%</strong>
                         </div>
+                        {pricePreviewProduct && (
+                          <div style={styles.adjustPreviewBox}>
+                            <div style={styles.adjustPreviewTitle}>Vista previa del ajuste</div>
+                            <div style={styles.adjustPreviewGrid}>
+                              <span>Precio anterior</span>
+                              <strong>{money(pricePreviewProduct.currentSellPrice)}</strong>
+                              <span>Precio nuevo</span>
+                              <strong>{money(pricePreviewProduct.newSellPrice)}</strong>
+                              <span>Diferencia</span>
+                              <strong style={{ color: pricePreviewDifference > 0 ? "#15803d" : pricePreviewDifference < 0 ? "#b91c1c" : "var(--text-muted)" }}>
+                                {pricePreviewDifference >= 0 ? "+" : "-"}{money(Math.abs(pricePreviewDifference))}
+                              </strong>
+                              <span>Descuento</span>
+                              <strong>{pricePreviewProduct.discountPercentage.toLocaleString("es-MX", { maximumFractionDigits: 2 })}%</strong>
+                              <span>Estado</span>
+                              <span>
+                                {pricePreviewProduct.isBelowCost ? (
+                                  <Badge tone="red">Debajo del costo</Badge>
+                                ) : (
+                                  <Badge tone={pricePreviewDifference >= 0 ? "green" : "blue"}>
+                                    {pricePreviewDifference >= 0 ? "Aumento" : "Descuento"}
+                                  </Badge>
+                                )}
+                              </span>
+                            </div>
+                            {pricePreviewRequiresReason && (
+                              <div style={{ marginTop: 12 }}>
+                                <label style={ui.fieldLabel}>Motivo del ajuste *</label>
+                                <textarea
+                                  style={{ ...ui.input, minHeight: 72, resize: "vertical" }}
+                                  value={priceNotes}
+                                  onChange={(event) => {
+                                    setPriceNotes(event.target.value);
+                                    setSaveError(null);
+                                  }}
+                                  maxLength={500}
+                                  placeholder="Describe el motivo del ajuste"
+                                  disabled={priceSaving}
+                                />
+                                {priceNotesError && <p style={styles.fieldError}>{priceNotesError}</p>}
+                              </div>
+                            )}
+                            {pricePreviewRequiresBelowCostConfirmation && (
+                              <label style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 12, color: "var(--text-secondary)", fontSize: 12, fontWeight: 700 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={priceConfirmBelowCost}
+                                  onChange={(event) => {
+                                    setPriceConfirmBelowCost(event.target.checked);
+                                    setSaveError(null);
+                                  }}
+                                  disabled={priceSaving}
+                                  style={{ width: 15, height: 15, marginTop: 1, accentColor: "var(--accent)", flexShrink: 0 }}
+                                />
+                                <span>Confirmo que el nuevo precio quedara por debajo del costo.</span>
+                              </label>
+                            )}
+                          </div>
+                        )}
                         {saveError && (
                           <p style={{ fontSize: 12, color: "var(--color-danger)", marginBottom: 10 }}>{saveError}</p>
                         )}
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={saveProductChanges} style={ui.primaryBtn}>✓ Guardar</button>
-                          <button onClick={() => { setEditMode(false); setSaveError(null); setPriceFieldErrors({}); }} style={ui.ghostBtn}>✕ Cancelar</button>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <button
+                            onClick={generateProductPricePreview}
+                            disabled={pricePreviewLoading || priceSaving}
+                            style={{ ...ui.primaryBtn, opacity: pricePreviewLoading || priceSaving ? 0.65 : 1 }}
+                          >
+                            {pricePreviewLoading ? "Generando..." : "Generar vista previa"}
+                          </button>
+                          {pricePreviewProduct && (
+                            <button
+                              onClick={openProductPriceConfirm}
+                              disabled={!canApplyPricePreview}
+                              style={{ ...ui.primaryBtn, opacity: canApplyPricePreview ? 1 : 0.55, cursor: canApplyPricePreview ? "pointer" : "not-allowed" }}
+                            >
+                              {priceSaving ? "Aplicando..." : "Aplicar ajuste"}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => { setEditMode(false); setSaveError(null); setPriceFieldErrors({}); resetProductPriceAdjustmentState(); }}
+                            disabled={priceSaving || pricePreviewLoading}
+                            style={ui.ghostBtn}
+                          >
+                            Cancelar
+                          </button>
                         </div>
                       </>
                     )}
@@ -2631,11 +2890,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         {productSuppliers.length === 0 ? (
                           <span style={{ fontSize: 12, color: "var(--text-faint)" }}>Sin proveedores asignados</span>
                         ) : (
-                          productSuppliers.map((sid) => {
+                          productSupplierDisplayIds.map((sid) => {
                             const s = suppliers.find((x) => x.id === sid);
+                            const isPrimary = sid === primarySupplierId;
+                            const supplierName = s?.name ?? `Proveedor ${sid}`;
                             return (
-                              <Badge key={sid} tone="blue">
-                                {s?.name ?? `Proveedor ${sid}`}
+                              <Badge key={sid} tone={isPrimary ? "green" : "blue"}>
+                                {isPrimary ? `Principal: ${supplierName}` : supplierName}
                               </Badge>
                             );
                           })
@@ -2647,30 +2908,51 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           {suppliers.length === 0 && (
                             <p style={{ fontSize: 12, color: "var(--text-faint)", margin: 0 }}>No hay proveedores disponibles</p>
                           )}
-                          {suppliers.map((s) => (
-                            <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "4px 0", fontSize: 13, color: "var(--text-secondary)" }}>
-                              <input
-                                type="checkbox"
-                                checked={productSuppliers.includes(s.id)}
-                                onChange={(e) =>
-                                  setProductSuppliers(
-                                    e.target.checked
-                                      ? [...productSuppliers, s.id]
-                                      : productSuppliers.filter((id) => id !== s.id)
-                                  )
-                                }
-                                style={{ width: 15, height: 15, cursor: "pointer", flexShrink: 0 }}
-                              />
-                              {s.name}
-                            </label>
-                          ))}
+                          {suppliers.map((s) => {
+                            const isSelected = productSuppliers.includes(s.id);
+                            const isPrimary = primarySupplierId === s.id;
+                            return (
+                              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "5px 0", fontSize: 13, color: "var(--text-secondary)" }}>
+                                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", flex: 1, minWidth: 0 }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(e) => updateProductSupplierSelection(s.id, e.target.checked)}
+                                    style={{ width: 15, height: 15, cursor: "pointer", flexShrink: 0 }}
+                                  />
+                                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</span>
+                                </label>
+                                {isSelected && (
+                                  <label style={{ display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer", color: isPrimary ? "#15803d" : "var(--text-muted)", fontSize: 12, fontWeight: 700 }}>
+                                    <input
+                                      type="radio"
+                                      name={`primary-supplier-${selectedProduct.id}`}
+                                      checked={isPrimary}
+                                      onChange={() => { setPrimarySupplierId(s.id); setSuppliersError(null); }}
+                                      style={{ width: 14, height: 14, cursor: "pointer" }}
+                                    />
+                                    Principal
+                                  </label>
+                                )}
+                                {isSelected && !isPrimary && (
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", minWidth: 64, textAlign: "right" }}>
+                                    Alternativo
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                         {suppliersError && (
                           <p style={{ fontSize: 12, color: "#b91c1c", marginBottom: 10 }}>{suppliersError}</p>
                         )}
                         <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={saveSuppliersChanges} style={ui.primaryBtn}>✓ Guardar</button>
-                          <button onClick={() => { setEditingSuppliersMode(false); setSuppliersError(null); }} style={ui.ghostBtn}>✕ Cancelar</button>
+                          <button onClick={saveSuppliersChanges} disabled={suppliersSaving} style={{ ...ui.primaryBtn, opacity: suppliersSaving ? 0.7 : 1, cursor: suppliersSaving ? "not-allowed" : "pointer" }}>
+                            {suppliersSaving ? "Guardando..." : "Guardar"}
+                          </button>
+                          <button onClick={cancelSuppliersChanges} disabled={suppliersSaving} style={{ ...ui.ghostBtn, opacity: suppliersSaving ? 0.7 : 1, cursor: suppliersSaving ? "not-allowed" : "pointer" }}>
+                            Cancelar
+                          </button>
                         </div>
                       </div>
                     )}
@@ -3791,6 +4073,21 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           </form>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={priceConfirmOpen}
+        onClose={() => setPriceConfirmOpen(false)}
+        onConfirm={applyProductPriceAdjustment}
+        variant="info"
+        title="Aplicar ajuste de precio"
+        message={priceConfirmMessage}
+        confirmLabel="Aplicar ajuste"
+        cancelLabel="Cancelar"
+        isConfirming={priceSaving}
+        confirmDisabled={!canApplyPricePreview}
+        closeDisabled={priceSaving}
+        confirmingLabel="Aplicando..."
+      />
 
       <ConfirmModal
         isOpen={deactivationTarget !== null}

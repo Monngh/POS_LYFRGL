@@ -19,10 +19,25 @@ interface ConfirmModalProps {
   confirmingLabel?: string;
 }
 
-const VARIANT_COLORS: Record<ConfirmModalVariant, string> = {
-  danger: "#dc2626",
-  warning: "#dc2626",
-  info: "var(--color-primary)",
+const VARIANT_COLORS: Record<ConfirmModalVariant, { background: string; hover: string; disabled: string; border: string }> = {
+  danger: {
+    background: "#dc2626",
+    hover: "#b91c1c",
+    disabled: "#fca5a5",
+    border: "#dc2626",
+  },
+  warning: {
+    background: "#dc2626",
+    hover: "#b91c1c",
+    disabled: "#fca5a5",
+    border: "#dc2626",
+  },
+  info: {
+    background: "var(--accent, #2563eb)",
+    hover: "var(--accent-strong, #1e3a8a)",
+    disabled: "#93c5fd",
+    border: "var(--accent, #2563eb)",
+  },
 };
 
 // Estilos replicados de admin/views/shared.tsx (ui.overlay/modal/modalHeader/modalBody)
@@ -85,7 +100,7 @@ const styles: { [k: string]: React.CSSProperties } = {
     alignItems: "center",
     gap: 7,
     color: "#ffffff",
-    border: "none",
+    border: "1px solid transparent",
     borderRadius: 8,
     padding: "9px 16px",
     fontSize: 13,
@@ -110,14 +125,29 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   confirmingLabel = "Procesando...",
 }) => {
   useBodyScrollLock(isOpen);
+  const [isConfirmHovered, setIsConfirmHovered] = React.useState(false);
 
   if (!isOpen) return null;
 
   const isCloseDisabled = closeDisabled || isConfirming;
   const isConfirmDisabled = confirmDisabled || isConfirming;
+  const confirmPalette = VARIANT_COLORS[variant];
   const disabledButtonStyle: React.CSSProperties = {
     opacity: 0.6,
     cursor: "not-allowed",
+  };
+  const disabledPrimaryButtonStyle: React.CSSProperties = {
+    backgroundColor: confirmPalette.disabled,
+    borderColor: confirmPalette.disabled,
+    color: "#ffffff",
+    cursor: "not-allowed",
+    opacity: 1,
+  };
+  const activePrimaryButtonStyle: React.CSSProperties = {
+    backgroundColor: isConfirmHovered ? confirmPalette.hover : confirmPalette.background,
+    borderColor: isConfirmHovered ? confirmPalette.hover : confirmPalette.border,
+    color: "#ffffff",
+    cursor: "pointer",
   };
   const handleClose = () => {
     if (isCloseDisabled) return;
@@ -154,10 +184,17 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
               type="button"
               style={{
                 ...styles.primaryBtn,
-                backgroundColor: VARIANT_COLORS[variant],
-                ...(isConfirmDisabled ? disabledButtonStyle : {}),
+                ...(isConfirmDisabled ? disabledPrimaryButtonStyle : activePrimaryButtonStyle),
               }}
               onClick={onConfirm}
+              onMouseEnter={() => {
+                if (!isConfirmDisabled) setIsConfirmHovered(true);
+              }}
+              onMouseLeave={() => setIsConfirmHovered(false)}
+              onFocus={() => {
+                if (!isConfirmDisabled) setIsConfirmHovered(true);
+              }}
+              onBlur={() => setIsConfirmHovered(false)}
               disabled={isConfirmDisabled}
             >
               {isConfirming ? confirmingLabel : confirmLabel}
