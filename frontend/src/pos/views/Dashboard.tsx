@@ -421,10 +421,10 @@ const Dashboard: React.FC = () => {
       data-shortcut-letter="S"
       title="Enviar por Correo (Alt+S)"
       onClick={() => openTicketEmailModal(emailConfig)}
-      style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
+      style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", position: "relative" as const }}
     >
       <Mail size={16} /> Enviar por Correo
-      <span style={{ fontSize: "9px", backgroundColor: "rgba(0,0,0,0.08)", color: "var(--text-secondary)", padding: "1px 4px", borderRadius: "3px", fontWeight: "800", lineHeight: 1, marginLeft: "2px" }}>Alt+S</span>
+      <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px" }}>Alt+S</span>
     </button>
   );
 
@@ -446,9 +446,10 @@ const Dashboard: React.FC = () => {
         data-shortcut="cancel"
         data-shortcut-letter="X"
         onClick={options.onClose}
-        style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
+        style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer", position: "relative" as const }}
       >
         {options.closeLabel || "Cerrar"}
+        <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px", backgroundColor: "#64748b" }}>Esc</span>
       </button>
       {renderTicketEmailButton(options.emailConfig)}
       <button
@@ -456,9 +457,10 @@ const Dashboard: React.FC = () => {
         data-shortcut="confirm"
         data-shortcut-letter="C"
         onClick={options.onPrint}
-        style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
+        style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", position: "relative" as const }}
       >
         <Printer size={16} /> {options.printLabel || "Imprimir"}
+        <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px" }}>Alt+C</span>
       </button>
     </>
   );
