@@ -58,7 +58,7 @@ Implementación: registro oculto en [SalesTerminalView.tsx](components/SalesTerm
 | `Alt+K` | Ventas en espera (Deprecado/Anterior) | Terminal de ventas | [SalesTerminalView.tsx](components/SalesTerminalView.tsx) |
 | `Alt+K` *(depósito)* | Tab "Buscar / Historial" | Modal depósito banco (scope) | [BankDepositModal.tsx](components/modals/BankDepositModal.tsx) |
 | `Alt+W` | Pausar venta | Panel de cobro | [CheckoutPanel.tsx](components/CheckoutPanel.tsx) |
-| `Alt+P` | Enfocar promociones activas | Terminal de ventas | [PromotionsGrid.tsx](components/PromotionsGrid.tsx) |
+| `Alt+P` | Abrir / cerrar y enfocar promociones | Terminal de ventas | [PromotionsGrid.tsx](components/PromotionsGrid.tsx) |
 | `R` | Seleccionar promoción (al tener foco) | Promociones activas | [PromotionsGrid.tsx](components/PromotionsGrid.tsx) |
 | `Alt+V` | Cancelar compra (vaciar carrito) | Panel de cobro | [CheckoutPanel.tsx](components/CheckoutPanel.tsx) |
 | `Alt+X` | Cancelar / cerrar modal | Modales (footer) | Botones `data-shortcut="cancel"` |

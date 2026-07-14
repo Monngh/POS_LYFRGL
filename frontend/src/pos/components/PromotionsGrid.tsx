@@ -139,13 +139,17 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
           }
         } else if (key === "p") {
           e.preventDefault();
-          if (isCollapsed) {
-            setIsCollapsed(false);
-            setTimeout(() => searchInputRef.current?.focus(), 60);
-          } else {
-            // If open, focus search input
-            searchInputRef.current?.focus();
-          }
+          setIsCollapsed((prev) => {
+            const next = !prev;
+            if (!next) {
+              setTimeout(() => searchInputRef.current?.focus(), 60);
+            } else {
+              if (document.activeElement === searchInputRef.current) {
+                searchInputRef.current?.blur();
+              }
+            }
+            return next;
+          });
         }
       }
     };

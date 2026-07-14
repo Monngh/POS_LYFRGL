@@ -17,7 +17,7 @@ const SHORTCUTS = [
   { key: "Alt+L",  label: "Cerrar sesión"      },
   { key: "Alt+E",  label: "Ventas pausadas"    },
   { key: "Alt+S",  label: "Pagos pendientes"   },
-  { key: "Alt+P",  label: "Enfocar promociones"},
+  { key: "Alt+P",  label: "Abrir/Cerrar promociones"},
 ];
 
 export function ShortcutsHelpPanel() {
