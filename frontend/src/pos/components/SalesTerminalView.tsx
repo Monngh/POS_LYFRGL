@@ -177,6 +177,12 @@ export function SalesTerminalView({
     : "";
 
   const handleCheckoutModalKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const activeElement = document.activeElement;
+    const isEditing = activeElement && (activeElement.tagName === "INPUT" || activeElement.tagName === "TEXTAREA" || (activeElement as HTMLElement).isContentEditable);
+    if (isEditing && e.key !== "Escape" && e.key !== "Enter") {
+      return;
+    }
+
     if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
       const active = document.activeElement;
       if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || (active as HTMLElement).isContentEditable)) return;
