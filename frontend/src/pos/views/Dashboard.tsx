@@ -424,7 +424,7 @@ const Dashboard: React.FC = () => {
       style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", position: "relative", overflow: "visible" }}
     >
       <Mail size={16} /> Enviar por Correo
-      <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px" }}>Alt+S</span>
+      <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px", backgroundColor: "#1e40af", color: "#ffffff" }}>Alt+S</span>
     </button>
   );
 
@@ -449,7 +449,7 @@ const Dashboard: React.FC = () => {
         style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer", position: "relative", overflow: "visible" }}
       >
         {options.closeLabel || "Cerrar"}
-        <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px" }}>Esc</span>
+        <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px", backgroundColor: "#1e40af", color: "#ffffff" }}>Esc</span>
       </button>
       {renderTicketEmailButton(options.emailConfig)}
       <button
@@ -460,7 +460,7 @@ const Dashboard: React.FC = () => {
         style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", position: "relative", overflow: "visible" }}
       >
         <Printer size={16} /> {options.printLabel || "Imprimir"}
-        <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px" }}>Alt+C</span>
+        <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px", backgroundColor: "#1e40af", color: "#ffffff" }}>Alt+C</span>
       </button>
     </>
   );
