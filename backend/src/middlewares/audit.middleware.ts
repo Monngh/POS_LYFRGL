@@ -12,8 +12,8 @@ export const auditReport = (reportName: string, reportType: string) => {
       req.ip ||
       "unknown";
     const filters = JSON.stringify(req.query);
-    const userAgentHeader = req.headers["user-agent"];
-    const userAgent = typeof userAgentHeader === "string" ? userAgentHeader.slice(0, 255) : null;
+    // const userAgentHeader = req.headers["user-agent"];
+    // const userAgent = typeof userAgentHeader === "string" ? userAgentHeader.slice(0, 255) : null;
 
     prisma.reportAuditLog
       .create({
@@ -24,7 +24,7 @@ export const auditReport = (reportName: string, reportType: string) => {
           reportType,
           filters,
           ipAddress: ip,
-          userAgent,
+          // userAgent, // Removed because it does not exist in schema
         },
       })
       .catch((err: unknown) => {
