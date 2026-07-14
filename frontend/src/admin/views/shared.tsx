@@ -1,5 +1,5 @@
 import React from "react";
-import { Search } from "lucide-react";
+import { ChevronDown, ChevronUp, Search } from "lucide-react";
 import { validateSearchText } from "../../shared/utils/formValidation";
 import { openTicketPrintWindow } from "../../shared/utils/ticketEmailDocument.util";
 
@@ -152,6 +152,43 @@ export const payTone = (m: string): Tone =>
 // ---------------------------------------------------------------------------
 export const Toolbar: React.FC<{ children: React.ReactNode; style?: React.CSSProperties }> = ({ children, style }) => (
   <div style={{ ...ui.toolbar, ...style }}>{children}</div>
+);
+
+export const MobileFilterDisclosure: React.FC<{
+  id: string;
+  title: string;
+  activeCount?: number;
+  summary?: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}> = ({ id, title, activeCount = 0, summary, isOpen, onToggle, children }) => (
+  <div style={ui.mobileFilterBox}>
+    <button
+      type="button"
+      aria-expanded={isOpen}
+      aria-controls={id}
+      onClick={onToggle}
+      style={ui.mobileFilterToggle}
+      className="active-tap"
+    >
+      <span style={ui.mobileFilterTitle}>
+        {title}
+        {activeCount > 0 ? ` (${activeCount})` : ""}
+      </span>
+      {isOpen ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+    </button>
+    {summary && (
+      <div style={ui.mobileFilterSummary}>
+        {summary}
+      </div>
+    )}
+    {isOpen && (
+      <div id={id} style={ui.mobileFilterContent}>
+        {children}
+      </div>
+    )}
+  </div>
 );
 
 export const SearchInput: React.FC<{
@@ -351,6 +388,46 @@ export const ui: { [k: string]: React.CSSProperties } = {
     alignItems: "center",
     gap: 10,
     marginBottom: 16,
+  },
+  mobileFilterBox: {
+    border: "1px solid var(--border)",
+    borderRadius: 10,
+    backgroundColor: "var(--surface)",
+    marginBottom: 12,
+    overflow: "hidden",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+  },
+  mobileFilterToggle: {
+    width: "100%",
+    minHeight: 44,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    border: "none",
+    backgroundColor: "var(--surface)",
+    color: "var(--text)",
+    padding: "10px 12px",
+    cursor: "pointer",
+    fontFamily: "inherit",
+  },
+  mobileFilterTitle: {
+    fontSize: 13,
+    fontWeight: 800,
+    color: "var(--text)",
+  },
+  mobileFilterSummary: {
+    padding: "0 12px 10px",
+    fontSize: 12,
+    fontWeight: 600,
+    color: "var(--text-muted)",
+    lineHeight: 1.35,
+  },
+  mobileFilterContent: {
+    display: "grid",
+    gap: 10,
+    padding: "0 12px 12px",
+    borderTop: "1px solid var(--border-soft)",
   },
   searchField: {
     display: "flex",

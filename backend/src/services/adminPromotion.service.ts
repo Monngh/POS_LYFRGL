@@ -11,9 +11,24 @@ const promotionInclude = Prisma.validator<Prisma.PromotionInclude>()({
         select: {
           id: true,
           sku: true,
+          barcode: true,
           name: true,
+          description: true,
           sellPrice: true,
           active: true,
+          categories: {
+            orderBy: { categoryId: "asc" },
+            select: {
+              category: {
+                select: {
+                  id: true,
+                  code: true,
+                  name: true,
+                  level: true,
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -107,9 +122,12 @@ export const mapPromotion = (promotion: PromotionWithRelations) => ({
     product: {
       id: row.product.id,
       sku: row.product.sku,
+      barcode: row.product.barcode,
       name: row.product.name,
+      description: row.product.description,
       sellPrice: Number(row.product.sellPrice),
       active: row.product.active,
+      categories: row.product.categories.map((categoryRow) => categoryRow.category),
     },
   })),
 });

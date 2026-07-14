@@ -52,6 +52,7 @@ export {
   listProducts,
   getProductDetail,
   updateProduct,
+  updateProductStatus,
   deleteProduct,
   listSuppliers,
   createSupplier,

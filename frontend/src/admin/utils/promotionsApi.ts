@@ -1,5 +1,6 @@
 import api from "../../shared/services/api";
 import type {
+  AvailableProductsApiEnvelope,
   AvailableProductsResponse,
   GetAvailableProductsParams,
   PromotionProductAssociationResponse,
@@ -19,6 +20,29 @@ const compactParams = (
   );
 
 /**
+ * Normaliza la envoltura real del backend:
+ * { success, message, data: { page, limit, total, totalPages, products } }
+ */
+const normalizeAvailableProductsResponse = (
+  payload: AvailableProductsApiEnvelope | AvailableProductsResponse
+): AvailableProductsResponse => {
+  if ("data" in payload && payload.data) {
+    return {
+      products: payload.data.products,
+      pagination: {
+        page: payload.data.page,
+        limit: payload.data.limit,
+        total: payload.data.total,
+        totalPages: payload.data.totalPages,
+      },
+      categories: payload.data.categories,
+    };
+  }
+
+  return payload as AvailableProductsResponse;
+};
+
+/**
  * Obtiene productos disponibles para asociar a una promoción.
  * GET /api/admin-promotions/promotions/:id/available-products
  */
@@ -26,7 +50,7 @@ export async function getAvailablePromotionProducts(
   promotionId: number,
   params: GetAvailableProductsParams = {}
 ): Promise<AvailableProductsResponse> {
-  const response = await api.get<AvailableProductsResponse>(
+  const response = await api.get<AvailableProductsApiEnvelope | AvailableProductsResponse>(
     `${BASE_URL}/${promotionId}/available-products`,
     {
       params: compactParams({
@@ -39,7 +63,7 @@ export async function getAvailablePromotionProducts(
       }),
     }
   );
-  return response.data;
+  return normalizeAvailableProductsResponse(response.data);
 }
 
 /**
@@ -53,6 +77,20 @@ export async function addProductsToPromotion(
   const response = await api.post<PromotionProductAssociationResponse>(
     `${BASE_URL}/${promotionId}/products`,
     { productIds }
+  );
+  return response.data;
+}
+
+/**
+ * Quita un producto de una promoción.
+ * DELETE /api/admin-promotions/promotions/:id/products/:productId
+ */
+export async function removeProductFromPromotion(
+  promotionId: number,
+  productId: number
+): Promise<PromotionProductAssociationResponse> {
+  const response = await api.delete<PromotionProductAssociationResponse>(
+    `${BASE_URL}/${promotionId}/products/${productId}`
   );
   return response.data;
 }

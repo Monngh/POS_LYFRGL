@@ -31,6 +31,25 @@ export interface AvailablePromotionProduct {
   categories: AvailableProductCategory[];
 }
 
+/** Producto ya asociado a una promoción */
+export interface PromotionAssociatedProductDetail {
+  id: number;
+  sku: string;
+  barcode: string | null;
+  name: string;
+  description?: string | null;
+  sellPrice: number;
+  active: boolean;
+  categories?: AvailableProductCategory[];
+}
+
+export interface PromotionAssociatedProduct {
+  id?: number;
+  promotionId?: number;
+  productId: number;
+  product?: PromotionAssociatedProductDetail;
+}
+
 /** Paginación estándar del backend */
 export interface PromotionProductPagination {
   page: number;
@@ -46,11 +65,26 @@ export interface AvailableProductsResponse {
   categories?: AvailableProductCategory[];
 }
 
+/** Envoltura real devuelta por el backend */
+export interface AvailableProductsApiEnvelope {
+  success?: boolean;
+  message?: string;
+  data?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    products: AvailablePromotionProduct[];
+    categories?: AvailableProductCategory[];
+  };
+}
+
 /** Respuesta de POST /api/admin-promotions/promotions/:id/products */
 export interface PromotionProductAssociationResponse {
   message?: string;
   added?: number;
   productIds?: number[];
+  promotion?: unknown;
 }
 
 /** Parámetros para el endpoint de productos disponibles */

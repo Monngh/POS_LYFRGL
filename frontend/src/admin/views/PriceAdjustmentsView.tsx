@@ -197,6 +197,8 @@ const InlineAlert: React.FC<{ tone: "success" | "warning" | "error" | "info"; ch
 const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   const { showToast } = useToast();
   const isMobile = useMediaQuery("(max-width: 1024px)");
+  const filtersTwoColumn = useMediaQuery("(max-width: 1180px)");
+  const filtersStacked = useMediaQuery("(max-width: 640px)");
 
   const [activeTab, setActiveTab] = useState<TabKey>("adjust");
 
@@ -1278,8 +1280,19 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   const renderAdjustTab = () => (
     <div style={styles.stack}>
       <div style={styles.panel}>
-        <div style={styles.formGrid}>
-          <div>
+        <div
+          style={{
+            ...styles.scopeFilterGrid,
+            gridTemplateColumns: filtersStacked
+              ? "1fr"
+              : isCategoryScope(scope)
+                ? filtersTwoColumn
+                  ? "minmax(0, 1fr) minmax(0, 1fr)"
+                  : "minmax(220px, 0.85fr) minmax(320px, 1.15fr) max-content"
+                : "minmax(220px, 320px) max-content",
+          }}
+        >
+          <div style={styles.filterField}>
             <label style={ui.fieldLabel}>Alcance</label>
             <select style={ui.input} value={scope} onChange={(event) => changeScope(event.target.value as PriceAdjustmentScope)}>
               {scopeOptions.map((option) => (
@@ -1291,7 +1304,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
           </div>
 
           {isCategoryScope(scope) && (
-            <div>
+            <div style={styles.filterField}>
               <label style={ui.fieldLabel}>{scopeLabel(scope)}</label>
               <select
                 style={ui.input}
@@ -1314,19 +1327,30 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
             </div>
           )}
 
-          <div style={styles.formActionCell}>
-            {scope !== "SELECTED_PRODUCTS" && (
+          {scope !== "SELECTED_PRODUCTS" && (
+            <div
+              style={{
+                ...styles.filterActionCell,
+                ...((isCategoryScope(scope) && filtersTwoColumn && !filtersStacked) ? styles.filterActionCellWide : {}),
+                ...(filtersStacked ? styles.filterActionCellStacked : {}),
+              }}
+            >
               <button
                 type="button"
-                style={{ ...ui.primaryBtn, justifyContent: "center", minWidth: 170, opacity: resolveLoading ? 0.7 : 1 }}
+                style={{
+                  ...ui.primaryBtn,
+                  ...styles.filterSearchButton,
+                  ...(filtersStacked ? styles.filterSearchButtonFull : {}),
+                  opacity: resolveLoading ? 0.7 : 1,
+                }}
                 onClick={resolveProducts}
                 disabled={resolveLoading}
               >
                 {resolveLoading ? <Loader2 size={16} /> : <Search size={16} />}
                 Buscar productos
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {scope === "UNCATEGORIZED" && (
@@ -1866,6 +1890,37 @@ const styles: { [key: string]: React.CSSProperties } = {
     gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
     gap: 14,
     alignItems: "end",
+  },
+  scopeFilterGrid: {
+    display: "grid",
+    gap: "12px 18px",
+    alignItems: "start",
+  },
+  filterField: {
+    minWidth: 0,
+    width: "100%",
+  },
+  filterActionCell: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "flex-start",
+    minWidth: 0,
+    paddingTop: 28,
+  },
+  filterActionCellWide: {
+    gridColumn: "1 / -1",
+    paddingTop: 0,
+  },
+  filterActionCellStacked: {
+    paddingTop: 0,
+  },
+  filterSearchButton: {
+    justifyContent: "center",
+    minWidth: 190,
+    whiteSpace: "nowrap",
+  },
+  filterSearchButtonFull: {
+    width: "100%",
   },
   formActionCell: {
     display: "flex",

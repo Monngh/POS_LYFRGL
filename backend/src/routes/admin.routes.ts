@@ -30,6 +30,7 @@ import {
   listProducts,
   getProductDetail,
   updateProduct,
+  updateProductStatus,
   adjustInventory,
   transferInventory,
   getSupplierProducts,
@@ -111,6 +112,7 @@ router.get("/products", authorizeRoles(["ADMIN", "GERENTE"]), listProducts);
 router.post("/products", authorizeRoles(["ADMIN"]), createProduct);
 router.get("/products/next-sku", authorizeRoles(["ADMIN"]), getNextProductSku);
 router.get("/products/:productId/suppliers", authorizeRoles(["ADMIN"]), getProductSuppliers);
+router.patch("/products/:id/status", authorizeRoles(["ADMIN"]), updateProductStatus);
 router.get("/products/:id", authorizeRoles(["ADMIN", "GERENTE"]), getProductDetail);
 router.put("/products/:id", authorizeRoles(["ADMIN"]), updateProduct);
 router.delete("/products/:id", authorizeRoles(["ADMIN"]), deleteProduct);

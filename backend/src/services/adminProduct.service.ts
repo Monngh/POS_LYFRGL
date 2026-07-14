@@ -566,11 +566,82 @@ export const updateProduct = async (id: number, body: Record<string, unknown>) =
   });
 };
 
-export const deleteProduct = async (id: number) => {
-  const existingProduct = await prisma.product.findUnique({ where: { id } });
-  if (!existingProduct) throw new AppError("Producto no encontrado.", 404);
+export const updateProductStatus = async (id: number, active: boolean) => {
+  if (active !== false) {
+    throw new AppError("La reactivacion de productos no esta habilitada desde este endpoint.", 400);
+  }
 
-  return prisma.product.update({ where: { id }, data: { active: false } });
+  const existingProduct = await prisma.product.findUnique({
+    where: { id },
+    select: { id: true, sku: true, name: true, active: true },
+  });
+  if (!existingProduct) throw new AppError("Producto no encontrado.", 404);
+  if (!existingProduct.active) throw new AppError("El producto ya esta inactivo.", 409);
+
+  return prisma.product.update({
+    where: { id },
+    data: { active: false },
+    select: { id: true, sku: true, name: true, active: true, updatedAt: true },
+  });
+};
+
+export const deleteProduct = async (id: number) => {
+  const existingProduct = await prisma.product.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      sku: true,
+      name: true,
+      active: true,
+      categoryId: true,
+      _count: {
+        select: {
+          inventories: true,
+          kardexEntries: true,
+          promotionProducts: true,
+          saleDetails: true,
+          returnDetails: true,
+          productTaxes: true,
+          purchaseDetails: true,
+          suppliers: true,
+          priceLists: true,
+          priceAdjustmentDetails: true,
+          categories: true,
+        },
+      },
+    },
+  });
+  if (!existingProduct) throw new AppError("Producto no encontrado.", 404);
+  if (existingProduct.active) {
+    throw new AppError("Primero debes desactivar el producto antes de darlo de baja.", 409);
+  }
+
+  const blockingRelations = [
+    existingProduct.categoryId !== null ? "categoria principal" : null,
+    existingProduct._count.categories > 0 ? "categorias" : null,
+    existingProduct._count.inventories > 0 ? "existencias por sucursal" : null,
+    existingProduct._count.kardexEntries > 0 ? "movimientos de Kardex" : null,
+    existingProduct._count.saleDetails > 0 ? "ventas" : null,
+    existingProduct._count.returnDetails > 0 ? "devoluciones" : null,
+    existingProduct._count.purchaseDetails > 0 ? "compras o entradas" : null,
+    existingProduct._count.promotionProducts > 0 ? "promociones" : null,
+    existingProduct._count.productTaxes > 0 ? "impuestos" : null,
+    existingProduct._count.suppliers > 0 ? "proveedores" : null,
+    existingProduct._count.priceLists > 0 ? "listas de precio" : null,
+    existingProduct._count.priceAdjustmentDetails > 0 ? "ajustes de precio" : null,
+  ].filter((relation): relation is string => Boolean(relation));
+
+  if (blockingRelations.length > 0) {
+    throw new AppError(
+      `El producto no puede darse de baja definitivamente porque tiene movimientos o registros relacionados: ${blockingRelations.join(", ")}.`,
+      409
+    );
+  }
+
+  return prisma.product.delete({
+    where: { id },
+    select: { id: true, sku: true, name: true },
+  });
 };
 
 // ─── Supplier service functions ────────────────────────────────────────────────
