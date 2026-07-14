@@ -255,9 +255,13 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
       {isMobile ? (
         <MobileFilterDisclosure
           id="report-audit-mobile-filters"
-          title="Filtros de auditoría"
+          title="Filtros"
           activeCount={activeFilterLabels.length}
-          summary={filterSummary}
+          summary={
+            <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {filterSummary}
+            </span>
+          }
           isOpen={filtersOpen}
           onToggle={() => setFiltersOpen((current) => !current)}
         >
@@ -306,57 +310,62 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
 
       {/* ============================== MÓVIL: tarjetas/acordeón ============================== */}
       {isMobile ? (
-        <>
-          <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, textAlign: "center", padding: "4px 0 10px" }}>
-            {visible.length} registro{visible.length !== 1 ? "s" : ""}
-          </div>
-          <div style={{ overflowY: "auto", maxHeight: "62vh" }}>
-            {loading && (
-              <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>Cargando información...</div>
-            )}
-            {error && (
-              <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>{error}</div>
-            )}
-            {!loading && !error && paged.total === 0 && (
-              <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-                No hay registros de auditoría para los filtros seleccionados.
-              </div>
-            )}
-            {!loading && !error && paged.pageItems.map((row) => {
-              const isExpanded = expandedLogs[row.id];
-              return (
-                <div key={row.id} style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 10, overflow: "hidden" }}>
-                  <button
-                    type="button"
-                    onClick={() => toggleExpand(row.id)}
-                    className="active-tap"
-                    style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "11px 13px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
-                  >
-                    <span style={{ minWidth: 0 }}>
-                      <span style={{ display: "block", fontWeight: 700, fontSize: 13.5, color: "var(--text)", overflowWrap: "anywhere" }}>{row.reportName}</span>
-                      <span style={{ display: "block", fontSize: 11.5, color: "var(--text-muted)", fontWeight: 600, marginTop: 2 }}>
-                        {row.user.name} · {fmtDate(row.createdAt)} {fmtTime(row.createdAt)}
-                      </span>
-                    </span>
-                    <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                      <TypeBadge type={row.reportType} />
-                      {isExpanded ? <ChevronUp size={16} color="var(--text-muted)" /> : <ChevronDown size={16} color="var(--text-muted)" />}
-                    </span>
-                  </button>
-                  {isExpanded && (
-                    <div style={{ padding: "4px 13px 12px", borderTop: "1px solid var(--surface-3)" }}>
-                      {detailRow("Usuario", row.user.email)}
-                      {detailRow("Sucursal", row.branch?.name ?? "—")}
-                      {detailRow("Dispositivo", parseUserAgent(row.userAgent))}
-                      {detailRow("Filtros", parseFiltros(row.filters))}
-                      {detailRow("IP", <span style={{ fontFamily: "monospace" }}>{row.ipAddress ?? "—"}</span>)}
-                    </div>
-                  )}
+        <div style={{ padding: "8px 16px" }}>
+          {loading && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>Cargando información...</div>
+          )}
+          {error && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>{error}</div>
+          )}
+          {!loading && !error && paged.total === 0 && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+              No hay registros de auditoría para los filtros seleccionados.
+            </div>
+          )}
+          {!loading && !error && paged.pageItems.map((row) => {
+            const isExpanded = expandedLogs[row.id];
+            return (
+              <div key={row.id} style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 10, boxShadow: "0 1px 2px rgba(0,0,0,0.02)", overflow: "hidden" }}>
+                
+                {/* Header: Fecha y Tipo */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 16px 6px 16px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", borderBottom: "1px solid var(--border-soft)", backgroundColor: "var(--surface-2)", letterSpacing: "0.2px" }}>
+                  <span>{fmtDate(row.createdAt)} {fmtTime(row.createdAt)}</span>
+                  <TypeBadge type={row.reportType} />
                 </div>
-              );
-            })}
-          </div>
-        </>
+
+                {/* Fila principal */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", wordBreak: "break-word", overflowWrap: "anywhere", whiteSpace: "normal" }}>
+                      {row.reportName}
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>
+                      Usuario: <strong>{row.user.name}</strong>
+                    </div>
+                  </div>
+                  
+                  {/* Chevron Button estandarizado */}
+                  <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
+                    <button onClick={() => toggleExpand(row.id)} className="active-tap" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--surface)", border: "1px solid var(--border-strong)", borderRadius: 8, width: 38, height: 38, cursor: "pointer", color: "var(--accent)", padding: 0 }}>
+                      {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Expanded Content Premium */}
+                {isExpanded && (
+                  <div style={{ padding: "16px", margin: "0 16px 16px 16px", backgroundColor: "var(--surface-2)", borderRadius: "12px", border: "1px solid var(--border)" }}>
+                    {detailRow("Usuario", row.user.email)}
+                    {detailRow("Sucursal", row.branch?.name ?? "—")}
+                    {detailRow("Dispositivo", parseUserAgent(row.userAgent))}
+                    {detailRow("Filtros", parseFiltros(row.filters))}
+                    {detailRow("IP", <span style={{ fontFamily: "monospace" }}>{row.ipAddress ?? "—"}</span>)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       ) : (
         /* ============================== ESCRITORIO: tabla ============================== */
         <DataTable

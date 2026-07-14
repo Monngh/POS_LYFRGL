@@ -162,7 +162,7 @@ export const MobileFilterDisclosure: React.FC<{
   id: string;
   title: string;
   activeCount?: number;
-  summary?: string;
+  summary?: React.ReactNode;
   isOpen: boolean;
   onToggle: () => void;
   children: React.ReactNode;

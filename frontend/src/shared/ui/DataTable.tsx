@@ -110,6 +110,7 @@ export function DataTable<T>({
                       fontSize: 14,
                       color: "var(--text)",
                       textAlign: col.align ?? "left",
+                      verticalAlign: "middle",
                     }}
                   >
                     {col.render
