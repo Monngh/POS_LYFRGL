@@ -933,7 +933,7 @@ export const getAdminReturns = async (req: Request, res: Response): Promise<void
   try {
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
-    const { startDate, endDate, branchId, paymentMethod } = req.query;
+    const { startDate, endDate, branchId, paymentMethod, clientName } = req.query;
 
     const where: any = {};
 
@@ -951,6 +951,17 @@ export const getAdminReturns = async (req: Request, res: Response): Promise<void
 
     if (paymentMethod) {
       where.paymentMethod = paymentMethod as string;
+    }
+
+    if (clientName) {
+      where.sale = {
+        ...where.sale,
+        customer: {
+          name: {
+            contains: clientName as string,
+          },
+        },
+      };
     }
 
     const [returns, total] = await Promise.all([

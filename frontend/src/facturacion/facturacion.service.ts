@@ -119,6 +119,12 @@ export const getAdminReturns = (params?: {
   status?: string;
   limit?: number;
   offset?: number;
+  page?: number;
+  branchId?: string | number;
+  paymentMethod?: string;
+  startDate?: string;
+  endDate?: string;
+  clientName?: string;
 }) =>
   api.get<ReturnRow[]>('/api/admin/returns', { params });
 

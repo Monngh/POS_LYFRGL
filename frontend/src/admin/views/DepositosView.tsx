@@ -18,6 +18,7 @@ import {
   useMediaQuery,
   usePagination,
   Pagination,
+  ui,
 } from "./shared";
 import { useToast } from "../../shared/context/ToastContext";
 
@@ -80,6 +81,23 @@ const detailValueStyle: React.CSSProperties = {
   color: "var(--text-secondary)",
 };
 
+const dateInputStyle: React.CSSProperties = {
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  height: 38,
+  padding: "0 12px",
+  fontSize: 13,
+  fontWeight: 600,
+  color: "var(--text-secondary)",
+  backgroundColor: "var(--surface)",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  outline: "none",
+  minWidth: 120,
+  maxWidth: 160,
+  flex: "1 1 auto",
+};
+
 const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const { showToast } = useToast();
   const isMobile = useMediaQuery("(max-width: 1024px)");
@@ -95,7 +113,8 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [from, setFrom] = useState<string>("");
   const [to, setTo] = useState<string>("");
   const [account, setAccount] = useState<string>("");
-  const [accounts, setAccounts] = useState<string[]>([]);
+  const [paymentType, setPaymentType] = useState<string>("");
+  const [accounts, setAccounts] = useState<{ accountNumber: string; accountMasked: string; targetName: string }[]>([]);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedDeposit, setSelectedDeposit] = useState<any>(null);
   const [confirmingDepositId, setConfirmingDepositId] = useState<number | null>(null);
@@ -106,13 +125,14 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   if (from) filterParams.from = from;
   if (to) filterParams.to = to;
   if (account) filterParams.account = account;
+  if (paymentType) filterParams.paymentType = paymentType;
 
   const { data, loading, error: loadError, refetch } = useAdminData<{ deposits: DepositRow[] }>(
     "/api/admin/bank-deposits",
     { params: filterParams }
   );
   const rows = data?.deposits ?? [];
-  const paged = usePagination(rows, { resetKey: `${branchId}|${from}|${to}|${account}` });
+  const paged = usePagination(rows, { resetKey: `${branchId}|${from}|${to}|${account}|${paymentType}` });
 
   const isFirstRender = useRef(true);
   useEffect(() => {
@@ -126,8 +146,17 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   useEffect(() => {
     if (rows.length > 0 && accounts.length === 0) {
-      const uniqueAccounts = [...new Set(rows.map((r) => r.accountNumber))].filter(Boolean);
-      setAccounts(uniqueAccounts);
+      const uniqueMap = new Map<string, { accountNumber: string; accountMasked: string; targetName: string }>();
+      rows.forEach((r) => {
+        if (r.accountNumber && !uniqueMap.has(r.accountNumber)) {
+          uniqueMap.set(r.accountNumber, {
+            accountNumber: r.accountNumber,
+            accountMasked: r.accountMasked,
+            targetName: r.targetName,
+          });
+        }
+      });
+      setAccounts(Array.from(uniqueMap.values()));
     }
   }, [rows, accounts.length]);
 
@@ -250,9 +279,9 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       key: "status",
       header: "Confirmado",
       align: "center",
-      width: "80px",
+      width: "90px",
       render: (d) => (
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
           <input
             type="checkbox"
             checked={d.status === "COMPLETED" || d.status === "CONFIRMADO"}
@@ -273,8 +302,8 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 d.status === "CONFIRMADO"
                   ? "not-allowed"
                   : "pointer",
-              width: "18px",
-              height: "18px",
+              width: "16px",
+              height: "16px",
             }}
           />
           <button
@@ -283,15 +312,19 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               background: "none",
               border: "none",
               cursor: "pointer",
-              fontSize: "16px",
+              fontSize: "11px",
+              color: "var(--accent)",
+              fontWeight: 600,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               padding: 0,
+              gap: "4px"
             }}
             title="Ver detalles"
           >
-            Ver
+            <Eye size={12} />
+            <span>Ver</span>
           </button>
         </div>
       ),
@@ -311,43 +344,75 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       <SectionHeader title="Depósitos bancarios" subtitle="Retiros de efectivo de caja depositados a cuentas bancarias" />
 
       <Toolbar>
-        <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-          <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--accent-strong)" }}>Desde:</label>
-          <input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", flex: "1 1 120px", minWidth: 0, maxWidth: 180 }}
-          />
-          <label style={{ fontSize: "12px", fontWeight: "600", color: "var(--accent-strong)" }}>Hasta:</label>
-          <input
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", flex: "1 1 120px", minWidth: 0, maxWidth: 180 }}
-          />
+        <input
+          type="date"
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+          style={dateInputStyle}
+          title="Desde"
+        />
+        <input
+          type="date"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          style={dateInputStyle}
+          title="Hasta"
+        />
+        <FilterSelect
+          value={account}
+          onChange={(val) => setAccount(val)}
+          style={{
+            fontFamily: "monospace",
+            fontSize: isMobile ? "12px" : "13px",
+            maxWidth: "100%",
+            width: isMobile ? "100%" : "280px",
+            height: isMobile ? "34px" : "38px",
+          }}
+          options={[
+            { value: "", label: "Todas las cuentas" },
+            ...accounts.map(acc => {
+              // Format the options with monospace padding so columns are defined and clear
+              const paddedName = acc.targetName.slice(0, 15).padEnd(15, "\u00A0");
+              const shortMask = acc.accountMasked.replace(/[\s*]/g, "");
+              const displayMask = `****${shortMask.slice(-4)}`;
+              return { value: acc.accountNumber, label: `${paddedName} ${displayMask}` };
+            })
+          ]}
+        />
+        <FilterSelect
+          value={paymentType}
+          onChange={(val) => setPaymentType(val)}
+          style={{
+            fontSize: isMobile ? "12px" : "13px",
+            maxWidth: "100%",
+            width: isMobile ? "100%" : "180px",
+            height: isMobile ? "34px" : "38px",
+          }}
+          options={[
+            { value: "", label: "Todos los tipos" },
+            { value: "EFECTIVO", label: "Efectivo" },
+            { value: "MERCADOPAGO_BBVA", label: "BBVA Bancomer" },
+            { value: "MERCADOPAGO_CITIBANAMEX", label: "Citibanamex" },
+            { value: "MERCADOPAGO_SANTANDER", label: "Santander" },
+            { value: "MERCADOPAGO_OXXO", label: "OXXO" },
+            { value: "MERCADOPAGO_7ELEVEN", label: "7-Eleven" },
+          ]}
+        />
+        {(from || to || account || paymentType) && (
           <button
             onClick={() => {
               setFrom("");
               setTo("");
               setAccount("");
+              setPaymentType("");
             }}
-            style={{ padding: "8px 12px", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer" }}
+            style={{ ...ui.ghostBtn, fontSize: 12, padding: "5px 10px", height: 32 }}
           >
-            Limpiar
+            Limpiar filtros
           </button>
-        </div>
+        )}
 
-        <FilterSelect
-          value={account}
-          onChange={(val) => setAccount(val)}
-          options={[
-            { value: "", label: "Todas las cuentas" },
-            ...accounts.map(acc => ({ value: acc, label: acc }))
-          ]}
-        />
-
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-secondary)", fontWeight: 700 }}>
+        <span style={{ marginLeft: isMobile ? "0" : "auto", fontSize: 13, color: "var(--text-secondary)", fontWeight: 700 }}>
           Total depositado: <span style={{ color: "var(--accent-strong)", fontWeight: 800 }}>{money(total)}</span>
         </span>
       </Toolbar>
@@ -520,9 +585,9 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             </span>
                           </div>
 
-                          <div style={{ ...detailRowStyle, marginTop: 8 }}>
+                          <div style={{ ...detailRowStyle, marginTop: 8, alignItems: 'flex-start' }}>
                             <span style={detailLabelStyle}>Confirmado:</span>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ display: "inline-flex", flexDirection: 'column', alignItems: "center", gap: 8 }}>
                               <input
                                 type="checkbox"
                                 checked={d.status === "COMPLETED" || d.status === "CONFIRMADO"}
@@ -547,8 +612,8 @@ const DepositosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                                   height: "18px",
                                 }}
                               />
-                              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                                {d.status === "COMPLETED" || d.status === "CONFIRMADO" ? "Confirmado" : "Pendiente de confirmar"}
+                              <span style={{ fontSize: 11, color: "var(--text-muted)", textAlign: 'center' }}>
+                                {d.status === "COMPLETED" || d.status === "CONFIRMADO" ? "Confirmado" : "Pendiente"}
                               </span>
                             </span>
                           </div>
