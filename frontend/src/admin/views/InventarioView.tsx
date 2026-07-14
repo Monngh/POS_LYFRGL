@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { AlertTriangle, Printer, X, Plus, Eye, ChevronDown, ChevronUp, Search, Tags, FolderTree, Power, Loader2, Trash2 } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, PackagePlus, Printer, X, Plus, Eye, ChevronDown, ChevronUp, Search, Tags, FolderTree, Power, Loader2, Trash2 } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAuth } from "../../auth";
 import {
@@ -74,6 +74,8 @@ interface ProductRow {
 }
 
 type ProductStatusFilter = "all" | "active" | "inactive";
+type InventoryAdjustmentMode = "stock" | "inventory";
+type InventoryAdjustmentType = "" | "RECOUNT" | "ENTRADA" | "SALIDA" | "MERMA";
 
 const PRODUCT_STATUS_OPTIONS: { value: ProductStatusFilter; label: string }[] = [
   { value: "all", label: "Todos" },
@@ -587,8 +589,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   // Feature 2: adjust stock
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjustMode, setAdjustMode] = useState<InventoryAdjustmentMode>("stock");
   const [adjustBranch, setAdjustBranch] = useState(0);
-  const [adjustType, setAdjustType] = useState("");
+  const [adjustType, setAdjustType] = useState<InventoryAdjustmentType>("");
   const [adjustQuantity, setAdjustQuantity] = useState(0);
   const [adjustReason, setAdjustReason] = useState("");
   const [adjustObservations, setAdjustObservations] = useState("");
@@ -869,6 +872,35 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setTransferQty(Number(value));
     setTransferFieldErrors((prev) => ({ ...prev, quantity: undefined }));
     setTransferError(null);
+  };
+
+  const openAdjustmentModal = (mode: InventoryAdjustmentMode) => {
+    setAdjustMode(mode);
+    setAdjustOpen(true);
+    setAdjustError(null);
+    setAdjustFieldErrors({});
+    setAdjustBranch(user?.role === "GERENTE" && user.branch?.id ? user.branch.id : 0);
+    setAdjustType(mode === "inventory" ? "RECOUNT" : "");
+    setAdjustQuantity(0);
+    setAdjustReason("");
+    setAdjustObservations("");
+  };
+
+  const closeAdjustmentModal = () => {
+    if (adjustSaving) return;
+    setAdjustOpen(false);
+  };
+
+  const resetAdjustmentForm = () => {
+    setAdjustOpen(false);
+    setAdjustMode("stock");
+    setAdjustBranch(0);
+    setAdjustType("");
+    setAdjustQuantity(0);
+    setAdjustFieldErrors({});
+    setAdjustReason("");
+    setAdjustObservations("");
+    setAdjustError(null);
   };
 
   const closeForm = () => {
@@ -1571,8 +1603,17 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const submitAdjustment = async () => {
     if (!selectedProduct || adjustSaving) return;
     setAdjustError(null);
-    if (!adjustBranch || !adjustType || !adjustReason.trim()) {
+    const activeAdjustType: InventoryAdjustmentType = adjustMode === "inventory" ? "RECOUNT" : adjustType;
+
+    if (!adjustBranch || !activeAdjustType || !adjustReason.trim()) {
       setAdjustError("Completa todos los campos obligatorios.");
+      return;
+    }
+    if (
+      (adjustMode === "inventory" && activeAdjustType !== "RECOUNT") ||
+      (adjustMode === "stock" && !["ENTRADA", "SALIDA", "MERMA"].includes(activeAdjustType))
+    ) {
+      setAdjustError("Selecciona un tipo de ajuste valido para esta accion.");
       return;
     }
     const adjustQuantityError = validateInteger(adjustQuantity ? String(adjustQuantity) : "", "La cantidad", { min: 1 });
@@ -1583,29 +1624,37 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     }
     setAdjustFieldErrors({});
 
-    const currentStock = selectedProduct.inventories.find((inv) => inv.branchId === adjustBranch)?.quantity ?? 0;
+    const selectedInventory = selectedProduct.inventories.find((inv) => inv.branchId === adjustBranch);
+    if (!selectedInventory) {
+      setAdjustError("Selecciona una sucursal valida para este producto.");
+      return;
+    }
+    const currentStock = selectedInventory.quantity;
 
     let quantityChange = 0;
     let movementType = "";
-    if (adjustType === "RECOUNT") {
+    if (activeAdjustType === "RECOUNT") {
       quantityChange = adjustQuantity - currentStock;
       movementType = "AJUSTE_INVENTARIO";
-    } else if (adjustType === "ENTRADA") {
+    } else if (activeAdjustType === "ENTRADA") {
       quantityChange = adjustQuantity;
       movementType = "AJUSTE_INVENTARIO";
-    } else if (adjustType === "SALIDA") {
+    } else if (activeAdjustType === "SALIDA") {
       quantityChange = -adjustQuantity;
       movementType = "AJUSTE_INVENTARIO";
-    } else if (adjustType === "MERMA") {
+    } else if (activeAdjustType === "MERMA") {
       quantityChange = -adjustQuantity;
       movementType = "AJUSTE_MERMA";
     }
 
-    if (quantityChange === 0 && adjustType !== "RECOUNT") {
-      setAdjustError("La cantidad no puede ser 0.");
+    if (quantityChange === 0) {
+      setAdjustError(activeAdjustType === "RECOUNT"
+        ? "La existencia fisica coincide con el stock actual. No hay diferencia por registrar."
+        : "La cantidad no puede ser 0.");
       return;
     }
     if (currentStock + quantityChange < 0) {
+      setAdjustFieldErrors((prev) => ({ ...prev, quantity: "La cantidad supera el stock disponible." }));
       setAdjustError("El ajuste resultaría en stock negativo.");
       return;
     }
@@ -1630,13 +1679,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       });
       await fetchDetail(selectedProduct.id);
       await load();
-      setAdjustOpen(false);
-      setAdjustBranch(0);
-      setAdjustType("");
-      setAdjustQuantity(0);
-      setAdjustFieldErrors({});
-      setAdjustReason("");
-      setAdjustObservations("");
+      resetAdjustmentForm();
     } catch (err: unknown) {
       setAdjustError(getErrorMessage(err, "Error al aplicar ajuste."));
     } finally {
@@ -2509,28 +2552,44 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
                     {/* Action buttons under stock table */}
                     {selectedProduct.inventories.length > 0 && (
-                      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: isMobile ? "wrap" : undefined }}>
+                      <div style={{
+                        display: "grid",
+                        gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(3, max-content)",
+                        gap: 8,
+                        marginTop: 12,
+                        alignItems: "center",
+                      }}>
                         <button
-                          onClick={() => {
-                            setAdjustError(null);
-                            setAdjustOpen(true);
-                            if (user?.role === "GERENTE" && user.branch?.id) {
-                              setAdjustBranch(user.branch.id);
-                            } else {
-                              setAdjustBranch(0);
-                            }
-                          }}
+                          onClick={() => openAdjustmentModal("stock")}
                           disabled={user?.role === "GERENTE" && !selectedProduct.inventories.some((inv) => inv.branchId === user.branch?.id)}
                           style={{
                             ...ui.ghostBtn,
+                            ...styles.inventoryActionButton,
                             color: "#b45309",
                             borderColor: "#fcd34d",
                             backgroundColor: "#fffbeb",
                             opacity: (user?.role === "GERENTE" && !selectedProduct.inventories.some((inv) => inv.branchId === user.branch?.id)) ? 0.5 : 1,
-                            ...(isMobile ? { flex: 1, justifyContent: "center" } : {}),
+                            ...(isMobile ? styles.inventoryActionButtonMobile : {}),
                           }}
                         >
+                          <PackagePlus size={15} />
                           Ajustar stock
+                        </button>
+                        <button
+                          onClick={() => openAdjustmentModal("inventory")}
+                          disabled={user?.role === "GERENTE" && !selectedProduct.inventories.some((inv) => inv.branchId === user.branch?.id)}
+                          style={{
+                            ...ui.ghostBtn,
+                            ...styles.inventoryActionButton,
+                            color: "var(--accent-strong)",
+                            borderColor: "#93c5fd",
+                            backgroundColor: "var(--accent-soft)",
+                            opacity: (user?.role === "GERENTE" && !selectedProduct.inventories.some((inv) => inv.branchId === user.branch?.id)) ? 0.5 : 1,
+                            ...(isMobile ? styles.inventoryActionButtonMobile : {}),
+                          }}
+                        >
+                          <ClipboardCheck size={15} />
+                          Ajustar inventario
                         </button>
                         {selectedProduct.inventories.length > 1 &&
                           (user?.role !== "GERENTE" ||
@@ -2539,9 +2598,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                               onClick={() => { setTransferError(null); setTransferOpen(true); }}
                               style={{
                                 ...ui.ghostBtn,
+                                ...styles.inventoryActionButton,
                                 color: "#7c3aed",
                                 borderColor: "#c4b5fd",
                                 backgroundColor: "#f5f3ff",
+                                ...(isMobile ? { ...styles.inventoryActionButtonMobile, gridColumn: "1 / -1" } : {}),
                               }}
                             >
                               Trasladar stock
@@ -2896,30 +2957,83 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
       {/* =================== SUB-MODAL: AJUSTAR STOCK =================== */}
       {adjustOpen && selectedProduct && (() => {
-        const currentStock = selectedProduct.inventories.find((inv) => inv.branchId === adjustBranch)?.quantity ?? 0;
-        const expectedStock = adjustType === "RECOUNT"
-          ? adjustQuantity
-          : adjustType === "ENTRADA"
-            ? currentStock + adjustQuantity
-            : currentStock - adjustQuantity;
-        const diff = adjustType === "RECOUNT" ? adjustQuantity - currentStock : null;
+        const selectedInventory = selectedProduct.inventories.find((inv) => inv.branchId === adjustBranch);
+        const currentStock = selectedInventory?.quantity ?? 0;
+        const activeAdjustType: InventoryAdjustmentType = adjustMode === "inventory" ? "RECOUNT" : adjustType;
+        const hasQuantity = adjustQuantity > 0;
+        const expectedStock = !hasQuantity
+          ? currentStock
+          : activeAdjustType === "RECOUNT"
+            ? adjustQuantity
+            : activeAdjustType === "ENTRADA"
+              ? currentStock + adjustQuantity
+              : currentStock - adjustQuantity;
+        const quantityChangePreview = hasQuantity ? expectedStock - currentStock : 0;
+        const isInventoryCount = adjustMode === "inventory";
+        const isNegativeResult = hasQuantity && expectedStock < 0;
+        const quantityLabel = isInventoryCount
+          ? "Existencia fisica contada *"
+          : `Cantidad a ${activeAdjustType === "ENTRADA" ? "agregar" : activeAdjustType === "MERMA" ? "reportar como merma" : "retirar"} *`;
+        const movementLabel = isInventoryCount
+          ? "Conteo fisico"
+          : activeAdjustType === "ENTRADA"
+            ? "Entrada"
+            : activeAdjustType === "SALIDA"
+              ? "Salida"
+              : activeAdjustType === "MERMA"
+                ? "Merma"
+                : "Sin seleccionar";
+        const resultTone = quantityChangePreview > 0
+          ? "var(--color-success)"
+          : quantityChangePreview < 0
+            ? "var(--color-danger)"
+            : "var(--text-muted)";
+        const canSubmitAdjustment = Boolean(
+          adjustBranch &&
+          activeAdjustType &&
+          adjustReason.trim() &&
+          hasQuantity &&
+          quantityChangePreview !== 0 &&
+          !adjustFieldErrors.quantity &&
+          !isNegativeResult &&
+          !adjustSaving
+        );
 
         return (
-          <div style={subModalStyle} onClick={() => { if (!adjustSaving) setAdjustOpen(false); }}>
-            <div style={{ ...ui.modal, maxWidth: 500 }} onClick={(e) => e.stopPropagation()}>
-              <div style={ui.modalHeader}>
-                <div style={ui.modalTitle}>⚙️ Ajustar stock — {selectedProduct.name}</div>
-                <button onClick={() => setAdjustOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }} disabled={adjustSaving}>
+          <div style={{ ...subModalStyle, ...(isMobile ? styles.subModalOverlayMobile : {}) }} onClick={closeAdjustmentModal}>
+            <div style={{ ...ui.modal, ...styles.adjustModal, ...(isMobile ? styles.adjustModalMobile : {}) }} onClick={(e) => e.stopPropagation()}>
+              <div style={{ ...ui.modalHeader, ...(isMobile ? styles.adjustModalHeaderMobile : {}) }}>
+                <div style={styles.adjustTitleBlock}>
+                  <div style={ui.modalTitle}>{isInventoryCount ? "Ajustar inventario" : "Ajustar stock"}</div>
+                  <div style={styles.adjustProductMeta}>
+                    {selectedProduct.sku} - {selectedProduct.name}
+                  </div>
+                </div>
+                <button onClick={closeAdjustmentModal} style={{ ...ui.ghostBtn, padding: "6px 10px" }} disabled={adjustSaving} aria-label="Cerrar ajuste de inventario">
                   <X size={16} />
                 </button>
               </div>
-              <div style={ui.modalBody}>
+              <div style={{ ...ui.modalBody, ...(isMobile ? styles.adjustModalBodyMobile : {}) }}>
+                <div style={styles.adjustModeHint}>
+                  {isInventoryCount
+                    ? "Captura la existencia fisica contada. El sistema calculara la diferencia contra el stock registrado."
+                    : "Registra una entrada, salida o merma. La cantidad se suma o resta al stock actual."}
+                </div>
+
                 {/* Sucursal */}
                 <div style={{ marginBottom: 16 }}>
                   <label style={ui.fieldLabel}>Sucursal *</label>
                   <select
                     value={adjustBranch || ""}
-                    onChange={(e) => { setAdjustBranch(Number(e.target.value)); setAdjustType(""); setAdjustQuantity(0); setAdjustReason(""); }}
+                    onChange={(e) => {
+                      const nextBranch = Number(e.target.value);
+                      setAdjustBranch(nextBranch);
+                      setAdjustType(isInventoryCount && nextBranch > 0 ? "RECOUNT" : "");
+                      setAdjustQuantity(0);
+                      setAdjustReason("");
+                      setAdjustFieldErrors({});
+                      setAdjustError(null);
+                    }}
                     disabled={user?.role === "GERENTE"}
                     style={{ ...ui.input, cursor: user?.role === "GERENTE" ? "default" : "pointer" }}
                   >
@@ -2937,31 +3051,44 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 {adjustBranch > 0 && (
                   <>
                     {/* Stock actual destacado */}
-                    <div style={{ background: "var(--accent-soft)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "var(--accent)" }}>
-                      Stock actual: <strong>{currentStock} unidades</strong>
+                    <div style={styles.adjustCurrentBox}>
+                      <span style={styles.adjustSummaryLabel}>Existencia registrada</span>
+                      <strong style={styles.adjustCurrentValue}>{currentStock} unidades</strong>
                     </div>
 
                     {/* Tipo de movimiento */}
-                    <div style={{ marginBottom: 16 }}>
-                      <label style={ui.fieldLabel}>Tipo de movimiento *</label>
-                      <select
-                        value={adjustType}
-                        onChange={(e) => { setAdjustType(e.target.value); setAdjustQuantity(0); setAdjustReason(""); }}
-                        style={{ ...ui.input, cursor: "pointer" }}
-                      >
-                        <option value="">Selecciona tipo...</option>
-                        <option value="RECOUNT">RECONTEO — Declarar stock final real</option>
-                        <option value="ENTRADA">ENTRADA — Agregar unidades</option>
-                        <option value="SALIDA">SALIDA — Quitar unidades</option>
-                        <option value="MERMA">MERMA — Rotura, expiración, pérdida</option>
-                      </select>
-                    </div>
+                    {isInventoryCount ? (
+                      <div style={styles.adjustReadOnlyBox}>
+                        <span style={styles.adjustSummaryLabel}>Tipo de operacion</span>
+                        <strong>Reconteo - declarar existencia final</strong>
+                      </div>
+                    ) : (
+                      <div style={{ marginBottom: 16 }}>
+                        <label style={ui.fieldLabel}>Tipo de movimiento *</label>
+                        <select
+                          value={adjustType}
+                          onChange={(e) => {
+                            setAdjustType(e.target.value as InventoryAdjustmentType);
+                            setAdjustQuantity(0);
+                            setAdjustReason("");
+                            setAdjustFieldErrors({});
+                            setAdjustError(null);
+                          }}
+                          style={{ ...ui.input, cursor: "pointer" }}
+                        >
+                          <option value="">Selecciona tipo...</option>
+                          <option value="ENTRADA">ENTRADA - Agregar unidades</option>
+                          <option value="SALIDA">SALIDA - Quitar unidades</option>
+                          <option value="MERMA">MERMA - Rotura, expiracion, perdida</option>
+                        </select>
+                      </div>
+                    )}
 
                     {/* Cantidad con preview */}
                     {adjustType && (
                       <div style={{ marginBottom: 16 }}>
                         <label style={ui.fieldLabel}>
-                          {adjustType === "RECOUNT" ? "Stock final declarado (reconteo) *" : `Cantidad a ${adjustType === "ENTRADA" ? "agregar" : "retirar"} *`}
+                          {quantityLabel}
                         </label>
                         <input
                           type="text"
@@ -2973,18 +3100,6 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                           autoFocus
                         />
                         {adjustFieldErrors.quantity && <p style={styles.fieldError}>{adjustFieldErrors.quantity}</p>}
-                        {adjustQuantity > 0 && (
-                          adjustType === "RECOUNT" ? (
-                            <p style={{ fontSize: 12, color: diff === 0 ? "var(--text-muted)" : diff! > 0 ? "var(--color-success)" : "var(--color-danger)", marginTop: 4 }}>
-                              Diferencia: {diff! > 0 ? "+" : ""}{diff} uds. → Stock quedará en <strong>{expectedStock}</strong>
-                            </p>
-                          ) : (
-                            <p style={{ fontSize: 12, color: "var(--accent-strong)", marginTop: 4 }}>
-                              Stock esperado: <strong>{expectedStock}</strong> uds.
-                              {expectedStock < 0 && <span style={{ color: "#b91c1c" }}> (stock negativo — no permitido)</span>}
-                            </p>
-                          )
-                        )}
                       </div>
                     )}
 
@@ -2994,7 +3109,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         <label style={ui.fieldLabel}>Motivo *</label>
                         <select
                           value={adjustReason}
-                          onChange={(e) => setAdjustReason(e.target.value)}
+                          onChange={(e) => { setAdjustReason(e.target.value); setAdjustError(null); }}
                           style={{ ...ui.input, cursor: "pointer" }}
                         >
                           <option value="">Selecciona motivo...</option>
@@ -3048,14 +3163,42 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                   </>
                 )}
 
+                {adjustBranch > 0 && adjustType && (
+                  <div style={styles.adjustPreviewBox}>
+                    <div style={styles.adjustPreviewTitle}>Resumen antes de confirmar</div>
+                    <div style={styles.adjustPreviewGrid}>
+                      <span>Existencia actual</span>
+                      <strong>{currentStock}</strong>
+                      <span>Operacion</span>
+                      <strong>{movementLabel}</strong>
+                      <span>{isInventoryCount ? "Existencia fisica" : "Cantidad"}</span>
+                      <strong>{hasQuantity ? adjustQuantity : "-"}</strong>
+                      <span>Diferencia</span>
+                      <strong style={{ color: resultTone }}>
+                        {hasQuantity ? `${quantityChangePreview > 0 ? "+" : ""}${quantityChangePreview}` : "-"}
+                      </strong>
+                      <span>Existencia resultante</span>
+                      <strong style={{ color: isNegativeResult ? "var(--color-danger)" : "var(--text)" }}>
+                        {hasQuantity ? expectedStock : "-"}
+                      </strong>
+                    </div>
+                    {isNegativeResult && (
+                      <div style={styles.adjustPreviewError}>El resultado no puede ser negativo.</div>
+                    )}
+                    {hasQuantity && quantityChangePreview === 0 && (
+                      <div style={styles.adjustPreviewError}>No hay diferencia por registrar.</div>
+                    )}
+                  </div>
+                )}
+
                 {adjustError && (
-                  <p style={{ fontSize: 13, color: "var(--color-danger)", marginBottom: 12 }}>{adjustError}</p>
+                  <p style={styles.adjustErrorText}>{adjustError}</p>
                 )}
               </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid var(--border)" }}>
-                <button onClick={() => setAdjustOpen(false)} style={ui.ghostBtn}>Cancelar</button>
-                <button onClick={submitAdjustment} style={ui.primaryBtn} disabled={!adjustBranch || !adjustType || !adjustReason}>
-                  ✓ Aplicar ajuste
+              <div style={{ ...styles.adjustFooter, ...(isMobile ? styles.adjustFooterMobile : {}) }}>
+                <button onClick={closeAdjustmentModal} style={{ ...ui.ghostBtn, justifyContent: "center" }} disabled={adjustSaving}>Cancelar</button>
+                <button onClick={submitAdjustment} style={{ ...ui.primaryBtn, justifyContent: "center" }} disabled={!canSubmitAdjustment}>
+                  {adjustSaving ? "Aplicando..." : isInventoryCount ? "Confirmar conteo" : "Aplicar ajuste"}
                 </button>
               </div>
             </div>
@@ -3719,6 +3862,149 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     gap: 8,
     flexWrap: "wrap",
+  },
+  inventoryActionButton: {
+    minHeight: 38,
+    justifyContent: "center",
+    gap: 6,
+    whiteSpace: "normal",
+    textAlign: "center",
+  },
+  inventoryActionButtonMobile: {
+    width: "100%",
+    minWidth: 0,
+    padding: "8px 9px",
+    fontSize: 12,
+    lineHeight: 1.2,
+  },
+  subModalOverlayMobile: {
+    padding: 12,
+    alignItems: "center",
+  },
+  adjustModal: {
+    maxWidth: 540,
+    width: "min(540px, calc(100vw - 32px))",
+    maxHeight: "calc(100vh - 40px)",
+  },
+  adjustModalMobile: {
+    width: "calc(100vw - 24px)",
+    maxHeight: "calc(100dvh - 24px)",
+    borderRadius: 10,
+  },
+  adjustModalHeaderMobile: {
+    padding: "14px 16px",
+    gap: 12,
+  },
+  adjustModalBodyMobile: {
+    padding: 16,
+  },
+  adjustTitleBlock: {
+    minWidth: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: 3,
+  },
+  adjustProductMeta: {
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 700,
+    overflowWrap: "anywhere",
+  },
+  adjustModeHint: {
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    backgroundColor: "var(--surface-2)",
+    color: "var(--text-muted)",
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 700,
+    lineHeight: 1.45,
+    marginBottom: 14,
+  },
+  adjustFormGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: 14,
+  },
+  adjustCurrentBox: {
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    backgroundColor: "var(--accent-soft)",
+    padding: "10px 14px",
+    marginBottom: 16,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+  },
+  adjustReadOnlyBox: {
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    backgroundColor: "var(--surface-2)",
+    padding: "10px 12px",
+    marginBottom: 16,
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  adjustSummaryLabel: {
+    color: "var(--text-muted)",
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.3px",
+  },
+  adjustCurrentValue: {
+    color: "var(--accent-strong)",
+    fontSize: 14,
+  },
+  adjustPreviewBox: {
+    border: "1px solid var(--border)",
+    borderRadius: 10,
+    backgroundColor: "var(--surface-2)",
+    padding: 12,
+    marginTop: 2,
+    marginBottom: 12,
+  },
+  adjustPreviewTitle: {
+    color: "var(--accent-strong)",
+    fontSize: 12,
+    fontWeight: 900,
+    marginBottom: 8,
+  },
+  adjustPreviewGrid: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) auto",
+    gap: "7px 12px",
+    alignItems: "center",
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  adjustPreviewError: {
+    color: "var(--color-danger)",
+    fontSize: 12,
+    fontWeight: 800,
+    marginTop: 8,
+  },
+  adjustErrorText: {
+    fontSize: 13,
+    color: "var(--color-danger)",
+    fontWeight: 700,
+    margin: "0 0 12px",
+  },
+  adjustFooter: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: 10,
+    padding: "14px 22px",
+    borderTop: "1px solid var(--border)",
+    flexShrink: 0,
+  },
+  adjustFooterMobile: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    padding: "12px 16px",
   },
   fieldError: {
     color: "var(--color-danger)",

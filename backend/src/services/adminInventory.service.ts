@@ -4,6 +4,7 @@ import { AppError } from "../utils/AppError";
 
 const PRODUCT_TEXT_REGEX = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü0-9\s.,#\-/()]+$/;
 const MOVEMENT_TYPE_REGEX = /^[A-Z_]+$/;
+const INVENTORY_ADJUSTMENT_MOVEMENT_TYPES = new Set(["AJUSTE_INVENTARIO", "AJUSTE_MERMA"]);
 
 // Normaliza texto eliminando acentos y pasando a minúsculas
 const normalizeSearchText = (value: string): string =>
@@ -273,8 +274,8 @@ export const adjustInventory = async (params: {
     throw new AppError("Acceso denegado. Solo puede ajustar el inventario de su sucursal.", 403);
   }
 
-  if (!MOVEMENT_TYPE_REGEX.test(params.movementType)) {
-    throw new AppError("El tipo de movimiento contiene caracteres no permitidos.", 400);
+  if (!MOVEMENT_TYPE_REGEX.test(params.movementType) || !INVENTORY_ADJUSTMENT_MOVEMENT_TYPES.has(params.movementType)) {
+    throw new AppError("El tipo de movimiento no es valido.", 400);
   }
   if (!PRODUCT_TEXT_REGEX.test(params.reason)) {
     throw new AppError("El motivo contiene caracteres no permitidos.", 400);
