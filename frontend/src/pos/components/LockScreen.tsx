@@ -44,7 +44,7 @@ export function LockScreen({
     if (pinCode.length === 4 && !unlockLoading) {
       try {
         await unlock(pinCode);
-      } catch (err) {
+      } catch {
         setPinCode("");
         hiddenInputRef.current?.focus();
       }
@@ -79,7 +79,6 @@ export function LockScreen({
     };
 
     window.addEventListener("keydown", handlePhysicalKeyDown);
-    // Auto-focus physical input reference for focus retention on desktop
     hiddenInputRef.current?.focus();
 
     return () => {
@@ -94,10 +93,11 @@ export function LockScreen({
       className="pos-lock-overlay"
       onClick={() => hiddenInputRef.current?.focus()}
     >
-      {/* Hidden text input to trigger focus/keyboard easily on mobile/desktop */}
+      {/* Input oculto — captura el teclado físico sin mostrarse */}
       <input
         ref={hiddenInputRef}
         type="password"
+        inputMode="none"
         pattern="\d*"
         maxLength={4}
         value={pinCode}
@@ -119,15 +119,17 @@ export function LockScreen({
       />
 
       <div className="pos-lock-card" onClick={(e) => e.stopPropagation()}>
-        <div className="pos-lock-header">
-          <div className="pos-lock-icon-container">
-            <Lock size={32} className="pos-lock-icon" />
-          </div>
-          <h2 className="pos-lock-title">PANTALLA BLOQUEADA</h2>
-          <p className="pos-lock-subtitle">Ingresa tu PIN para continuar</p>
+
+        {/* Icono */}
+        <div className="pos-lock-icon-container">
+          <Lock size={32} className="pos-lock-icon" />
         </div>
 
-        {/* User Card */}
+        {/* Títulos */}
+        <h2 className="pos-lock-title">Pantalla bloqueada</h2>
+        <p className="pos-lock-subtitle">Ingresa tu PIN para continuar</p>
+
+        {/* Badge del usuario */}
         <div className="pos-lock-user-badge">
           <div className="pos-lock-user-avatar">
             {user?.name ? user.name.slice(0, 2).toUpperCase() : "CA"}
@@ -138,7 +140,7 @@ export function LockScreen({
           </div>
         </div>
 
-        {/* PIN Dots Display */}
+        {/* Puntos PIN */}
         <div className="pos-lock-dots-display">
           {dots.map((_, i) => (
             <div
@@ -148,33 +150,16 @@ export function LockScreen({
           ))}
         </div>
 
-        {/* Unlock Error alert */}
-        {unlockError && <div className="pos-lock-error-alert">{unlockError}</div>}
+        {/* Error de desbloqueo */}
+        {unlockError && (
+          <div className="pos-lock-error-alert">{unlockError}</div>
+        )}
 
-        {/* Numeric Keypad */}
-        <div className="pos-lock-keypad" style={{ marginTop: "16px" }}>
-          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("1")} disabled={unlockLoading}>1</button>
-          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("2")} disabled={unlockLoading}>2</button>
-          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("3")} disabled={unlockLoading}>3</button>
-          
-          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("4")} disabled={unlockLoading}>4</button>
-          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("5")} disabled={unlockLoading}>5</button>
-          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("6")} disabled={unlockLoading}>6</button>
-          
-          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("7")} disabled={unlockLoading}>7</button>
-          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("8")} disabled={unlockLoading}>8</button>
-          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("9")} disabled={unlockLoading}>9</button>
-          
-          <button type="button" className="pos-keypad-btn action" onClick={handleClear} disabled={unlockLoading} style={{ color: "#dc2626" }}>C</button>
-          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("0")} disabled={unlockLoading}>0</button>
-          <button type="button" className="pos-keypad-btn action" onClick={handleBackspace} disabled={unlockLoading}>⌫</button>
-        </div>
-
-        {/* Physical Keyboard Tip */}
-        <p className="pos-lock-keyboard-tip" style={{ marginTop: "20px" }}>
+        {/* Instrucción de teclado */}
+        <p className="pos-lock-keyboard-tip">
           {unlockLoading
-            ? "Desbloqueando..."
-            : "Utiliza tu teclado numérico para continuar"}
+            ? "Verificando PIN..."
+            : "Usa el teclado numérico físico para ingresar tu PIN"}
         </p>
 
       </div>
