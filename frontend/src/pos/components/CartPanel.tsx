@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Minus, Plus, XCircle, Tag } from "lucide-react";
+import { Minus, Plus, XCircle, Tag, ShoppingCart } from "lucide-react";
 import { usePosCart } from "../hooks/usePosCart";
 
 interface ActivePromotion {
@@ -187,7 +187,7 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
               <tr>
                 <td colSpan={hasDiscounts ? 7 : 6} style={{ textAlign: "center", padding: "16px 0", color: "var(--pos-text-muted, #94a3b8)", background: "var(--pos-surface-2, #f8fafc)" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
-                    <span style={{ fontSize: "16px" }}>🛒</span>
+                    <span style={{ marginBottom: "4px" }}><ShoppingCart size={16} color="#94a3b8" /></span>
                     <span style={{ fontSize: "12px", fontWeight: "500" }}>Sin productos. Escanee o busque.</span>
                   </div>
                 </td>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { RotateCcw, KeyRound, Minus, Plus, Check, Loader2 } from "lucide-react";
+import { RotateCcw, KeyRound, Minus, Plus, Check, Loader2, CheckCircle } from "lucide-react";
 import { PosModal, PosStepper } from "./shared";
 import { getEligibleReturn, submitReturn } from '../../../facturacion';
 import { openTicketPrintWindow } from "../../../shared/utils/ticketEmailDocument.util";
@@ -717,7 +717,7 @@ export default function ReturnsModal({
                 fontSize: "13px",
                 color: "#166534"
               }}>
-                <strong style={{ fontSize: "14px", display: "block", marginBottom: "6px" }}>✅ Folio Validado Exitosamente</strong>
+                <strong style={{ fontSize: "14px", display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}><CheckCircle size={14} color="#166534" /> Folio Validado Exitosamente</strong>
                 <div><strong>Fecha de venta:</strong> {new Date(returnSaleData.createdAt).toLocaleDateString()}</div>
                 <div><strong>Cliente:</strong> {returnSaleData.customerName || "Público General"}</div>
                 <div><strong>Total pagado:</strong> ${Number(returnSaleData.totalAmount).toFixed(2)}</div>

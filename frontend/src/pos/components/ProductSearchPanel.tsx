@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Search } from "lucide-react";
+import { Search, XCircle, CheckCircle } from "lucide-react";
 import { usePosSearch } from "../hooks/usePosSearch";
 import { usePosCart } from "../hooks/usePosCart";
 
@@ -154,7 +154,11 @@ export function ProductSearchPanel({ searchData, cartData }: ProductSearchPanelP
                     display: "inline-block",
                     width: "fit-content",
                   }}>
-                    {p.stock === 0 ? "❌ Sin stock" : `✅ ${p.stock} en stock`}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                      {p.stock === 0
+                        ? <><XCircle size={11} color="#b91c1c" /> Sin stock</>
+                        : <><CheckCircle size={11} color="#15803d" /> {p.stock} en stock</>}
+                    </span>
                   </span>
                 </div>
                 {/* Precio */}

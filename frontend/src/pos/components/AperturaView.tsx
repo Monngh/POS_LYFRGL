@@ -1,5 +1,5 @@
 import React from "react";
-import { LogOut, Store, Users, Sun, Moon } from "lucide-react";
+import { LogOut, Store, Users, Sun, Moon, ArrowRight } from "lucide-react";
 import { DECIMAL_INPUT_REGEX, handleDecimalInputChange } from "../../shared/utils/decimalInput";
 import { useCashSession } from "../hooks/useCashSession";
 import { usePosTheme, togglePosTheme } from "../../shared/hooks/usePosTheme";
@@ -130,7 +130,7 @@ export function AperturaView({ sessionData, user, currentTime, onLogout }: Apert
               className="btn-primary active-tap"
               style={{ ...styles.submitBtn, width: "100%", marginTop: "24px" }}
             >
-              {openingLoading ? "Abriendo Caja..." : "ABRIR TURNO ➔"}
+              {openingLoading ? "Abriendo Caja..." : <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>ABRIR TURNO <ArrowRight size={16} /></span>}
             </button>
           </div>
         </div>

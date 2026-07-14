@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { ChevronDown, ChevronUp, Tag, Search, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Tag, Search, X, ShoppingCart } from "lucide-react";
 import api from "../../shared/services/api";
 
 interface Promotion {
@@ -381,7 +381,7 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
               borderRadius: "8px",
               marginBottom: "4px"
             }}>
-              <span style={{ fontSize: "16px", marginBottom: "4px" }}>{searchQuery ? "🔍" : "🛒"}</span>
+              <span style={{ marginBottom: "4px" }}>{searchQuery ? <Search size={16} color="#94a3b8" /> : <ShoppingCart size={16} color="#94a3b8" />}</span>
               <span style={{ fontSize: "12px", fontWeight: "600" }}>
                 {searchQuery
                   ? `Sin resultados para "${searchQuery}"`

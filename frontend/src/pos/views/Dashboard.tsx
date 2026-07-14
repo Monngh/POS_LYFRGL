@@ -36,7 +36,7 @@ import {
   validateInteger,
   validateReference,
 } from "../../shared/utils/formValidation";
-import { Printer, AlertTriangle, Mail, CreditCard, Trash2, X, RefreshCw, RefreshCcw } from "lucide-react";
+import { Printer, AlertTriangle, Mail, CreditCard, Trash2, X, RefreshCw, RefreshCcw, ExternalLink, Bell } from "lucide-react";
 
 
 
@@ -935,7 +935,11 @@ const Dashboard: React.FC = () => {
           textAlign: "center",
         }}
       >
-        <div style={{ fontSize: "48px", marginBottom: "16px", lineHeight: 1 }}>⚠ </div>
+        <div style={{ marginBottom: "16px", display: "flex", justifyContent: "center" }}>
+          <div style={{ width: "64px", height: "64px", borderRadius: "50%", backgroundColor: "#fef2f2", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <AlertTriangle size={32} color="#ef4444" />
+          </div>
+        </div>
         <h2
           style={{
             fontSize: "20px",
@@ -1332,7 +1336,7 @@ const Dashboard: React.FC = () => {
                          borderRadius: "6px" 
                        }}
                      >
-                       🔗 Abrir enlace de pago / Sandbox
+                       <ExternalLink size={12} style={{ marginRight: "4px", verticalAlign: "middle" }} /> Abrir enlace de pago / Sandbox
                      </a>
                    </div>
                  </>
@@ -1352,8 +1356,8 @@ const Dashboard: React.FC = () => {
                 flexDirection: "column",
                 gap: "10px"
               }}>
-                <div style={{ fontSize: "11px", fontWeight: "700", color: "#dc2626", textTransform: "uppercase" }}>
-                  ⚠ ️Cancelar Venta (Revertir Stock)
+                <div style={{ fontSize: "11px", fontWeight: "700", color: "#dc2626", textTransform: "uppercase", display: "flex", alignItems: "center", gap: "4px" }}>
+                  <AlertTriangle size={12} /> Cancelar Venta (Revertir Stock)
                 </div>
                 
                 <div style={{ display: "flex", gap: "8px" }}>

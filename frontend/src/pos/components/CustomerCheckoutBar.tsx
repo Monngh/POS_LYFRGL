@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Eye, EyeOff, UserPlus } from "lucide-react";
+import { Eye, EyeOff, UserPlus, AlertTriangle, X } from "lucide-react";
 import { usePosCustomer } from "../hooks/usePosCustomer";
 import { usePosCart } from "../hooks/usePosCart";
 import { PosModal } from "./modals/shared/PosModal";
@@ -254,8 +254,8 @@ export function CustomerCheckoutBar({ customerData, cartData, onToast }: Custome
                 gap: "8px",
               }}
             >
-              <span style={{ fontSize: "12px", color: "#92400e", fontWeight: "600" }}>
-                ⚠️ Teléfono no registrado
+              <span style={{ fontSize: "12px", color: "#92400e", fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                <AlertTriangle size={12} color="#92400e" /> Teléfono no registrado
               </span>
               <button
                 type="button"
@@ -427,7 +427,7 @@ export function CustomerCheckoutBar({ customerData, cartData, onToast }: Custome
           data-shortcut-key="F6"
         >
           <span className="pos-fkey-badge" style={{ fontSize: "9px", padding: "2px 4px", whiteSpace: "nowrap", position: "static" }}>F6</span>
-          <span style={{ fontSize: "12px" }}>❌</span>
+          <X size={13} color="#b91c1c" />
         </button>
       </div>
     </div>
