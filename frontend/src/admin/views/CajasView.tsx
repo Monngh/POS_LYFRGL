@@ -1139,11 +1139,37 @@ const CajasView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFilters
             </div>
           ) : (
             // ---- ESCRITORIO: Tabla Historial con más altura ----
-            <div
-              className="table-sticky-head"
-              style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}
-            >
-              <table style={{ ...ui.table, fontSize: 13 }}>
+        <div
+          className="table-sticky-head"
+          style={{
+            ...ui.tableWrap,
+            overflowX: "auto",
+            overflowY: "auto",
+            height: "calc(100vh - 275px)",
+          }}
+        >
+          <style>{`
+            /* Permite que el scrollbar vertical se superponga (overlay) para que las filas ocupen el 100% del ancho */
+            .table-sticky-head {
+              overflow-y: overlay !important;
+            }
+            /* Estilos premium para los scrollbars del contenedor de la tabla */
+            .table-sticky-head::-webkit-scrollbar {
+              width: 8px;
+              height: 8px;
+            }
+            .table-sticky-head::-webkit-scrollbar-track {
+              background: transparent;
+            }
+            .table-sticky-head::-webkit-scrollbar-thumb {
+              background: var(--border-strong);
+              border-radius: 4px;
+            }
+            .table-sticky-head::-webkit-scrollbar-thumb:hover {
+              background: var(--accent);
+            }
+          `}</style>
+          <table style={{ ...ui.table, fontSize: 13 }}>
                 <thead style={{ ...ui.theadRow, position: "sticky", top: 0, zIndex: 2, backgroundColor: "#f1f5f9" }}>
                   <tr>
                     <th style={{ ...ui.th, fontSize: 12, padding: "18px 16px", whiteSpace: "nowrap", minWidth: 100, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>Cajero</th>

@@ -25,7 +25,9 @@ import {
   Badge,
   SectionHeader,
   fmtDate,
-  useMediaQuery
+  useMediaQuery,
+  usePagination,
+  Pagination,
 } from "./shared";
 
 // ---------------------------------------------------------------------------
@@ -331,6 +333,8 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
     return true;
   });
 
+  const paged = usePagination(filteredRows, { resetKey: `${debouncedSearch}|${statusFilter}` });
+
   // ---------------------------------------------------------------------------
   // Estilo del botón Guardar según estado
   // ---------------------------------------------------------------------------
@@ -469,7 +473,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
               {error}
             </div>
           )}
-          {!loading && !error && filteredRows.length === 0 && (
+          {!loading && !error && paged.total === 0 && (
             <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               No hay sucursales registradas.
             </div>
@@ -477,7 +481,7 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
           {!loading &&
             !error &&
-            filteredRows.map((b) => {
+            paged.pageItems.map((b) => {
               const isExpanded = expandedBranches[b.id];
               return (
                 <div
@@ -623,14 +627,49 @@ const SucursalesView: React.FC<ViewProps> = ({ refreshToken }) => {
         </div>
       ) : (
         <div className="table-sticky-head">
+          <style>{`
+            .table-sticky-head table {
+              width: 100%;
+            }
+            .table-sticky-head thead th {
+              position: sticky;
+              top: 0;
+              z-index: 1;
+              background: var(--surface-2);
+            }
+            /* Permite que el scrollbar vertical se superponga (overlay) para que las filas ocupen el 100% del ancho */
+            .table-sticky-head > div {
+              overflow-y: overlay !important;
+            }
+            /* Estilos premium para los scrollbars del contenedor de la tabla */
+            .table-sticky-head > div::-webkit-scrollbar {
+              width: 8px;
+              height: 8px;
+            }
+            .table-sticky-head > div::-webkit-scrollbar-track {
+              background: transparent;
+            }
+            .table-sticky-head > div::-webkit-scrollbar-thumb {
+              background: var(--border-strong);
+              border-radius: 4px;
+            }
+            .table-sticky-head > div::-webkit-scrollbar-thumb:hover {
+              background: var(--accent);
+            }
+          `}</style>
           <DataTable
             columns={columns}
-            data={filteredRows}
+            data={paged.pageItems}
             loading={loading}
             error={error}
             keyExtractor={(b) => b.id}
+            height="calc(100vh - 275px)"
           />
         </div>
+      )}
+
+      {!loading && !error && (
+        <Pagination page={paged.page} pageCount={paged.pageCount} total={paged.total} from={paged.from} to={paged.to} onPage={paged.setPage} itemLabel="sucursales" />
       )}
 
       {/* ------------------------------------------------------------------- */}

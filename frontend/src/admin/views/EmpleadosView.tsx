@@ -1105,7 +1105,16 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
       {isMobile ? renderMobileView() : (
         <div className="table-sticky-head">
-          <DataTable columns={columns} data={paged.pageItems} loading={loading} error={error} keyExtractor={(u) => u.id} />
+          <style>{`
+            .table-sticky-head table { width: 100%; }
+            .table-sticky-head thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-2); }
+            .table-sticky-head > div { overflow-y: overlay !important; }
+            .table-sticky-head > div::-webkit-scrollbar { width: 8px; height: 8px; }
+            .table-sticky-head > div::-webkit-scrollbar-track { background: transparent; }
+            .table-sticky-head > div::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+            .table-sticky-head > div::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+          `}</style>
+          <DataTable columns={columns} data={paged.pageItems} loading={loading} error={error} keyExtractor={(u) => u.id} height="calc(100vh - 275px)" />
         </div>
       )}
 

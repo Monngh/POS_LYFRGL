@@ -248,7 +248,23 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
     { params: debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {} }
   );
   const rows = data?.customers ?? [];
-  const paged = usePagination(rows, { resetKey: debouncedSearch });
+
+  // Calcula cuántas filas caben en pantalla según la altura disponible.
+  // 64px topbar + 24px padding-top + 24px padding-bottom + ~60px sectionHeader
+  // + ~54px toolbar + ~46px pagination (reservado) + 42px thead = 314px fijos.
+  // Cada fila ocupa ~50px (padding 13px×2 + contenido ~24px).
+  const [dynPageSize, setDynPageSize] = useState(10);
+  useEffect(() => {
+    const ROW_H = 50;
+    const FIXED = 314; // offsets fijos arriba descritos
+    const compute = () =>
+      setDynPageSize(Math.max(5, Math.floor((window.innerHeight - FIXED) / ROW_H)));
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, []);
+
+  const paged = usePagination(rows, { resetKey: debouncedSearch, pageSize: dynPageSize });
 
   const isFirstRender = useRef(true);
   useEffect(() => {
@@ -642,16 +658,36 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
             })}
         </div>
       ) : (
-        <div className="table-sticky-head" style={{ ...ui.tableWrap }}>
+        <div className="table-sticky-head">
           <style>{`
             .table-sticky-head table {
               min-width: 820px;
+              width: 100%;
             }
             .table-sticky-head thead th {
               position: sticky;
               top: 0;
               z-index: 1;
               background: var(--surface-2);
+            }
+            /* Permite que el scrollbar vertical se superponga (overlay) para que las filas ocupen el 100% del ancho */
+            .table-sticky-head > div {
+              overflow-y: overlay !important;
+            }
+            /* Estilos premium para los scrollbars del contenedor de la tabla */
+            .table-sticky-head > div::-webkit-scrollbar {
+              width: 8px;
+              height: 8px;
+            }
+            .table-sticky-head > div::-webkit-scrollbar-track {
+              background: transparent;
+            }
+            .table-sticky-head > div::-webkit-scrollbar-thumb {
+              background: var(--border-strong);
+              border-radius: 4px;
+            }
+            .table-sticky-head > div::-webkit-scrollbar-thumb:hover {
+              background: var(--accent);
             }
           `}</style>
           <DataTable
@@ -660,6 +696,7 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
             loading={loading}
             error={error}
             keyExtractor={(c) => c.id}
+            height="calc(100vh - 275px)"
           />
         </div>
       )}

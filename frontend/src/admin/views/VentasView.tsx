@@ -220,7 +220,25 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFilter
     { params: filterParams }
   );
   const rows = data?.sales ?? [];
-  const paged = usePagination(rows, { resetKey: `${branchId}|${status}|${userIdFilter}|${debouncedSearch}|${dateFrom}|${dateTo}` });
+  // Calcula cuántas filas caben en pantalla según la altura disponible.
+  // 64px topbar + 24px padding-top + 24px padding-bottom + ~60px sectionHeader
+  // + ~54px toolbar + ~46px pagination (reservado) + 42px thead = 314px fijos.
+  // Cada fila ocupa ~50px (padding 13px×2 + contenido ~24px).
+  const [dynPageSize, setDynPageSize] = useState(10);
+  useEffect(() => {
+    const ROW_H = 50;
+    const FIXED = 314; // offsets fijos arriba descritos
+    const compute = () =>
+      setDynPageSize(Math.max(5, Math.floor((window.innerHeight - FIXED) / ROW_H)));
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, []);
+
+  const paged = usePagination(rows, {
+    resetKey: `${branchId}|${status}|${userIdFilter}|${debouncedSearch}|${dateFrom}|${dateTo}`,
+    pageSize: dynPageSize,
+  });
 
   const isFirstRender = useRef(true);
   useEffect(() => {
@@ -414,7 +432,8 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFilter
       </Toolbar>
 
       {isMobile ? (
-        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
+        /* ── Mobile / Tablet: Card-based layout ── */
+        <div style={{ padding: "8px 0" }}>
           {loading && (
             <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               Cargando información...
@@ -604,14 +623,48 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFilter
             })}
         </div>
       ) : (
-        <DataTable
-          columns={columns}
-          data={paged.pageItems}
-          loading={loading}
-          error={error}
-          emptyMessage="No hay ventas con los filtros seleccionados."
-          keyExtractor={(s) => s.id}
-        />
+        <div className="table-sticky-head">
+          <style>{`
+            .table-sticky-head table {
+              min-width: 900px;
+              width: 100%;
+            }
+            .table-sticky-head thead th {
+              position: sticky;
+              top: 0;
+              z-index: 1;
+              background: var(--surface-2);
+            }
+            /* Permite que el scrollbar vertical se superponga (overlay) para que las filas ocupen el 100% del ancho */
+            .table-sticky-head > div {
+              overflow-y: overlay !important;
+            }
+            /* Estilos premium para los scrollbars del contenedor de la tabla */
+            .table-sticky-head > div::-webkit-scrollbar {
+              width: 8px;
+              height: 8px;
+            }
+            .table-sticky-head > div::-webkit-scrollbar-track {
+              background: transparent;
+            }
+            .table-sticky-head > div::-webkit-scrollbar-thumb {
+              background: var(--border-strong);
+              border-radius: 4px;
+            }
+            .table-sticky-head > div::-webkit-scrollbar-thumb:hover {
+              background: var(--accent);
+            }
+          `}</style>
+          <DataTable
+            columns={columns}
+            data={paged.pageItems}
+            loading={loading}
+            error={error}
+            emptyMessage="No hay ventas con los filtros seleccionados."
+            keyExtractor={(s) => s.id}
+            height="calc(100vh - 275px)"
+          />
+        </div>
       )}
 
       {!loading && !error && (

@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Eye, PackagePlus, Pencil, Plus, Power, Tags, X, Calendar } from "lucide-react";
 import api from "../../shared/services/api";
-import { ConfirmModal } from "../../shared/ui";
+import { ConfirmModal, DataTable } from "../../shared/ui";
+import type { Column } from "../../shared/ui";
 import { useToast } from "../../shared/context/ToastContext";
 import AddProductsToPromotionModal from "../components/AddProductsToPromotionModal";
 import type { PromotionAssociatedProductDetail } from "../types/promotions.types";
@@ -19,12 +20,13 @@ import {
   SearchInput,
   FilterSelect,
   Badge,
-  TableState,
   SectionHeader,
   fmtDate,
   moneyExact,
   useMediaQuery,
   filterProductsBySearch,
+  usePagination,
+  Pagination,
 } from "./shared";
 
 type PromotionStatusFilter = "all" | "vigente" | "programada" | "inactiva";
@@ -848,6 +850,91 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
     }
   };
 
+  const paged = usePagination(filteredRows, { resetKey: `${search}|${statusFilter}` });
+
+  const columns: Column<PromotionRow>[] = [
+    {
+      key: "name",
+      header: "Promoción",
+      render: (promotion) => (
+        <div style={{ fontWeight: 800, color: "var(--text)", whiteSpace: "normal", minWidth: 210 }}>
+          <div>{promotion.name}</div>
+          {promotion.description && <div style={styles.rowSubtext}>{promotion.description}</div>}
+        </div>
+      ),
+    },
+    {
+      key: "promotionType",
+      header: "Tipo",
+      render: (promotion) => typeLabel(promotion.promotionType.name),
+    },
+    {
+      key: "value",
+      header: "Valor",
+      align: "right",
+      render: (promotion) => (
+        <span style={{ fontWeight: 800 }}>{formatPromotionValue(promotion)}</span>
+      ),
+    },
+    {
+      key: "endDate",
+      header: "Vigencia",
+      render: (promotion) => (
+        <span style={{ color: "var(--text-muted)" }}>
+          {fmtDate(promotion.startDate)} - {fmtDate(promotion.endDate)}
+        </span>
+      ),
+    },
+    {
+      key: "products",
+      header: "Productos",
+      render: (promotion) => (
+        <div style={{ whiteSpace: "normal", minWidth: 180 }}>
+          <div style={{ fontWeight: 800 }}>{promotion.products.length} producto{promotion.products.length === 1 ? "" : "s"}</div>
+          <div style={styles.rowSubtext}>{productSummary(promotion)}</div>
+        </div>
+      ),
+    },
+    {
+      key: "isActive",
+      header: "Estado",
+      align: "center",
+      render: (promotion) => {
+        const status = getStatus(promotion);
+        return <Badge tone={status.tone}>{status.label}</Badge>;
+      },
+    },
+    {
+      key: "actions",
+      header: "Acciones",
+      align: "center",
+      render: (promotion) => {
+        const busy = loadingActionId === promotion.id;
+        return (
+          <div style={styles.actions}>
+            <button style={ui.linkBtn} className="active-tap" disabled={busy} onClick={() => openDetail(promotion)}>
+              <Eye size={14} style={styles.iconInline} /> Ver
+            </button>
+            <button style={ui.linkBtn} className="active-tap" disabled={busy} onClick={() => openEdit(promotion)}>
+              <Pencil size={14} style={styles.iconInline} /> Editar
+            </button>
+            <button style={ui.linkBtn} className="active-tap" disabled={busy} onClick={() => openAddProducts(promotion)}>
+              <PackagePlus size={14} style={styles.iconInline} /> Agregar
+            </button>
+            <button
+              style={{ ...ui.linkBtn, color: promotion.isActive ? "#b91c1c" : "#15803d", opacity: busy ? 0.55 : 1 }}
+              className="active-tap"
+              disabled={busy}
+              onClick={() => toggleStatus(promotion)}
+            >
+              <Power size={14} style={styles.iconInline} /> {promotion.isActive ? "Desactivar" : "Activar"}
+            </button>
+          </div>
+        );
+      },
+    },
+  ];
+
   return (
     <div>
       <SectionHeader
@@ -898,7 +985,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
               {error}
             </div>
           )}
-          {!loading && !error && filteredRows.length === 0 && (
+          {!loading && !error && paged.total === 0 && (
             <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
               {search.trim() || statusFilter !== "all"
                 ? "No hay promociones que coincidan con los filtros."
@@ -908,7 +995,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
 
           {!loading &&
             !error &&
-            filteredRows.map((promotion) => {
+            paged.pageItems.map((promotion) => {
               const status = getStatus(promotion);
               const busy = loadingActionId === promotion.id;
               const isExpanded = expandedPromotions[promotion.id];
@@ -1202,83 +1289,55 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
             })}
         </div>
       ) : (
-        /* ── Desktop: Standard table ── */
-        <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-          <table style={ui.table}>
-            <thead>
-              <tr style={ui.theadRow}>
-                <th style={ui.th}>Promocion</th>
-                <th style={ui.th}>Tipo</th>
-                <th style={{ ...ui.th, textAlign: "right" }}>Valor</th>
-                <th style={ui.th}>Vigencia</th>
-                <th style={ui.th}>Productos</th>
-                <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-                <th style={{ ...ui.th, textAlign: "center" }}>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              <TableState
-                colSpan={7}
-                loading={loading}
-                error={error}
-                empty={!loading && filteredRows.length === 0}
-                emptyText={
-                  search.trim() || statusFilter !== "all"
-                    ? "No hay promociones que coincidan con los filtros."
-                    : "No hay promociones registradas."
-                }
-              />
-              {!loading &&
-                !error &&
-                filteredRows.map((promotion) => {
-                  const status = getStatus(promotion);
-                  const busy = loadingActionId === promotion.id;
-
-                  return (
-                    <tr key={promotion.id}>
-                      <td style={{ ...ui.td, fontWeight: 800, color: "var(--text)", whiteSpace: "normal", minWidth: 210 }}>
-                        <div>{promotion.name}</div>
-                        {promotion.description && <div style={styles.rowSubtext}>{promotion.description}</div>}
-                      </td>
-                      <td style={ui.td}>{typeLabel(promotion.promotionType.name)}</td>
-                      <td style={{ ...ui.td, textAlign: "right", fontWeight: 800 }}>{formatPromotionValue(promotion)}</td>
-                      <td style={{ ...ui.td, color: "var(--text-muted)" }}>
-                        {fmtDate(promotion.startDate)} - {fmtDate(promotion.endDate)}
-                      </td>
-                      <td style={{ ...ui.td, whiteSpace: "normal", minWidth: 180 }}>
-                        <div style={{ fontWeight: 800 }}>{promotion.products.length} producto{promotion.products.length === 1 ? "" : "s"}</div>
-                        <div style={styles.rowSubtext}>{productSummary(promotion)}</div>
-                      </td>
-                      <td style={{ ...ui.td, textAlign: "center" }}>
-                        <Badge tone={status.tone}>{status.label}</Badge>
-                      </td>
-                      <td style={{ ...ui.td, textAlign: "center" }}>
-                        <div style={styles.actions}>
-                          <button style={ui.linkBtn} className="active-tap" disabled={busy} onClick={() => openDetail(promotion)}>
-                            <Eye size={14} style={styles.iconInline} /> Ver
-                          </button>
-                          <button style={ui.linkBtn} className="active-tap" disabled={busy} onClick={() => openEdit(promotion)}>
-                            <Pencil size={14} style={styles.iconInline} /> Editar
-                          </button>
-                          <button style={ui.linkBtn} className="active-tap" disabled={busy} onClick={() => openAddProducts(promotion)}>
-                            <PackagePlus size={14} style={styles.iconInline} /> Gestionar productos
-                          </button>
-                          <button
-                            style={{ ...ui.linkBtn, color: promotion.isActive ? "#b91c1c" : "#15803d", opacity: busy ? 0.55 : 1 }}
-                            className="active-tap"
-                            disabled={busy}
-                            onClick={() => toggleStatus(promotion)}
-                          >
-                            <Power size={14} style={styles.iconInline} /> {promotion.isActive ? "Desactivar" : "Activar"}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-            </tbody>
-          </table>
+        <div className="table-sticky-head">
+          <style>{`
+            .table-sticky-head table {
+              width: 100%;
+            }
+            .table-sticky-head thead th {
+              position: sticky;
+              top: 0;
+              z-index: 1;
+              background: var(--surface-2);
+            }
+            /* Permite que el scrollbar vertical se superponga (overlay) para que las filas ocupen el 100% del ancho */
+            .table-sticky-head > div {
+              overflow-y: overlay !important;
+            }
+            /* Estilos premium para los scrollbars del contenedor de la tabla */
+            .table-sticky-head > div::-webkit-scrollbar {
+              width: 8px;
+              height: 8px;
+            }
+            .table-sticky-head > div::-webkit-scrollbar-track {
+              background: transparent;
+            }
+            .table-sticky-head > div::-webkit-scrollbar-thumb {
+              background: var(--border-strong);
+              border-radius: 4px;
+            }
+            .table-sticky-head > div::-webkit-scrollbar-thumb:hover {
+              background: var(--accent);
+            }
+          `}</style>
+          <DataTable
+            columns={columns}
+            data={paged.pageItems}
+            loading={loading}
+            error={error}
+            emptyMessage={
+              search.trim() || statusFilter !== "all"
+                ? "No hay promociones que coincidan con los filtros."
+                : "No hay promociones registradas."
+            }
+            keyExtractor={(promotion) => promotion.id}
+            height="calc(100vh - 275px)"
+          />
         </div>
+      )}
+
+      {!loading && !error && (
+        <Pagination page={paged.page} pageCount={paged.pageCount} total={paged.total} from={paged.from} to={paged.to} onPage={paged.setPage} itemLabel="promociones" />
       )}
 
       {editing !== null && (

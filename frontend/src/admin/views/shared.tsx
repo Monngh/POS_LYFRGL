@@ -322,7 +322,7 @@ export const Pagination: React.FC<{
   onPage: (p: number) => void;
   itemLabel?: string;
 }> = ({ page, pageCount, total, from, to, onPage, itemLabel = "registros" }) => {
-  if (pageCount <= 1) return null;
+  if (total === 0) return null;
   const pages = buildPageList(page, pageCount);
   const navBtn: React.CSSProperties = {
     minWidth: 32,
