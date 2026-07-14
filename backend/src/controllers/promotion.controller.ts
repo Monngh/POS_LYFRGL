@@ -22,15 +22,28 @@ export class PromotionController {
    */
   static async search(req: Request, res: Response) {
     try {
-      const q = ((req.query.q as string) || "").trim().toLowerCase();
+      const q = ((req.query.q as string) || "").trim();
+
+      if (q.length > 100) {
+        res.status(400).json({ message: "La búsqueda no puede exceder los 100 caracteres." });
+        return;
+      }
+
+      const emojiPattern = /[\p{Extended_Pictographic}\uFE0F]/u;
+      if (emojiPattern.test(q)) {
+        res.status(400).json({ message: "No se admiten emojis en la búsqueda." });
+        return;
+      }
+
+      const queryLower = q.toLowerCase();
       const promotions = await PromotionService.getActivePromotions();
 
-      const filtered = q
+      const filtered = queryLower
         ? promotions.filter((promo) => {
-            const nameMatch = promo.name.toLowerCase().includes(q);
+            const nameMatch = promo.name.toLowerCase().includes(queryLower);
             const productMatch = promo.products.some((pp: any) =>
-              pp.product.name.toLowerCase().includes(q) ||
-              pp.product.sku.toLowerCase().includes(q)
+              pp.product.name.toLowerCase().includes(queryLower) ||
+              pp.product.sku.toLowerCase().includes(queryLower)
             );
             return nameMatch || productMatch;
           })

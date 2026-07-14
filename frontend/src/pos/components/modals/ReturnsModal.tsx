@@ -77,6 +77,7 @@ export default function ReturnsModal({
   const [returnReceipt, setReturnReceipt] = useState<any>(null);
   const [returnItemNavIdx, setReturnItemNavIdx] = useState(0);
   const returnItemsListRef = useRef<HTMLDivElement | null>(null);
+  const returnReasonInputRef = useRef<HTMLInputElement | null>(null);
 
   const eligibleItems = returnItems.filter((it) => it.isEligible);
 
@@ -339,6 +340,7 @@ export default function ReturnsModal({
     const reasonError = validateReference(returnReason, "El motivo", { required: true, max: 100 });
     if (reasonError) {
       setReturnFieldErrors((prev) => ({ ...prev, reason: reasonError }));
+      returnReasonInputRef.current?.focus();
       return;
     }
     setReturnFieldErrors((prev) => {
@@ -348,6 +350,7 @@ export default function ReturnsModal({
     });
     if (!returnReason.trim()) {
       onToast("Indique el motivo de la devolución.", "error");
+      returnReasonInputRef.current?.focus();
       return;
     }
     setReturnStep("confirm");
@@ -916,6 +919,7 @@ export default function ReturnsModal({
               <div style={inputGroup}>
                 <label style={label}>Motivo de devolución:</label>
                 <input
+                  ref={returnReasonInputRef}
                   type="text"
                   maxLength={100}
                   className="input-corporate"

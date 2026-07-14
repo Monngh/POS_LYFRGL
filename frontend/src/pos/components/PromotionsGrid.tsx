@@ -1,11 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ChevronDown, ChevronUp, Tag, Search, X } from "lucide-react";
 import api from "../../shared/services/api";
+import { hasEmoji } from "../../shared/utils/formValidation";
 
 interface Promotion {
   id: number;
   name: string;
   description: string;
+  startDate?: string;
+  endDate?: string;
+  isActive?: boolean;
   promotionType: {
     name: string;
   };
@@ -205,7 +209,19 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
             ref={searchInputRef}
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val.length > 100) {
+                onToast("La búsqueda no puede exceder los 100 caracteres", "warning");
+                return;
+              }
+              if (hasEmoji(val)) {
+                onToast("No se admiten emojis en la búsqueda", "warning");
+                return;
+              }
+              setSearchQuery(val);
+            }}
+            maxLength={100}
             onKeyDown={(e) => {
               if (e.key === "Escape") { setSearchQuery(""); e.stopPropagation(); }
               if (e.key === "ArrowDown") {
@@ -260,6 +276,20 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
                 const badge = getDiscountBadge(promo);
                 const shortcutNum = idx < 9 ? idx + 1 : null;
                 
+                const formatDate = (dateStr?: string) => {
+                  if (!dateStr) return "N/A";
+                  try {
+                    const d = new Date(dateStr);
+                    if (isNaN(d.getTime())) return "N/A";
+                    const day = String(d.getDate()).padStart(2, '0');
+                    const month = String(d.getMonth() + 1).padStart(2, '0');
+                    const year = d.getFullYear();
+                    return `${day}/${month}/${year}`;
+                  } catch {
+                    return "N/A";
+                  }
+                };
+
                 return (
                   <button
                     key={promo.id}
@@ -268,7 +298,16 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
                     tabIndex={isCollapsed ? -1 : 0}
                     onKeyDown={(e) => handleItemKeyDown(e, promo)}
                     onClick={() => handlePromoClick(promo)}
-                    style={{ position: "relative", outline: "none", alignItems: "flex-start", padding: "10px", height: "auto", minWidth: "220px", flexShrink: 0 }}
+                    style={{ 
+                      position: "relative", 
+                      outline: "none", 
+                      alignItems: "flex-start", 
+                      padding: "10px", 
+                      paddingBottom: shortcutNum ? "32px" : "10px", 
+                      height: "auto", 
+                      minWidth: "220px", 
+                      flexShrink: 0 
+                    }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", width: "100%", marginBottom: "4px" }}>
                       <div className="pos-quick-action-icon-wrapper" style={{ color: "#d97706", marginBottom: 0 }}>
@@ -288,6 +327,34 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
                     <span style={{ fontSize: "10px", color: "#64748b", textAlign: "left", width: "100%", display: "block", marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {promo.products[0]?.product?.name}
                     </span>
+
+                    {/* Expiration date and active status */}
+                    <div style={{ 
+                      display: "flex", 
+                      flexDirection: "column", 
+                      width: "100%", 
+                      marginTop: "8px", 
+                      fontSize: "10px", 
+                      borderTop: "1px dashed var(--pos-border)",
+                      paddingTop: "6px",
+                      gap: "2px"
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b" }}>
+                        <span>Vence:</span>
+                        <span style={{ fontWeight: "600" }}>
+                          {formatDate(promo.endDate)}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b" }}>
+                        <span>Estado:</span>
+                        <span style={{ 
+                          color: promo.isActive !== false ? "#16a34a" : "#dc2626", 
+                          fontWeight: "bold"
+                        }}>
+                          {promo.isActive !== false ? "Activa" : "Inactiva"}
+                        </span>
+                      </div>
+                    </div>
 
                     {shortcutNum && (
                       <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "8px", right: "8px" }}>
