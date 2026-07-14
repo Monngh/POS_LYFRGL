@@ -609,7 +609,17 @@ export function SalesTerminalView({
                     <input
                       type="checkbox"
                       checked={usePoints}
-                      onChange={(e) => { setUsePoints(e.target.checked); if (!e.target.checked) setPointsToRedeem(0); }}
+                      onChange={(e) => {
+                        setUsePoints(e.target.checked);
+                        if (!e.target.checked) {
+                          setPointsToRedeem(0);
+                          setCheckoutFieldErrors((prev) => {
+                            const next = { ...prev };
+                            delete next.pointsToRedeem;
+                            return next;
+                          });
+                        }
+                      }}
                     />
                     <span>¿Usar Puntos? <span style={{ fontSize: "9px", backgroundColor: "rgba(0,0,0,0.08)", color: "var(--text-secondary)", padding: "1px 4px", borderRadius: "3px", fontWeight: "800", marginLeft: "4px" }}>Alt+B</span></span>
                   </label>
@@ -618,33 +628,43 @@ export function SalesTerminalView({
                   </span>
                 </div>
                 {usePoints && (
-                  <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "4px" }}>
-                    <div style={{ flex: 1 }}>
-                      <input
-                        ref={pointsInputRef}
-                        type="number"
-                        min={0}
-                        max={Math.min(selectedCustomer.points, Math.floor(cartTotal))}
-                        className="input-corporate"
-                        placeholder="Puntos a canjear"
-                        value={pointsToRedeem || ""}
-                        onChange={(e) => {
-                          const val = Math.max(0, parseInt(e.target.value) || 0);
-                          const maxVal = Math.min(selectedCustomer.points, Math.floor(cartTotal));
-                          if (val > maxVal) {
-                            setPointsToRedeem(maxVal);
-                            onToast(`El canje máximo es de ${maxVal} puntos.`, "info");
-                          } else {
-                            setPointsToRedeem(val);
-                          }
-                          setCheckoutError(null);
-                        }}
-                      />
+                  <>
+                    <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "4px" }}>
+                      <div style={{ flex: 1 }}>
+                        <input
+                          ref={pointsInputRef}
+                          type="number"
+                          min={0}
+                          max={Math.min(selectedCustomer.points, Math.floor(cartTotal))}
+                          className="input-corporate"
+                          placeholder="Puntos a canjear"
+                          value={pointsToRedeem || ""}
+                          onChange={(e) => {
+                            const val = Math.max(0, parseInt(e.target.value) || 0);
+                            const maxVal = Math.min(selectedCustomer.points, Math.floor(cartTotal));
+                            if (val > maxVal) {
+                              setPointsToRedeem(maxVal);
+                              onToast(`El canje máximo es de ${maxVal} puntos.`, "info");
+                            } else {
+                              setPointsToRedeem(val);
+                            }
+                            setCheckoutError(null);
+                            setCheckoutFieldErrors((prev) => {
+                              const next = { ...prev };
+                              delete next.pointsToRedeem;
+                              return next;
+                            });
+                          }}
+                        />
+                      </div>
+                      <span style={{ fontSize: "13px", color: "#059669", fontWeight: "700" }}>
+                        Descuento: -${(Math.min(selectedCustomer.points, pointsToRedeem) * 1.0).toFixed(2)}
+                      </span>
                     </div>
-                    <span style={{ fontSize: "13px", color: "#059669", fontWeight: "700" }}>
-                      Descuento: -${(Math.min(selectedCustomer.points, pointsToRedeem) * 1.0).toFixed(2)}
-                    </span>
-                  </div>
+                    {checkoutFieldErrors.pointsToRedeem && (
+                      <p style={styles.fieldError}>{checkoutFieldErrors.pointsToRedeem}</p>
+                    )}
+                  </>
                 )}
               </div>
             )}
