@@ -95,8 +95,10 @@ El modal de cobro opera en **dos fases** de teclado:
 - Si el método tiene campos (efectivo: cambio; tarjeta: confirmación): llenar y presionar `Enter` para cobrar.
 - Si el método no tiene campos extra (tarjeta, crédito): se cobra directamente.
 - Método mixto: `Enter` abre el modal de cobro mixto.
-- `Alt+C` / `Alt+X`: cobrar / cancelar modal.
+- `Alt+C` / `Alt+X`: cobrar (Alt+C) / cancelar modal (Alt+X).
 - `Alt+W`: pausar venta.
+- `Alt+P`: marcar/desmarcar "¿Usar Puntos?" (si hay un cliente seleccionado). Al seleccionarse, el foco se transfiere automáticamente al input de puntos a canjear.
+- `Alt+F`: marcar/desmarcar "¿Solicitar Factura CFDI?" (si hay un cliente seleccionado).
 - `Alt+J` / `Alt+W`: ver QR / verificar primer pago QR pendiente en la tabla.
 
 ### Cobro mixto

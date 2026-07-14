@@ -33,6 +33,7 @@ export const POS_ALT_LETTERS = [
   "L", // Cerrar sesión
   "V", // Cancelar compra
   "F", // Bloquear Alt+F del navegador (menú archivo en Firefox)
+  "B", // Atajo para Puntos / Beneficios
 ] as const;
 
 

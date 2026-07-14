@@ -132,6 +132,16 @@ export function SalesTerminalView({
   const [checkoutPhase, setCheckoutPhase] = React.useState<"select-method" | "fill-fields">("select-method");
   React.useEffect(() => { if (checkoutModalOpen) setCheckoutPhase("select-method"); }, [checkoutModalOpen]);
 
+  const pointsInputRef = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    if (usePoints) {
+      setTimeout(() => {
+        pointsInputRef.current?.focus();
+        pointsInputRef.current?.select();
+      }, 80);
+    }
+  }, [usePoints]);
+
   const handleGlobalQuickAction = (actionId: string) => {
     if (actionId === "autofacturacion") {
       window.open("/autofacturacion", "_blank");
@@ -589,13 +599,13 @@ export function SalesTerminalView({
             {selectedCustomer && (
               <div style={{ borderTop: "1px solid var(--border)", paddingTop: "14px", marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", margin: 0 }}>
+                  <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", margin: 0 }} data-shortcut-letter="B" title="Usar puntos (Alt+B)">
                     <input
                       type="checkbox"
                       checked={usePoints}
                       onChange={(e) => { setUsePoints(e.target.checked); if (!e.target.checked) setPointsToRedeem(0); }}
                     />
-                    <span>¿Usar Puntos?</span>
+                    <span>¿Usar Puntos? <span style={{ fontSize: "9px", backgroundColor: "rgba(0,0,0,0.08)", color: "var(--text-secondary)", padding: "1px 4px", borderRadius: "3px", fontWeight: "800", marginLeft: "4px" }}>Alt+B</span></span>
                   </label>
                   <span style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: "600" }}>
                     Disponibles: <strong style={{ color: "#166534" }}>{selectedCustomer.points}</strong> pts
@@ -605,6 +615,7 @@ export function SalesTerminalView({
                   <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "4px" }}>
                     <div style={{ flex: 1 }}>
                       <input
+                        ref={pointsInputRef}
                         type="number"
                         min={0}
                         max={Math.min(selectedCustomer.points, Math.floor(cartTotal))}
@@ -636,9 +647,9 @@ export function SalesTerminalView({
             {selectedCustomer && (
               <div style={{ borderTop: "1px solid var(--border)", paddingTop: "14px", marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", margin: 0 }}>
+                  <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", margin: 0 }} data-shortcut-letter="F" title="Solicitar factura (Alt+F)">
                     <input type="checkbox" checked={invoiceRequested} onChange={(e) => { setInvoiceRequested(e.target.checked); }} />
-                    <span>¿Solicitar Factura CFDI?</span>
+                    <span>¿Solicitar Factura CFDI? <span style={{ fontSize: "9px", backgroundColor: "rgba(0,0,0,0.08)", color: "var(--text-secondary)", padding: "1px 4px", borderRadius: "3px", fontWeight: "800", marginLeft: "4px" }}>Alt+F</span></span>
                   </label>
                   <span style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: "600" }}>Se enviará al correo registrado</span>
                 </div>
@@ -664,7 +675,7 @@ export function SalesTerminalView({
                 CANCELAR
               </button>
               <button
-                title="Cobrar (C)"
+                title="Cobrar (Alt+C)"
                 data-shortcut="confirm"
                 data-shortcut-letter="C"
                 disabled={checkoutLoading}
@@ -681,6 +692,7 @@ export function SalesTerminalView({
                   <div className="pos-cashier-loading-spinner" style={{ width: "14px", height: "14px", borderWidth: "2px", borderColor: "rgba(255,255,255,0.4)", borderTopColor: "#ffffff", flexShrink: 0 }} />
                 )}
                 {checkoutLoading ? "PROCESANDO..." : paymentMethod === "MIXTO" ? "CONFIGURAR PAGOS" : "COBRAR"}
+                <span style={{ fontSize: "9px", backgroundColor: "rgba(255,255,255,0.2)", color: "white", padding: "1px 4px", borderRadius: "3px", fontWeight: "800", marginLeft: "2px" }}>Alt+C</span>
               </button>
             </div>
           </div>
