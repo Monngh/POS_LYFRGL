@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+﻿import { Request, Response } from "express";
 import { AppError } from "../utils/AppError";
 import { parseOptionalDateRange } from "../utils/dateRange.util";
 import {
@@ -82,15 +82,19 @@ export const listKardex = async (req: Request, res: Response): Promise<void> => 
     const range = parseOptionalDateRange(req.query);
     if (range.errorStatus) { res.status(range.errorStatus).json({ message: range.errorMessage }); return; }
 
-    const entries = await listKardexService({
+    const rawPage = Number(req.query.page ?? 1);
+    const page = Number.isInteger(rawPage) && rawPage >= 1 ? rawPage : 1;
+
+    const result = await listKardexService({
       branchId: parseBranch(req),
       movementType: req.query.movementType as string | undefined,
       search: trimQuery(req.query.search),
       from: range.from,
       to: range.to,
+      page,
     });
 
-    res.status(200).json({ entries });
+    res.status(200).json({ entries: result.entries, total: result.total });
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ message: "Error al listar el kardex." });

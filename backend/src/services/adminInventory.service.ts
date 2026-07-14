@@ -197,12 +197,15 @@ export const listInventory = async (params: ListInventoryParams) => {
   };
 };
 
+const KARDEX_PAGE_SIZE = 20;
+
 export const listKardex = async (params: {
   branchId?: number;
   movementType?: string;
   search?: string;
   from?: Date;
   to?: Date;
+  page: number;
 }) => {
   const baseWhere: any = {};
   if (params.branchId) baseWhere.branchId = params.branchId;
@@ -236,18 +239,22 @@ export const listKardex = async (params: {
     where = baseWhere;
   }
 
-  const entries = await prisma.kardex.findMany({
-    where,
-    take: 150,
-    orderBy: { createdAt: "desc" },
-    include: {
-      product: { select: { name: true, sku: true } },
-      branch: { select: { name: true } },
-      user: { select: { name: true } },
-    },
-  });
+  const [rawEntries, total] = await prisma.$transaction([
+    prisma.kardex.findMany({
+      where,
+      take: KARDEX_PAGE_SIZE,
+      skip: (params.page - 1) * KARDEX_PAGE_SIZE,
+      orderBy: { createdAt: "desc" },
+      include: {
+        product: { select: { name: true, sku: true } },
+        branch: { select: { name: true } },
+        user: { select: { name: true } },
+      },
+    }),
+    prisma.kardex.count({ where }),
+  ]);
 
-  return entries.map((k) => ({
+  const entries = rawEntries.map((k) => ({
     id: k.id,
     createdAt: k.createdAt,
     product: k.product.name,
@@ -259,6 +266,8 @@ export const listKardex = async (params: {
     balanceAfter: k.balanceAfter,
     reason: k.reason,
   }));
+
+  return { entries, total };
 };
 
 export const adjustInventory = async (params: {
