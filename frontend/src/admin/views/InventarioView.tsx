@@ -2896,7 +2896,15 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       {/* =================== MODAL DETALLE =================== */}
       {detailOpen && (
         <div style={ui.overlay} onClick={closeDetail}>
-          <div style={{ ...ui.modal, maxWidth: isMobile ? "100%" : 680, display: "flex", flexDirection: "column", overflowY: "hidden", ...(isMobile ? { width: "100%", height: "100%", borderRadius: 0, margin: 0 } : {}) }} onClick={(e) => e.stopPropagation()}>
+          <div style={{
+            ...ui.modal,
+            maxWidth: isMobile ? "calc(100% - 24px)" : 680,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            borderRadius: 24,
+            ...(isMobile ? { width: "calc(100% - 24px)", height: "auto", maxHeight: "90vh", margin: "auto" } : {})
+          }} onClick={(e) => e.stopPropagation()}>
             <div style={ui.modalHeader}>
               <div>
                 <div style={ui.modalTitle}>
