@@ -35,32 +35,37 @@ export function SalesLayoutView({
           {/* Quick Actions Carousel */}
           <QuickActionsCarousel onOpenModal={onOpenModal} onLock={onLock} />
 
-          <div className="pos-sidebar-close-cash-wrapper" style={{ paddingBottom: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
-
-            <div style={{ position: "relative", display: "inline-flex" }}>
+          <div className="pos-sidebar-close-cash-wrapper" style={{ paddingBottom: "16px", display: "flex", flexDirection: "column", gap: "10px", width: "100%", padding: "8px 12px 16px" }}>
+            <div style={{ position: "relative", display: "flex", width: "100%" }}>
               <button
                 type="button"
-                onClick={() => onOpenModal("close-options")}
+                onClick={() => onOpenModal("close-cash")}
                 className="pos-quick-action-icon-btn active-tap"
                 data-shortcut-key="F8"
                 title="Cerrar caja (F8)"
                 style={{
-                  width: "40px",
-                  height: "40px",
+                  width: "100%",
+                  minHeight: "40px",
                   borderRadius: "8px",
-                  border: "1px solid var(--pos-border)",
+                  border: "1px solid #fca5a5",
                   backgroundColor: "#fee2e2",
                   color: "#dc2626",
                   display: "flex",
                   justifyContent: "center",
                   alignItems: "center",
+                  gap: "6px",
                   cursor: "pointer",
-                  transition: "all 0.2s"
+                  transition: "all 0.2s",
+                  fontWeight: "700",
+                  fontSize: "11px",
+                  paddingLeft: "8px",
+                  paddingRight: "8px",
                 }}
               >
-                <Store size={20} />
+                <Store size={16} />
+                <span>Cerrar Caja</span>
+                <span className="pos-fkey-badge" style={{ fontSize: "7px", padding: "1px 3px", marginLeft: "auto" }}>F8</span>
               </button>
-              <span className="pos-fkey-badge" style={{ fontSize: "7px", padding: "1px 3px" }}>F8</span>
             </div>
           </div>
         </div>

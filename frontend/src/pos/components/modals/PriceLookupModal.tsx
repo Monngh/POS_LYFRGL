@@ -166,40 +166,45 @@ export default function PriceLookupModal({
       <div style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "8px 0" }}>
         <div style={{ display: "flex", gap: "12px" }}>
           {/* Category Dropdown with keyboard navigation */}
-          <div style={{ position: "relative", minWidth: "220px" }}>
-            <input
-              type="text"
-              style={{
-                width: "100%",
-                padding: "12px 16px",
-                borderRadius: "8px",
-                border: "1px solid var(--border)",
-                backgroundColor: "var(--surface-2)",
-                color: "var(--text)",
-                fontSize: "14px",
-                outline: "none",
-                cursor: "pointer",
-                boxSizing: "border-box",
-              }}
-              placeholder="Todas las categorías"
-              value={categorySearch}
-              onFocus={() => setIsCategoryDropdownOpen(true)}
-              onBlur={(e) => {
-                // Only close if focus moves away from the dropdown itself
-                if (!dropdownRef.current?.contains(e.relatedTarget as Node)) {
-                  setIsCategoryDropdownOpen(false);
-                }
-              }}
-              onChange={(e) => {
-                const val = e.target.value;
-                setCategorySearch(val);
-                setIsCategoryDropdownOpen(true);
-                if (val === "") {
-                  onCategoryChange("");
-                }
-              }}
-              onKeyDown={handleCategoryKeyDown}
-            />
+            <div style={{ position: "relative", minWidth: "220px" }}>
+              <input
+                type="text"
+                data-shortcut-letter="C"
+                title="Buscar categoría (Alt+C)"
+                style={{
+                  width: "100%",
+                  padding: "12px 60px 12px 16px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border)",
+                  backgroundColor: "var(--surface-2)",
+                  color: "var(--text)",
+                  fontSize: "14px",
+                  outline: "none",
+                  cursor: "pointer",
+                  boxSizing: "border-box",
+                }}
+                placeholder="Todas las categorías"
+                value={categorySearch}
+                onFocus={() => setIsCategoryDropdownOpen(true)}
+                onBlur={(e) => {
+                  // Only close if focus moves away from the dropdown itself
+                  if (!dropdownRef.current?.contains(e.relatedTarget as Node)) {
+                    setIsCategoryDropdownOpen(false);
+                  }
+                }}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCategorySearch(val);
+                  setIsCategoryDropdownOpen(true);
+                  if (val === "") {
+                    onCategoryChange("");
+                  }
+                }}
+                onKeyDown={handleCategoryKeyDown}
+              />
+              <span className="pos-fkey-badge" style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", fontSize: "10px", padding: "2px 6px", pointerEvents: "none", whiteSpace: "nowrap" }}>Alt+C</span>
+            </div>
+
             {isCategoryDropdownOpen && (
               <div
                 ref={dropdownRef}

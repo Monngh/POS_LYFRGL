@@ -150,7 +150,24 @@ export function CustomerCheckoutBar({ customerData, cartData, onToast }: Custome
           <p className="pos-customer-bar-searching">Buscando...</p>
         )}
         {searchStatus === "not_found" && (
-          <div className="pos-customer-bar-not-found">
+          <div
+            className="pos-customer-bar-not-found"
+            style={{
+              position: "absolute",
+              top: "calc(100% + 4px)",
+              left: 0,
+              right: 0,
+              zIndex: 50,
+              backgroundColor: "var(--surface, #ffffff)",
+              border: "1px solid #fca5a5",
+              borderRadius: "6px",
+              padding: "6px 10px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
             <span>⚠️ No registrado</span>
             <button
               type="button"

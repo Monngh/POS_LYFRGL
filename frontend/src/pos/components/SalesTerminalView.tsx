@@ -126,7 +126,7 @@ export function SalesTerminalView({
 
   const { parkedSales, fetchParkedSales, parkSale, deleteParkedSale } = useParkedSales(user?.branch?.id);
   const [mixedModalOpen, setMixedModalOpen] = React.useState(false);
-  const checkoutModalRef = useModalInitialFocus(checkoutModalOpen);
+  const checkoutModalRef = useModalInitialFocus(checkoutModalOpen, { preferSelector: `[data-method-btn="${paymentMethod}"]` });
 
   // Cobro en dos fases: primero elegir método con flechas, Enter confirma y da foco al input/botón, luego Enter cobra
   const [checkoutPhase, setCheckoutPhase] = React.useState<"select-method" | "fill-fields">("select-method");
@@ -178,6 +178,11 @@ export function SalesTerminalView({
         if (idx === -1) return;
         const next = e.key === "ArrowRight" ? Math.min(idx + 1, methods.length - 1) : Math.max(idx - 1, 0);
         setPaymentMethod(methods[next] as any);
+        // Focus the button
+        setTimeout(() => {
+          const btn = checkoutModalRef.current?.querySelector<HTMLElement>(`[data-method-btn="${methods[next]}"]`);
+          if (btn) btn.focus();
+        }, 50);
       }
       return;
     }
@@ -187,6 +192,10 @@ export function SalesTerminalView({
       const methods = ["EFECTIVO", "TARJETA", "STORE_CREDIT", "MIXTO", "QR_MERCADOPAGO"];
       const index = parseInt(e.key) - 1;
       setPaymentMethod(methods[index] as any);
+      setTimeout(() => {
+        const btn = checkoutModalRef.current?.querySelector<HTMLElement>(`[data-method-btn="${methods[index]}"]`);
+        if (btn) btn.focus();
+      }, 50);
       return;
     }
 
@@ -212,6 +221,9 @@ export function SalesTerminalView({
           );
           if (firstInput) {
             firstInput.focus();
+            if (firstInput instanceof HTMLInputElement) {
+              firstInput.select();
+            }
           } else if (paymentMethod === "QR_MERCADOPAGO" || paymentMethod === "MIXTO") {
             // Para métodos sin input extra, disparar directo
             if (paymentMethod === "MIXTO") { setMixedModalOpen(true); }
@@ -223,8 +235,31 @@ export function SalesTerminalView({
         return;
       }
 
-      // Fase fill-fields: si estoy escribiendo en un input NO disparo el cobro
-      if (isTyping) return;
+      // Si es la fase fill-fields
+      if (isTyping) {
+        if (paymentMethod === "EFECTIVO" && active instanceof HTMLInputElement) {
+          const val = Number(active.value) || 0;
+          const netTotal = cartTotal - pointsDiscount;
+          if (val < netTotal) {
+            setCheckoutFieldErrors((prev) => ({
+              ...prev,
+              cashReceived: "El efectivo recibido es menor al total a pagar."
+            }));
+            active.focus();
+            active.select();
+            return;
+          }
+        } else if (paymentMethod === "STORE_CREDIT" && active instanceof HTMLInputElement) {
+          if (!active.value.trim()) {
+            setCheckoutFieldErrors((prev) => ({
+              ...prev,
+              storeCreditCode: "El código de vale es requerido."
+            }));
+            active.focus();
+            return;
+          }
+        }
+      }
 
       if (paymentMethod === "MIXTO") {
         setMixedModalOpen(true);
@@ -420,10 +455,10 @@ export function SalesTerminalView({
               </div>
             )}
 
-            {/* Selector Métodos Pago */}
             <div style={{ ...styles.paymentMethodsGrid, gridTemplateColumns: "repeat(5, 1fr)" }} className="pos-cashier-pay-methods">
               <button
                 type="button"
+                data-method-btn="EFECTIVO"
                 onClick={() => { setPaymentMethod("EFECTIVO"); setCheckoutError(null); setCheckoutFieldErrors({}); }}
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "EFECTIVO" ? styles.paymentMethodBtnActive : {}) }}
               >
@@ -432,6 +467,7 @@ export function SalesTerminalView({
               </button>
               <button
                 type="button"
+                data-method-btn="TARJETA"
                 onClick={() => { setPaymentMethod("TARJETA"); setCheckoutError(null); setCheckoutFieldErrors({}); }}
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "TARJETA" ? styles.paymentMethodBtnActive : {}) }}
               >
@@ -440,6 +476,7 @@ export function SalesTerminalView({
               </button>
               <button
                 type="button"
+                data-method-btn="STORE_CREDIT"
                 onClick={() => { setPaymentMethod("STORE_CREDIT"); setCheckoutError(null); setCheckoutFieldErrors({}); }}
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "STORE_CREDIT" ? styles.paymentMethodBtnActive : {}) }}
               >
@@ -448,6 +485,7 @@ export function SalesTerminalView({
               </button>
               <button
                 type="button"
+                data-method-btn="MIXTO"
                 onClick={() => { setPaymentMethod("MIXTO"); setCheckoutError(null); setCheckoutFieldErrors({}); }}
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "MIXTO" ? styles.paymentMethodBtnActive : {}) }}
               >
@@ -456,6 +494,7 @@ export function SalesTerminalView({
               </button>
               <button
                 type="button"
+                data-method-btn="QR_MERCADOPAGO"
                 onClick={() => { setPaymentMethod("QR_MERCADOPAGO"); setCheckoutError(null); setCheckoutFieldErrors({}); }}
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "QR_MERCADOPAGO" ? styles.paymentMethodBtnActive : {}) }}
               >

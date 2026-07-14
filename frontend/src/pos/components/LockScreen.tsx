@@ -151,12 +151,32 @@ export function LockScreen({
         {/* Unlock Error alert */}
         {unlockError && <div className="pos-lock-error-alert">{unlockError}</div>}
 
+        {/* Numeric Keypad */}
+        <div className="pos-lock-keypad" style={{ marginTop: "16px" }}>
+          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("1")} disabled={unlockLoading}>1</button>
+          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("2")} disabled={unlockLoading}>2</button>
+          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("3")} disabled={unlockLoading}>3</button>
+          
+          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("4")} disabled={unlockLoading}>4</button>
+          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("5")} disabled={unlockLoading}>5</button>
+          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("6")} disabled={unlockLoading}>6</button>
+          
+          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("7")} disabled={unlockLoading}>7</button>
+          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("8")} disabled={unlockLoading}>8</button>
+          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("9")} disabled={unlockLoading}>9</button>
+          
+          <button type="button" className="pos-keypad-btn action" onClick={handleClear} disabled={unlockLoading} style={{ color: "#dc2626" }}>C</button>
+          <button type="button" className="pos-keypad-btn" onClick={() => handleKeyPress("0")} disabled={unlockLoading}>0</button>
+          <button type="button" className="pos-keypad-btn action" onClick={handleBackspace} disabled={unlockLoading}>⌫</button>
+        </div>
+
         {/* Physical Keyboard Tip */}
-        <p className="pos-lock-keyboard-tip" style={{ marginTop: "24px" }}>
+        <p className="pos-lock-keyboard-tip" style={{ marginTop: "20px" }}>
           {unlockLoading
             ? "Desbloqueando..."
             : "Utiliza tu teclado numérico para continuar"}
         </p>
+
       </div>
     </div>
   );
