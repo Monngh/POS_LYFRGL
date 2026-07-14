@@ -1,15 +1,19 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import api from "../../shared/services/api";
+import { DataTable } from "../../shared/ui";
+import type { Column } from "../../shared/ui";
 import {
   ui,
   type ViewProps,
   Toolbar,
-  TableState,
+  MobileFilterDisclosure,
   SectionHeader,
   useMediaQuery,
   fmtDate,
   fmtTime,
+  usePagination,
+  Pagination,
 } from "./shared";
 
 interface AuditLogRow {
@@ -18,6 +22,7 @@ interface AuditLogRow {
   reportType: string;
   filters: string | null;
   ipAddress: string | null;
+  userAgent: string | null;
   createdAt: string;
   user: { id: number; name: string; email: string };
   branch: { id: number; name: string } | null;
@@ -50,6 +55,23 @@ const parseFiltros = (raw: string | null): string => {
   } catch {
     return raw;
   }
+};
+
+// Parseo simple de User-Agent (sin librerías): detección por substring.
+// Los registros históricos previos a este campo no tienen userAgent guardado.
+const parseUserAgent = (ua: string | null): string => {
+  if (!ua) return "—";
+
+  const isMobileUA = /Mobile|Android|iPhone|iPad/i.test(ua);
+  const deviceLabel = isMobileUA ? "Móvil" : "Escritorio";
+
+  let browser = "Desconocido";
+  if (/Edg\//i.test(ua)) browser = "Edge";
+  else if (/Chrome\//i.test(ua) && !/Edg\//i.test(ua)) browser = "Chrome";
+  else if (/Firefox\//i.test(ua)) browser = "Firefox";
+  else if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) browser = "Safari";
+
+  return `${deviceLabel} - ${browser}`;
 };
 
 const fmtDateTime = (iso: string) =>
@@ -97,6 +119,7 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [reportType, setReportType] = useState("");
   const [userSearch, setUserSearch] = useState("");
   const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const toggleExpand = (id: number) => setExpandedLogs((p) => ({ ...p, [id]: !p[id] }));
 
@@ -136,6 +159,32 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
       )
     : rows;
 
+  // Calcula cuántas filas caben en pantalla según la altura disponible
+  // (mismo patrón usado en ClientesView/ProveedoresView).
+  const [dynPageSize, setDynPageSize] = useState(10);
+  useEffect(() => {
+    const ROW_H = 50;
+    const FIXED = 314;
+    const compute = () =>
+      setDynPageSize(Math.max(5, Math.floor((window.innerHeight - FIXED) / ROW_H)));
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, []);
+
+  const paged = usePagination(visible, {
+    resetKey: `${from}|${to}|${reportType}|${userSearch}`,
+    pageSize: dynPageSize,
+  });
+
+  const activeFilterLabels = [
+    reportType ? REPORT_TYPES.find((t) => t.value === reportType)?.label ?? null : null,
+    from ? `Desde ${from}` : null,
+    to ? `Hasta ${to}` : null,
+    userSearch.trim() ? "Búsqueda de usuario" : null,
+  ].filter((label): label is string => Boolean(label));
+  const filterSummary = activeFilterLabels.length > 0 ? activeFilterLabels.join(", ") : "Sin filtros activos";
+
   // ----------------------------- Detalle (móvil) ----------------------------
   const detailRow = (label: string, value: React.ReactNode) => (
     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "6px 0", borderBottom: "1px solid var(--surface-3)" }}>
@@ -146,6 +195,55 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
     </div>
   );
 
+  const columns: Column<AuditLogRow>[] = [
+    {
+      key: "createdAt",
+      header: "Fecha / Hora",
+      render: (row) => <span style={{ color: "var(--text-secondary)" }}>{fmtDateTime(row.createdAt)}</span>,
+    },
+    {
+      key: "user",
+      header: "Usuario",
+      render: (row) => (
+        <div>
+          <div style={{ fontWeight: 700, color: "var(--text)" }}>{row.user.name}</div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{row.user.email}</div>
+        </div>
+      ),
+    },
+    {
+      key: "branch",
+      header: "Sucursal",
+      render: (row) => row.branch?.name ?? <span style={{ color: "var(--text-faint)" }}>—</span>,
+    },
+    {
+      key: "reportName",
+      header: "Reporte",
+      render: (row) => <span style={{ fontWeight: 600, color: "var(--text)" }}>{row.reportName}</span>,
+    },
+    {
+      key: "reportType",
+      header: "Tipo",
+      align: "center",
+      render: (row) => <TypeBadge type={row.reportType} />,
+    },
+    {
+      key: "userAgent",
+      header: "Dispositivo",
+      render: (row) => <span style={{ color: "var(--text-secondary)" }}>{parseUserAgent(row.userAgent)}</span>,
+    },
+    {
+      key: "filters",
+      header: "Filtros aplicados",
+      render: (row) => <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{parseFiltros(row.filters)}</span>,
+    },
+    {
+      key: "ipAddress",
+      header: "IP",
+      render: (row) => <span style={{ fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)" }}>{row.ipAddress ?? "—"}</span>,
+    },
+  ];
+
   return (
     <div>
       <SectionHeader
@@ -155,40 +253,34 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
 
       {/* ============================== FILTROS ============================== */}
       {isMobile ? (
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 12,
-            marginBottom: 16,
-            padding: 12,
-            backgroundColor: "var(--surface-2)",
-            borderRadius: 12,
-            border: "1px solid var(--border)",
-          }}
+        <MobileFilterDisclosure
+          id="report-audit-mobile-filters"
+          title="Filtros de auditoría"
+          activeCount={activeFilterLabels.length}
+          summary={filterSummary}
+          isOpen={filtersOpen}
+          onToggle={() => setFiltersOpen((current) => !current)}
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 calc(50% - 6px)", minWidth: 130 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-strong)" }}>Desde:</label>
-            <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} style={{ ...inputStyle, flex: "none", maxWidth: "100%", padding: "6px 8px" }} />
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 calc(50% - 5px)", minWidth: 130 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-strong)" }}>Desde:</label>
+              <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} style={{ ...inputStyle, flex: "none", maxWidth: "100%", padding: "6px 8px" }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 calc(50% - 5px)", minWidth: 130 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-strong)" }}>Hasta:</label>
+              <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} style={{ ...inputStyle, flex: "none", maxWidth: "100%", padding: "6px 8px" }} />
+            </div>
+            <select value={reportType} onChange={(e) => setReportType(e.target.value)} style={{ ...inputStyle, flex: "1 1 100%", maxWidth: "100%", cursor: "pointer", padding: "6px 8px" }}>
+              {REPORT_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+            <input type="text" placeholder="Buscar usuario..." value={userSearch} onChange={(e) => setUserSearch(e.target.value)} style={{ ...inputStyle, flex: "1 1 100%", maxWidth: "100%", padding: "6px 8px" }} />
+            <button onClick={clearFilters} style={{ ...ui.ghostBtn, flex: "1 1 100%", justifyContent: "center", padding: "6px 8px", fontSize: 12 }} className="active-tap">
+              Limpiar filtros
+            </button>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 calc(50% - 6px)", minWidth: 130 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-strong)" }}>Hasta:</label>
-            <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} style={{ ...inputStyle, flex: "none", maxWidth: "100%", padding: "6px 8px" }} />
-          </div>
-          <select value={reportType} onChange={(e) => setReportType(e.target.value)} style={{ ...inputStyle, flex: "1 1 100%", maxWidth: "100%", cursor: "pointer", padding: "6px 8px" }}>
-            {REPORT_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>{t.label}</option>
-            ))}
-          </select>
-          <input type="text" placeholder="Buscar usuario..." value={userSearch} onChange={(e) => setUserSearch(e.target.value)} style={{ ...inputStyle, flex: "1 1 100%", maxWidth: "100%", padding: "6px 8px" }} />
-          <button onClick={clearFilters} style={{ ...ui.ghostBtn, flex: "1 1 100%", justifyContent: "center", padding: "6px 8px", fontSize: 12 }} className="active-tap">
-            Limpiar filtros
-          </button>
-          <div style={{ width: "100%", fontSize: 11, color: "var(--text-muted)", fontWeight: 600, textAlign: "center", paddingTop: 4, borderTop: "1px solid var(--border)" }}>
-            {visible.length} registro{visible.length !== 1 ? "s" : ""}
-          </div>
-        </div>
-
+        </MobileFilterDisclosure>
       ) : (
         <Toolbar>
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -214,93 +306,72 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
 
       {/* ============================== MÓVIL: tarjetas/acordeón ============================== */}
       {isMobile ? (
-        <div style={{ overflowY: "auto", maxHeight: "64vh" }}>
-          {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>Cargando información...</div>
-          )}
-          {error && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>{error}</div>
-          )}
-          {!loading && !error && visible.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              No hay registros de auditoría para los filtros seleccionados.
-            </div>
-          )}
-          {!loading && !error && visible.map((row) => {
-            const isExpanded = expandedLogs[row.id];
-            return (
-              <div key={row.id} style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 10, overflow: "hidden" }}>
-                <button
-                  type="button"
-                  onClick={() => toggleExpand(row.id)}
-                  className="active-tap"
-                  style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "11px 13px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
-                >
-                  <span style={{ minWidth: 0 }}>
-                    <span style={{ display: "block", fontWeight: 700, fontSize: 13.5, color: "var(--text)", overflowWrap: "anywhere" }}>{row.reportName}</span>
-                    <span style={{ display: "block", fontSize: 11.5, color: "var(--text-muted)", fontWeight: 600, marginTop: 2 }}>
-                      {row.user.name} · {fmtDate(row.createdAt)} {fmtTime(row.createdAt)}
-                    </span>
-                  </span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                    <TypeBadge type={row.reportType} />
-                    {isExpanded ? <ChevronUp size={16} color="var(--text-muted)" /> : <ChevronDown size={16} color="var(--text-muted)" />}
-                  </span>
-                </button>
-                {isExpanded && (
-                  <div style={{ padding: "4px 13px 12px", borderTop: "1px solid var(--surface-3)" }}>
-                    {detailRow("Usuario", row.user.email)}
-                    {detailRow("Sucursal", row.branch?.name ?? "—")}
-                    {detailRow("Filtros", parseFiltros(row.filters))}
-                    {detailRow("IP", <span style={{ fontFamily: "monospace" }}>{row.ipAddress ?? "—"}</span>)}
-                  </div>
-                )}
+        <>
+          <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, textAlign: "center", padding: "4px 0 10px" }}>
+            {visible.length} registro{visible.length !== 1 ? "s" : ""}
+          </div>
+          <div style={{ overflowY: "auto", maxHeight: "62vh" }}>
+            {loading && (
+              <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>Cargando información...</div>
+            )}
+            {error && (
+              <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>{error}</div>
+            )}
+            {!loading && !error && paged.total === 0 && (
+              <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+                No hay registros de auditoría para los filtros seleccionados.
               </div>
-            );
-          })}
-        </div>
+            )}
+            {!loading && !error && paged.pageItems.map((row) => {
+              const isExpanded = expandedLogs[row.id];
+              return (
+                <div key={row.id} style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 10, overflow: "hidden" }}>
+                  <button
+                    type="button"
+                    onClick={() => toggleExpand(row.id)}
+                    className="active-tap"
+                    style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "11px 13px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
+                  >
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: "block", fontWeight: 700, fontSize: 13.5, color: "var(--text)", overflowWrap: "anywhere" }}>{row.reportName}</span>
+                      <span style={{ display: "block", fontSize: 11.5, color: "var(--text-muted)", fontWeight: 600, marginTop: 2 }}>
+                        {row.user.name} · {fmtDate(row.createdAt)} {fmtTime(row.createdAt)}
+                      </span>
+                    </span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                      <TypeBadge type={row.reportType} />
+                      {isExpanded ? <ChevronUp size={16} color="var(--text-muted)" /> : <ChevronDown size={16} color="var(--text-muted)" />}
+                    </span>
+                  </button>
+                  {isExpanded && (
+                    <div style={{ padding: "4px 13px 12px", borderTop: "1px solid var(--surface-3)" }}>
+                      {detailRow("Usuario", row.user.email)}
+                      {detailRow("Sucursal", row.branch?.name ?? "—")}
+                      {detailRow("Dispositivo", parseUserAgent(row.userAgent))}
+                      {detailRow("Filtros", parseFiltros(row.filters))}
+                      {detailRow("IP", <span style={{ fontFamily: "monospace" }}>{row.ipAddress ?? "—"}</span>)}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
       ) : (
         /* ============================== ESCRITORIO: tabla ============================== */
-        <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-          <table style={ui.table}>
-            <thead>
-              <tr style={ui.theadRow}>
-                <th style={ui.th}>Fecha / Hora</th>
-                <th style={ui.th}>Usuario</th>
-                <th style={ui.th}>Sucursal</th>
-                <th style={ui.th}>Reporte</th>
-                <th style={{ ...ui.th, textAlign: "center" }}>Tipo</th>
-                <th style={ui.th}>Filtros aplicados</th>
-                <th style={{ ...ui.th, fontFamily: "monospace" }}>IP</th>
-              </tr>
-            </thead>
-            <tbody>
-              <TableState
-                colSpan={7}
-                loading={loading}
-                error={error}
-                empty={!loading && visible.length === 0}
-                emptyText="No hay registros de auditoría para los filtros seleccionados."
-              />
-              {!loading && !error && visible.map((row) => (
-                <tr key={row.id}>
-                  <td style={{ ...ui.td, color: "var(--text-secondary)", whiteSpace: "normal" }}>{fmtDateTime(row.createdAt)}</td>
-                  <td style={{ ...ui.td, whiteSpace: "normal", wordBreak: "break-word" }}>
-                    <div style={{ fontWeight: 700, color: "var(--text)" }}>{row.user.name}</div>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{row.user.email}</div>
-                  </td>
-                  <td style={{ ...ui.td, color: "var(--text-muted)", whiteSpace: "normal" }}>
-                    {row.branch?.name ?? <span style={{ color: "var(--text-faint)" }}>—</span>}
-                  </td>
-                  <td style={{ ...ui.td, fontWeight: 600, color: "var(--text)", whiteSpace: "normal" }}>{row.reportName}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}><TypeBadge type={row.reportType} /></td>
-                  <td style={{ ...ui.td, fontSize: 12, color: "var(--text-secondary)", maxWidth: 240, whiteSpace: "normal", wordBreak: "break-word" }}>{parseFiltros(row.filters)}</td>
-                  <td style={{ ...ui.td, fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", wordBreak: "break-all", whiteSpace: "normal" }}>{row.ipAddress ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={columns}
+          data={paged.pageItems}
+          loading={loading}
+          error={error}
+          emptyMessage="No hay registros de auditoría para los filtros seleccionados."
+          keyExtractor={(row) => row.id}
+          height="calc(100vh - 275px)"
+        />
+      )}
+
+      {!loading && !error && (
+        <Pagination page={paged.page} pageCount={paged.pageCount} total={paged.total} from={paged.from} to={paged.to} onPage={paged.setPage} itemLabel="registros" />
       )}
     </div>
   );

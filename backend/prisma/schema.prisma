@@ -505,6 +505,7 @@ model ReportAuditLog {
   reportType String   @db.NVarChar(100)
   filters    String?  @db.NVarChar(Max)
   ipAddress  String?  @db.NVarChar(45)
+  userAgent  String?  @db.NVarChar(255)
   createdAt  DateTime @default(now())
 
   user   User    @relation(fields: [userId], references: [id], onUpdate: NoAction)
