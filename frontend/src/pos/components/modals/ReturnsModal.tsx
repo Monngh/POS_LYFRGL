@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { RotateCcw, KeyRound, Minus, Plus, Check } from "lucide-react";
+import { RotateCcw, KeyRound, Minus, Plus, Check, Loader2 } from "lucide-react";
 import { PosModal, PosStepper } from "./shared";
 import { getEligibleReturn, submitReturn } from '../../../facturacion';
 import { openTicketPrintWindow } from "../../../shared/utils/ticketEmailDocument.util";
@@ -109,6 +109,30 @@ export default function ReturnsModal({
     }
   }, [isOpen, initialFolio]);
 
+  // Auto-validation of return folio
+  useEffect(() => {
+    if (returnStep !== "search" || !returnFolio.trim() || returnLoading) {
+      return;
+    }
+
+    const trimmed = returnFolio.trim();
+
+    // If it's a standard ticket folio (length 11, like V-171829182), validate immediately
+    if (trimmed.length === 11) {
+      handleReturnSearch(false);
+      return;
+    }
+
+    // For other lengths, wait for the user to finish typing (debounce of 700ms)
+    // Only trigger if they have entered at least 5 characters to avoid validation on partial "V" or "V-"
+    if (trimmed.length >= 5) {
+      const timer = setTimeout(() => {
+        handleReturnSearch(false);
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+  }, [returnFolio, returnStep]);
+
   const triggerSearchWithFolio = async (folioToSearch: string) => {
     setReturnLoading(true);
     try {
@@ -151,6 +175,11 @@ export default function ReturnsModal({
 
     const active = document.activeElement;
     if (!active) return;
+
+    // Permitir comportamiento nativo de flechas en elementos select
+    if (active.tagName === "SELECT" && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+      return;
+    }
 
     const row = active.closest('.pos-return-item-row');
     if (!row) return;
@@ -626,36 +655,52 @@ export default function ReturnsModal({
             <div style={{ display: "flex", gap: "10px", alignItems: "flex-end" }}>
               <div style={{ ...inputGroup, flex: 1 }}>
                 <label style={label}>Folio de Venta:</label>
-                <input
-                  type="text"
-                  className="input-corporate"
-                  placeholder="V-XXXXXX"
-                  value={returnFolio}
-                  onChange={(e) => {
-                    const value = validateFolioInput(e.target.value).toUpperCase();
-                    setReturnFolio(value);
-                    setReturnFieldErrors((prev) => {
-                      const next = { ...prev };
-                      const error = validateReference(value, "El folio de venta", { required: true, max: 40 });
-                      if (error) next.folio = error;
-                      else delete next.folio;
-                      return next;
-                    });
-                    setReturnSaleData(null);
-                  }}
-                  onKeyDown={(e) => { if (e.key === "Enter") handleReturnSearch(false); }}
-                  autoFocus
-                />
+                <div style={{ position: "relative", display: "flex", alignItems: "center", width: "100%" }}>
+                  <input
+                    type="text"
+                    className="input-corporate"
+                    placeholder="V-XXXXXX"
+                    value={returnFolio}
+                    onChange={(e) => {
+                      const value = validateFolioInput(e.target.value).toUpperCase();
+                      setReturnFolio(value);
+                      setReturnFieldErrors((prev) => {
+                        const next = { ...prev };
+                        const error = validateReference(value, "El folio de venta", { required: true, max: 40 });
+                        if (error) next.folio = error;
+                        else delete next.folio;
+                        return next;
+                      });
+                      setReturnSaleData(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (returnSaleData) {
+                          setReturnStep("select");
+                        } else if (!returnLoading && returnFolio.trim()) {
+                          handleReturnSearch(false);
+                        }
+                      }
+                    }}
+                    autoFocus
+                    style={{ width: "100%", paddingRight: returnLoading ? "35px" : "12px" }}
+                  />
+                  {returnLoading && (
+                    <Loader2
+                      className="animate-spin"
+                      size={18}
+                      style={{
+                        position: "absolute",
+                        right: "12px",
+                        color: "var(--accent-strong, #2563eb)",
+                        animation: "spin-loader 0.8s linear infinite"
+                      }}
+                    />
+                  )}
+                </div>
+                <style>{`@keyframes spin-loader { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
               </div>
-              <button
-                type="button"
-                className="btn-corporate-primary"
-                onClick={() => handleReturnSearch(false)}
-                disabled={returnLoading || !returnFolio.trim()}
-                style={{ height: "38px", padding: "0 20px" }}
-              >
-                {returnLoading ? "Validando..." : "Validar"}
-              </button>
             </div>
             {returnFieldErrors.folio && <p style={fieldError}>{returnFieldErrors.folio}</p>}
 
