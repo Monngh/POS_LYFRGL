@@ -63,25 +63,39 @@ export function CheckoutPanel({
       if (e.altKey && e.key.toLowerCase() === "e" && parkedSales.length > 0) {
         e.preventDefault();
         setIsParkedExpanded(prev => {
-          const next = !prev;
-          if (next) {
+          const isFocusing = prev && document.activeElement && parkedListRef.current?.contains(document.activeElement);
+          if (prev && !isFocusing) {
             setTimeout(() => {
               parkedListRef.current?.querySelector<HTMLElement>('[tabindex="0"]')?.focus();
             }, 50);
+            return true;
+          } else if (!prev) {
+            setTimeout(() => {
+              parkedListRef.current?.querySelector<HTMLElement>('[tabindex="0"]')?.focus();
+            }, 50);
+            return true;
+          } else {
+            return false;
           }
-          return next;
         });
       }
       if (e.altKey && e.key.toLowerCase() === "s" && pendingQrSales.length > 0) {
         e.preventDefault();
         setIsQrExpanded(prev => {
-          const next = !prev;
-          if (next) {
+          const isFocusing = prev && document.activeElement && qrListRef.current?.contains(document.activeElement);
+          if (prev && !isFocusing) {
             setTimeout(() => {
               qrListRef.current?.querySelector<HTMLElement>('[tabindex="0"]')?.focus();
             }, 50);
+            return true;
+          } else if (!prev) {
+            setTimeout(() => {
+              qrListRef.current?.querySelector<HTMLElement>('[tabindex="0"]')?.focus();
+            }, 50);
+            return true;
+          } else {
+            return false;
           }
-          return next;
         });
       }
     };
