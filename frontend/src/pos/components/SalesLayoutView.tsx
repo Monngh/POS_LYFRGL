@@ -37,28 +37,31 @@ export function SalesLayoutView({
 
           <div className="pos-sidebar-close-cash-wrapper" style={{ paddingBottom: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
 
-            <button
-              type="button"
-              onClick={() => onOpenModal("close-options")}
-              className="pos-quick-action-icon-btn active-tap"
-              data-shortcut-key="F8"
-              title="Cerrar caja (F8)"
-              style={{
-                width: "40px",
-                height: "40px",
-                borderRadius: "8px",
-                border: "1px solid var(--pos-border)",
-                backgroundColor: "#fee2e2",
-                color: "#dc2626",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                cursor: "pointer",
-                transition: "all 0.2s"
-              }}
-            >
-              <Store size={20} />
-            </button>
+            <div style={{ position: "relative", display: "inline-flex" }}>
+              <button
+                type="button"
+                onClick={() => onOpenModal("close-options")}
+                className="pos-quick-action-icon-btn active-tap"
+                data-shortcut-key="F8"
+                title="Cerrar caja (F8)"
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--pos-border)",
+                  backgroundColor: "#fee2e2",
+                  color: "#dc2626",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  cursor: "pointer",
+                  transition: "all 0.2s"
+                }}
+              >
+                <Store size={20} />
+              </button>
+              <span className="pos-fkey-badge" style={{ fontSize: "7px", padding: "1px 3px" }}>F8</span>
+            </div>
           </div>
         </div>
       </aside>

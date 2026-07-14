@@ -67,9 +67,10 @@ export default function DepositReceiptModal({
         data-shortcut="confirm"
         data-shortcut-letter="C"
         onClick={onPrint}
-        style={{ ...modalBtn, backgroundColor: "var(--accent-strong)", color: "white" }}
+        style={{ ...modalBtn, backgroundColor: "var(--accent-strong)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
       >
         IMPRIMIR
+        <span style={{ fontSize: "9px", backgroundColor: "rgba(255,255,255,0.25)", color: "white", padding: "1px 4px", borderRadius: "3px", fontWeight: "800", lineHeight: 1 }}>Alt+C</span>
       </button>
       {emailButton}
       {lastDeposit.status === "PENDING" && lastDeposit.paymentType?.startsWith("MERCADOPAGO_") && (
@@ -89,9 +90,14 @@ export default function DepositReceiptModal({
             color: "white",
             opacity: syncingDepositId === lastDeposit.id ? 0.7 : 1,
             cursor: syncingDepositId === lastDeposit.id ? "not-allowed" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "6px",
           }}
         >
           {syncingDepositId === lastDeposit.id ? "SINCRONIZANDO..." : "VERIFICAR PAGO"}
+          {syncingDepositId !== lastDeposit.id && <span style={{ fontSize: "9px", backgroundColor: "rgba(255,255,255,0.25)", color: "white", padding: "1px 4px", borderRadius: "3px", fontWeight: "800", lineHeight: 1 }}>Alt+W</span>}
         </button>
       )}
       <button
@@ -99,9 +105,10 @@ export default function DepositReceiptModal({
         data-shortcut="cancel"
         data-shortcut-letter="X"
         onClick={onClose}
-        style={{ ...modalBtn, backgroundColor: "#059669", color: "white" }}
+        style={{ ...modalBtn, backgroundColor: "#059669", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
       >
         CERRAR
+        <span style={{ fontSize: "9px", backgroundColor: "rgba(255,255,255,0.25)", color: "white", padding: "1px 4px", borderRadius: "3px", fontWeight: "800", lineHeight: 1 }}>Esc</span>
       </button>
     </div>
   );
