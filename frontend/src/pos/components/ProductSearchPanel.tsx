@@ -4,9 +4,7 @@ import { usePosSearch } from "../hooks/usePosSearch";
 import { usePosCart } from "../hooks/usePosCart";
 
 const validateTextInput = (value: string): string =>
-  value
-    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
-    .replace(/[^\p{L}\p{N}\s\-,.]/gu, "");
+  value.replace(/[^\p{L}\p{N}\s.,#_\/:@()+-]/gu, "");
 
 // maskPhoneLast2 removed
 

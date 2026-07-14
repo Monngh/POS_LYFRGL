@@ -16,6 +16,13 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
 
   try {
     const qStr = query ? String(query).trim() : "";
+
+    const weirdSymbolsPattern = /[^\p{L}\p{N}\s.,#_\/:@()+-]/u;
+    if (weirdSymbolsPattern.test(qStr)) {
+      res.status(400).json({ message: "La búsqueda contiene caracteres no permitidos." });
+      return;
+    }
+
     const rawWords = qStr ? qStr.split(/\s+/).filter((w) => w.length > 0) : [];
     const searchWords = qStr ? parseSearchWords(qStr) : [];
 

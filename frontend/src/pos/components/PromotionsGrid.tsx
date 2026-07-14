@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ChevronDown, ChevronUp, Tag, Search, X } from "lucide-react";
 import api from "../../shared/services/api";
-import { hasEmoji } from "../../shared/utils/formValidation";
 
 interface Promotion {
   id: number;
@@ -214,14 +213,14 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
             type="text"
             value={searchQuery}
             onChange={(e) => {
-              const val = e.target.value;
+              const raw = e.target.value;
+              const val = raw.replace(/[^\p{L}\p{N}\s.,#_\/:@()+-]/gu, "");
               if (val.length > 100) {
                 onToast("La búsqueda no puede exceder los 100 caracteres", "warning");
                 return;
               }
-              if (hasEmoji(val)) {
-                onToast("No se admiten emojis en la búsqueda", "warning");
-                return;
+              if (raw !== val) {
+                onToast("Se removieron caracteres no permitidos", "warning");
               }
               setSearchQuery(val);
             }}

@@ -29,9 +29,9 @@ export class PromotionController {
         return;
       }
 
-      const emojiPattern = /[\p{Extended_Pictographic}\uFE0F]/u;
-      if (emojiPattern.test(q)) {
-        res.status(400).json({ message: "No se admiten emojis en la búsqueda." });
+      const weirdSymbolsPattern = /[^\p{L}\p{N}\s.,#_\/:@()+-]/u;
+      if (weirdSymbolsPattern.test(q)) {
+        res.status(400).json({ message: "La búsqueda contiene caracteres no permitidos." });
         return;
       }
 
