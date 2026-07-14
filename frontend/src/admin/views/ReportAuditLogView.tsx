@@ -454,7 +454,9 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
       )}
 
       {!loading && !error && (
-        <Pagination page={paged.page} pageCount={paged.pageCount} total={paged.total} from={paged.from} to={paged.to} onPage={paged.setPage} itemLabel="registros" />
+        <div style={{ padding: isMobile ? "0 16px 16px" : "0", marginTop: isMobile ? -6 : 0 }}>
+          <Pagination page={paged.page} pageCount={paged.pageCount} total={paged.total} from={paged.from} to={paged.to} onPage={paged.setPage} itemLabel="registros" />
+        </div>
       )}
     </div>
   );

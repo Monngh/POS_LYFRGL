@@ -40,6 +40,7 @@ export function DataTable<T>({
 
   const card = (
     <div
+      className="premium-scrollbar"
       style={{
         overflowX: "auto",
         overflowY: "auto",
@@ -68,6 +69,10 @@ export function DataTable<T>({
                   textAlign: col.align ?? "left",
                   width: col.width,
                   whiteSpace: "nowrap",
+                  position: "sticky",
+                  top: 0,
+                  zIndex: 10,
+                  backgroundColor: "var(--surface-3)",
                 }}
               >
                 {col.header}

@@ -365,6 +365,27 @@ button:disabled {
   z-index: 2;
 }
 
+/* Scrollbar premium reutilizable para contenedores con overflow (tablas, listados).
+   Overlay en navegadores Chromium para que las filas ocupen el 100% del ancho;
+   se ignora silenciosamente donde "overlay" no es soportado (Firefox/Safari). */
+.premium-scrollbar {
+  overflow-y: overlay !important;
+}
+.premium-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.premium-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.premium-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}
+.premium-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
 /* Efectos de Hover para Autocomplete Dropdown */
 .autocomplete-item-hover:hover {
   background-color: #f1f5f9 !important;

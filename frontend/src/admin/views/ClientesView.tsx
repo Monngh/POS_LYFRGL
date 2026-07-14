@@ -659,37 +659,6 @@ const ClientesView: React.FC<ViewProps> = ({ refreshToken }) => {
         </div>
       ) : (
         <div className="table-sticky-head">
-          <style>{`
-            .table-sticky-head table {
-              min-width: 820px;
-              width: 100%;
-            }
-            .table-sticky-head thead th {
-              position: sticky;
-              top: 0;
-              z-index: 1;
-              background: var(--surface-2);
-            }
-            /* Permite que el scrollbar vertical se superponga (overlay) para que las filas ocupen el 100% del ancho */
-            .table-sticky-head > div {
-              overflow-y: overlay !important;
-            }
-            /* Estilos premium para los scrollbars del contenedor de la tabla */
-            .table-sticky-head > div::-webkit-scrollbar {
-              width: 8px;
-              height: 8px;
-            }
-            .table-sticky-head > div::-webkit-scrollbar-track {
-              background: transparent;
-            }
-            .table-sticky-head > div::-webkit-scrollbar-thumb {
-              background: var(--border-strong);
-              border-radius: 4px;
-            }
-            .table-sticky-head > div::-webkit-scrollbar-thumb:hover {
-              background: var(--accent);
-            }
-          `}</style>
           <DataTable
             columns={columns}
             data={paged.pageItems}
