@@ -49,7 +49,7 @@ Implementación: registro oculto en [SalesTerminalView.tsx](components/SalesTerm
 | Shortcut | Acción | Aplica en | Implementación |
 | --- | --- | --- | --- |
 | `Alt+R` | Registrar / confirmar cliente | Buscador / modales cliente | [ProductSearchPanel.tsx](components/ProductSearchPanel.tsx) |
-| `Alt+M` | Mostrar u ocultar teléfono del cliente | Buscador / confirmación teléfono | [ProductSearchPanel.tsx](components/ProductSearchPanel.tsx) |
+| `Alt+T` | Mostrar u ocultar teléfono del cliente | Buscador / confirmación teléfono | [CustomerCheckoutBar.tsx](components/CustomerCheckoutBar.tsx) |
 | `Alt+M` *(depósito)* | Tab "Registrar Resguardo" | Modal depósito banco (scope) | [BankDepositModal.tsx](components/modals/BankDepositModal.tsx) |
 | `Alt+E` | Abrir Ventas en espera | Terminal de ventas | [CheckoutPanel.tsx](components/CheckoutPanel.tsx) |
 | `Alt+S` | Abrir Pagos pendientes | Terminal de ventas | [CheckoutPanel.tsx](components/CheckoutPanel.tsx) |
@@ -68,7 +68,7 @@ Implementación: registro oculto en [SalesTerminalView.tsx](components/SalesTerm
 | `Alt+J` | Ver QR del primer pago pendiente | Panel de cobro | [CheckoutPanel.tsx](components/CheckoutPanel.tsx) |
 | `Alt+Z` | Eliminar venta en espera seleccionada | Ventas en espera | [ParkedSalesModal.tsx](components/modals/ParkedSalesModal.tsx) |
 
-> **Nota sobre scope:** cuando el modal de Depósito Banco está abierto, `Alt+M` y `Alt+K` se resuelven dentro del scope del modal (pestaña Registrar / Buscar) en lugar de sus acciones globales. Al cerrar el modal, recuperan su comportamiento original.
+> **Nota sobre scope:** cuando el modal de Depósito Banco está abierto, `Alt+K` se resuelve dentro del scope del modal (pestaña Buscar) en lugar de su acción global. Al cerrar el modal, recupera su comportamiento original.
 
 ## Navegación por contexto
 
