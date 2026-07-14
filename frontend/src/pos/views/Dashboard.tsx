@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import "../../pos-cashier-responsive.css";
 import "../../pos-modern.css";
@@ -663,6 +663,19 @@ const Dashboard: React.FC = () => {
   const [pendingCancelReason, setPendingCancelReason] = useState("");
   const [pendingCancelFieldErrors, setPendingCancelFieldErrors] = useState<Partial<Record<"pin" | "reason", string>>>({});
   const [pendingCancelLoading, setPendingCancelLoading] = useState(false);
+
+  const pendingCancelPinInputRef = useRef<HTMLInputElement>(null);
+  const pendingCancelReasonInputRef = useRef<HTMLInputElement>(null);
+
+  // Focus PIN Gerente when viewingPendingQrSale opens
+  useEffect(() => {
+    if (viewingPendingQrSale && viewingPendingQrSale.status !== "approved") {
+      const timer = setTimeout(() => {
+        pendingCancelPinInputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [viewingPendingQrSale]);
 
   // Sincronizar pagos QR pendientes cuando cambie el usuario autenticado
   useEffect(() => {
@@ -1346,11 +1359,18 @@ const Dashboard: React.FC = () => {
                 <div style={{ display: "flex", gap: "8px" }}>
                   <div style={{ flex: 1 }}>
                     <input
+                      ref={pendingCancelPinInputRef}
                       type="password"
                       placeholder="PIN Gerente"
                       maxLength={4}
                       value={pendingCancelPin}
                       onChange={(e) => handlePendingCancelPinChange(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          pendingCancelReasonInputRef.current?.focus();
+                        }
+                      }}
                       className="input-corporate"
                       style={{ padding: "6px 10px", fontSize: "12px" }}
                     />
@@ -1358,6 +1378,7 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div style={{ flex: 2 }}>
                     <input
+                      ref={pendingCancelReasonInputRef}
                       type="text"
                       placeholder="Motivo de cancelación"
                       value={pendingCancelReason}
