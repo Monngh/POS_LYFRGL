@@ -917,6 +917,32 @@
   color: var(--pos-red);
 }
 
+/* Badge "Del" visible solo al hacer hover sobre el botón eliminar */
+.pos-cart-remove-shortcut {
+  position: absolute;
+  bottom: -11px;
+  left: 50%;
+  transform: translateX(-50%) scale(0.8);
+  background: #dc2626;
+  color: #fff;
+  font-size: 7px;
+  font-weight: 700;
+  padding: 1px 3px;
+  border-radius: 3px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 20;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+}
+
+.pos-cart-remove-btn:hover .pos-cart-remove-shortcut {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
 /* ============================================================
    Panel de totales + Cobro — Total siempre gigante y visible
    ============================================================ */

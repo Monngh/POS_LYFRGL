@@ -316,16 +316,19 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
                     </td>
 
                     {/* Eliminar */}
-                    <td style={{ textAlign: "center", padding: "4px" }}>
+                    <td style={{ textAlign: "center", padding: "4px", overflow: "visible", position: "relative" }}>
                       <button
                         type="button"
                         className="pos-cart-remove-btn"
                         onClick={() => removeCartItem(item.product.id)}
-                        title={`Eliminar ${item.product.name}`}
+                        title={`Eliminar ${item.product.name} (Del)`}
+                        style={{ position: "relative" }}
                       >
                         <XCircle size={14} />
+                        <span className="pos-cart-remove-shortcut">Del</span>
                       </button>
                     </td>
+
                   </tr>
                 );
               })
