@@ -8,6 +8,8 @@ import {
   type UpdateEmployeeInput,
 } from "../services/adminEmployee.service";
 import { validateAdminLocalPhone } from "../utils/adminPhoneValidation";
+import { clientIp } from "../utils/authAudit";
+import { logAdminAction } from "../utils/adminActionLog";
 
 const parseBranch = (req: Request): number | undefined => {
   if (req.user && req.user.role === "GERENTE") return req.user.branchId;
@@ -212,6 +214,17 @@ export const updateEmployee = async (req: Request, res: Response): Promise<void>
 
     // Ocultar campos sensibles
     const { passwordHash, pinCode, ...userSafe } = updated as any;
+
+    if (active !== undefined && req.user) {
+      logAdminAction(
+        req.user.userId,
+        "EMPLOYEE_STATUS_CHANGE",
+        userSafe.name,
+        userSafe.active ? "Activado" : "Desactivado",
+        clientIp(req)
+      );
+    }
+
     res.status(200).json({
       message: "Empleado actualizado exitosamente.",
       employee: {

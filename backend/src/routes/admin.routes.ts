@@ -74,6 +74,8 @@ import {
   revokeSession,
   getMySessionStatus,
   getAdminSessionClosures,
+  getAdminActionLog,
+  recordNavigationAction,
 } from "../controllers/securityAudit.controller";
 import { authenticateJWT, authenticateJWTDecodeOnly, authenticateSSE, authorizeRoles } from "../middlewares/auth.middleware";
 
@@ -183,6 +185,8 @@ router.get("/security/failed-pin-attempts", authorizeRoles(["ADMIN"]), getFailed
 router.get("/security/active-sessions", authorizeRoles(["ADMIN"]), getActiveSessions);
 router.post("/security/revoke-session/:userId", authorizeRoles(["ADMIN"]), revokeSession);
 router.get("/security/admin-session-closures", authorizeRoles(["ADMIN"]), getAdminSessionClosures);
+router.get("/security/action-log", authorizeRoles(["ADMIN"]), getAdminActionLog);
+router.post("/security/action-log", authorizeRoles(["ADMIN", "GERENTE"]), recordNavigationAction);
 
 // Devoluciones (admin)
 router.get("/returns", authorizeRoles(["ADMIN", "GERENTE"]), getAdminReturns);
