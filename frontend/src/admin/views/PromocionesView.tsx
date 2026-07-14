@@ -1350,73 +1350,105 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <X size={18} />
               </button>
             </div>
-            <div style={ui.modalBody}>
-              <div style={styles.detailGrid}>
-                <div>
-                  <span style={styles.detailLabel}>Tipo</span>
-                  <strong>{typeLabel(detail.promotionType.name)}</strong>
+            <div style={{ ...ui.modalBody, padding: "14px 20px" }}>
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
+                gap: 12,
+                marginBottom: 16,
+              }}>
+                <div style={{ ...ui.kpiCard, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                  <span style={{ ...styles.detailLabel, marginBottom: 4 }}>Tipo</span>
+                  <strong style={{ fontSize: 13, color: "var(--text)" }}>{typeLabel(detail.promotionType.name)}</strong>
                 </div>
-                <div>
-                  <span style={styles.detailLabel}>Valor</span>
-                  <strong>{formatPromotionValue(detail)}</strong>
+                <div style={{ ...ui.kpiCard, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                  <span style={{ ...styles.detailLabel, marginBottom: 4 }}>Valor</span>
+                  <strong style={{ fontSize: 13, color: "var(--text)" }}>{formatPromotionValue(detail)}</strong>
                 </div>
-                <div>
-                  <span style={styles.detailLabel}>Vigencia</span>
-                  <strong>{fmtDate(detail.startDate)} - {fmtDate(detail.endDate)}</strong>
+                <div style={{ ...ui.kpiCard, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                  <span style={{ ...styles.detailLabel, marginBottom: 4 }}>Vigencia</span>
+                  <strong style={{ fontSize: 12, color: "var(--text)" }}>{fmtDate(detail.startDate)} - {fmtDate(detail.endDate)}</strong>
                 </div>
-                <div>
-                  <span style={styles.detailLabel}>Estado</span>
-                  <Badge tone={getStatus(detail).tone}>{getStatus(detail).label}</Badge>
+                <div style={{ ...ui.kpiCard, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                  <span style={{ ...styles.detailLabel, marginBottom: 4 }}>Estado</span>
+                  <div>
+                    <Badge tone={getStatus(detail).tone}>{getStatus(detail).label}</Badge>
+                  </div>
                 </div>
               </div>
 
-              {detail.description && <p style={styles.detailDescription}>{detail.description}</p>}
+              {detail.description && (
+                <div style={{
+                  backgroundColor: "var(--surface-2)",
+                  border: "1px solid var(--border-soft)",
+                  borderRadius: 8,
+                  padding: "10px 12px",
+                  fontSize: 12.5,
+                  color: "var(--text-secondary)",
+                  lineHeight: 1.45,
+                  marginBottom: 16,
+                }}>
+                  {detail.description}
+                </div>
+              )}
 
-              <div style={{ marginTop: 18 }}>
-                <label style={ui.fieldLabel}>Productos asignados</label>
-                <div style={styles.assignedList}>
-                  {detail.products.map((row) =>
-                    isMobile ? (
-                      <div
-                        key={row.productId}
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "flex-start",
-                          padding: "10px 12px",
-                          borderBottom: "1px solid var(--border)",
-                          gap: 8,
-                        }}
-                      >
-                        <div style={{ minWidth: 0 }}>
-                          <div
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 600,
-                              color: "var(--text)",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {row.product?.name ?? `Producto #${row.productId}`}
+              <div style={{ marginTop: 0 }}>
+                <label style={{ ...ui.fieldLabel, marginBottom: 6 }}>Productos asignados ({detail.products.length})</label>
+                <div style={{
+                  ...styles.assignedList,
+                  maxHeight: "32vh",
+                  overflowY: "auto",
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                }}>
+                  {detail.products.length === 0 ? (
+                    <div style={{ padding: "16px", fontSize: 13, color: "var(--text-muted)", textAlign: "center" }}>
+                      No hay productos asignados a esta promoción.
+                    </div>
+                  ) : (
+                    detail.products.map((row) =>
+                      isMobile ? (
+                        <div
+                          key={row.productId}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "flex-start",
+                            padding: "10px 12px",
+                            borderBottom: "1px solid var(--border)",
+                            gap: 8,
+                          }}
+                        >
+                          <div style={{ minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: "var(--text)",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {row.product?.name ?? `Producto #${row.productId}`}
+                            </div>
+                            <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
+                              {row.product?.sku ?? `#${row.productId}`}
+                            </div>
                           </div>
-                          <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
-                            {row.product?.sku ?? `#${row.productId}`}
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", flexShrink: 0 }}>
+                            {row.product ? moneyExact(Number(row.product.sellPrice)) : ""}
                           </div>
                         </div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", flexShrink: 0 }}>
-                          {row.product ? moneyExact(Number(row.product.sellPrice)) : ""}
+                      ) : (
+                        <div key={row.productId} style={styles.assignedRow}>
+                          <span style={styles.sku}>{row.product?.sku ?? `#${row.productId}`}</span>
+                          <span style={{ fontWeight: 800 }}>{row.product?.name ?? `Producto #${row.productId}`}</span>
+                          <span style={{ marginLeft: "auto", color: "var(--text-muted)" }}>
+                            {row.product ? moneyExact(Number(row.product.sellPrice)) : ""}
+                          </span>
                         </div>
-                      </div>
-                    ) : (
-                      <div key={row.productId} style={styles.assignedRow}>
-                        <span style={styles.sku}>{row.product?.sku ?? `#${row.productId}`}</span>
-                        <span style={{ fontWeight: 800 }}>{row.product?.name ?? `Producto #${row.productId}`}</span>
-                        <span style={{ marginLeft: "auto", color: "var(--text-muted)" }}>
-                          {row.product ? moneyExact(Number(row.product.sellPrice)) : ""}
-                        </span>
-                      </div>
+                      )
                     )
                   )}
                 </div>
