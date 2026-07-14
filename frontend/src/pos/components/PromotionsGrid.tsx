@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { ChevronDown, ChevronUp, Tag } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { ChevronDown, ChevronUp, Tag, Search, X } from "lucide-react";
 import api from "../../shared/services/api";
 
 interface Promotion {
@@ -35,26 +35,52 @@ interface PromotionsGridProps {
 export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscount = 0 }: PromotionsGridProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Promotion[] | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchPromotions = async () => {
-      try {
-        const res = await api.get("/api/promotions/active");
-        const data = res.data;
-        setPromotions(Array.isArray(data) ? data : (data?.promotions || []));
-      } catch (err) {
-        console.error("Error fetching promotions", err);
-        onToast("No se pudieron cargar las promociones activas", "error");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchPromotions();
+  const fetchAllPromotions = useCallback(async () => {
+    try {
+      const res = await api.get("/api/promotions/active");
+      const data = res.data;
+      setPromotions(Array.isArray(data) ? data : (data?.promotions || []));
+    } catch (err) {
+      console.error("Error fetching promotions", err);
+      onToast("No se pudieron cargar las promociones activas", "error");
+    } finally {
+      setLoading(false);
+    }
   }, [onToast]);
 
-  const availablePromotions = Array.isArray(promotions) ? promotions : [];
+  useEffect(() => {
+    fetchAllPromotions();
+  }, [fetchAllPromotions]);
+
+  // Debounced search
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const res = await api.get(`/api/promotions/search?q=${encodeURIComponent(searchQuery.trim())}`);
+        const data = res.data;
+        setSearchResults(Array.isArray(data) ? data : []);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const availablePromotions = searchResults ?? (Array.isArray(promotions) ? promotions : []);
 
   const getDiscountBadge = (promo: Promotion) => {
     if (promo.promotionType.name === "BuyXPayY" && promo.minQuantity && promo.payQuantity) {
@@ -109,25 +135,13 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
           }
         } else if (key === "p") {
           e.preventDefault();
-          setIsCollapsed((prev) => {
-            const isFocusing = !prev && document.activeElement && listRef.current?.contains(document.activeElement);
-            // If it's closed, open it. If it's open but unfocused, focus it. If it's open and focused, close it.
-            if (!prev && !isFocusing) {
-              setTimeout(() => {
-                const firstItem = listRef.current?.querySelector<HTMLElement>('.pos-checkout-focusable-item');
-                if (firstItem) firstItem.focus();
-              }, 50);
-              return false;
-            } else if (prev) {
-              setTimeout(() => {
-                const firstItem = listRef.current?.querySelector<HTMLElement>('.pos-checkout-focusable-item');
-                if (firstItem) firstItem.focus();
-              }, 50);
-              return false;
-            } else {
-              return true;
-            }
-          });
+          if (isCollapsed) {
+            setIsCollapsed(false);
+            setTimeout(() => searchInputRef.current?.focus(), 60);
+          } else {
+            // If open, focus search input
+            searchInputRef.current?.focus();
+          }
         }
       }
     };
@@ -183,6 +197,48 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
         {isCollapsed ? <ChevronDown size={18} color="#64748b" /> : <ChevronUp size={18} color="#64748b" />}
       </div>
 
+      {/* Search input */}
+      {!isCollapsed && (
+        <div style={{ position: "relative", marginTop: "8px", marginBottom: "4px" }} onClick={(e) => e.stopPropagation()}>
+          <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none" }} />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") { setSearchQuery(""); e.stopPropagation(); }
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                const firstItem = listRef.current?.querySelector<HTMLElement>('.pos-checkout-focusable-item');
+                if (firstItem) firstItem.focus();
+              }
+            }}
+            placeholder="Buscar promoción o producto..."
+            style={{
+              width: "100%",
+              padding: "7px 30px 7px 30px",
+              borderRadius: "6px",
+              border: "1px solid var(--pos-border)",
+              backgroundColor: "var(--pos-surface-2)",
+              color: "var(--pos-text)",
+              fontSize: "12px",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 0, color: "#94a3b8", display: "flex", alignItems: "center" }}
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+      )}
+
       <div style={{
         display: "grid",
         gridTemplateRows: isCollapsed ? "0fr" : "1fr",
@@ -190,8 +246,10 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
         marginTop: isCollapsed ? 0 : "2px",
       }}>
         <div style={{ overflow: "hidden" }}>
-          {loading ? (
-            <p style={{ color: "#94a3b8", fontSize: "12px", textAlign: "center", paddingBottom: "12px" }}>Cargando...</p>
+          {loading || searchLoading ? (
+            <p style={{ color: "#94a3b8", fontSize: "12px", textAlign: "center", paddingBottom: "12px" }}>
+              {searchLoading ? "Buscando..." : "Cargando..."}
+            </p>
           ) : availablePromotions.length > 0 ? (
             <div 
               ref={listRef}
@@ -253,13 +311,25 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
               borderRadius: "8px",
               marginBottom: "4px"
             }}>
-              <span style={{ fontSize: "16px", marginBottom: "4px" }}>🛒</span>
+              <span style={{ fontSize: "16px", marginBottom: "4px" }}>{searchQuery ? "🔍" : "🛒"}</span>
               <span style={{ fontSize: "12px", fontWeight: "600" }}>
-                {cartDiscount > 0 
-                  ? "Todas las promociones disponibles ya están aplicadas" 
+                {searchQuery
+                  ? `Sin resultados para "${searchQuery}"`
+                  : cartDiscount > 0
+                  ? "Todas las promociones disponibles ya están aplicadas"
                   : "No hay promociones disponibles"}
               </span>
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  style={{ marginTop: "8px", fontSize: "11px", color: "#3b82f6", background: "none", border: "none", cursor: "pointer", fontWeight: "600" }}
+                >
+                  Limpiar búsqueda
+                </button>
+              )}
             </div>
+
           )}
         </div>
       </div>
