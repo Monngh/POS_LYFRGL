@@ -265,6 +265,7 @@
   border-radius: 3px;
   line-height: 1;
   letter-spacing: 0;
+  z-index: 10;
 }
 
 /* ============================================================
