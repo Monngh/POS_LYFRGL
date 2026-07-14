@@ -213,8 +213,8 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
             type="text"
             value={searchQuery}
             onChange={(e) => {
-              const raw = e.target.value;
-              const val = raw.replace(/[^\p{L}\p{N}\s.,#_\/:@()+-]/gu, "");
+              const raw = e.target.value.normalize("NFC");
+              const val = raw.replace(/[^\p{L}\p{M}\p{N}\s.,#_\/:@()+\$%\-]/gu, "");
               if (val.length > 100) {
                 onToast("La búsqueda no puede exceder los 100 caracteres", "warning");
                 return;

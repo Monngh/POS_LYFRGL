@@ -22,14 +22,14 @@ export class PromotionController {
    */
   static async search(req: Request, res: Response) {
     try {
-      const q = ((req.query.q as string) || "").trim();
+      const q = ((req.query.q as string) || "").trim().normalize("NFC");
 
       if (q.length > 100) {
         res.status(400).json({ message: "La búsqueda no puede exceder los 100 caracteres." });
         return;
       }
 
-      const weirdSymbolsPattern = /[^\p{L}\p{N}\s.,#_\/:@()+-]/u;
+      const weirdSymbolsPattern = /[^\p{L}\p{M}\p{N}\s.,#_\/:@()+\$%\-]/u;
       if (weirdSymbolsPattern.test(q)) {
         res.status(400).json({ message: "La búsqueda contiene caracteres no permitidos." });
         return;
