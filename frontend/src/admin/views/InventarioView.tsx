@@ -585,6 +585,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [deleteTarget, setDeleteTarget] = useState<DeactivationTarget | null>(null);
   const [deletingProductId, setDeletingProductId] = useState<number | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isPrintingProductSheet, setIsPrintingProductSheet] = useState(false);
+  const isPrintingProductSheetRef = useRef(false);
+  const productSheetPrintTimeoutRef = useRef<number | null>(null);
   const productActionInProgress = deactivatingProductId !== null || deletingProductId !== null;
 
   // Feature 1: edit prices
@@ -1481,6 +1484,14 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   }, [load]);
 
   useEffect(() => {
+    return () => {
+      if (productSheetPrintTimeoutRef.current !== null) {
+        window.clearTimeout(productSheetPrintTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     api
       .get<SupplierOption[]>("/api/admin/suppliers")
       .then((r) => setSuppliers(r.data))
@@ -1556,60 +1567,427 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   const printProduct = useCallback(() => {
     if (!selectedProduct) return;
+    if (isPrintingProductSheetRef.current) return;
+
+    isPrintingProductSheetRef.current = true;
+    setIsPrintingProductSheet(true);
+    if (productSheetPrintTimeoutRef.current !== null) {
+      window.clearTimeout(productSheetPrintTimeoutRef.current);
+    }
+    productSheetPrintTimeoutRef.current = window.setTimeout(() => {
+      isPrintingProductSheetRef.current = false;
+      setIsPrintingProductSheet(false);
+      productSheetPrintTimeoutRef.current = null;
+    }, 2500);
+
     const p = selectedProduct;
+    const escapeHtml = (value: unknown): string =>
+      String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    const stockTotal = p.inventories.reduce((total, inv) => total + inv.quantity, 0);
+    const margin = p.sellPrice > 0
+      ? `${(((p.sellPrice - p.costPrice) / p.sellPrice) * 100).toFixed(1)}%`
+      : "-";
+    const generatedAt = `${fmtDate(new Date())} ${fmtTime(new Date())}`;
+    const categoryNames = p.categories.map((category) => category.name).filter(Boolean).join(", ");
+    const primarySupplier = primarySupplierId !== null
+      ? suppliers.find((supplier) => supplier.id === primarySupplierId)
+      : null;
+    const generalInfo = [
+      p.description ? { label: "Descripcion", value: p.description } : null,
+      categoryNames ? { label: "Categorias", value: categoryNames } : null,
+      p.satProductKey ? { label: "Clave SAT producto", value: p.satProductKey } : null,
+      p.satUnitKey ? { label: "Unidad SAT", value: p.satUnitKey } : null,
+      primarySupplier ? { label: "Proveedor principal", value: primarySupplier.name } : null,
+      { label: "Retornable", value: p.isReturnable ? `Si (${p.returnWindowDays} dias)` : "No" },
+    ].filter((item): item is { label: string; value: string } => Boolean(item));
+    const generalInfoRows = generalInfo
+      .map(
+        (item) => `
+      <div class="info-item">
+        <div class="info-label">${escapeHtml(item.label)}</div>
+        <div class="info-value">${escapeHtml(item.value)}</div>
+      </div>`
+      )
+      .join("");
     const invRows = p.inventories
       .map(
-        (inv) => `
+        (inv) => {
+          const status = inv.quantity <= 0 ? "Sin stock" : inv.quantity <= inv.minStock ? "Stock bajo" : "OK";
+          const statusClass = inv.quantity <= 0 ? "status-empty" : inv.quantity <= inv.minStock ? "status-low" : "status-ok";
+          return `
       <tr>
-        <td>${inv.branch}</td>
-        <td class="c">${inv.quantity}</td>
-        <td class="c">${inv.minStock}</td>
-        <td class="c">${inv.maxStock}</td>
-        <td class="c" style="color:${inv.quantity <= inv.minStock ? "#b45309" : "#15803d"}">${inv.quantity <= inv.minStock ? "Stock bajo" : "OK"}</td>
-      </tr>`
+        <td>${escapeHtml(inv.branch)}</td>
+        <td class="r">${inv.quantity}</td>
+        <td class="r">${inv.minStock}</td>
+        <td class="r">${inv.maxStock}</td>
+        <td class="c"><span class="status-pill ${statusClass}">${status}</span></td>
+      </tr>`;
+        }
       )
       .join("");
     const kardexRows = p.recentKardex
       .map(
-        (k) => `
+        (k) => {
+          const changeClass = k.quantityChange > 0 ? "change-positive" : k.quantityChange < 0 ? "change-negative" : "change-neutral";
+          return `
       <tr>
         <td>${fmtDate(k.date)}</td>
-        <td>${k.branch}</td>
-        <td>${k.movementType.replace(/_/g, " ")}</td>
-        <td class="c" style="color:${k.quantityChange >= 0 ? "#15803d" : "#b91c1c"}">${k.quantityChange >= 0 ? "+" : ""}${k.quantityChange}</td>
-        <td class="c">${k.balanceAfter}</td>
-        <td>${k.reason || "—"}</td>
-      </tr>`
+        <td>${escapeHtml(k.branch)}</td>
+        <td>${escapeHtml(k.movementType.replace(/_/g, " "))}</td>
+        <td class="r ${changeClass}">${k.quantityChange > 0 ? "+" : ""}${k.quantityChange}</td>
+        <td class="r">${k.balanceAfter}</td>
+        <td class="reason-cell">${escapeHtml(k.reason || "-")}</td>
+      </tr>`;
+        }
       )
       .join("");
     printHtml(
       `Producto: ${p.name}`,
       `
-      <div class="doc-header">
-        <div><div class="doc-brand">LYFRGL POS</div><div class="doc-sub">Ficha de Producto</div></div>
-        <div>
-          <div class="doc-title">${p.name}</div>
-          <div class="doc-meta">SKU: ${p.sku}${p.barcode ? ` · Barcode: ${p.barcode}` : ""}</div>
-        </div>
-      </div>
-      <div class="kpis">
-        <div class="kpi"><div class="l">Costo</div><div class="v">${money(p.costPrice)}</div></div>
-        <div class="kpi"><div class="l">Precio venta</div><div class="v">${money(p.sellPrice)}</div></div>
-        <div class="kpi"><div class="l">Estado</div><div class="v">${p.active ? "Activo" : "Inactivo"}</div></div>
-        <div class="kpi"><div class="l">Sucursales</div><div class="v">${p.inventories.length}</div></div>
-      </div>
-      <h3>Stock por sucursal</h3>
-      <table>
-        <thead><tr><th>Sucursal</th><th class="c">Stock</th><th class="c">Mínimo</th><th class="c">Máximo</th><th class="c">Estado</th></tr></thead>
-        <tbody>${invRows || '<tr><td colspan="5" class="c">Sin inventario registrado</td></tr>'}</tbody>
-      </table>
-      <h3>Últimos movimientos Kardex</h3>
-      <table>
-        <thead><tr><th>Fecha</th><th>Sucursal</th><th>Tipo</th><th class="c">Cambio</th><th class="c">Saldo</th><th>Motivo</th></tr></thead>
-        <tbody>${kardexRows || '<tr><td colspan="6" class="c">Sin movimientos registrados</td></tr>'}</tbody>
-      </table>`
+      <style>
+        @page {
+          size: letter portrait;
+          margin: 12mm;
+        }
+        body {
+          padding: 0 !important;
+          background: #ffffff;
+          color: #172033;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .product-sheet + .foot {
+          display: none;
+        }
+        .product-sheet {
+          min-height: calc(100vh - 24mm);
+          padding-bottom: 18mm;
+          font-size: 11px;
+          line-height: 1.35;
+        }
+        .sheet-header {
+          display: grid;
+          grid-template-columns: 1fr 1.35fr;
+          gap: 18px;
+          align-items: end;
+          padding-bottom: 12px;
+          border-bottom: 2px solid #23395d;
+          margin-bottom: 14px;
+        }
+        .brand-title {
+          font-size: 22px;
+          line-height: 1;
+          font-weight: 850;
+          color: #182f52;
+          letter-spacing: 0;
+        }
+        .doc-kind {
+          margin-top: 5px;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 1.2px;
+          font-weight: 750;
+          color: #6b7280;
+        }
+        .product-title-block {
+          text-align: right;
+        }
+        .product-name {
+          font-size: 20px;
+          font-weight: 850;
+          color: #111827;
+          line-height: 1.12;
+          overflow-wrap: anywhere;
+        }
+        .product-codes {
+          display: flex;
+          justify-content: flex-end;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-top: 8px;
+        }
+        .code-chip {
+          border: 1px solid #d8dee8;
+          background: #f8fafc;
+          border-radius: 6px;
+          padding: 4px 7px;
+          font-size: 10px;
+          color: #465568;
+          font-weight: 700;
+        }
+        .summary-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 9px;
+          margin: 12px 0 13px;
+        }
+        .summary-card {
+          border: 1px solid #dbe1ea;
+          border-radius: 8px;
+          background: #f7f9fc;
+          padding: 9px 10px;
+          min-height: 54px;
+        }
+        .summary-label {
+          font-size: 9.5px;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: .65px;
+          font-weight: 750;
+        }
+        .summary-value {
+          margin-top: 4px;
+          font-size: 17px;
+          line-height: 1.1;
+          font-weight: 850;
+          color: #172033;
+        }
+        .summary-value.small {
+          font-size: 14px;
+        }
+        .section {
+          margin-top: 13px;
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+        .section-title {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+          font-weight: 850;
+          color: #23395d;
+          text-transform: uppercase;
+          letter-spacing: .55px;
+          margin-bottom: 7px;
+        }
+        .section-title::after {
+          content: "";
+          height: 1px;
+          background: #dbe1ea;
+          flex: 1;
+        }
+        .info-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 7px 10px;
+          border: 1px solid #dbe1ea;
+          background: #fbfcfe;
+          border-radius: 8px;
+          padding: 9px 10px;
+        }
+        .info-label {
+          font-size: 9.5px;
+          color: #6b7280;
+          text-transform: uppercase;
+          letter-spacing: .45px;
+          font-weight: 750;
+        }
+        .info-value {
+          margin-top: 2px;
+          color: #1f2937;
+          font-size: 11.5px;
+          font-weight: 650;
+          overflow-wrap: anywhere;
+        }
+        .product-table {
+          width: 100%;
+          border-collapse: separate;
+          border-spacing: 0;
+          border: 1px solid #dbe1ea;
+          border-radius: 8px;
+          overflow: hidden;
+          margin: 0;
+          table-layout: fixed;
+        }
+        .product-table thead {
+          display: table-header-group;
+        }
+        .product-table th {
+          background: #eef2f7;
+          color: #334155;
+          border-bottom: 1px solid #d1d9e6;
+          padding: 7px 8px;
+          font-size: 9.5px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: .45px;
+        }
+        .product-table td {
+          border-bottom: 1px solid #edf1f6;
+          color: #243244;
+          padding: 7px 8px;
+          font-size: 10.8px;
+          vertical-align: top;
+          white-space: normal;
+        }
+        .product-table tr {
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+        .product-table tbody tr:nth-child(even) td {
+          background: #fafbfc;
+        }
+        .product-table tbody tr:last-child td {
+          border-bottom: 0;
+        }
+        .r {
+          text-align: right;
+        }
+        .c {
+          text-align: center;
+        }
+        .status-pill {
+          display: inline-block;
+          min-width: 58px;
+          border: 1px solid #cfd8e3;
+          border-radius: 999px;
+          padding: 2px 7px;
+          font-size: 9.5px;
+          font-weight: 800;
+          color: #334155;
+          background: #f8fafc;
+        }
+        .status-ok {
+          border-color: #b8c7ba;
+          background: #f3f7f3;
+          color: #2f5b37;
+        }
+        .status-low {
+          border-color: #d6c7a8;
+          background: #fbf7ed;
+          color: #755b1f;
+        }
+        .status-empty {
+          border-color: #d1d5db;
+          background: #f3f4f6;
+          color: #4b5563;
+        }
+        .change-positive {
+          color: #25613a;
+          font-weight: 850;
+        }
+        .change-negative {
+          color: #8a2f2f;
+          font-weight: 850;
+        }
+        .change-neutral {
+          color: #475569;
+          font-weight: 800;
+        }
+        .reason-cell {
+          width: 34%;
+        }
+        .empty-row {
+          padding: 16px 10px !important;
+          color: #64748b !important;
+          text-align: center;
+          font-weight: 650;
+        }
+        .sheet-footer {
+          position: fixed;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          border-top: 1px solid #dbe1ea;
+          padding-top: 5px;
+          color: #7b8794;
+          font-size: 9.5px;
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+        }
+        .page-number::after {
+          content: "Pagina " counter(page);
+        }
+        @media screen {
+          .product-sheet {
+            max-width: 816px;
+            margin: 0 auto;
+          }
+        }
+        @media print {
+          .product-sheet {
+            min-height: auto;
+          }
+        }
+      </style>
+      <script>try{window.history.replaceState(null, document.title, "/print/ficha-producto");}catch(e){}</script>
+      <main class="product-sheet">
+        <header class="sheet-header">
+          <div>
+            <div class="brand-title">LYFRGL Solutions POS</div>
+            <div class="doc-kind">Ficha de producto</div>
+          </div>
+          <div class="product-title-block">
+            <div class="product-name">${escapeHtml(p.name)}</div>
+            <div class="product-codes">
+              <span class="code-chip">SKU: ${escapeHtml(p.sku)}</span>
+              ${p.barcode ? `<span class="code-chip">Codigo de barras: ${escapeHtml(p.barcode)}</span>` : ""}
+            </div>
+          </div>
+        </header>
+
+        <section class="summary-grid">
+          <div class="summary-card"><div class="summary-label">Costo</div><div class="summary-value">${money(p.costPrice)}</div></div>
+          <div class="summary-card"><div class="summary-label">Precio venta</div><div class="summary-value">${money(p.sellPrice)}</div></div>
+          <div class="summary-card"><div class="summary-label">Margen</div><div class="summary-value">${margin}</div></div>
+          <div class="summary-card"><div class="summary-label">Estado</div><div class="summary-value small">${p.active ? "Activo" : "Inactivo"}</div></div>
+          <div class="summary-card"><div class="summary-label">Sucursales</div><div class="summary-value">${p.inventories.length}</div></div>
+          <div class="summary-card"><div class="summary-label">Stock total</div><div class="summary-value">${stockTotal}</div></div>
+        </section>
+
+        ${generalInfoRows ? `
+        <section class="section">
+          <div class="section-title">Informacion general</div>
+          <div class="info-grid">${generalInfoRows}</div>
+        </section>` : ""}
+
+        <section class="section">
+          <div class="section-title">Stock por sucursal</div>
+          <table class="product-table stock-table">
+            <thead>
+              <tr>
+                <th style="width: 38%;">Sucursal</th>
+                <th class="r" style="width: 14%;">Stock</th>
+                <th class="r" style="width: 14%;">Minimo</th>
+                <th class="r" style="width: 14%;">Maximo</th>
+                <th class="c" style="width: 20%;">Estado</th>
+              </tr>
+            </thead>
+            <tbody>${invRows || '<tr><td colspan="5" class="empty-row">Sin inventario registrado.</td></tr>'}</tbody>
+          </table>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Ultimos movimientos Kardex</div>
+          <table class="product-table kardex-table">
+            <thead>
+              <tr>
+                <th style="width: 12%;">Fecha</th>
+                <th style="width: 17%;">Sucursal</th>
+                <th style="width: 15%;">Tipo</th>
+                <th class="r" style="width: 10%;">Cambio</th>
+                <th class="r" style="width: 10%;">Saldo</th>
+                <th style="width: 36%;">Motivo</th>
+              </tr>
+            </thead>
+            <tbody>${kardexRows || '<tr><td colspan="6" class="empty-row">No hay movimientos recientes registrados.</td></tr>'}</tbody>
+          </table>
+        </section>
+
+        <footer class="sheet-footer">
+          <span>LYFRGL Solutions POS &middot; Ficha de producto &middot; Generado el ${generatedAt}</span>
+          <span class="page-number"></span>
+        </footer>
+      </main>`
     );
-  }, [selectedProduct]);
+  }, [primarySupplierId, selectedProduct, suppliers]);
 
   const validateEditedSellPrice = (): MoneyField | null => {
     if (!selectedProduct) return null;
@@ -3194,10 +3572,14 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     )}
                     <button
                       onClick={printProduct}
+                      disabled={isPrintingProductSheet}
+                      aria-busy={isPrintingProductSheet}
                       style={{
                         ...ui.primaryBtn,
                         ...(user?.role === "GERENTE" ? { marginLeft: "auto" } : {}),
                         whiteSpace: "nowrap",
+                        opacity: isPrintingProductSheet ? 0.72 : 1,
+                        cursor: isPrintingProductSheet ? "not-allowed" : "pointer",
                         ...(isMobile
                           ? {
                             width: "100%",
@@ -3207,9 +3589,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                             order: 2,
                           }
                           : {}),
-                      }}
-                    >
-                      <Printer size={15} /> Imprimir ficha
+                        }}
+                      >
+                      <Printer size={15} /> {isPrintingProductSheet ? "Preparando..." : "Imprimir ficha"}
                     </button>
                   </>
                 )}
