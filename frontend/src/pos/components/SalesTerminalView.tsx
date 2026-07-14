@@ -207,10 +207,25 @@ export function SalesTerminalView({
       e.preventDefault();
       const methods = ["EFECTIVO", "TARJETA", "STORE_CREDIT", "MIXTO", "QR_MERCADOPAGO"];
       const index = parseInt(e.key) - 1;
-      setPaymentMethod(methods[index] as any);
+      const selectedMethod = methods[index] as any;
+      setPaymentMethod(selectedMethod);
+      setCheckoutPhase("fill-fields");
+
       setTimeout(() => {
-        const btn = checkoutModalRef.current?.querySelector<HTMLElement>(`[data-method-btn="${methods[index]}"]`);
-        if (btn) btn.focus();
+        const modal = checkoutModalRef.current;
+        if (modal) {
+          const firstInput = modal.querySelector<HTMLElement>(
+            'input:not([readonly]):not([disabled]), select:not([disabled])'
+          );
+          if (firstInput) {
+            firstInput.focus();
+            if (firstInput instanceof HTMLInputElement) {
+              firstInput.select();
+            }
+          } else if (selectedMethod === "MIXTO") {
+            setMixedModalOpen(true);
+          }
+        }
       }, 50);
       return;
     }
