@@ -13,6 +13,7 @@ interface CategoryTreeProps {
   loading: boolean;
   error: string | null;
   highlightedId?: number | null;
+  compact?: boolean;
   onSelect: (category: AdminCategoryTreeNode) => void;
   onToggle: (categoryId: number) => void;
   onRetry: () => void;
@@ -30,6 +31,7 @@ export function CategoryTree({
   loading,
   error,
   highlightedId,
+  compact = false,
   onSelect,
   onToggle,
   onRetry,
@@ -45,6 +47,7 @@ export function CategoryTree({
     const unsupportedIcon = isUnsupportedCategoryIcon(node.icon);
     const nodeDisplayColor = getCategoryDisplayColor(node.color, node.level, node.active);
     const hasStoredColor = isValidCategoryColor(node.color);
+    const indent = depth * (compact ? 10 : 16);
 
     return (
       <div key={node.id}>
@@ -54,11 +57,15 @@ export function CategoryTree({
           data-category-id={node.id}
           onClick={() => onSelect(node)}
           onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") onSelect(node);
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onSelect(node);
+            }
           }}
           style={{
             ...styles.nodeRow,
-            marginLeft: depth * 16,
+            ...(compact ? styles.nodeRowCompact : {}),
+            marginLeft: indent,
             borderColor: selected ? "var(--accent)" : highlighted ? "rgba(37,99,235,0.55)" : "transparent",
             backgroundColor: selected ? "var(--accent-soft)" : highlighted ? "rgba(37,99,235,0.08)" : "transparent",
             boxShadow: highlighted ? "0 0 0 2px rgba(37,99,235,0.16)" : undefined,
@@ -74,10 +81,12 @@ export function CategoryTree({
             disabled={!hasChildren}
             style={{
               ...styles.chevronButton,
+              ...(compact ? styles.chevronButtonCompact : {}),
               opacity: hasChildren ? 1 : 0.35,
               cursor: hasChildren ? "pointer" : "default",
             }}
-            aria-label={expanded ? "Contraer categoria" : "Expandir categoria"}
+            aria-expanded={hasChildren ? expanded : undefined}
+            aria-label={hasChildren ? (expanded ? "Contraer categoria" : "Expandir categoria") : "Categoria sin subcategorias"}
           >
             {hasChildren ? (expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />) : <span style={styles.dot} />}
           </button>
@@ -108,7 +117,7 @@ export function CategoryTree({
             <span style={styles.nodeMeta}>{levelLabel(node.level)}</span>
           </span>
 
-          {!node.active && <span style={styles.inactiveBadge}>Inactiva</span>}
+          {!node.active && <span style={{ ...styles.inactiveBadge, ...(compact ? styles.inactiveBadgeCompact : {}) }}>Inactiva</span>}
         </div>
 
         {hasChildren && expanded && (
@@ -171,6 +180,13 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
     color: "var(--text)",
     minWidth: 0,
+    boxSizing: "border-box",
+  },
+  nodeRowCompact: {
+    minHeight: 48,
+    alignItems: "flex-start",
+    gap: 7,
+    padding: "9px 8px",
   },
   chevronButton: {
     width: 24,
@@ -183,6 +199,10 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: "center",
     padding: 0,
     flexShrink: 0,
+  },
+  chevronButtonCompact: {
+    width: 28,
+    height: 28,
   },
   dot: {
     width: 5,
@@ -230,6 +250,10 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
     textTransform: "uppercase",
     flexShrink: 0,
+  },
+  inactiveBadgeCompact: {
+    alignSelf: "flex-start",
+    marginTop: 3,
   },
   stateBox: {
     border: "1px dashed var(--border)",

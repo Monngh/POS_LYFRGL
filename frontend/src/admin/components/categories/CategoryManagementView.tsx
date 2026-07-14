@@ -20,6 +20,7 @@ import {
   type AdminCategoryTreeNode,
 } from "../../services/categoryAdmin.service";
 import { Badge, ui, useMediaQuery } from "../../views/shared";
+import { useBodyScrollLock } from "../../../shared/hooks";
 import { CategoryTree } from "./CategoryTree";
 import { CategoryFormModal, type CategoryFormState } from "./CategoryFormModal";
 import { CategoryProductsModal } from "./CategoryProductsModal";
@@ -49,11 +50,14 @@ interface LoadTreeOptions {
   clearSelectionWhenMissing?: boolean;
 }
 
+type MobileCategoryPanel = "tree" | "detail";
+
 export function CategoryManagementView({ onClose, onClassifyProduct }: CategoryManagementViewProps) {
   const stacked = useMediaQuery("(max-width: 940px)");
   const compact = useMediaQuery("(max-width: 640px)");
   const treeScrollRef = useRef<HTMLDivElement | null>(null);
   const treeInitializedRef = useRef(false);
+  useBodyScrollLock(true);
 
   const [tree, setTree] = useState<AdminCategoryTreeNode[]>([]);
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
@@ -75,6 +79,7 @@ export function CategoryManagementView({ onClose, onClassifyProduct }: CategoryM
   const [message, setMessage] = useState<string | null>(null);
   const [confirmStatusUpdate, setConfirmStatusUpdate] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [activeMobilePanel, setActiveMobilePanel] = useState<MobileCategoryPanel>("tree");
 
   const categoryTree = tree;
 
@@ -203,13 +208,14 @@ export function CategoryManagementView({ onClose, onClassifyProduct }: CategoryM
 
   const selectCategory = useCallback((category: AdminCategoryTreeNode) => {
     setSelectedId(category.id);
+    if (compact) setActiveMobilePanel("detail");
     setExpandedIds((current) => {
       const next = new Set(current);
       findCategoryAncestorIds(categoryTree, category.id).forEach((categoryId) => next.add(categoryId));
       return next;
     });
     setHighlightedCategoryId((current) => current === category.id ? current : null);
-  }, [categoryTree]);
+  }, [categoryTree, compact]);
 
   const refreshKeepingSelection = async () => {
     await loadTree({ preferredSelectedId: selectedId });
@@ -220,6 +226,7 @@ export function CategoryManagementView({ onClose, onClassifyProduct }: CategoryM
     const wasCreate = formState?.mode === "create";
     setFormState(null);
     setMessage(successMessage);
+    if (compact) setActiveMobilePanel("detail");
     if (wasCreate) {
       setSearch("");
       setHighlightedCategoryId(category.id);
@@ -286,6 +293,7 @@ export function CategoryManagementView({ onClose, onClassifyProduct }: CategoryM
       setMessage("Categoria eliminada correctamente.");
       setSelectedId(null);
       setDetail(null);
+      if (compact) setActiveMobilePanel("tree");
       setExpandedIds((current) => {
         const next = new Set(current);
         next.delete(detail.id);
@@ -322,48 +330,93 @@ export function CategoryManagementView({ onClose, onClassifyProduct }: CategoryM
   const detailColorLabel = detailHasStoredColor
     ? normalizeCategoryColor(detail?.color ?? "")
     : "Predeterminado por nivel";
+  const showTreePanel = !compact || activeMobilePanel === "tree";
+  const showDetailPanel = !compact || activeMobilePanel === "detail";
 
   return (
     <div style={styles.overlay} onClick={closeWithGuard}>
       <div
         style={{
           ...styles.modal,
-          width: compact ? "calc(100vw - 12px)" : "min(1180px, calc(100vw - 32px))",
-          maxHeight: compact ? "calc(100vh - 12px)" : "92vh",
+          width: compact ? "calc(100vw - 24px)" : "min(1180px, calc(100vw - 32px))",
+          height: compact ? "calc(100dvh - 24px)" : undefined,
+          maxHeight: compact ? "calc(100dvh - 24px)" : "92vh",
           borderRadius: compact ? 8 : 14,
         }}
         onClick={(event) => event.stopPropagation()}
       >
-        <div style={{ ...styles.header, alignItems: compact ? "stretch" : "center" }}>
-          <div style={styles.titleBlock}>
-            <div style={styles.titleRow}>
-              <Boxes size={20} color="var(--accent)" />
-              <h2 style={styles.title}>Administrar categorias</h2>
-            </div>
-            <p style={styles.subtitle}>Estructura Division / Departamento / Categoria</p>
-          </div>
+        <div style={{ ...styles.header, ...(compact ? styles.headerCompact : {}), alignItems: compact ? "stretch" : "center" }}>
+          {compact ? (
+            <>
+              <div style={styles.mobileTitleRow}>
+                <div style={styles.titleBlock}>
+                  <div style={styles.titleRow}>
+                    <Boxes size={20} color="var(--accent)" />
+                    <h2 style={{ ...styles.title, fontSize: 19 }}>Administrar categorias</h2>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Cerrar modal de categorias"
+                  style={{ ...ui.ghostBtn, ...styles.closeButton }}
+                  onClick={closeWithGuard}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <p style={{ ...styles.subtitle, ...styles.subtitleCompact }}>Estructura Division / Departamento / Categoria</p>
+              <div style={styles.mobileHeaderActions}>
+                <button type="button" style={{ ...ui.ghostBtn, ...styles.mobileHeaderButton }} onClick={() => setUncategorizedOpen(true)}>
+                  <PackageSearch size={14} /> Productos sin categoria
+                </button>
+                <button
+                  type="button"
+                  style={{ ...ui.primaryBtn, ...styles.mobileHeaderButton }}
+                  onClick={() => setFormState({ mode: "create", level: "DIVISION", parent: null })}
+                >
+                  <Plus size={14} /> Nueva division
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={styles.titleBlock}>
+                <div style={styles.titleRow}>
+                  <Boxes size={20} color="var(--accent)" />
+                  <h2 style={styles.title}>Administrar categorias</h2>
+                </div>
+                <p style={styles.subtitle}>Estructura Division / Departamento / Categoria</p>
+              </div>
 
-          <div style={{ ...styles.headerActions, width: compact ? "100%" : "auto" }}>
-            <button type="button" style={{ ...ui.ghostBtn, justifyContent: "center" }} onClick={() => setUncategorizedOpen(true)}>
-              <PackageSearch size={15} /> Productos sin categoria
-            </button>
-            <button
-              type="button"
-              style={{ ...ui.primaryBtn, justifyContent: "center" }}
-              onClick={() => setFormState({ mode: "create", level: "DIVISION", parent: null })}
-            >
-              <Plus size={15} /> Nueva division
-            </button>
-            <button type="button" style={{ ...ui.ghostBtn, padding: "8px 10px", justifyContent: "center" }} onClick={onClose}>
-              <X size={16} />
-            </button>
-          </div>
+              <div style={styles.headerActions}>
+                <button type="button" style={{ ...ui.ghostBtn, justifyContent: "center" }} onClick={() => setUncategorizedOpen(true)}>
+                  <PackageSearch size={15} /> Productos sin categoria
+                </button>
+                <button
+                  type="button"
+                  style={{ ...ui.primaryBtn, justifyContent: "center" }}
+                  onClick={() => setFormState({ mode: "create", level: "DIVISION", parent: null })}
+                >
+                  <Plus size={15} /> Nueva division
+                </button>
+                <button
+                  type="button"
+                  aria-label="Cerrar modal de categorias"
+                  style={{ ...ui.ghostBtn, padding: "8px 10px", justifyContent: "center" }}
+                  onClick={closeWithGuard}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         {message && (
           <div
             style={{
               ...styles.message,
+              ...(compact ? styles.messageCompact : {}),
               color: message.startsWith("No ") || message.includes("Permiso") ? "var(--color-danger)" : "var(--accent-strong)",
               backgroundColor: message.startsWith("No ") ? "rgba(248,113,113,0.12)" : "var(--accent-soft)",
             }}
@@ -372,8 +425,8 @@ export function CategoryManagementView({ onClose, onClassifyProduct }: CategoryM
           </div>
         )}
 
-        <div style={styles.topTools}>
-          <div style={styles.searchBox}>
+        <div style={{ ...styles.topTools, ...(compact ? styles.topToolsCompact : {}) }}>
+          <div style={{ ...styles.searchBox, ...(compact ? styles.searchBoxCompact : {}) }}>
             <Search size={16} color="var(--text-muted)" />
             <input
               style={styles.searchInput}
@@ -382,18 +435,84 @@ export function CategoryManagementView({ onClose, onClassifyProduct }: CategoryM
               placeholder="Buscar categoria por codigo o nombre"
             />
           </div>
-          <button type="button" style={{ ...ui.ghostBtn, justifyContent: "center" }} onClick={() => void refreshKeepingSelection()}>
+          <button
+            type="button"
+            style={{ ...ui.ghostBtn, justifyContent: "center", ...(compact ? styles.fullWidthMobileButton : {}) }}
+            onClick={() => void refreshKeepingSelection()}
+          >
             <RefreshCw size={15} /> Actualizar
           </button>
         </div>
 
-        <div style={{ ...styles.content, gridTemplateColumns: stacked ? "1fr" : "minmax(320px, .9fr) minmax(360px, 1.1fr)" }}>
-          <section style={styles.treePanel}>
+        {compact && (
+          <div
+            role="tablist"
+            aria-label="Secciones de categorias"
+            style={styles.mobileTabs}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                event.preventDefault();
+                setActiveMobilePanel((current) => current === "tree" ? "detail" : "tree");
+              }
+            }}
+          >
+            <button
+              id="category-tree-tab"
+              type="button"
+              role="tab"
+              aria-selected={activeMobilePanel === "tree"}
+              aria-controls="category-tree-panel"
+              tabIndex={activeMobilePanel === "tree" ? 0 : -1}
+              style={{
+                ...styles.mobileTab,
+                ...(activeMobilePanel === "tree" ? styles.mobileTabActive : {}),
+              }}
+              onClick={() => setActiveMobilePanel("tree")}
+            >
+              Arbol
+            </button>
+            <button
+              id="category-detail-tab"
+              type="button"
+              role="tab"
+              aria-selected={activeMobilePanel === "detail"}
+              aria-controls="category-detail-panel"
+              tabIndex={activeMobilePanel === "detail" ? 0 : -1}
+              style={{
+                ...styles.mobileTab,
+                ...(activeMobilePanel === "detail" ? styles.mobileTabActive : {}),
+              }}
+              onClick={() => setActiveMobilePanel("detail")}
+            >
+              Detalle
+            </button>
+          </div>
+        )}
+
+        <div
+          style={{
+            ...styles.content,
+            ...(compact ? styles.contentCompact : {}),
+            gridTemplateColumns: stacked ? "1fr" : "minmax(320px, .9fr) minmax(360px, 1.1fr)",
+            overflow: compact ? "auto" : "hidden",
+          }}
+        >
+          <section
+            id="category-tree-panel"
+            role={compact ? "tabpanel" : undefined}
+            aria-labelledby={compact ? "category-tree-tab" : undefined}
+            style={{
+              ...styles.treePanel,
+              ...(compact ? styles.mobilePanel : {}),
+              ...(stacked ? styles.stackedTreePanel : {}),
+              display: showTreePanel ? "flex" : "none",
+            }}
+          >
             <div style={styles.panelHeader}>
               <FolderPlus size={17} color="var(--accent)" />
               <span>Arbol de categorias</span>
             </div>
-            <div ref={treeScrollRef} style={styles.treeScroll}>
+            <div ref={treeScrollRef} style={{ ...styles.treeScroll, ...(compact ? styles.treeScrollMobile : {}) }}>
               <CategoryTree
                 tree={categoryTree}
                 selectedId={selectedId}
@@ -402,6 +521,7 @@ export function CategoryManagementView({ onClose, onClassifyProduct }: CategoryM
                 loading={treeLoading}
                 error={treeError}
                 highlightedId={highlightedCategoryId}
+                compact={compact}
                 onSelect={selectCategory}
                 onToggle={(categoryId) => {
                   setExpandedIds((current) => {
@@ -416,7 +536,16 @@ export function CategoryManagementView({ onClose, onClassifyProduct }: CategoryM
             </div>
           </section>
 
-          <section style={styles.detailPanel}>
+          <section
+            id="category-detail-panel"
+            role={compact ? "tabpanel" : undefined}
+            aria-labelledby={compact ? "category-detail-tab" : undefined}
+            style={{
+              ...styles.detailPanel,
+              ...(compact ? styles.mobilePanel : {}),
+              display: showDetailPanel ? "flex" : "none",
+            }}
+          >
             <div style={styles.panelHeader}>
               <Tag size={17} color="var(--accent)" />
               <span>Detalle de categoria seleccionada</span>
@@ -430,25 +559,30 @@ export function CategoryManagementView({ onClose, onClassifyProduct }: CategoryM
             {detailError && <div style={{ ...styles.emptyDetail, color: "var(--color-danger)" }}>{detailError}</div>}
 
             {detail && !detailLoading && (
-              <div style={styles.detailContent}>
-                <div style={styles.detailHero}>
-                  <div style={styles.detailHeroMain}>
+              <div style={{ ...styles.detailContent, ...(compact ? styles.detailContentMobile : {}) }}>
+                <div style={{ ...styles.detailHero, ...(compact ? styles.detailHeroMobile : {}) }}>
+                  <div style={{ ...styles.detailHeroMain, ...(compact ? styles.detailHeroMainMobile : {}) }}>
                     <span style={{ ...styles.detailIconBadge, color: detailDisplayColor }}>
                       {renderCategoryIcon(detail.icon, detail.level, { size: 23 })}
                     </span>
-                    <div style={styles.categoryIdentity}>
+                    <div style={{ ...styles.categoryIdentity, ...(compact ? styles.categoryIdentityMobile : {}) }}>
                       <span style={styles.codeBadge}>{detail.code}</span>
-                      <h3 style={styles.detailTitle}>{detail.name}</h3>
+                      <h3 style={{ ...styles.detailTitle, ...(compact ? styles.detailTitleMobile : {}) }}>{detail.name}</h3>
                       {detail.active ? <Badge tone="green">Activa</Badge> : <Badge tone="amber">Inactiva</Badge>}
                     </div>
                   </div>
                   <span
-                    style={{ ...styles.bigSwatch, backgroundColor: detailDisplayColor, opacity: detail.active ? 1 : 0.55 }}
+                    style={{
+                      ...styles.bigSwatch,
+                      ...(compact ? styles.bigSwatchMobile : {}),
+                      backgroundColor: detailDisplayColor,
+                      opacity: detail.active ? 1 : 0.55,
+                    }}
                     title={detailHasStoredColor ? normalizeCategoryColor(detail.color ?? "") : "Color predeterminado por nivel"}
                   />
                 </div>
 
-                <div style={styles.detailGrid}>
+                <div style={{ ...styles.detailGrid, ...(compact ? styles.detailGridMobile : {}) }}>
                   {detailRows.map((row) => (
                     <div key={row.label} style={styles.detailRow}>
                       <span style={styles.detailLabel}>{row.label}</span>
@@ -480,26 +614,31 @@ export function CategoryManagementView({ onClose, onClassifyProduct }: CategoryM
                   </div>
                 </div>
 
-                <div style={styles.actions}>
+                <div style={{ ...styles.actions, ...(compact ? styles.actionsMobile : {}) }}>
                   {createChildLabel(detail.level) && (
-                    <button type="button" style={ui.primaryBtn} onClick={openCreateChild} disabled={Boolean(actionSaving)}>
+                    <button type="button" style={{ ...ui.primaryBtn, ...(compact ? styles.actionButtonMobile : {}) }} onClick={openCreateChild} disabled={Boolean(actionSaving)}>
                       <Plus size={15} /> {createChildLabel(detail.level)}
                     </button>
                   )}
-                  <button type="button" style={ui.ghostBtn} onClick={() => setFormState({ mode: "edit", category: detail })} disabled={Boolean(actionSaving)}>
+                  <button type="button" style={{ ...ui.ghostBtn, ...(compact ? styles.actionButtonMobile : {}) }} onClick={() => setFormState({ mode: "edit", category: detail })} disabled={Boolean(actionSaving)}>
                     <Edit3 size={15} /> Editar
                   </button>
-                  <button type="button" style={ui.ghostBtn} onClick={() => void requestUpdateStatus()} disabled={Boolean(actionSaving)}>
+                  <button type="button" style={{ ...ui.ghostBtn, ...(compact ? styles.actionButtonMobile : {}) }} onClick={() => void requestUpdateStatus()} disabled={Boolean(actionSaving)}>
                     <Power size={15} /> {detail.active ? "Desactivar" : "Activar"}
                   </button>
                   {detail.level === "CATEGORY" && (
-                    <button type="button" style={ui.ghostBtn} onClick={() => setProductsCategory(detail)} disabled={Boolean(actionSaving)}>
+                    <button type="button" style={{ ...ui.ghostBtn, ...(compact ? styles.actionButtonMobile : {}) }} onClick={() => setProductsCategory(detail)} disabled={Boolean(actionSaving)}>
                       <PackageSearch size={15} /> Gestionar productos
                     </button>
                   )}
                   <button
                     type="button"
-                    style={{ ...ui.ghostBtn, color: "var(--color-danger)", borderColor: "rgba(220,38,38,0.45)" }}
+                    style={{
+                      ...ui.ghostBtn,
+                      ...(compact ? styles.actionButtonMobile : {}),
+                      color: "var(--color-danger)",
+                      borderColor: "rgba(220,38,38,0.45)",
+                    }}
                     onClick={() => void requestDeleteCategory()}
                     disabled={Boolean(actionSaving)}
                   >
@@ -561,6 +700,7 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: "center",
     zIndex: 260,
     padding: 16,
+    overflow: "hidden",
   },
   modal: {
     backgroundColor: "var(--surface)",
@@ -569,7 +709,9 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
+    overflowX: "hidden",
     minHeight: 0,
+    maxWidth: "100%",
   },
   header: {
     display: "flex",
@@ -580,31 +722,80 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: "wrap",
     flexShrink: 0,
   },
+  headerCompact: {
+    padding: "14px 16px",
+    gap: 12,
+  },
   titleBlock: {
+    minWidth: 0,
+  },
+  mobileTitleRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    width: "100%",
     minWidth: 0,
   },
   titleRow: {
     display: "flex",
     alignItems: "center",
     gap: 9,
+    minWidth: 0,
   },
   title: {
     margin: 0,
     color: "var(--text)",
     fontSize: 20,
     fontWeight: 900,
+    overflowWrap: "anywhere",
   },
   subtitle: {
     margin: "4px 0 0",
     color: "var(--text-muted)",
     fontSize: 13,
     fontWeight: 700,
+    overflowWrap: "anywhere",
+  },
+  subtitleCompact: {
+    margin: 0,
+    fontSize: 12,
+    lineHeight: 1.35,
   },
   headerActions: {
     display: "flex",
     gap: 8,
     flexWrap: "wrap",
     justifyContent: "flex-end",
+  },
+  mobileHeaderActions: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 8,
+    width: "100%",
+  },
+  mobileHeaderButton: {
+    width: "100%",
+    minWidth: 0,
+    minHeight: 38,
+    padding: "5px 7px",
+    justifyContent: "center",
+    gap: 4,
+    fontSize: "clamp(10.5px, 3vw, 12px)",
+    lineHeight: 1.15,
+    textAlign: "center",
+  },
+  closeButton: {
+    width: 42,
+    height: 42,
+    padding: 0,
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  fullWidthMobileButton: {
+    width: "100%",
+    justifyContent: "center",
+    minHeight: 42,
   },
   message: {
     margin: "12px 20px 0",
@@ -613,6 +804,12 @@ const styles: Record<string, CSSProperties> = {
     padding: "10px 12px",
     fontSize: 13,
     fontWeight: 800,
+    overflowWrap: "anywhere",
+  },
+  messageCompact: {
+    margin: "12px 16px 0",
+    padding: "9px 11px",
+    lineHeight: 1.35,
   },
   topTools: {
     display: "flex",
@@ -621,6 +818,11 @@ const styles: Record<string, CSSProperties> = {
     borderBottom: "1px solid var(--border)",
     flexWrap: "wrap",
     flexShrink: 0,
+  },
+  topToolsCompact: {
+    flexDirection: "column",
+    padding: "12px 16px",
+    gap: 10,
   },
   searchBox: {
     minHeight: 40,
@@ -632,6 +834,11 @@ const styles: Record<string, CSSProperties> = {
     gap: 8,
     padding: "0 12px",
     flex: "1 1 280px",
+    minWidth: 0,
+  },
+  searchBoxCompact: {
+    flex: "1 1 auto",
+    width: "100%",
   },
   searchInput: {
     border: 0,
@@ -643,12 +850,43 @@ const styles: Record<string, CSSProperties> = {
     width: "100%",
     minWidth: 0,
   },
+  mobileTabs: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 8,
+    padding: "12px 16px",
+    borderBottom: "1px solid var(--border)",
+    flexShrink: 0,
+  },
+  mobileTab: {
+    minHeight: 40,
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    backgroundColor: "var(--surface)",
+    color: "var(--text-muted)",
+    fontFamily: "inherit",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  mobileTabActive: {
+    backgroundColor: "var(--accent-soft)",
+    color: "var(--accent-strong)",
+    borderColor: "rgba(37,99,235,0.38)",
+  },
   content: {
     display: "grid",
     gap: 0,
     minHeight: 0,
     overflow: "auto",
     flex: 1,
+  },
+  contentCompact: {
+    display: "flex",
+    flexDirection: "column",
+    overflowY: "auto",
+    overflowX: "hidden",
+    WebkitOverflowScrolling: "touch",
   },
   treePanel: {
     borderRight: "1px solid var(--border)",
@@ -657,11 +895,21 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: "column",
     minHeight: 0,
   },
+  stackedTreePanel: {
+    borderRight: "none",
+    borderBottom: "1px solid var(--border)",
+  },
   detailPanel: {
     minWidth: 0,
     display: "flex",
     flexDirection: "column",
     minHeight: 0,
+  },
+  mobilePanel: {
+    borderRight: "none",
+    borderBottom: "none",
+    minHeight: "auto",
+    flex: "0 0 auto",
   },
   panelHeader: {
     display: "flex",
@@ -680,6 +928,11 @@ const styles: Record<string, CSSProperties> = {
     minHeight: 0,
     flex: 1,
   },
+  treeScrollMobile: {
+    padding: "12px 14px 16px",
+    overflow: "visible",
+    flex: "0 0 auto",
+  },
   emptyDetail: {
     margin: 16,
     border: "1px dashed var(--border)",
@@ -695,6 +948,10 @@ const styles: Record<string, CSSProperties> = {
     overflow: "auto",
     minHeight: 0,
   },
+  detailContentMobile: {
+    padding: "14px 16px 18px",
+    overflow: "visible",
+  },
   detailHero: {
     display: "flex",
     justifyContent: "space-between",
@@ -704,11 +961,20 @@ const styles: Record<string, CSSProperties> = {
     paddingBottom: 14,
     marginBottom: 14,
   },
+  detailHeroMobile: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 12,
+  },
   detailHeroMain: {
     display: "flex",
     alignItems: "center",
     gap: 10,
     minWidth: 0,
+  },
+  detailHeroMainMobile: {
+    alignItems: "flex-start",
+    width: "100%",
   },
   detailIconBadge: {
     width: 42,
@@ -728,6 +994,11 @@ const styles: Record<string, CSSProperties> = {
     gap: 8,
     minWidth: 0,
   },
+  categoryIdentityMobile: {
+    alignItems: "flex-start",
+    flexDirection: "column",
+    gap: 7,
+  },
   codeBadge: {
     borderRadius: 8,
     backgroundColor: "var(--surface-2)",
@@ -744,6 +1015,10 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
     overflowWrap: "anywhere",
   },
+  detailTitleMobile: {
+    fontSize: 19,
+    lineHeight: 1.25,
+  },
   bigSwatch: {
     width: 34,
     height: 34,
@@ -751,10 +1026,18 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid var(--border)",
     flexShrink: 0,
   },
+  bigSwatchMobile: {
+    width: 30,
+    height: 30,
+  },
   detailGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
     gap: 10,
+  },
+  detailGridMobile: {
+    gridTemplateColumns: "1fr",
+    gap: 8,
   },
   detailRow: {
     borderBottom: "1px solid var(--border-soft)",
@@ -804,5 +1087,14 @@ const styles: Record<string, CSSProperties> = {
     marginTop: 18,
     paddingTop: 14,
     borderTop: "1px solid var(--border)",
+  },
+  actionsMobile: {
+    flexDirection: "column",
+    gap: 10,
+  },
+  actionButtonMobile: {
+    width: "100%",
+    justifyContent: "center",
+    minHeight: 42,
   },
 };
