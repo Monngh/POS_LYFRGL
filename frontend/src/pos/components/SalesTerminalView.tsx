@@ -182,7 +182,7 @@ export function SalesTerminalView({
       return;
     }
 
-    if (e.key >= "1" && e.key <= "5" && checkoutPhase === "select-method") {
+    if (e.altKey && e.key >= "1" && e.key <= "5") {
       e.preventDefault();
       const methods = ["EFECTIVO", "TARJETA", "STORE_CREDIT", "MIXTO", "QR_MERCADOPAGO"];
       const index = parseInt(e.key) - 1;
@@ -197,8 +197,6 @@ export function SalesTerminalView({
     }
 
     if (e.key === "Enter") {
-      const active = document.activeElement;
-      const isTyping = active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || (active as HTMLElement).isContentEditable);
       e.preventDefault();
       e.stopPropagation();
 
@@ -222,9 +220,6 @@ export function SalesTerminalView({
         }
         return;
       }
-
-      // Fase fill-fields: si estoy escribiendo en un input NO disparo el cobro
-      if (isTyping) return;
 
       if (paymentMethod === "MIXTO") {
         setMixedModalOpen(true);
@@ -428,7 +423,7 @@ export function SalesTerminalView({
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "EFECTIVO" ? styles.paymentMethodBtnActive : {}) }}
               >
                 <Banknote size={20} />
-                <span>EFECTIVO</span>
+                <span>EFECTIVO <small style={{opacity: 0.7}}>(Alt+1)</small></span>
               </button>
               <button
                 type="button"
@@ -436,7 +431,7 @@ export function SalesTerminalView({
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "TARJETA" ? styles.paymentMethodBtnActive : {}) }}
               >
                 <CreditCard size={20} />
-                <span>TARJETA</span>
+                <span>TARJETA <small style={{opacity: 0.7}}>(Alt+2)</small></span>
               </button>
               <button
                 type="button"
@@ -444,7 +439,7 @@ export function SalesTerminalView({
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "STORE_CREDIT" ? styles.paymentMethodBtnActive : {}) }}
               >
                 <Ticket size={20} />
-                <span>VALE</span>
+                <span>VALE <small style={{opacity: 0.7}}>(Alt+3)</small></span>
               </button>
               <button
                 type="button"
@@ -452,7 +447,7 @@ export function SalesTerminalView({
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "MIXTO" ? styles.paymentMethodBtnActive : {}) }}
               >
                 <ArrowLeftRight size={20} />
-                <span>MIXTO</span>
+                <span>MIXTO <small style={{opacity: 0.7}}>(Alt+4)</small></span>
               </button>
               <button
                 type="button"
@@ -460,7 +455,7 @@ export function SalesTerminalView({
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "QR_MERCADOPAGO" ? styles.paymentMethodBtnActive : {}) }}
               >
                 <QrCode size={20} />
-                <span>QR MP</span>
+                <span>QR MP <small style={{opacity: 0.7}}>(Alt+5)</small></span>
               </button>
             </div>
 

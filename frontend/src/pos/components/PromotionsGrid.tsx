@@ -52,7 +52,7 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
       }
     };
     fetchPromotions();
-  }, [onToast]);
+  }, []);
 
   const availablePromotions = Array.isArray(promotions) ? promotions : [];
 

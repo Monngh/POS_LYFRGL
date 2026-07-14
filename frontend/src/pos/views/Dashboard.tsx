@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Navigate } from "react-router-dom";
 import "../../pos-cashier-responsive.css";
 import "../../pos-modern.css";
@@ -91,9 +91,9 @@ const Dashboard: React.FC = () => {
   // Estados para alertas personalizadas y cobro (Fase 3.5)
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" | "info" | "warning" } | null>(null);
 
-  const showToast = (message: string, type: "error" | "success" | "info" | "warning" = "error") => {
+  const showToast = useCallback((message: string, type: "error" | "success" | "info" | "warning" = "error") => {
     setToast({ message, type });
-  };
+  }, []);
 
   const sessionData = useCashSession({
     user,
