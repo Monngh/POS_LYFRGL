@@ -917,6 +917,32 @@
   color: var(--pos-red);
 }
 
+/* Badge "Del" visible solo al hacer hover sobre el botón eliminar */
+.pos-cart-remove-shortcut {
+  position: absolute;
+  bottom: -11px;
+  left: 50%;
+  transform: translateX(-50%) scale(0.8);
+  background: #dc2626;
+  color: #fff;
+  font-size: 7px;
+  font-weight: 700;
+  padding: 1px 3px;
+  border-radius: 3px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 20;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+}
+
+.pos-cart-remove-btn:hover .pos-cart-remove-shortcut {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
 /* ============================================================
    Panel de totales + Cobro — Total siempre gigante y visible
    ============================================================ */
@@ -1189,27 +1215,31 @@
 /* ============================================================
    Lock Screen
    ============================================================ */
+/* Pantalla de bloqueo — mismo diseño que el conflict screen del POS */
 .pos-lock-overlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(15, 23, 42, 0.95);
+  background-color: var(--surface-2, #f1f5f9);
   z-index: 99998;
   display: flex;
   justify-content: center;
   align-items: center;
-  backdrop-filter: blur(8px);
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .pos-lock-card {
-  background-color: var(--pos-surface);
-  border: 1px solid var(--pos-border);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  width: 440px;
+  max-width: 100%;
+  background-color: var(--surface, #ffffff);
+  border: 1px solid var(--surface-3, #e2e8f0);
   border-radius: 16px;
-  width: 360px;
-  padding: 32px 24px;
+  padding: 48px 32px 40px 32px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
   align-items: center;
+  text-align: center;
   animation: lockReveal 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -1218,173 +1248,140 @@
   to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 
-.pos-lock-header {
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
 .pos-lock-icon-container {
-  width: 56px;
-  height: 56px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
-  background-color: rgba(220, 38, 38, 0.1);
-  color: #dc2626;
+  background-color: #eff6ff;
+  color: #2563eb;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 6px;
+  margin-bottom: 24px;
 }
 
 .pos-lock-icon {
-  animation: pulseLock 2s infinite;
+  animation: pulseLock 2.5s ease-in-out infinite;
 }
 
 @keyframes pulseLock {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.08); }
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.85; }
 }
 
 .pos-lock-title {
-  font-size: 15px;
-  font-weight: 900;
-  letter-spacing: 0.5px;
-  color: var(--pos-text);
-  margin: 0;
-  text-transform: uppercase;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--text, #111827);
+  margin: 0 0 10px 0;
+  font-family: 'Outfit', 'Inter', sans-serif;
 }
 
 .pos-lock-subtitle {
-  font-size: 11px;
-  color: var(--pos-text-muted);
-  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary, #64748b);
+  margin: 0 0 28px 0;
+  line-height: 1.5;
+  font-family: 'Inter', sans-serif;
 }
 
 .pos-lock-user-badge {
   width: 100%;
-  background-color: var(--pos-surface-2);
-  border: 1px solid var(--pos-border);
-  border-radius: 8px;
-  padding: 10px 12px;
-  margin: 20px 0;
+  background-color: var(--surface-2, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 28px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
+  text-align: left;
 }
 
 .pos-lock-user-avatar {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background-color: var(--pos-blue);
+  background-color: #2563eb;
   color: #ffffff;
   font-weight: 800;
-  font-size: 12px;
+  font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .pos-lock-user-info {
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 
 .pos-lock-user-name {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
-  color: var(--pos-text);
+  color: var(--text, #111827);
 }
 
 .pos-lock-user-role {
-  font-size: 10px;
-  color: var(--pos-text-muted);
+  font-size: 11px;
+  color: var(--text-secondary, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-weight: 600;
 }
 
 .pos-lock-dots-display {
   display: flex;
-  gap: 14px;
+  gap: 18px;
   margin-bottom: 20px;
 }
 
 .pos-lock-dot {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  border: 2px solid var(--pos-border-strong);
-  transition: all 0.15s ease;
+  border: 2px solid #cbd5e1;
+  transition: all 0.18s ease;
+  background-color: transparent;
 }
 
 .pos-lock-dot.filled {
-  background-color: var(--pos-blue);
-  border-color: var(--pos-blue);
-  transform: scale(1.15);
-  box-shadow: 0 0 6px rgba(37, 99, 235, 0.4);
+  background-color: #2563eb;
+  border-color: #2563eb;
+  transform: scale(1.2);
+  box-shadow: 0 0 8px rgba(37, 99, 235, 0.4);
 }
 
 .pos-lock-error-alert {
-  background-color: var(--pos-red-soft);
-  border: 1px solid rgba(185, 28, 28, 0.2);
-  color: var(--pos-red);
-  font-size: 11px;
+  background-color: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #b91c1c;
+  font-size: 12px;
   font-weight: 700;
-  padding: 6px 12px;
-  border-radius: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
   width: 100%;
   text-align: center;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
   animation: lockShake 0.3s ease-in-out;
 }
 
 @keyframes lockShake {
   0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-4px); }
-  75% { transform: translateX(4px); }
-}
-
-.pos-lock-keypad {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  width: 100%;
-}
-
-.pos-keypad-btn {
-  height: 48px;
-  border: 1px solid var(--pos-border);
-  background-color: var(--pos-surface);
-  color: var(--pos-text);
-  font-size: 16px;
-  font-weight: 800;
-  border-radius: 8px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s;
-}
-
-.pos-keypad-btn:hover {
-  background-color: var(--pos-surface-3);
-  border-color: var(--pos-border-strong);
-  transform: translateY(-0.5px);
-}
-
-.pos-keypad-btn.action {
-  background-color: var(--pos-surface-2);
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--pos-text-2);
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
 }
 
 .pos-lock-keyboard-tip {
-  font-size: 10px;
-  color: var(--pos-text-muted);
-  margin-top: 16px;
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+  margin-top: 8px;
   text-align: center;
-  font-weight: 600;
+  font-weight: 500;
+  line-height: 1.5;
 }
 
 /* ============================================================
@@ -2102,3 +2099,61 @@
   visibility: visible;
   transform: translateY(-2px);
 }
+
+/* QR Modal Outline Buttons */
+.btn-qr-outline-blue {
+  background-color: #ffffff !important;
+  border: 2px solid #3b82f6 !important;
+  color: #3b82f6 !important;
+  transition: all 0.2s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.btn-qr-outline-blue:hover {
+  background-color: #eff6ff !important;
+}
+
+.btn-qr-outline-red {
+  background-color: #ffffff !important;
+  border: 2px solid #dc2626 !important;
+  color: #dc2626 !important;
+  transition: all 0.2s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.btn-qr-outline-red:hover {
+  background-color: #fef2f2 !important;
+}
+
+.btn-qr-outline-gray {
+  background-color: #ffffff !important;
+  border: 2px solid #64748b !important;
+  color: #64748b !important;
+  transition: all 0.2s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.btn-qr-outline-gray:hover {
+  background-color: #f1f5f9 !important;
+}
+
+.btn-qr-outline-green {
+  background-color: #ffffff !important;
+  border: 2px solid #059669 !important;
+  color: #059669 !important;
+  transition: all 0.2s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.btn-qr-outline-green:hover {
+  background-color: #f0fdf4 !important;
+}
+

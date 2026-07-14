@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import api from "../../shared/services/api";
 import {
   normalizePhoneInput,
@@ -185,7 +185,7 @@ export function usePosCustomer({ onToast, view }: UsePosCustomerProps) {
     return () => clearTimeout(timer);
   }, [customerSearch, view]);
 
-  const handleSearchCustomerByPhone = async (phoneToSearch: string) => {
+  const handleSearchCustomerByPhone = useCallback(async (phoneToSearch: string) => {
     const cleanPhone = phoneToSearch.replace(/\D/g, "");
     setNewCustomerLoading(true);
     setCustomerSearchError("");
@@ -211,14 +211,14 @@ export function usePosCustomer({ onToast, view }: UsePosCustomerProps) {
     } finally {
       setNewCustomerLoading(false);
     }
-  };
+  }, [onToast]);
 
-  const handleRegisterMinimalCustomer = async (confirmedPhone: string) => {
+  const handleRegisterMinimalCustomer = useCallback(async (confirmedPhone: string, name?: string) => {
     setNewCustomerLoading(true);
     setNewCustomerError(null);
     try {
       const res = await api.post("/api/sales/customers", {
-        name: "Cliente registrado",
+        name: name || "Cliente registrado",
         phone: confirmedPhone,
       });
       const newCust = res.data.customer;
@@ -236,7 +236,7 @@ export function usePosCustomer({ onToast, view }: UsePosCustomerProps) {
     } finally {
       setNewCustomerLoading(false);
     }
-  };
+  }, [onToast]);
 
   return {
     selectedCustomer,

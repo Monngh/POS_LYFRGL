@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { RotateCcw, KeyRound, Minus, Plus, Check } from "lucide-react";
+import { RotateCcw, KeyRound, Minus, Plus, Check, Loader2, CheckCircle } from "lucide-react";
 import { PosModal, PosStepper } from "./shared";
 import { getEligibleReturn, submitReturn } from '../../../facturacion';
 import { openTicketPrintWindow } from "../../../shared/utils/ticketEmailDocument.util";
@@ -75,8 +75,9 @@ export default function ReturnsModal({
   const [returnPaymentMethod, setReturnPaymentMethod] = useState("VALE_DEVOLUCION");
   const [returnProcessing, setReturnProcessing] = useState(false);
   const [returnReceipt, setReturnReceipt] = useState<any>(null);
-  const [returnItemNavIdx, setReturnItemNavIdx] = useState(0);
+  const [_returnItemNavIdx, setReturnItemNavIdx] = useState(0);
   const returnItemsListRef = useRef<HTMLDivElement | null>(null);
+  const returnReasonInputRef = useRef<HTMLInputElement | null>(null);
 
   const eligibleItems = returnItems.filter((it) => it.isEligible);
 
@@ -108,6 +109,30 @@ export default function ReturnsModal({
       handleReturnReset();
     }
   }, [isOpen, initialFolio]);
+
+  // Auto-validation of return folio
+  useEffect(() => {
+    if (returnStep !== "search" || !returnFolio.trim() || returnLoading) {
+      return;
+    }
+
+    const trimmed = returnFolio.trim();
+
+    // If it's a standard ticket folio (length 11, like V-171829182), validate immediately
+    if (trimmed.length === 11) {
+      handleReturnSearch(false);
+      return;
+    }
+
+    // For other lengths, wait for the user to finish typing (debounce of 700ms)
+    // Only trigger if they have entered at least 5 characters to avoid validation on partial "V" or "V-"
+    if (trimmed.length >= 5) {
+      const timer = setTimeout(() => {
+        handleReturnSearch(false);
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+  }, [returnFolio, returnStep]);
 
   const triggerSearchWithFolio = async (folioToSearch: string) => {
     setReturnLoading(true);
@@ -145,24 +170,75 @@ export default function ReturnsModal({
     }
   }, [returnStep]);
 
-  // Navegar entre checkboxes con flechas
+  // Navegar entre checkboxes y otros inputs con flechas, y Enter para seleccionar
   const handleItemsKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Enter") return;
+
+    const active = document.activeElement;
+    if (!active) return;
+
+    // Permitir comportamiento nativo de flechas en elementos select
+    if (active.tagName === "SELECT" && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+      return;
+    }
+
+    const row = active.closest('.pos-return-item-row');
+    if (!row) return;
+
+    const rowIdxAttr = row.getAttribute('data-row-idx');
+    if (rowIdxAttr === null) return;
+    const currentIdx = parseInt(rowIdxAttr, 10);
+
     if (e.key === "ArrowDown") {
+      const nextIdx = Math.min(currentIdx + 1, returnItems.length - 1);
+      if (nextIdx === currentIdx) return;
       e.preventDefault();
-      const next = Math.min(returnItemNavIdx + 1, eligibleItems.length - 1);
-      setReturnItemNavIdx(next);
-      const checks = returnItemsListRef.current?.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:not([disabled])');
-      if (checks && checks[next]) checks[next].focus();
+
+      const nextRow = returnItemsListRef.current?.querySelector(`[data-row-idx="${nextIdx}"]`);
+      if (nextRow) {
+        let selector = '';
+        if (active.tagName === 'INPUT' && (active as HTMLInputElement).type === 'checkbox') selector = 'input[type="checkbox"]';
+        else if (active.tagName === 'INPUT' && (active as HTMLInputElement).type === 'number') selector = 'input[type="number"]';
+        else if (active.tagName === 'SELECT') selector = 'select';
+        
+        const target = selector ? nextRow.querySelector<HTMLElement>(selector) : null;
+        if (target) {
+          target.focus();
+        } else {
+          nextRow.querySelector<HTMLElement>('input[type="checkbox"]')?.focus();
+        }
+        setReturnItemNavIdx(nextIdx);
+      }
     } else if (e.key === "ArrowUp") {
+      const prevIdx = Math.max(currentIdx - 1, 0);
+      if (prevIdx === currentIdx) return;
       e.preventDefault();
-      const prev = Math.max(returnItemNavIdx - 1, 0);
-      setReturnItemNavIdx(prev);
-      const checks = returnItemsListRef.current?.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:not([disabled])');
-      if (checks && checks[prev]) checks[prev].focus();
+
+      const prevRow = returnItemsListRef.current?.querySelector(`[data-row-idx="${prevIdx}"]`);
+      if (prevRow) {
+        let selector = '';
+        if (active.tagName === 'INPUT' && (active as HTMLInputElement).type === 'checkbox') selector = 'input[type="checkbox"]';
+        else if (active.tagName === 'INPUT' && (active as HTMLInputElement).type === 'number') selector = 'input[type="number"]';
+        else if (active.tagName === 'SELECT') selector = 'select';
+
+        const target = selector ? prevRow.querySelector<HTMLElement>(selector) : null;
+        if (target) {
+          target.focus();
+        } else {
+          prevRow.querySelector<HTMLElement>('input[type="checkbox"]')?.focus();
+        }
+        setReturnItemNavIdx(prevIdx);
+      }
+    } else if (e.key === "Enter") {
+      if (active.tagName === 'INPUT' && (active as HTMLInputElement).type === 'checkbox') {
+        return;
+      }
+      e.preventDefault();
+      handleReturnToggleItem(currentIdx);
     }
   };
 
-  const handleReturnSearch = async () => {
+  const handleReturnSearch = async (changeStep = true) => {
     const folio = returnFolio.trim();
     const folioError = validateReference(folio, "El folio de venta", { required: true, max: 40 });
     if (folioError) {
@@ -191,13 +267,16 @@ export default function ReturnsModal({
       );
       let defaultMethod = "VALE_DEVOLUCION"; // Default to Store Credit for returns
       setReturnPaymentMethod(defaultMethod);
-      setReturnStep("select");
+      if (changeStep) {
+        setReturnStep("select");
+      }
     } catch (err: any) {
       onToast(err.response?.data?.message || "Error al buscar la venta.", "error");
     } finally {
       setReturnLoading(false);
     }
   };
+
 
   const handleReturnToggleItem = (idx: number) => {
     setReturnItems((prev) =>
@@ -261,6 +340,7 @@ export default function ReturnsModal({
     const reasonError = validateReference(returnReason, "El motivo", { required: true, max: 100 });
     if (reasonError) {
       setReturnFieldErrors((prev) => ({ ...prev, reason: reasonError }));
+      returnReasonInputRef.current?.focus();
       return;
     }
     setReturnFieldErrors((prev) => {
@@ -270,6 +350,7 @@ export default function ReturnsModal({
     });
     if (!returnReason.trim()) {
       onToast("Indique el motivo de la devolución.", "error");
+      returnReasonInputRef.current?.focus();
       return;
     }
     setReturnStep("confirm");
@@ -439,13 +520,13 @@ export default function ReturnsModal({
             Cerrar
           </button>
           <button
-            onClick={handleReturnSearch}
+            onClick={() => setReturnStep("select")}
             data-shortcut="confirm"
             data-shortcut-letter="C"
-            disabled={returnLoading}
-            style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer", opacity: returnLoading ? 0.7 : 1 }}
+            disabled={!returnSaleData}
+            style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer", opacity: !returnSaleData ? 0.5 : 1 }}
           >
-            {returnLoading ? "Buscando..." : "Buscar Venta"}
+            Siguiente
           </button>
         </>
       );
@@ -456,11 +537,12 @@ export default function ReturnsModal({
           <button 
             onClick={() => { setReturnStep("search"); setReturnSaleData(null); setReturnItems([]); }} 
             data-shortcut="cancel"
-            data-shortcut-letter="X"
-            title="Atrás"
-            style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
+            data-shortcut-letter="A"
+            title="Atrás (Alt+A)"
+            style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
           >
-            Á¢â€ Â Atrás
+            ← Atrás
+            <span style={{ fontSize: "9px", backgroundColor: "rgba(0,0,0,0.08)", color: "var(--text-secondary)", padding: "1px 4px", borderRadius: "3px", fontWeight: "800", lineHeight: 1 }}>Alt+A</span>
           </button>
           <button 
             onClick={handleReturnProceed}
@@ -480,11 +562,12 @@ export default function ReturnsModal({
           <button 
             onClick={() => setReturnStep("select")} 
             data-shortcut="cancel"
-            data-shortcut-letter="X"
-            title="Atrás"
-            style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
+            data-shortcut-letter="A"
+            title="Atrás (Alt+A)"
+            style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
           >
-            Á¢â€ Â Atrás
+            ← Atrás
+            <span style={{ fontSize: "9px", backgroundColor: "rgba(0,0,0,0.08)", color: "var(--text-secondary)", padding: "1px 4px", borderRadius: "3px", fontWeight: "800", lineHeight: 1 }}>Alt+A</span>
           </button>
           <button
             onClick={handleReturnProcess}
@@ -572,31 +655,77 @@ export default function ReturnsModal({
             <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "14px" }}>
               Ingrese el folio de la venta original para iniciar el proceso de devolución.
             </p>
-            <div style={inputGroup}>
-              <label style={label}>Folio de Venta:</label>
-              <input
-                type="text"
-                className="input-corporate"
-                placeholder="V-XXXXXX"
-                value={returnFolio}
-                onChange={(e) => {
-                  const value = validateFolioInput(e.target.value).toUpperCase();
-                  setReturnFolio(value);
-                  setReturnFieldErrors((prev) => {
-                    const next = { ...prev };
-                    const error = validateReference(value, "El folio de venta", { required: true, max: 40 });
-                    if (error) next.folio = error;
-                    else delete next.folio;
-                    return next;
-                  });
-                }}
-                onKeyDown={(e) => { if (e.key === "Enter") handleReturnSearch(); }}
-                autoFocus
-              />
-              {returnFieldErrors.folio && <p style={fieldError}>{returnFieldErrors.folio}</p>}
+            <div style={{ display: "flex", gap: "10px", alignItems: "flex-end" }}>
+              <div style={{ ...inputGroup, flex: 1 }}>
+                <label style={label}>Folio de Venta:</label>
+                <div style={{ position: "relative", display: "flex", alignItems: "center", width: "100%" }}>
+                  <input
+                    type="text"
+                    className="input-corporate"
+                    placeholder="V-XXXXXX"
+                    value={returnFolio}
+                    onChange={(e) => {
+                      const value = validateFolioInput(e.target.value).toUpperCase();
+                      setReturnFolio(value);
+                      setReturnFieldErrors((prev) => {
+                        const next = { ...prev };
+                        const error = validateReference(value, "El folio de venta", { required: true, max: 40 });
+                        if (error) next.folio = error;
+                        else delete next.folio;
+                        return next;
+                      });
+                      setReturnSaleData(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (returnSaleData) {
+                          setReturnStep("select");
+                        } else if (!returnLoading && returnFolio.trim()) {
+                          handleReturnSearch(false);
+                        }
+                      }
+                    }}
+                    autoFocus
+                    style={{ width: "100%", paddingRight: returnLoading ? "35px" : "12px" }}
+                  />
+                  {returnLoading && (
+                    <Loader2
+                      className="animate-spin"
+                      size={18}
+                      style={{
+                        position: "absolute",
+                        right: "12px",
+                        color: "var(--accent-strong, #2563eb)",
+                        animation: "spin-loader 0.8s linear infinite"
+                      }}
+                    />
+                  )}
+                </div>
+                <style>{`@keyframes spin-loader { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+              </div>
             </div>
+            {returnFieldErrors.folio && <p style={fieldError}>{returnFieldErrors.folio}</p>}
+
+            {returnSaleData && (
+              <div style={{
+                marginTop: "16px",
+                padding: "16px",
+                backgroundColor: "#f0fdf4",
+                border: "1px solid #bbf7d0",
+                borderRadius: "8px",
+                fontSize: "13px",
+                color: "#166534"
+              }}>
+                <strong style={{ fontSize: "14px", display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}><CheckCircle size={14} color="#166534" /> Folio Validado Exitosamente</strong>
+                <div><strong>Fecha de venta:</strong> {new Date(returnSaleData.createdAt).toLocaleDateString()}</div>
+                <div><strong>Cliente:</strong> {returnSaleData.customerName || "Público General"}</div>
+                <div><strong>Total pagado:</strong> ${Number(returnSaleData.totalAmount).toFixed(2)}</div>
+              </div>
+            )}
           </div>
         )}
+
 
         {/* =========== PASO 2: SELECCIÓN DE PRODUCTOS =========== */}
         {returnStep === "select" && returnSaleData && (
@@ -640,6 +769,7 @@ export default function ReturnsModal({
               {returnItems.map((item, idx) => (
                 <div
                   key={item.saleDetailId}
+                  data-row-idx={idx}
                   className="pos-return-item-row"
                   style={{
                     padding: "10px 12px",
@@ -789,6 +919,7 @@ export default function ReturnsModal({
               <div style={inputGroup}>
                 <label style={label}>Motivo de devolución:</label>
                 <input
+                  ref={returnReasonInputRef}
                   type="text"
                   maxLength={100}
                   className="input-corporate"
@@ -809,9 +940,7 @@ export default function ReturnsModal({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      // Focus the "Continuar" button
-                      const continueBtn = document.querySelector<HTMLButtonElement>('[data-shortcut="confirm"]');
-                      if (continueBtn) continueBtn.focus();
+                      handleReturnProceed();
                     }
                   }}
                 />
@@ -825,6 +954,12 @@ export default function ReturnsModal({
                   style={{ backgroundColor: "var(--surface-3)", fontWeight: "600", color: "var(--text)" }}
                   value="Saldo a Favor (Vale de Tienda)"
                   readOnly
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleReturnProceed();
+                    }
+                  }}
                 />
               </div>
             </div>

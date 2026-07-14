@@ -23,7 +23,7 @@ const ALL_ACTIONS = [
   { id: "ticket-history",      label: "Reimprimir ticket", icon: Printer,      shortcutLetter: "H" as GlobalQuickActionLetter, shortcutLabel: "Alt+H" },
   { id: "partial-cut-summary", label: "Corte parcial",     icon: FileText,     shortcutLetter: "U" as GlobalQuickActionLetter, shortcutLabel: "Alt+U" },
   { id: "autofacturacion",     label: "Facturación",       icon: ExternalLink, shortcutLetter: "I" as GlobalQuickActionLetter, shortcutLabel: "Alt+I" },
-  { id: "lock-screen",         label: "Bloquear caja",     icon: Lock,         shortcutLetter: "L" as GlobalQuickActionLetter, shortcutLabel: "F10" },
+  { id: "lock-screen",         label: "Bloquear caja",     icon: Lock,         shortcutKey: "F10", shortcutLabel: "F10" },
 ];
 
 export function QuickActionsCarousel({ onOpenModal, onLock }: QuickActionsCarouselProps) {
@@ -51,7 +51,8 @@ export function QuickActionsCarousel({ onOpenModal, onLock }: QuickActionsCarous
               onClick={() => handleAction(action.id)}
               className="pos-quick-action-icon-btn active-tap"
               type="button"
-              data-shortcut-letter={action.shortcutLetter}
+              data-shortcut-letter={"shortcutLetter" in action ? action.shortcutLetter : undefined}
+              data-shortcut-key={"shortcutKey" in action ? action.shortcutKey : undefined}
               title={`${action.label} (${action.shortcutLabel})`}
               style={{
                 width: "58px",

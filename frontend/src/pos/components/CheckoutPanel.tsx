@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { usePosCart } from "../hooks/usePosCart";
+import { Bell } from "lucide-react";
 
 interface CheckoutPanelProps {
   cartData: ReturnType<typeof usePosCart>;
@@ -273,7 +274,7 @@ export function CheckoutPanel({
             }}
           >
             <span style={{ fontSize: "11px", fontWeight: "800", color: "#b45309", display: "flex", gap: "6px", alignItems: "center" }}>
-              🔔 {pendingQrSales.length} pago{pendingQrSales.length > 1 ? "s" : ""} pendiente{pendingQrSales.length > 1 ? "s" : ""} (Alt+S)
+              <Bell size={12} color="#b45309" /> {pendingQrSales.length} pago{pendingQrSales.length > 1 ? "s" : ""} pendiente{pendingQrSales.length > 1 ? "s" : ""} (Alt+S)
             </span>
             <span style={{ fontSize: "14px", color: "#b45309", fontWeight: "bold" }}>
               {isQrExpanded ? "−" : "+"}

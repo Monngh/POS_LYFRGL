@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Search } from "lucide-react";
 import { PosModal } from "./shared";
 import api from "../../../shared/services/api";
@@ -36,9 +36,12 @@ export default function PriceLookupModal({
   setLookupSelectionIndex,
 }: PriceLookupModalProps) {
   const tbodyRef = React.useRef<HTMLTableSectionElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [categories, setCategories] = useState<{id: number, name: string}[]>([]);
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const [categorySearch, setCategorySearch] = useState("");
+  const [categoryNavIdx, setCategoryNavIdx] = useState(-1);
 
   useEffect(() => {
     if (isOpen) {
@@ -59,9 +62,71 @@ export default function PriceLookupModal({
     }
   }, [lookupCategory, categories]);
 
-  const filteredCategories = categories.filter(c =>
-    c.name.toLowerCase().includes(categorySearch.toLowerCase())
-  );
+  // Reset nav index when dropdown opens or category search changes
+  useEffect(() => {
+    if (isCategoryDropdownOpen) setCategoryNavIdx(-1);
+  }, [isCategoryDropdownOpen, categorySearch]);
+
+  // Scroll highlighted category option into view
+  useEffect(() => {
+    if (!isCategoryDropdownOpen || categoryNavIdx < 0) return;
+    const dropdown = dropdownRef.current;
+    if (!dropdown) return;
+    const items = dropdown.querySelectorAll<HTMLDivElement>("[data-cat-idx]");
+    const item = items[categoryNavIdx];
+    if (item) item.scrollIntoView({ block: "nearest" });
+  }, [categoryNavIdx, isCategoryDropdownOpen]);
+
+  const filteredOptions = categorySearch
+    ? categories.filter(c => c.name.toLowerCase().includes(categorySearch.toLowerCase()))
+    : categories;
+
+  const selectCategory = (id: string, name: string) => {
+    onCategoryChange(id);
+    setCategorySearch(name || "");
+    setIsCategoryDropdownOpen(false);
+    // Auto-focus the product search input after selecting a category
+    setTimeout(() => searchInputRef.current?.focus(), 50);
+  };
+
+  const dropdownOptions: { id: string; name: string }[] = [
+    { id: "", name: "Todas las categorías" },
+    ...filteredOptions.map(c => ({ id: c.id.toString(), name: c.name })),
+  ];
+
+  const handleCategoryKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isCategoryDropdownOpen) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter") {
+        setIsCategoryDropdownOpen(true);
+        e.preventDefault();
+      }
+      return;
+    }
+
+    const count = dropdownOptions.length;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setCategoryNavIdx(prev => (prev + 1) % count);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setCategoryNavIdx(prev => (prev - 1 + count) % count);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (categoryNavIdx >= 0 && categoryNavIdx < count) {
+        const opt = dropdownOptions[categoryNavIdx];
+        selectCategory(opt.id, opt.id === "" ? "" : opt.name);
+      } else {
+        setIsCategoryDropdownOpen(false);
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setIsCategoryDropdownOpen(false);
+    } else if (e.key === "Tab") {
+      setIsCategoryDropdownOpen(false);
+    }
+  };
 
   // Keep the highlighted result visible while navigating with arrows.
   useEffect(() => {
@@ -100,12 +165,15 @@ export default function PriceLookupModal({
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "8px 0" }}>
         <div style={{ display: "flex", gap: "12px" }}>
+          {/* Category Dropdown with keyboard navigation */}
           <div style={{ position: "relative", minWidth: "220px" }}>
             <input
               type="text"
+              data-shortcut-letter="C"
+              title="Buscar categoría (Alt+C)"
               style={{
                 width: "100%",
-                padding: "12px 16px",
+                padding: "12px 60px 12px 16px",
                 borderRadius: "8px",
                 border: "1px solid var(--border)",
                 backgroundColor: "var(--surface-2)",
@@ -113,21 +181,32 @@ export default function PriceLookupModal({
                 fontSize: "14px",
                 outline: "none",
                 cursor: "pointer",
+                boxSizing: "border-box",
               }}
               placeholder="Todas las categorías"
               value={categorySearch}
               onFocus={() => setIsCategoryDropdownOpen(true)}
-              onBlur={() => setIsCategoryDropdownOpen(false)}
+              onBlur={(e) => {
+                // Only close if focus moves away from the dropdown itself
+                if (!dropdownRef.current?.contains(e.relatedTarget as Node)) {
+                  setIsCategoryDropdownOpen(false);
+                }
+              }}
               onChange={(e) => {
                 const val = e.target.value;
                 setCategorySearch(val);
+                setIsCategoryDropdownOpen(true);
                 if (val === "") {
                   onCategoryChange("");
                 }
               }}
+              onKeyDown={handleCategoryKeyDown}
             />
+            <span className="pos-fkey-badge" style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", fontSize: "10px", padding: "2px 6px", pointerEvents: "none", whiteSpace: "nowrap" }}>Alt+C</span>
+
             {isCategoryDropdownOpen && (
               <div
+                ref={dropdownRef}
                 style={{
                   position: "absolute",
                   top: "calc(100% + 4px)",
@@ -141,43 +220,33 @@ export default function PriceLookupModal({
                   boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
                   zIndex: 1000,
                 }}
+                onMouseDown={(e) => e.preventDefault()} // prevent blur on input
               >
-                <div
-                  style={{
-                    padding: "10px 16px",
-                    fontSize: "14px",
-                    color: "var(--text)",
-                    cursor: "pointer",
-                    backgroundColor: lookupCategory === "" ? "var(--surface-3)" : "transparent",
-                  }}
-                  onMouseDown={() => {
-                    onCategoryChange("");
-                    setCategorySearch("");
-                    setIsCategoryDropdownOpen(false);
-                  }}
-                >
-                  Todas las categorías
-                </div>
-                {filteredCategories.map(c => (
+                {dropdownOptions.map((opt, idx) => (
                   <div
-                    key={c.id}
+                    key={opt.id}
+                    data-cat-idx={idx}
                     style={{
                       padding: "10px 16px",
                       fontSize: "14px",
                       color: "var(--text)",
                       cursor: "pointer",
-                      backgroundColor: lookupCategory === c.id.toString() ? "var(--surface-3)" : "transparent",
+                      backgroundColor:
+                        idx === categoryNavIdx
+                          ? "var(--surface-3)"
+                          : lookupCategory === opt.id
+                          ? "rgba(37,99,235,0.08)"
+                          : "transparent",
+                      borderLeft: lookupCategory === opt.id ? "3px solid #2563eb" : "3px solid transparent",
+                      transition: "background-color 0.12s",
                     }}
-                    onMouseDown={() => {
-                      onCategoryChange(c.id.toString());
-                      setCategorySearch(c.name);
-                      setIsCategoryDropdownOpen(false);
-                    }}
+                    onMouseEnter={() => setCategoryNavIdx(idx)}
+                    onMouseDown={() => selectCategory(opt.id, opt.id === "" ? "" : opt.name)}
                   >
-                    {c.name}
+                    {opt.name}
                   </div>
                 ))}
-                {filteredCategories.length === 0 && categorySearch !== "" && (
+                {filteredOptions.length === 0 && categorySearch !== "" && (
                   <div style={{ padding: "10px 16px", fontSize: "12px", color: "var(--text-muted)", fontStyle: "italic" }}>
                     No se encontraron categorías
                   </div>
@@ -186,7 +255,9 @@ export default function PriceLookupModal({
             )}
           </div>
 
+          {/* Product search input */}
           <input
+            ref={searchInputRef}
             type="text"
             style={{ flex: 1, padding: "12px 16px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "var(--surface-2)", color: "var(--text)", fontSize: "14px", outline: "none" }}
             placeholder="Buscar por código, nombre o código de barras..."
@@ -196,6 +267,7 @@ export default function PriceLookupModal({
             autoFocus
           />
         </div>
+
 
         {lookupResults.length === 0 ? (
           <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-muted)", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>

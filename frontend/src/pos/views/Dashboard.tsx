@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import "../../pos-cashier-responsive.css";
 import "../../pos-modern.css";
@@ -10,7 +10,6 @@ import {
   SalesTerminalView,
   PriceLookupModal,
   CancelSaleModal,
-  CloseOptionsModal,
   PartialCutSummaryModal,
   TicketViewModal,
   PartialCutReceiptModal,
@@ -37,7 +36,7 @@ import {
   validateInteger,
   validateReference,
 } from "../../shared/utils/formValidation";
-import { Printer, AlertTriangle, Mail } from "lucide-react";
+import { Printer, AlertTriangle, Mail, CreditCard, Trash2, X, RefreshCw, RefreshCcw, ExternalLink } from "lucide-react";
 
 
 
@@ -425,6 +424,7 @@ const Dashboard: React.FC = () => {
       style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
     >
       <Mail size={16} /> Enviar por Correo
+      <span style={{ fontSize: "9px", backgroundColor: "rgba(0,0,0,0.08)", color: "var(--text-secondary)", padding: "1px 4px", borderRadius: "3px", fontWeight: "800", lineHeight: 1, marginLeft: "2px" }}>Alt+S</span>
     </button>
   );
 
@@ -663,6 +663,19 @@ const Dashboard: React.FC = () => {
   const [pendingCancelReason, setPendingCancelReason] = useState("");
   const [pendingCancelFieldErrors, setPendingCancelFieldErrors] = useState<Partial<Record<"pin" | "reason", string>>>({});
   const [pendingCancelLoading, setPendingCancelLoading] = useState(false);
+
+  const pendingCancelPinInputRef = useRef<HTMLInputElement>(null);
+  const pendingCancelReasonInputRef = useRef<HTMLInputElement>(null);
+
+  // Focus PIN Gerente when viewingPendingQrSale opens
+  useEffect(() => {
+    if (viewingPendingQrSale && viewingPendingQrSale.status !== "approved") {
+      const timer = setTimeout(() => {
+        pendingCancelPinInputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [viewingPendingQrSale]);
 
   // Sincronizar pagos QR pendientes cuando cambie el usuario autenticado
   useEffect(() => {
@@ -922,7 +935,11 @@ const Dashboard: React.FC = () => {
           textAlign: "center",
         }}
       >
-        <div style={{ fontSize: "48px", marginBottom: "16px", lineHeight: 1 }}>⚠ </div>
+        <div style={{ marginBottom: "16px", display: "flex", justifyContent: "center" }}>
+          <div style={{ width: "64px", height: "64px", borderRadius: "50%", backgroundColor: "#fef2f2", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <AlertTriangle size={32} color="#ef4444" />
+          </div>
+        </div>
         <h2
           style={{
             fontSize: "20px",
@@ -1204,18 +1221,11 @@ const Dashboard: React.FC = () => {
         }) : null}
       />
 
-      {/* MODAL: OPCIONES DE CIERRE DE CAJA */}
-      <CloseOptionsModal
-        isOpen={activeModal === "close-options"}
-        onClose={() => setActiveModal(null)}
-        onPartialCut={() => setActiveModal("partial-cut-summary")}
-        onCloseCash={() => setActiveModal("close-cash")}
-      />
 
       {/* MODAL: CORTE PARCIAL (Resumen) */}
       <PartialCutSummaryModal
         isOpen={activeModal === "partial-cut-summary"}
-        onBack={() => setActiveModal("close-options")}
+        onBack={() => setActiveModal(null)}
         onClose={() => setActiveModal(null)}
         onSave={handleSavePartialCut}
         partialCutLoading={partialCutLoading}
@@ -1326,7 +1336,7 @@ const Dashboard: React.FC = () => {
                          borderRadius: "6px" 
                        }}
                      >
-                       🔗 Abrir enlace de pago / Sandbox
+                       <ExternalLink size={12} style={{ marginRight: "4px", verticalAlign: "middle" }} /> Abrir enlace de pago / Sandbox
                      </a>
                    </div>
                  </>
@@ -1346,18 +1356,25 @@ const Dashboard: React.FC = () => {
                 flexDirection: "column",
                 gap: "10px"
               }}>
-                <div style={{ fontSize: "11px", fontWeight: "700", color: "#dc2626", textTransform: "uppercase" }}>
-                  ⚠ ️Cancelar Venta (Revertir Stock)
+                <div style={{ fontSize: "11px", fontWeight: "700", color: "#dc2626", textTransform: "uppercase", display: "flex", alignItems: "center", gap: "4px" }}>
+                  <AlertTriangle size={12} /> Cancelar Venta (Revertir Stock)
                 </div>
                 
                 <div style={{ display: "flex", gap: "8px" }}>
                   <div style={{ flex: 1 }}>
                     <input
+                      ref={pendingCancelPinInputRef}
                       type="password"
                       placeholder="PIN Gerente"
                       maxLength={4}
                       value={pendingCancelPin}
                       onChange={(e) => handlePendingCancelPinChange(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          pendingCancelReasonInputRef.current?.focus();
+                        }
+                      }}
                       className="input-corporate"
                       style={{ padding: "6px 10px", fontSize: "12px" }}
                     />
@@ -1365,6 +1382,7 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div style={{ flex: 2 }}>
                     <input
+                      ref={pendingCancelReasonInputRef}
                       type="text"
                       placeholder="Motivo de cancelación"
                       value={pendingCancelReason}
@@ -1380,36 +1398,40 @@ const Dashboard: React.FC = () => {
                     <button
                       onClick={() => handlePendingQrCancel("other_method")}
                       disabled={pendingCancelLoading}
+                      className="btn-qr-outline-blue"
+                      data-shortcut-letter="O"
+                      title="Pagar con otro método (Alt+O)"
                       style={{
                         flex: 1,
                         padding: "10px 8px",
                         borderRadius: "6px",
-                        border: "none",
-                        backgroundColor: "#598ffbff",
-                        color: "white",
                         fontWeight: "700",
-                        fontSize: "11px",
+                        fontSize: "10px",
                         cursor: pendingCancelLoading ? "default" : "pointer"
                       }}
                     >
-                      PAGAR CON OTRO MÉTODO
+                      <CreditCard size={14} />
+                      <span>PAGAR CON OTRO MÉTODO</span>
+                      <span style={{ fontSize: "8px", backgroundColor: "rgba(59,130,246,0.12)", padding: "1px 3px", borderRadius: "3px", fontWeight: "800" }}>Alt+O</span>
                     </button>
                     <button
                       onClick={() => handlePendingQrCancel("cancel_def")}
                       disabled={pendingCancelLoading}
+                      className="btn-qr-outline-red"
+                      data-shortcut-letter="D"
+                      title="Cancelar definitivamente (Alt+D)"
                       style={{
                         flex: 1,
                         padding: "10px 8px",
                         borderRadius: "6px",
-                        border: "none",
-                        backgroundColor: "#dc2626",
-                        color: "white",
                         fontWeight: "700",
-                        fontSize: "11px",
+                        fontSize: "10px",
                         cursor: pendingCancelLoading ? "default" : "pointer"
                       }}
                     >
-                      CANCELAR DEFINITIVAMENTE
+                      <Trash2 size={14} />
+                      <span>CANCELAR DEFINITIVAMENTE</span>
+                      <span style={{ fontSize: "8px", backgroundColor: "rgba(220,38,38,0.12)", padding: "1px 3px", borderRadius: "3px", fontWeight: "800" }}>Alt+D</span>
                     </button>
                   </div>
               </div>
@@ -1423,28 +1445,46 @@ const Dashboard: React.FC = () => {
                   setPendingCancelReason("");
                   setPendingCancelFieldErrors({});
                 }}
-                style={{ ...styles.modalBtn, backgroundColor: "var(--text-muted)", color: "white" }}
+                className="btn-qr-outline-gray"
+                data-shortcut="cancel"
+                data-shortcut-letter="X"
+                title="Cerrar (Esc)"
+                style={{ flex: 1, padding: "10px 8px", borderRadius: "6px", fontWeight: "700", fontSize: "11px", cursor: "pointer" }}
               >
-                CERRAR
+                <X size={14} />
+                <span>CERRAR</span>
+                <span style={{ fontSize: "8px", backgroundColor: "rgba(100,116,139,0.12)", padding: "1px 3px", borderRadius: "3px", fontWeight: "800" }}>Esc</span>
               </button>
               {isQrExpired(viewingPendingQrSale) && viewingPendingQrSale.status !== "approved" && viewingPendingQrSale.status !== "rejected" ? (
                 <button
                   onClick={() => handleRegenerateQr(viewingPendingQrSale)}
-                  style={{ ...styles.modalBtn, backgroundColor: "#2563eb", color: "white" }}
+                  className="btn-qr-outline-blue"
+                  data-shortcut-letter="G"
+                  title="Generar nuevo QR (Alt+G)"
+                  style={{ flex: 1, padding: "10px 8px", borderRadius: "6px", fontWeight: "700", fontSize: "11px", cursor: "pointer" }}
                 >
-                  🔄 GENERAR NUEVO QR
+                  <RefreshCcw size={14} />
+                  <span>GENERAR NUEVO QR</span>
+                  <span style={{ fontSize: "8px", backgroundColor: "rgba(37,99,235,0.12)", padding: "1px 3px", borderRadius: "3px", fontWeight: "800" }}>Alt+G</span>
                 </button>
               ) : (
                 viewingPendingQrSale.status !== "approved" && (
                   <button
                     onClick={() => checkPendingQrStatus(viewingPendingQrSale.invoiceNumber)}
-                    style={{ ...styles.modalBtn, backgroundColor: "#059669", color: "white" }}
+                    className="btn-qr-outline-green"
+                    data-shortcut-action="verify-payment"
+                    data-shortcut-letter="W"
+                    title="Verificar estado (Alt+W)"
+                    style={{ flex: 1, padding: "10px 8px", borderRadius: "6px", fontWeight: "700", fontSize: "11px", cursor: "pointer" }}
                   >
-                    VERIFICAR ESTADO
+                    <RefreshCw size={14} />
+                    <span>VERIFICAR ESTADO</span>
+                    <span style={{ fontSize: "8px", backgroundColor: "rgba(5,150,105,0.12)", padding: "1px 3px", borderRadius: "3px", fontWeight: "800" }}>Alt+W</span>
                   </button>
                 )
               )}
             </div>
+
           </div>
         </div>
       )}

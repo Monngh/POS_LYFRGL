@@ -1,11 +1,14 @@
-import { useState, useEffect, useRef } from "react";
-import { ChevronDown, ChevronUp, Tag } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { ChevronDown, ChevronUp, Tag, Search, X, ShoppingCart } from "lucide-react";
 import api from "../../shared/services/api";
 
 interface Promotion {
   id: number;
   name: string;
   description: string;
+  startDate?: string;
+  endDate?: string;
+  isActive?: boolean;
   promotionType: {
     name: string;
   };
@@ -35,26 +38,52 @@ interface PromotionsGridProps {
 export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscount = 0 }: PromotionsGridProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Promotion[] | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchPromotions = async () => {
-      try {
-        const res = await api.get("/api/promotions/active");
-        const data = res.data;
-        setPromotions(Array.isArray(data) ? data : (data?.promotions || []));
-      } catch (err) {
-        console.error("Error fetching promotions", err);
-        onToast("No se pudieron cargar las promociones activas", "error");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchPromotions();
+  const fetchAllPromotions = useCallback(async () => {
+    try {
+      const res = await api.get("/api/promotions/active");
+      const data = res.data;
+      setPromotions(Array.isArray(data) ? data : (data?.promotions || []));
+    } catch (err) {
+      console.error("Error fetching promotions", err);
+      onToast("No se pudieron cargar las promociones activas", "error");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const availablePromotions = Array.isArray(promotions) ? promotions : [];
+  useEffect(() => {
+    fetchAllPromotions();
+  }, [fetchAllPromotions]);
+
+  // Debounced search
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const res = await api.get(`/api/promotions/search?q=${encodeURIComponent(searchQuery.trim())}`);
+        const data = res.data;
+        setSearchResults(Array.isArray(data) ? data : []);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const availablePromotions = searchResults ?? (Array.isArray(promotions) ? promotions : []);
 
   const getDiscountBadge = (promo: Promotion) => {
     if (promo.promotionType.name === "BuyXPayY" && promo.minQuantity && promo.payQuantity) {
@@ -110,23 +139,15 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
         } else if (key === "p") {
           e.preventDefault();
           setIsCollapsed((prev) => {
-            const isFocusing = !prev && document.activeElement && listRef.current?.contains(document.activeElement);
-            // If it's closed, open it. If it's open but unfocused, focus it. If it's open and focused, close it.
-            if (!prev && !isFocusing) {
-              setTimeout(() => {
-                const firstItem = listRef.current?.querySelector<HTMLElement>('.pos-checkout-focusable-item');
-                if (firstItem) firstItem.focus();
-              }, 50);
-              return false;
-            } else if (prev) {
-              setTimeout(() => {
-                const firstItem = listRef.current?.querySelector<HTMLElement>('.pos-checkout-focusable-item');
-                if (firstItem) firstItem.focus();
-              }, 50);
-              return false;
+            const next = !prev;
+            if (!next) {
+              setTimeout(() => searchInputRef.current?.focus(), 60);
             } else {
-              return true;
+              if (document.activeElement === searchInputRef.current) {
+                searchInputRef.current?.blur();
+              }
             }
+            return next;
           });
         }
       }
@@ -183,6 +204,60 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
         {isCollapsed ? <ChevronDown size={18} color="#64748b" /> : <ChevronUp size={18} color="#64748b" />}
       </div>
 
+      {/* Search input */}
+      {!isCollapsed && (
+        <div style={{ position: "relative", marginTop: "8px", marginBottom: "4px" }} onClick={(e) => e.stopPropagation()}>
+          <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none" }} />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              const raw = e.target.value.normalize("NFC");
+              const val = raw.replace(/[^\p{L}\p{M}\p{N}\s.,#_\/:@()+\$%\-]/gu, "");
+              if (val.length > 100) {
+                onToast("La búsqueda no puede exceder los 100 caracteres", "warning");
+                return;
+              }
+              if (raw !== val) {
+                onToast("Se removieron caracteres no permitidos", "warning");
+              }
+              setSearchQuery(val);
+            }}
+            maxLength={100}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") { setSearchQuery(""); e.stopPropagation(); }
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                const firstItem = listRef.current?.querySelector<HTMLElement>('.pos-checkout-focusable-item');
+                if (firstItem) firstItem.focus();
+              }
+            }}
+            placeholder="Buscar promoción o producto..."
+            style={{
+              width: "100%",
+              padding: "7px 30px 7px 30px",
+              borderRadius: "6px",
+              border: "1px solid var(--pos-border)",
+              backgroundColor: "var(--pos-surface-2)",
+              color: "var(--pos-text)",
+              fontSize: "12px",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 0, color: "#94a3b8", display: "flex", alignItems: "center" }}
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+      )}
+
       <div style={{
         display: "grid",
         gridTemplateRows: isCollapsed ? "0fr" : "1fr",
@@ -190,8 +265,10 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
         marginTop: isCollapsed ? 0 : "2px",
       }}>
         <div style={{ overflow: "hidden" }}>
-          {loading ? (
-            <p style={{ color: "#94a3b8", fontSize: "12px", textAlign: "center", paddingBottom: "12px" }}>Cargando...</p>
+          {loading || searchLoading ? (
+            <p style={{ color: "#94a3b8", fontSize: "12px", textAlign: "center", paddingBottom: "12px" }}>
+              {searchLoading ? "Buscando..." : "Cargando..."}
+            </p>
           ) : availablePromotions.length > 0 ? (
             <div 
               ref={listRef}
@@ -202,6 +279,20 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
                 const badge = getDiscountBadge(promo);
                 const shortcutNum = idx < 9 ? idx + 1 : null;
                 
+                const formatDate = (dateStr?: string) => {
+                  if (!dateStr) return "N/A";
+                  try {
+                    const d = new Date(dateStr);
+                    if (isNaN(d.getTime())) return "N/A";
+                    const day = String(d.getDate()).padStart(2, '0');
+                    const month = String(d.getMonth() + 1).padStart(2, '0');
+                    const year = d.getFullYear();
+                    return `${day}/${month}/${year}`;
+                  } catch {
+                    return "N/A";
+                  }
+                };
+
                 return (
                   <button
                     key={promo.id}
@@ -210,7 +301,16 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
                     tabIndex={isCollapsed ? -1 : 0}
                     onKeyDown={(e) => handleItemKeyDown(e, promo)}
                     onClick={() => handlePromoClick(promo)}
-                    style={{ position: "relative", outline: "none", alignItems: "flex-start", padding: "10px", height: "auto", minWidth: "220px", flexShrink: 0 }}
+                    style={{ 
+                      position: "relative", 
+                      outline: "none", 
+                      alignItems: "flex-start", 
+                      padding: "10px", 
+                      paddingBottom: shortcutNum ? "32px" : "10px", 
+                      height: "auto", 
+                      minWidth: "220px", 
+                      flexShrink: 0 
+                    }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", width: "100%", marginBottom: "4px" }}>
                       <div className="pos-quick-action-icon-wrapper" style={{ color: "#d97706", marginBottom: 0 }}>
@@ -230,6 +330,34 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
                     <span style={{ fontSize: "10px", color: "#64748b", textAlign: "left", width: "100%", display: "block", marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {promo.products[0]?.product?.name}
                     </span>
+
+                    {/* Expiration date and active status */}
+                    <div style={{ 
+                      display: "flex", 
+                      flexDirection: "column", 
+                      width: "100%", 
+                      marginTop: "8px", 
+                      fontSize: "10px", 
+                      borderTop: "1px dashed var(--pos-border)",
+                      paddingTop: "6px",
+                      gap: "2px"
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b" }}>
+                        <span>Vence:</span>
+                        <span style={{ fontWeight: "600" }}>
+                          {formatDate(promo.endDate)}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b" }}>
+                        <span>Estado:</span>
+                        <span style={{ 
+                          color: promo.isActive !== false ? "#16a34a" : "#dc2626", 
+                          fontWeight: "bold"
+                        }}>
+                          {promo.isActive !== false ? "Activa" : "Inactiva"}
+                        </span>
+                      </div>
+                    </div>
 
                     {shortcutNum && (
                       <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "8px", right: "8px" }}>
@@ -253,13 +381,25 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
               borderRadius: "8px",
               marginBottom: "4px"
             }}>
-              <span style={{ fontSize: "16px", marginBottom: "4px" }}>🛒</span>
+              <span style={{ marginBottom: "4px" }}>{searchQuery ? <Search size={16} color="#94a3b8" /> : <ShoppingCart size={16} color="#94a3b8" />}</span>
               <span style={{ fontSize: "12px", fontWeight: "600" }}>
-                {cartDiscount > 0 
-                  ? "Todas las promociones disponibles ya están aplicadas" 
+                {searchQuery
+                  ? `Sin resultados para "${searchQuery}"`
+                  : cartDiscount > 0
+                  ? "Todas las promociones disponibles ya están aplicadas"
                   : "No hay promociones disponibles"}
               </span>
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  style={{ marginTop: "8px", fontSize: "11px", color: "#3b82f6", background: "none", border: "none", cursor: "pointer", fontWeight: "600" }}
+                >
+                  Limpiar búsqueda
+                </button>
+              )}
             </div>
+
           )}
         </div>
       </div>

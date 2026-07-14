@@ -119,7 +119,7 @@ export function usePosCart({
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [checkoutFieldErrors, setCheckoutFieldErrors] = useState<
-    Partial<Record<"cashReceived" | "mixtoCard" | "mixtoCash" | "storeCreditCode", string>>
+    Partial<Record<"cashReceived" | "mixtoCard" | "mixtoCash" | "storeCreditCode" | "pointsToRedeem", string>>
   >({});
 
   const [paymentMethod, setPaymentMethod] = useState<"EFECTIVO" | "TARJETA" | "MIXTO" | "QR_MERCADOPAGO" | "STORE_CREDIT">("EFECTIVO");
@@ -386,6 +386,18 @@ export function usePosCart({
     } catch (err: any) {
       setCheckoutError(err.message || "El carrito no tiene datos válidos para cobrar.");
       return;
+    }
+
+    if (usePoints) {
+      if (!pointsToRedeem || pointsToRedeem <= 0) {
+        setCheckoutFieldErrors((prev) => ({ ...prev, pointsToRedeem: "Debe especificar la cantidad de puntos a utilizar." }));
+        return;
+      }
+      const maxPoints = Math.min(selectedCustomer?.points || 0, Math.floor(cartTotal));
+      if (pointsToRedeem > maxPoints) {
+        setCheckoutFieldErrors((prev) => ({ ...prev, pointsToRedeem: `El canje máximo permitido es de ${maxPoints} puntos.` }));
+        return;
+      }
     }
 
     let cashPayment = 0;
