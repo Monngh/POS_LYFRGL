@@ -28,6 +28,14 @@ interface AuditLogRow {
   branch: { id: number; name: string } | null;
 }
 
+// Mismo shape que consumen ExistenciasReport/SalesReport desde este endpoint.
+interface FilterOptions {
+  branches: { id: number; name: string }[];
+  sellers: { id: number; name: string; role: string }[];
+  categories: { id: number; name: string }[];
+  paymentMethods: string[];
+}
+
 const REPORT_TYPES = [
   { value: "", label: "Todos los tipos" },
   { value: "VENTAS", label: "Ventas" },
@@ -36,22 +44,83 @@ const REPORT_TYPES = [
   { value: "PERSONAL", label: "Personal" },
 ];
 
-const parseFiltros = (raw: string | null): string => {
+// Flags booleanos que solo se muestran cuando están activos (true) — se omiten si vienen en false.
+const BOOLEAN_FLAG_LABELS: Record<string, string> = {
+  lowStock: "Solo stock bajo",
+  includeInactive: "Incluye inactivos",
+  onlyFinal: "Solo categorías finales",
+};
+
+const capitalizeFirst = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s);
+
+const titleCaseWords = (s: string) =>
+  s
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+
+// Fallback genérico para claves no listadas en FILTER_LABELS: camelCase → "Texto Legible".
+const camelToLabel = (key: string) =>
+  key.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
+
+// Diccionario de traducción de filtros técnicos → texto legible en español. Resuelve IDs de
+// sucursal/vendedor/categoría contra FilterOptions (de /api/admin/reports/filter-options); si
+// options aún no cargó, cae de forma temporal al ID crudo en vez de bloquear el render.
+const formatFilterEntry = (key: string, rawValue: unknown, options: FilterOptions | null): string | null => {
+  const v = String(rawValue);
+
+  if (key === "from" || key === "to") {
+    const d = new Date(v);
+    const label = Number.isNaN(d.getTime())
+      ? v
+      : d.toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "2-digit" });
+    return `${key === "from" ? "Del" : "Al"} ${label}`;
+  }
+
+  if (key === "branchId") {
+    if (v === "all") return "Todas las sucursales";
+    const branch = options?.branches.find((b) => String(b.id) === v);
+    return `Sucursal: ${branch?.name ?? `#${v}`}`;
+  }
+
+  if (key === "sellerId") {
+    const seller = options?.sellers.find((s) => String(s.id) === v);
+    return `Vendedor: ${seller?.name ?? `#${v}`}`;
+  }
+
+  if (key === "categoryId") {
+    const category = options?.categories.find((c) => String(c.id) === v);
+    return `Categoría: ${category?.name ?? `#${v}`}`;
+  }
+
+  if (key === "cashSessionId") return `Sesión de caja: #${v}`;
+
+  if (key === "search") return `Búsqueda: "${v}"`;
+  if (key === "customer") return `Cliente: "${v}"`;
+  if (key === "product") return `Producto: "${v}"`;
+
+  if (key === "paymentMethod") return `Método de pago: ${capitalizeFirst(v)}`;
+  if (key === "status") return `Estado: ${capitalizeFirst(v)}`;
+
+  if (key === "movementType") return titleCaseWords(v.replace(/_/g, " "));
+
+  if (key in BOOLEAN_FLAG_LABELS) return v === "true" ? BOOLEAN_FLAG_LABELS[key] : null;
+
+  return `${camelToLabel(key)}: ${v}`;
+};
+
+const parseFiltros = (raw: string | null, options: FilterOptions | null): string => {
   if (!raw) return "Sin filtros";
   try {
     const obj = JSON.parse(raw);
-    const entries = Object.entries(obj).filter(([, v]) => v !== "" && v !== undefined);
+    const entries = Object.entries(obj).filter(([, v]) => v !== "" && v !== undefined && v !== null);
     if (entries.length === 0) return "Sin filtros";
-    return entries
-      .map(([k, v]) => {
-        if (k === "from" || k === "to") {
-          const d = new Date(v as string);
-          return `${k === "from" ? "Del" : "Al"} ${d.toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "2-digit" })}`;
-        }
-        if (k === "branchId") return `Sucursal: ${v}`;
-        return `${k}: ${v}`;
-      })
-      .join(" | ");
+    const formatted = entries
+      .map(([k, v]) => formatFilterEntry(k, v, options))
+      .filter((s): s is string => s !== null);
+    return formatted.length > 0 ? formatted.join(" | ") : "Sin filtros";
   } catch {
     return raw;
   }
@@ -120,8 +189,13 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [userSearch, setUserSearch] = useState("");
   const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [options, setOptions] = useState<FilterOptions | null>(null);
 
   const toggleExpand = (id: number) => setExpandedLogs((p) => ({ ...p, [id]: !p[id] }));
+
+  useEffect(() => {
+    api.get<FilterOptions>("/api/admin/reports/filter-options").then((r) => setOptions(r.data)).catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -235,7 +309,7 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
     {
       key: "filters",
       header: "Filtros aplicados",
-      render: (row) => <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{parseFiltros(row.filters)}</span>,
+      render: (row) => <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{parseFiltros(row.filters, options)}</span>,
     },
     {
       key: "ipAddress",
@@ -358,7 +432,7 @@ const ReportAuditLogView: React.FC<ViewProps> = ({ refreshToken }) => {
                     {detailRow("Usuario", row.user.email)}
                     {detailRow("Sucursal", row.branch?.name ?? "—")}
                     {detailRow("Dispositivo", parseUserAgent(row.userAgent))}
-                    {detailRow("Filtros", parseFiltros(row.filters))}
+                    {detailRow("Filtros", parseFiltros(row.filters, options))}
                     {detailRow("IP", <span style={{ fontFamily: "monospace" }}>{row.ipAddress ?? "—"}</span>)}
                   </div>
                 )}
