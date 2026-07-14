@@ -1209,8 +1209,24 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
               <div style={styles.formGrid}>
                 <div style={{ gridColumn: "1 / -1" }}>
                   <label style={ui.fieldLabel}>Nombre *</label>
-                  <input style={ui.input} value={form.name} onChange={setField("name")} placeholder="Coca Cola 20% OFF" autoFocus />
-                  {fieldErrors.name && <p style={styles.fieldError}>{fieldErrors.name}</p>}
+                  <input
+                    style={ui.input}
+                    value={form.name}
+                    onChange={setField("name")}
+                    placeholder="Coca Cola 20% OFF"
+                    autoFocus
+                    maxLength={100}
+                  />
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+                    {fieldErrors.name ? (
+                      <p style={{ ...styles.fieldError, marginTop: 0, marginBottom: 0 }}>{fieldErrors.name}</p>
+                    ) : (
+                      <div />
+                    )}
+                    <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: "auto", fontWeight: 600 }}>
+                      {form.name.length} / 100
+                    </span>
+                  </div>
                 </div>
 
                 <div style={{ gridColumn: "1 / -1" }}>
@@ -1220,8 +1236,18 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                     value={form.description}
                     onChange={setField("description")}
                     placeholder="Descuento en refrescos"
+                    maxLength={180}
                   />
-                  {fieldErrors.description && <p style={styles.fieldError}>{fieldErrors.description}</p>}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+                    {fieldErrors.description ? (
+                      <p style={{ ...styles.fieldError, marginTop: 0, marginBottom: 0 }}>{fieldErrors.description}</p>
+                    ) : (
+                      <div />
+                    )}
+                    <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: "auto", fontWeight: 600 }}>
+                      {form.description.length} / 180
+                    </span>
+                  </div>
                 </div>
 
                 <div>
