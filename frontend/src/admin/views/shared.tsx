@@ -139,7 +139,7 @@ export const Badge: React.FC<{ tone: Tone; children: React.ReactNode }> = ({ ton
 
 // Mapas de tono por dominio
 export const statusTone = (status: string): Tone =>
-  status === "COMPLETADA" || status === "ABIERTA" ? "green" : status === "CANCELADA" ? "red" : "slate";
+  status === "COMPLETADA" || status === "ABIERTA" ? "green" : status === "CANCELADA" || status === "REVOCADO" ? "red" : "slate";
 
 export const roleTone = (role: string): Tone =>
   role === "ADMIN" ? "blue" : role === "GERENTE" ? "amber" : "slate";
