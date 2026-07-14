@@ -21,12 +21,13 @@ Fuente de verdad del teclado del POS.
 | --- | --- | --- | --- |
 | `F1` | Ir al inicio (dashboard) | Terminal de ventas | [SalesTerminalView.tsx](components/SalesTerminalView.tsx) |
 | `F2` | Enfocar buscador de productos | Terminal de ventas | [ProductSearchPanel.tsx](components/ProductSearchPanel.tsx) |
-| `F3` | Ir a ventas | Dashboard | [DashboardHomeView.tsx](components/DashboardHomeView.tsx) |
+| `F3` | Ir a ventas / Enfocar calculadora | Terminal / Cobro | [CheckoutPanel.tsx](components/CheckoutPanel.tsx) |
 | `F4` | Abrir cobro | Terminal de ventas | [CheckoutPanel.tsx](components/CheckoutPanel.tsx) |
-| `F6` | Enfocar teléfono del cliente | Terminal de ventas | [ProductSearchPanel.tsx](components/ProductSearchPanel.tsx) |
+| `F6` | Enfocar teléfono de cliente (Buscar cliente) | Terminal de ventas | [CustomerCheckoutBar.tsx](components/CustomerCheckoutBar.tsx) |
 | `F7` | Abrir / cerrar menú lateral (hamburguesa) | Terminal de ventas | [SalesTerminalView.tsx](components/SalesTerminalView.tsx) |
 | `F8` | Abrir opciones de cierre de caja | Terminal / modal cierre | [SalesLayoutView.tsx](components/SalesLayoutView.tsx), [CloseOptionsModal.tsx](components/modals/CloseOptionsModal.tsx) |
-| `F10` | Bloquear pantalla | Terminal de ventas | [SalesLayoutView.tsx](components/SalesLayoutView.tsx) |
+| `F9` | Mostrar / ocultar panel de atajos | Terminal de ventas | [ShortcutsHelpPanel.tsx](components/ShortcutsHelpPanel.tsx) |
+| `F10` | Bloquear pantalla | Terminal de ventas | [QuickActionsCarousel.tsx](components/QuickActionsCarousel.tsx) |
 
 ## Accesos rápidos del terminal (siempre activos)
 
@@ -47,7 +48,6 @@ Implementación: registro oculto en [SalesTerminalView.tsx](components/SalesTerm
 
 | Shortcut | Acción | Aplica en | Implementación |
 | --- | --- | --- | --- |
-| `Alt+B` | Buscar producto | Buscador POS | [ProductSearchPanel.tsx](components/ProductSearchPanel.tsx) |
 | `Alt+R` | Registrar / confirmar cliente | Buscador / modales cliente | [ProductSearchPanel.tsx](components/ProductSearchPanel.tsx) |
 | `Alt+M` | Mostrar u ocultar teléfono del cliente | Buscador / confirmación teléfono | [ProductSearchPanel.tsx](components/ProductSearchPanel.tsx) |
 | `Alt+M` *(depósito)* | Tab "Registrar Resguardo" | Modal depósito banco (scope) | [BankDepositModal.tsx](components/modals/BankDepositModal.tsx) |
@@ -57,7 +57,6 @@ Implementación: registro oculto en [SalesTerminalView.tsx](components/SalesTerm
 | `E` | Eliminar venta / Ver QR (al tener foco) | Listas de espera/pendientes | [CheckoutPanel.tsx](components/CheckoutPanel.tsx) |
 | `Alt+K` | Ventas en espera (Deprecado/Anterior) | Terminal de ventas | [SalesTerminalView.tsx](components/SalesTerminalView.tsx) |
 | `Alt+K` *(depósito)* | Tab "Buscar / Historial" | Modal depósito banco (scope) | [BankDepositModal.tsx](components/modals/BankDepositModal.tsx) |
-| `Alt+T` | Opciones cierre de caja | Sidebar | [SalesLayoutView.tsx](components/SalesLayoutView.tsx) |
 | `Alt+W` | Pausar venta | Panel de cobro | [CheckoutPanel.tsx](components/CheckoutPanel.tsx) |
 | `Alt+P` | Enfocar promociones activas | Terminal de ventas | [PromotionsGrid.tsx](components/PromotionsGrid.tsx) |
 | `R` | Seleccionar promoción (al tener foco) | Promociones activas | [PromotionsGrid.tsx](components/PromotionsGrid.tsx) |
@@ -78,7 +77,6 @@ Implementación: registro oculto en [SalesTerminalView.tsx](components/SalesTerm
 - `↑` / `↓`: mover selección de resultados.
 - `Enter`: tomar el resultado seleccionado.
 - `F2`: enfocar búsqueda.
-- `Alt+B`: buscar.
 
 ### Carrito
 

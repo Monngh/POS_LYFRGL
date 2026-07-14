@@ -101,13 +101,12 @@ export function ProductSearchPanel({ searchData, cartData }: ProductSearchPanelP
               style={{ paddingLeft: "30px", paddingRight: "50px", fontSize: "12px", padding: "4px 50px 4px 30px", height: "28px" }}
               placeholder="Ingrese código o nombre del producto..."
               data-shortcut-key="F2"
-              data-shortcut-letter="B"
-              title="Buscar producto (Alt+B)"
+              title="Buscar producto (F2)"
               value={barcodeSearch}
               onChange={(e) => setBarcodeSearch(validateTextInput(e.target.value))}
               onKeyDown={handleSearchInputKeyDown}
             />
-            <span className="pos-fkey-badge" style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", fontSize: "10px", padding: "2px 6px", pointerEvents: "none" }}>Alt+B</span>
+            <span className="pos-fkey-badge" style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", fontSize: "10px", padding: "2px 6px", pointerEvents: "none" }}>F2</span>
             {barcodeSearchError && <p style={styles.fieldError}>{barcodeSearchError}</p>}
           </div>
         </form>

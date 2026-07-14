@@ -41,9 +41,8 @@ export function SalesLayoutView({
               type="button"
               onClick={() => onOpenModal("close-options")}
               className="pos-quick-action-icon-btn active-tap"
-              data-shortcut-letter="X"
               data-shortcut-key="F8"
-              title="Cerrar caja (Alt+X, F8)"
+              title="Cerrar caja (F8)"
               style={{
                 width: "40px",
                 height: "40px",

@@ -167,16 +167,6 @@ export default function KeyboardShortcutsManager({ onToast }: { onToast?: (msg: 
           }
         }
 
-        if (letter === "B" && scope) {
-          const searchBtn = scope.querySelector<HTMLElement>('[data-shortcut-letter="B"]');
-          if (searchBtn && isVisible(searchBtn) && !isDisabled(searchBtn)) {
-            if (onToast) onToast(`Atajo Alt+B: Buscar producto`, "info");
-            const searchInput = scope.querySelector<HTMLInputElement>('input[placeholder*="código"]');
-            if (searchInput) searchInput.focus();
-            searchBtn.click();
-            return;
-          }
-        }
 
         // Alt+L → Cerrar sesión (logout)
         if (letter === "L") {

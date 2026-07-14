@@ -124,8 +124,8 @@ export function CustomerCheckoutBar({ customerData, cartData, onToast }: Custome
             ref={phoneInputRef}
             className="input-corporate pos-customer-phone-input"
             placeholder="Teléfono cliente"
-            data-shortcut-letter="A"
-            title="Buscar cliente (Alt+A)"
+            data-shortcut-key="F6"
+            title="Buscar cliente (F6)"
             value={localShowPhone ? localPhone : maskPhoneLast2(localPhone)}
             onChange={(e) => {
               const next = getNextRealPhone(e.target.value, localPhone);
@@ -133,7 +133,7 @@ export function CustomerCheckoutBar({ customerData, cartData, onToast }: Custome
               if (localShowPhone) setLocalShowPhone(false);
             }}
           />
-          <span className="pos-fkey-badge" style={{ position: "absolute", right: "32px", top: "50%", transform: "translateY(-50%)", fontSize: "10px", padding: "2px 6px", pointerEvents: "none", whiteSpace: "nowrap" }}>Alt+A</span>
+          <span className="pos-fkey-badge" style={{ position: "absolute", right: "32px", top: "50%", transform: "translateY(-50%)", fontSize: "10px", padding: "2px 6px", pointerEvents: "none", whiteSpace: "nowrap" }}>F6</span>
           <button
             type="button"
             onClick={() => setLocalShowPhone(!localShowPhone)}
@@ -265,10 +265,10 @@ export function CustomerCheckoutBar({ customerData, cartData, onToast }: Custome
             setLocalPhone("");
             onToast("Cliente removido del carrito. Venta Anónima.", "info");
           }}
-          title="Quitar cliente (Alt+A)"
-          data-shortcut-letter="A"
+          title="Quitar cliente (F6)"
+          data-shortcut-key="F6"
         >
-          <span className="pos-fkey-badge" style={{ fontSize: "9px", padding: "2px 4px", whiteSpace: "nowrap", position: "static" }}>Alt+A</span>
+          <span className="pos-fkey-badge" style={{ fontSize: "9px", padding: "2px 4px", whiteSpace: "nowrap", position: "static" }}>F6</span>
           <span style={{ fontSize: "12px" }}>❌</span>
         </button>
       </div>

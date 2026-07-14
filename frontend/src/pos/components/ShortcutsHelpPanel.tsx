@@ -7,8 +7,8 @@ const SHORTCUTS = [
   { key: "F4",     label: "Cobrar"             },
   { key: "F6",     label: "Buscar cliente"     },
   { key: "F7",     label: "Ocultar panel"      },
+  { key: "F9",     label: "Ver atajos"         },
   { key: "F10",    label: "Bloquear pantalla"  },
-  { key: "Alt+B",  label: "Buscar producto"    },
   { key: "Alt+V",  label: "Cancelar compra"    },
   { key: "Alt+W",  label: "Pausar venta"       },
   { key: "Alt+Q",  label: "Consultar precio"   },
@@ -29,12 +29,12 @@ export function ShortcutsHelpPanel() {
         type="button"
         className="pos-shortcuts-toggle"
         onClick={() => setIsOpen(!isOpen)}
-        data-shortcut-key="F12"
-        title="Panel de atajos (F12)"
+        data-shortcut-key="F9"
+        title="Panel de atajos (F9)"
         aria-expanded={isOpen}
       >
         <Keyboard size={12} />
-        <span>Atajos de teclado</span>
+        <span>Atajos (F9)</span>
         {isOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
       </button>
 
