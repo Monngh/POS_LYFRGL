@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { AlertTriangle, ShieldAlert, Lock, ChevronDown, ChevronUp, ShieldOff, X } from "lucide-react";
+import { AlertTriangle, ShieldAlert, Lock, ChevronDown, ChevronUp, ShieldOff, X, Activity, MousePointerClick, Award } from "lucide-react";
 import api from "../../shared/services/api";
 import { validateDateRange, validateSearchText, validateReference } from "../../shared/utils/formValidation";
 import { useAuth } from "../../auth";
@@ -214,16 +214,20 @@ const detailRow = (label: string, value: React.ReactNode) => (
   </div>
 );
 
-// Tarjeta expandible "Premium" (mismo patrón usado en ReportAuditLogView): header
-// siempre visible con badge + chevron, detalle en un panel que se despliega.
+// Tarjeta expandible "Premium" de 2 niveles — misma estructura exacta que
+// ReportAuditLogView.tsx: cabecera gris (fecha + badge), cuerpo blanco (título/
+// subtítulo + botón chevron cuadrado independiente) y panel expandido gris con
+// margen interno.
 const ExpandableCard: React.FC<{
-  headerLeft: React.ReactNode;
-  headerRight: React.ReactNode;
+  topDate: React.ReactNode;
+  topBadge: React.ReactNode;
+  mainTitle: React.ReactNode;
+  mainSubtitle: React.ReactNode;
   isExpanded: boolean;
   onToggle: () => void;
   children: React.ReactNode;
   extraActions?: React.ReactNode;
-}> = ({ headerLeft, headerRight, isExpanded, onToggle, children, extraActions }) => (
+}> = ({ topDate, topBadge, mainTitle, mainSubtitle, isExpanded, onToggle, children, extraActions }) => (
   <div
     style={{
       backgroundColor: "var(--surface)",
@@ -234,32 +238,78 @@ const ExpandableCard: React.FC<{
       overflow: "hidden",
     }}
   >
-    <button
-      type="button"
-      onClick={onToggle}
-      className="active-tap"
+    {/* Cabecera gris: fecha + badge */}
+    <div
       style={{
-        width: "100%",
         display: "flex",
-        alignItems: "center",
         justifyContent: "space-between",
-        gap: 10,
-        padding: "11px 13px",
-        background: "transparent",
-        border: "none",
-        cursor: "pointer",
-        textAlign: "left",
-        fontFamily: "inherit",
+        alignItems: "center",
+        padding: "8px 16px 6px 16px",
+        fontSize: 11,
+        fontWeight: 700,
+        color: "var(--text-muted)",
+        borderBottom: "1px solid var(--border-soft)",
+        backgroundColor: "var(--surface-2)",
+        letterSpacing: "0.2px",
       }}
     >
-      <span style={{ minWidth: 0 }}>{headerLeft}</span>
-      <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-        {headerRight}
-        {isExpanded ? <ChevronUp size={16} color="var(--text-muted)" /> : <ChevronDown size={16} color="var(--text-muted)" />}
-      </span>
-    </button>
+      <span>{topDate}</span>
+      {topBadge}
+    </div>
+
+    {/* Cuerpo blanco: título/subtítulo + chevron independiente */}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", gap: 12 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: "var(--text)",
+            wordBreak: "break-word",
+            overflowWrap: "anywhere",
+            whiteSpace: "normal",
+          }}
+        >
+          {mainTitle}
+        </div>
+        <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>{mainSubtitle}</div>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
+        <button
+          type="button"
+          onClick={onToggle}
+          className="active-tap"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "var(--surface)",
+            border: "1px solid var(--border-strong)",
+            borderRadius: 8,
+            width: 38,
+            height: 38,
+            cursor: "pointer",
+            color: "var(--accent)",
+            padding: 0,
+          }}
+        >
+          {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </button>
+      </div>
+    </div>
+
+    {/* Panel expandido gris con margen interno */}
     {isExpanded && (
-      <div style={{ padding: "4px 13px 12px", borderTop: "1px solid var(--surface-3)" }}>
+      <div
+        style={{
+          padding: "16px",
+          margin: "0 16px 16px 16px",
+          backgroundColor: "var(--surface-2)",
+          borderRadius: "12px",
+          border: "1px solid var(--border)",
+        }}
+      >
         {children}
         {extraActions}
       </div>
@@ -269,6 +319,100 @@ const ExpandableCard: React.FC<{
 
 const truncatedSummary = (text: string): React.ReactNode => (
   <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{text}</span>
+);
+
+// Tarjeta de estadística "premium" (mismo patrón que las tarjetas del Dashboard:
+// fondo var(--surface), borde definido, sombra sutil y chip de ícono a color).
+const statCardStyle: React.CSSProperties = {
+  backgroundColor: "var(--surface)",
+  border: "1px solid var(--border)",
+  borderRadius: 12,
+  padding: "16px 18px",
+  boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+  minWidth: 0,
+};
+const statHeadStyle: React.CSSProperties = { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 };
+const statLabelStyle: React.CSSProperties = { fontSize: 12.5, fontWeight: 600, color: "var(--text-muted)", minWidth: 0, lineHeight: 1.3 };
+const statIconStyle: React.CSSProperties = {
+  width: 30,
+  height: 30,
+  borderRadius: 8,
+  flexShrink: 0,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+const statValueStyle: React.CSSProperties = {
+  fontSize: "clamp(19px, 4.6vw, 26px)",
+  fontWeight: 800,
+  marginTop: 10,
+  letterSpacing: "-0.4px",
+  lineHeight: 1.15,
+  color: "var(--text)",
+  minWidth: 0,
+  overflowWrap: "break-word",
+};
+
+const StatCard: React.FC<{
+  label: string;
+  value: React.ReactNode;
+  icon: React.ReactNode;
+  iconBg: string;
+  valueFontSize?: string;
+}> = ({ label, value, icon, iconBg, valueFontSize }) => (
+  <div style={statCardStyle}>
+    <div style={statHeadStyle}>
+      <span style={statLabelStyle}>{label}</span>
+      <div style={{ ...statIconStyle, backgroundColor: iconBg }}>{icon}</div>
+    </div>
+    <h2 style={{ ...statValueStyle, ...(valueFontSize ? { fontSize: valueFontSize } : {}) }}>{value}</h2>
+  </div>
+);
+
+// Agrupa visualmente el rango de fechas (Desde/Hasta) dentro de MobileFilterDisclosure,
+// para que no compita al mismo nivel que la búsqueda/combobox/botón — mismo padding y
+// contenedor en las 3 pestañas que usan filtros de fecha.
+const dateRangeGroupStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flex: "1 1 100%",
+  padding: 10,
+  backgroundColor: "var(--surface-2)",
+  borderRadius: 8,
+  border: "1px solid var(--border-soft)",
+};
+const dateFieldStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, flex: "1 1 0", minWidth: 0 };
+const mobileFilterFieldsWrap: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 12 };
+
+const MobileDateRangeFields: React.FC<{
+  from: string;
+  to: string;
+  onFrom: (v: string) => void;
+  onTo: (v: string) => void;
+  hasError?: boolean;
+}> = ({ from, to, onFrom, onTo, hasError }) => (
+  <div style={dateRangeGroupStyle}>
+    <div style={dateFieldStyle}>
+      <label style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-strong)" }}>Desde:</label>
+      <input
+        type="date"
+        value={from}
+        max={to || undefined}
+        onChange={(e) => onFrom(e.target.value)}
+        style={{ ...ui.input, maxWidth: "100%", padding: "6px 8px", ...(hasError ? { borderColor: "#ef4444" } : {}) }}
+      />
+    </div>
+    <div style={dateFieldStyle}>
+      <label style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-strong)" }}>Hasta:</label>
+      <input
+        type="date"
+        value={to}
+        min={from || undefined}
+        onChange={(e) => onTo(e.target.value)}
+        style={{ ...ui.input, maxWidth: "100%", padding: "6px 8px", ...(hasError ? { borderColor: "#ef4444" } : {}) }}
+      />
+    </div>
+  </div>
 );
 
 const AdminAccessLogView: React.FC<ViewProps> = () => {
@@ -942,37 +1086,66 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
         }
       />
 
-      <div style={{ display: "flex", gap: 0, marginBottom: 18, borderBottom: "1px solid var(--border)", flexWrap: "wrap" }}>
-        {(["logins", "active-sessions", "closures", "movements"] as const).map((tab) => {
-          const isActive = activeTab === tab;
-          return (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              style={{
-                background: "none",
-                border: "none",
-                borderBottom: isActive ? "2px solid var(--accent)" : "2px solid transparent",
-                marginBottom: -1,
-                padding: "8px 20px",
-                fontSize: 14,
-                fontWeight: isActive ? 700 : 500,
-                color: isActive ? "var(--accent-strong)" : "var(--text-muted)",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {tab === "logins"
-                ? "Accesos"
-                : tab === "active-sessions"
-                ? "Sesiones Activas"
-                : tab === "closures"
-                ? "Historial de Cierres"
-                : "Log de movimientos"}
-            </button>
-          );
-        })}
+      <style>{`
+        .admin-access-tabs-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+        .admin-access-tabs-scroll::-webkit-scrollbar { display: none; }
+      `}</style>
+      <div style={{ position: "relative", marginBottom: 18 }}>
+        <div
+          className="admin-access-tabs-scroll"
+          style={{
+            display: "flex",
+            gap: 0,
+            borderBottom: "1px solid var(--border)",
+            overflowX: "auto",
+            overflowY: "hidden",
+          }}
+        >
+          {(["logins", "active-sessions", "closures", "movements"] as const).map((tab) => {
+            const isActive = activeTab === tab;
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  borderBottom: isActive ? "2px solid var(--accent)" : "2px solid transparent",
+                  marginBottom: -1,
+                  padding: "8px 20px",
+                  fontSize: 14,
+                  fontWeight: isActive ? 700 : 500,
+                  color: isActive ? "var(--accent-strong)" : "var(--text-muted)",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                }}
+              >
+                {tab === "logins"
+                  ? "Accesos"
+                  : tab === "active-sessions"
+                  ? "Sesiones Activas"
+                  : tab === "closures"
+                  ? "Historial de Cierres"
+                  : "Log de movimientos"}
+              </button>
+            );
+          })}
+        </div>
+        {/* Indicio visual de que hay más pestañas a la derecha (el scroll horizontal
+            corta el texto en el borde): fundido sutil hacia el fondo de la página. */}
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            bottom: 1,
+            width: 28,
+            background: "linear-gradient(to right, transparent, var(--app-bg))",
+            pointerEvents: "none",
+          }}
+        />
       </div>
 
       {activeTab === "logins" && (
@@ -987,27 +1160,8 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
               isOpen={logsFiltersOpen}
               onToggle={() => setLogsFiltersOpen((c) => !c)}
             >
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 calc(50% - 5px)", minWidth: 130 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-strong)" }}>Desde:</label>
-                  <input
-                    type="date"
-                    value={from}
-                    max={to || undefined}
-                    onChange={(e) => setFrom(e.target.value)}
-                    style={{ ...ui.input, flex: "none", maxWidth: "100%", padding: "6px 8px", ...(dateError ? { borderColor: "#ef4444" } : {}) }}
-                  />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 calc(50% - 5px)", minWidth: 130 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-strong)" }}>Hasta:</label>
-                  <input
-                    type="date"
-                    value={to}
-                    min={from || undefined}
-                    onChange={(e) => setTo(e.target.value)}
-                    style={{ ...ui.input, flex: "none", maxWidth: "100%", padding: "6px 8px", ...(dateError ? { borderColor: "#ef4444" } : {}) }}
-                  />
-                </div>
+              <div style={mobileFilterFieldsWrap}>
+                <MobileDateRangeFields from={from} to={to} onFrom={setFrom} onTo={setTo} hasError={Boolean(dateError)} />
                 <input
                   type="text"
                   placeholder="Buscar usuario..."
@@ -1090,17 +1244,14 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
                       key={row.id}
                       isExpanded={isExpanded}
                       onToggle={() => toggleExpand(row.id)}
-                      headerLeft={
+                      topDate={`${fmtDate(row.createdAt)} ${fmtTime(row.createdAt)}`}
+                      topBadge={<RoleBadge role={row.role} />}
+                      mainTitle={row.user.name}
+                      mainSubtitle={
                         <>
-                          <span style={{ display: "block", fontWeight: 700, fontSize: 13.5, color: "var(--text)", overflowWrap: "anywhere" }}>
-                            {row.user.name}
-                          </span>
-                          <span style={{ display: "block", fontSize: 11.5, color: "var(--text-muted)", fontWeight: 600, marginTop: 2 }}>
-                            {row.branch?.name ?? "—"} · {fmtDate(row.createdAt)} {fmtTime(row.createdAt)}
-                          </span>
+                          Sucursal: <strong>{row.branch?.name ?? "—"}</strong>
                         </>
                       }
-                      headerRight={<RoleBadge role={row.role} />}
                     >
                       {detailRow("Usuario", row.user.email)}
                       {detailRow("Sucursal", row.branch?.name ?? "—")}
@@ -1164,25 +1315,23 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
                       key={s.userId}
                       isExpanded={isExpanded}
                       onToggle={() => toggleExpandSession(s.userId)}
-                      headerLeft={
+                      topDate={`Desde ${fmtDateTime(s.since)}`}
+                      topBadge={<RoleBadge role={s.role} />}
+                      mainTitle={
                         <>
-                          <span style={{ display: "block", fontWeight: 700, fontSize: 13.5, color: "var(--text)", overflowWrap: "anywhere" }}>
-                            {s.name}
-                            {isSelf ? " (tú)" : ""}
-                          </span>
-                          <span style={{ display: "block", fontSize: 11.5, color: "var(--text-muted)", fontWeight: 600, marginTop: 2 }}>
-                            {s.branch?.name ?? "—"} · Desde {fmtDateTime(s.since)}
-                          </span>
+                          {s.name}
+                          {isSelf ? " (tú)" : ""}
                         </>
                       }
-                      headerRight={<RoleBadge role={s.role} />}
+                      mainSubtitle={
+                        <>
+                          Sucursal: <strong>{s.branch?.name ?? "—"}</strong>
+                        </>
+                      }
                       extraActions={
                         !isSelf && (
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setRevokeTarget(s);
-                            }}
+                            onClick={() => setRevokeTarget(s)}
                             style={{
                               marginTop: 10,
                               padding: "8px 14px",
@@ -1382,27 +1531,8 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
               isOpen={closuresFiltersOpen}
               onToggle={() => setClosuresFiltersOpen((c) => !c)}
             >
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 calc(50% - 5px)", minWidth: 130 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-strong)" }}>Desde:</label>
-                  <input
-                    type="date"
-                    value={from}
-                    max={to || undefined}
-                    onChange={(e) => setFrom(e.target.value)}
-                    style={{ ...ui.input, flex: "none", maxWidth: "100%", padding: "6px 8px", ...(dateError ? { borderColor: "#ef4444" } : {}) }}
-                  />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 calc(50% - 5px)", minWidth: 130 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-strong)" }}>Hasta:</label>
-                  <input
-                    type="date"
-                    value={to}
-                    min={from || undefined}
-                    onChange={(e) => setTo(e.target.value)}
-                    style={{ ...ui.input, flex: "none", maxWidth: "100%", padding: "6px 8px", ...(dateError ? { borderColor: "#ef4444" } : {}) }}
-                  />
-                </div>
+              <div style={mobileFilterFieldsWrap}>
+                <MobileDateRangeFields from={from} to={to} onFrom={setFrom} onTo={setTo} hasError={Boolean(dateError)} />
                 <input
                   type="text"
                   placeholder="Buscar usuario o motivo..."
@@ -1502,17 +1632,14 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
                       key={c.id}
                       isExpanded={isExpanded}
                       onToggle={() => toggleExpandClosure(c.id)}
-                      headerLeft={
+                      topDate={fmtDateTime(c.closedAt)}
+                      topBadge={<ClosureTypeBadge type={c.closureType} />}
+                      mainTitle={c.user.name}
+                      mainSubtitle={
                         <>
-                          <span style={{ display: "block", fontWeight: 700, fontSize: 13.5, color: "var(--text)", overflowWrap: "anywhere" }}>
-                            {c.user.name}
-                          </span>
-                          <span style={{ display: "block", fontSize: 11.5, color: "var(--text-muted)", fontWeight: 600, marginTop: 2 }}>
-                            {c.branch?.name ?? "—"} · {fmtDateTime(c.closedAt)}
-                          </span>
+                          Sucursal: <strong>{c.branch?.name ?? "—"}</strong>
                         </>
                       }
-                      headerRight={<ClosureTypeBadge type={c.closureType} />}
                     >
                       {detailRow("Duración", formatDuration(c.loginAt, c.closedAt))}
                       {detailRow(
@@ -1569,27 +1696,8 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
               isOpen={movementsFiltersOpen}
               onToggle={() => setMovementsFiltersOpen((c) => !c)}
             >
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 calc(50% - 5px)", minWidth: 130 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-strong)" }}>Desde:</label>
-                  <input
-                    type="date"
-                    value={from}
-                    max={to || undefined}
-                    onChange={(e) => setFrom(e.target.value)}
-                    style={{ ...ui.input, flex: "none", maxWidth: "100%", padding: "6px 8px", ...(dateError ? { borderColor: "#ef4444" } : {}) }}
-                  />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 calc(50% - 5px)", minWidth: 130 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-strong)" }}>Hasta:</label>
-                  <input
-                    type="date"
-                    value={to}
-                    min={from || undefined}
-                    onChange={(e) => setTo(e.target.value)}
-                    style={{ ...ui.input, flex: "none", maxWidth: "100%", padding: "6px 8px", ...(dateError ? { borderColor: "#ef4444" } : {}) }}
-                  />
-                </div>
+              <div style={mobileFilterFieldsWrap}>
+                <MobileDateRangeFields from={from} to={to} onFrom={setFrom} onTo={setTo} hasError={Boolean(dateError)} />
                 <input
                   type="text"
                   placeholder="Buscar usuario o detalle..."
@@ -1668,22 +1776,31 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
 
           {/* ============================== TARJETAS DE RESUMEN ============================== */}
           <div style={{ ...ui.kpiGrid, marginBottom: 16 }}>
-            <div style={ui.kpiCard}>
-              <div style={ui.kpiLabel}>Total de movimientos</div>
-              <div style={ui.kpiValue}>{movementsTotal}</div>
-            </div>
-            <div style={ui.kpiCard}>
-              <div style={ui.kpiLabel}>Navegaciones</div>
-              <div style={ui.kpiValue}>{navigationCount}</div>
-            </div>
-            <div style={ui.kpiCard}>
-              <div style={ui.kpiLabel}>Acciones sensibles</div>
-              <div style={ui.kpiValue}>{sensitiveCount}</div>
-            </div>
-            <div style={ui.kpiCard}>
-              <div style={ui.kpiLabel}>Admin más activo</div>
-              <div style={{ ...ui.kpiValue, fontSize: "clamp(14px, 3.5vw, 17px)" }}>{mostActiveAdmin}</div>
-            </div>
+            <StatCard
+              label="Total de movimientos"
+              value={movementsTotal}
+              icon={<Activity size={16} color="#2563eb" />}
+              iconBg="var(--icon-bg-blue)"
+            />
+            <StatCard
+              label="Navegaciones"
+              value={navigationCount}
+              icon={<MousePointerClick size={16} color="#2563eb" />}
+              iconBg="var(--icon-bg-blue)"
+            />
+            <StatCard
+              label="Acciones sensibles"
+              value={sensitiveCount}
+              icon={<ShieldAlert size={16} color="#d97706" />}
+              iconBg="var(--icon-bg-amber)"
+            />
+            <StatCard
+              label="Admin más activo"
+              value={mostActiveAdmin}
+              icon={<Award size={16} color="#16a34a" />}
+              iconBg="var(--icon-bg-green)"
+              valueFontSize="clamp(14px, 3.5vw, 17px)"
+            />
           </div>
 
           {isMobile ? (
@@ -1711,17 +1828,14 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
                       key={m.id}
                       isExpanded={isExpanded}
                       onToggle={() => toggleExpandMovement(m.id)}
-                      headerLeft={
+                      topDate={`${fmtDate(m.createdAt)} ${fmtTime(m.createdAt)}`}
+                      topBadge={<ActionTypeBadge type={m.actionType} />}
+                      mainTitle={m.user.name}
+                      mainSubtitle={
                         <>
-                          <span style={{ display: "block", fontWeight: 700, fontSize: 13.5, color: "var(--text)", overflowWrap: "anywhere" }}>
-                            {m.user.name}
-                          </span>
-                          <span style={{ display: "block", fontSize: 11.5, color: "var(--text-muted)", fontWeight: 600, marginTop: 2 }}>
-                            {m.target ?? "—"} · {fmtDate(m.createdAt)} {fmtTime(m.createdAt)}
-                          </span>
+                          Detalle: <strong>{m.target ?? "—"}</strong>
                         </>
                       }
-                      headerRight={<ActionTypeBadge type={m.actionType} />}
                     >
                       {detailRow("Usuario", m.user.email)}
                       {detailRow("Detalle", m.target ?? "—")}
