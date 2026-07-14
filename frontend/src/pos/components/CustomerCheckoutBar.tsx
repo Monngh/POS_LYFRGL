@@ -339,6 +339,7 @@ export function CustomerCheckoutBar({ customerData, cartData, onToast }: Custome
                   value={confirmInput}
                   onChange={(e) => setConfirmInput(e.target.value)}
                   onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); if (confirmInput.trim()) verifyPhoneInputRef.current?.focus(); }
                     if (e.key === "Escape") { e.preventDefault(); closeRegisterModal(); }
                   }}
                   style={{ width: "100%", boxSizing: "border-box" }}
@@ -364,6 +365,7 @@ export function CustomerCheckoutBar({ customerData, cartData, onToast }: Custome
                     if (confirmPhoneShow) setConfirmPhoneShow(false);
                   }}
                   onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); if (confirmPhone.replace(/\D/g, "").length === 10) handleRegisterSubmit(); }
                     if (e.key === "Escape") { e.preventDefault(); closeRegisterModal(); }
                   }}
                   style={{ width: "100%", paddingRight: "60px", boxSizing: "border-box" }}
