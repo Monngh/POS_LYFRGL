@@ -9,12 +9,12 @@ import {
   UserPlus,
   AlertTriangle,
   Wallet,
-  CreditCard,
   Landmark,
   Scale,
+  BadgePercent,
 } from "lucide-react";
 import api from "../../shared/services/api";
-import { ui, type ViewProps, SectionHeader, money } from "./shared";
+import { ui, type ViewProps, SectionHeader, money, useMediaQuery } from "./shared";
 
 interface DashboardMetrics {
   ventasHoy: number;
@@ -25,6 +25,7 @@ interface DashboardMetrics {
   productosActivos: number;
   clientesNuevos: number;
   inventarioBajo: number;
+  promocionesActivas: number;
 }
 interface DayPoint {
   label: string;
@@ -41,11 +42,19 @@ interface TopProduct {
   name: string;
   unidades: number;
 }
+interface TopSeller {
+  userId: number;
+  userName: string;
+  branchName: string;
+  total: number;
+  salesCount: number;
+}
 interface DashboardResponse {
   metrics: DashboardMetrics;
   ventas7dias: DayPoint[];
   ventasPorSucursal: BranchSales[];
   productosMasVendidos: TopProduct[];
+  topSellers: TopSeller[];
 }
 interface CashSessionRow {
   id: number;
@@ -56,17 +65,20 @@ interface CashSessionRow {
   status: string;
   difference: number | null;
 }
-interface CustomerRow {
-  id: number;
-  balance: number;
-}
 interface DepositRow {
   id: number;
   amount: number;
   createdAt: string;
 }
 
-const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+const pad2 = (n: number): string => String(n).padStart(2, "0");
+const formatLocalDate = (d: Date): string => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken, navigateTo }) => {
+  // Mismo mecanismo de breakpoint que AdminDashboard.tsx (shell): evita un
+  // tercer sistema de detección de ancho independiente en esta vista.
+  const isMobile = useMediaQuery("(max-width: 768px)");
+  const isTablet = useMediaQuery("(min-width: 769px) and (max-width: 1024px)");
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +103,6 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   }, [load]);
 
   const [sessions, setSessions] = useState<CashSessionRow[]>([]);
-  const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [deposits, setDeposits] = useState<DepositRow[]>([]);
   const [loadingCash, setLoadingCash] = useState(true);
 
@@ -99,13 +110,11 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setLoadingCash(true);
     try {
       const params = branchId !== "all" ? { branchId } : {};
-      const [sessRes, custRes, depRes] = await Promise.all([
+      const [sessRes, depRes] = await Promise.all([
         api.get<{ sessions: CashSessionRow[] }>("/api/admin/cash-sessions", { params }),
-        api.get<{ customers: CustomerRow[] }>("/api/admin/customers"),
         api.get<{ deposits: DepositRow[] }>("/api/admin/bank-deposits", { params }),
       ]);
       setSessions(sessRes.data.sessions);
-      setCustomers(custRes.data.customers);
       setDeposits(depRes.data.deposits);
     } catch {
       // widgets muestran "—" si falla
@@ -119,21 +128,44 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   }, [loadCash]);
 
   const m = data?.metrics;
+  const todayISO = formatLocalDate(new Date());
+  const firstDayOfMonthISO = formatLocalDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+
+  const goVentasHoy = () => navigateTo?.("ventas", { from: todayISO, to: todayISO });
+  const goVentasMes = () => navigateTo?.("ventas", { from: firstDayOfMonthISO, to: todayISO });
+  const goResumenEjecutivo = () => navigateTo?.("reportes", { tab: "resumen-ejecutivo" });
+  const goProductosActivos = () => navigateTo?.("inventario", { estado: "Todos" });
+  const goClientesNuevos = () => navigateTo?.("clientes");
+  const goInventarioBajo = () => navigateTo?.("inventario", { estado: "Bajo" });
+  const goCajasAbiertas = () => navigateTo?.("cajas", { estado: "Abiertas" });
+  const goDepositosHoy = () => navigateTo?.("depositos", { from: todayISO, to: todayISO });
+  const goCajasCerradas = () => navigateTo?.("cajas", { estado: "Cerradas" });
+  const goPromosVigentes = () => navigateTo?.("promociones", { statusFilter: "vigente" });
+
   const cards = [
-    { label: "Ventas de hoy", value: m ? money(m.ventasHoy) : "—", icon: TrendingUp },
-    { label: "Ventas del mes", value: m ? money(m.ventasMes) : "—", icon: CalendarDays },
-    { label: "Utilidad del mes", value: m ? money(m.utilidadMes) : "—", icon: Coins },
-    { label: "Tickets de hoy", value: m ? String(m.ticketsHoy) : "—", icon: Receipt },
-    { label: "Ticket promedio", value: m ? money(m.ticketPromedio) : "—", icon: Tag },
-    { label: "Productos activos", value: m ? String(m.productosActivos) : "—", icon: Package },
-    { label: "Clientes nuevos", value: m ? String(m.clientesNuevos) : "—", icon: UserPlus },
+    { label: "Ventas de hoy", value: m ? money(m.ventasHoy) : "—", icon: TrendingUp, onClick: goVentasHoy },
+    { label: "Ventas del mes", value: m ? money(m.ventasMes) : "—", icon: CalendarDays, onClick: goVentasMes },
+    { label: "Utilidad del mes", value: m ? money(m.utilidadMes) : "—", icon: Coins, onClick: goResumenEjecutivo },
+    { label: "Tickets de hoy", value: m ? String(m.ticketsHoy) : "—", icon: Receipt, onClick: goResumenEjecutivo },
+    { label: "Ticket promedio", value: m ? money(m.ticketPromedio) : "—", icon: Tag, onClick: goResumenEjecutivo },
+    { label: "Productos activos", value: m ? String(m.productosActivos) : "—", icon: Package, onClick: goProductosActivos },
+    { label: "Clientes nuevos", value: m ? String(m.clientesNuevos) : "—", icon: UserPlus, onClick: goClientesNuevos },
     {
       label: "Inventario bajo",
       value: m ? `${m.inventarioBajo} ${m.inventarioBajo === 1 ? "producto" : "productos"}` : "—",
       icon: AlertTriangle,
       warning: !!m && m.inventarioBajo > 0,
+      onClick: goInventarioBajo,
     },
+    { label: "Promos vigentes", value: m ? `${m.promocionesActivas} vigentes` : "—", icon: BadgePercent, onClick: goPromosVigentes },
   ];
+
+  // Columnas fijas por breakpoint (en vez de auto-fill) para que las 12 tarjetas
+  // siempre queden en filas parejas: 6+6 en desktop, 3 por fila en tablet
+  // (4 columnas bajaría de los ~165px mínimos por tarjeta en el extremo angosto
+  // del rango tablet una vez que el rail colapsado resta ancho al contenido),
+  // 2 por fila en mobile.
+  const cardsGridColumns = isMobile ? 2 : isTablet ? 3 : 6;
 
   const maxDay = Math.max(1, ...(data?.ventas7dias.map((d) => d.total) ?? [0]));
   const maxBranch = Math.max(1, ...(data?.ventasPorSucursal.map((b) => b.total) ?? [0]));
@@ -146,9 +178,6 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const minutosDesdeApertura = ultimaApertura
     ? Math.round((Date.now() - new Date(ultimaApertura.openedAt).getTime()) / 60000)
     : null;
-
-  const cobranzaTotal = customers.reduce((acc, c) => acc + (c.balance > 0 ? c.balance : 0), 0);
-  const creditosConSaldo = customers.filter((c) => c.balance > 0).length;
 
   const hoy = new Date().toDateString();
   const depositosHoy = deposits.filter((d) => new Date(d.createdAt).toDateString() === hoy);
@@ -182,14 +211,26 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
   return (
     <div>
-      <SectionHeader title="Dashboard" subtitle="Métricas en tiempo real desde SQL Server" />
+      <style>{`
+        .dash-metric-card { transition: box-shadow .15s ease, transform .15s ease; }
+        .dash-metric-card:hover { box-shadow: 0 6px 16px -4px rgba(15,23,42,0.18); transform: translateY(-1px); }
+        .dash-row:hover { background-color: var(--surface-2); }
+      `}</style>
+      <SectionHeader title="Dashboard" subtitle="Métricas en tiempo real" />
 
-      {/* Tarjetas de métricas */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))", gap: 16 }}>
+      {/* Tarjetas de métricas — grid único con columnas fijas por breakpoint
+          (6 desktop / 3 tablet / 2 mobile) para un acomodo 6+6 predecible en
+          vez de que auto-fill decida cuántas caben según el ancho disponible. */}
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${cardsGridColumns}, 1fr)`, gap: 16 }}>
         {cards.map((card) => {
           const Icon = card.icon;
           return (
-            <div key={card.label} style={s.metricCard}>
+            <div
+              key={card.label}
+              style={{ ...s.metricCard, cursor: "pointer" }}
+              className="dash-metric-card active-tap"
+              onClick={card.onClick}
+            >
               <div style={s.metricHead}>
                 <span style={s.metricLabel}>{card.label}</span>
                 <div style={{ ...s.metricIcon, backgroundColor: card.warning ? "var(--icon-bg-amber)" : "var(--icon-bg-blue)" }}>
@@ -202,12 +243,13 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </div>
           );
         })}
-      </div>
 
-      {/* ── Fila 3: Operaciones del día ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))", gap: 16, marginTop: 16 }}>
         {/* Widget: Estado de cajas */}
-        <div style={s.metricCard}>
+        <div
+          style={{ ...s.metricCard, cursor: "pointer" }}
+          className="dash-metric-card active-tap"
+          onClick={goCajasAbiertas}
+        >
           <div style={s.metricHead}>
             <span style={s.metricLabel}>Estado de cajas</span>
             <div style={{ ...s.metricIcon, backgroundColor: "var(--icon-bg-blue)" }}>
@@ -226,24 +268,12 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
           </p>
         </div>
 
-        {/* Widget: Cobranza pendiente */}
-        <div style={s.metricCard}>
-          <div style={s.metricHead}>
-            <span style={s.metricLabel}>Cobranza pendiente</span>
-            <div style={{ ...s.metricIcon, backgroundColor: creditosConSaldo > 0 ? "var(--icon-bg-amber)" : "var(--icon-bg-blue)" }}>
-              <CreditCard size={16} color={creditosConSaldo > 0 ? "#d97706" : "#2563eb"} />
-            </div>
-          </div>
-          <h2 style={{ ...s.metricValue, color: creditosConSaldo > 0 ? "var(--color-warning)" : "var(--text)" }}>
-            {loadingCash ? "…" : money(cobranzaTotal)}
-          </h2>
-          <p style={s.metricSecondary}>
-            {!loadingCash ? `${creditosConSaldo} cliente${creditosConSaldo !== 1 ? "s" : ""} con saldo` : ""}
-          </p>
-        </div>
-
         {/* Widget: Depósitos hoy */}
-        <div style={s.metricCard}>
+        <div
+          style={{ ...s.metricCard, cursor: "pointer" }}
+          className="dash-metric-card active-tap"
+          onClick={goDepositosHoy}
+        >
           <div style={s.metricHead}>
             <span style={s.metricLabel}>Depósitos hoy</span>
             <div style={{ ...s.metricIcon, backgroundColor: "var(--icon-bg-green)" }}>
@@ -259,7 +289,11 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         </div>
 
         {/* Widget: Diferencia de caja */}
-        <div style={s.metricCard}>
+        <div
+          style={{ ...s.metricCard, cursor: "pointer" }}
+          className="dash-metric-card active-tap"
+          onClick={goCajasCerradas}
+        >
           <div style={s.metricHead}>
             <span style={s.metricLabel}>Diferencia de caja</span>
             <div style={{ ...s.metricIcon, backgroundColor: hasDiferencias ? "var(--icon-bg-red)" : "var(--icon-bg-green)" }}>
@@ -303,32 +337,32 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         </div>
       </div>
 
-      {/* Gráfica de 7 días */}
-      <div style={{ ...ui.panel, padding: 20, marginTop: 16 }}>
-        <h3 style={s.panelTitle}>Ventas de los últimos 7 días</h3>
-        <div style={s.chart}>
-          {(data?.ventas7dias ?? []).map((d, i) => {
-            const h = Math.round((d.total / maxDay) * 150);
-            return (
-              <div key={i} style={s.chartCol}>
-                <span style={s.chartValue}>{d.total > 0 ? money(d.total) : ""}</span>
-                <div
-                  style={{
-                    ...s.bar,
-                    height: `${Math.max(h, d.total > 0 ? 6 : 2)}px`,
-                    backgroundColor: d.total > 0 ? "#3b82f6" : "#e2e8f0",
-                  }}
-                />
-                <span style={s.chartLabel}>{d.label}</span>
-              </div>
-            );
-          })}
+      {/* Gráfica de 7 días + Ventas por sucursal: 2 columnas en desktop (2/3 + 1/3),
+          apiladas verticalmente en mobile. */}
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 16, marginTop: 16 }}>
+        <div style={{ ...ui.panel, padding: 20, flex: isMobile ? "1 1 auto" : "2 1 0%", minWidth: 0 }}>
+          <h3 style={s.panelTitle}>Ventas de los últimos 7 días</h3>
+          <div style={s.chart}>
+            {(data?.ventas7dias ?? []).map((d, i) => {
+              const h = Math.round((d.total / maxDay) * 150);
+              return (
+                <div key={i} style={s.chartCol}>
+                  <span style={s.chartValue}>{d.total > 0 ? money(d.total) : ""}</span>
+                  <div
+                    style={{
+                      ...s.bar,
+                      height: `${Math.max(h, d.total > 0 ? 6 : 2)}px`,
+                      backgroundColor: d.total > 0 ? "#3b82f6" : "#e2e8f0",
+                    }}
+                  />
+                  <span style={s.chartLabel}>{d.label}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
 
-      {/* Comparativos */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
-        <div style={{ ...ui.panel, padding: 20 }}>
+        <div style={{ ...ui.panel, padding: 20, flex: isMobile ? "1 1 auto" : "1 1 0%", minWidth: 0 }}>
           <h3 style={s.panelTitle}>Ventas por sucursal</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 16 }}>
             {(data?.ventasPorSucursal ?? []).map((b) => (
@@ -345,12 +379,16 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             {!loading && (data?.ventasPorSucursal ?? []).length === 0 && <EmptyState />}
           </div>
         </div>
+      </div>
 
-        <div style={{ ...ui.panel, padding: 20 }}>
+      {/* Productos más vendidos + Actividad reciente: mismo layout de 2 columnas
+          usado arriba para Gráfica/Sucursales (apilado en mobile). */}
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 16, marginTop: 16 }}>
+        <div style={{ ...ui.panel, padding: 20, flex: "1 1 0%", minWidth: 0 }}>
           <h3 style={s.panelTitle}>Productos más vendidos</h3>
           <div style={{ marginTop: 8 }}>
             {(data?.productosMasVendidos ?? []).map((p, i) => (
-              <div key={p.id} style={s.productRow}>
+              <div key={p.id} style={s.productRow} className="dash-row">
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={s.rankBadge}>{i + 1}</span>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>{p.name}</span>
@@ -359,6 +397,37 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               </div>
             ))}
             {!loading && (data?.productosMasVendidos ?? []).length === 0 && <EmptyState />}
+          </div>
+        </div>
+
+        <div style={{ ...ui.panel, padding: 20, flex: "1 1 0%", minWidth: 0 }}>
+          <h3 style={s.panelTitle}>Top Vendedores</h3>
+          <div style={{ marginTop: 8 }}>
+            {(data?.topSellers ?? []).map((seller, i) => (
+              <div
+                key={seller.userId}
+                style={{ ...s.productRow, cursor: "pointer" }}
+                className="dash-row active-tap"
+                onClick={() => navigateTo?.("ventas", { userId: seller.userId })}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                  <span style={s.rankBadge}>{i + 1}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {seller.userName}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{seller.branchName}</div>
+                  </div>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text)" }}>{money(seller.total)}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-faint)" }}>
+                    {seller.salesCount} venta{seller.salesCount === 1 ? "" : "s"}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {!loading && (data?.topSellers ?? []).length === 0 && <EmptyState />}
           </div>
         </div>
       </div>
@@ -409,7 +478,7 @@ const s: { [k: string]: React.CSSProperties } = {
     alignItems: "flex-end",
     justifyContent: "space-between",
     gap: 12,
-    height: 200,
+    height: 150,
     marginTop: 18,
     paddingTop: 10,
     borderBottom: "1px solid var(--border-soft)",
@@ -432,8 +501,11 @@ const s: { [k: string]: React.CSSProperties } = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: "11px 0",
+    padding: "11px 12px",
+    margin: "0 -12px",
+    borderRadius: 8,
     borderBottom: "1px solid var(--border-soft)",
+    transition: "background-color 0.15s ease",
   },
   rankBadge: {
     width: 22,

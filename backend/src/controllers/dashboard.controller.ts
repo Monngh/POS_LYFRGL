@@ -47,6 +47,8 @@ export const getAdminMetrics = async (req: Request, res: Response): Promise<void
       weekSales,
       branches,
       ventasPorSucursalRaw,
+      promocionesActivas,
+      topSellersRaw,
     ] = await Promise.all([
       // Ventas y tickets de hoy
       prisma.sale.aggregate({
@@ -89,6 +91,19 @@ export const getAdminMetrics = async (req: Request, res: Response): Promise<void
         by: ["branchId"],
         where: { status: COMPLETADA, createdAt: { gte: startOfMonth } },
         _sum: { totalAmount: true },
+      }),
+      // Promociones vigentes ahora mismo (activas y dentro de su vigencia)
+      prisma.promotion.count({
+        where: { isActive: true, startDate: { lte: now }, endDate: { gte: now } },
+      }),
+      // Top 5 vendedores del mes por total vendido, respetando el filtro de sucursal
+      prisma.sale.groupBy({
+        by: ["userId"],
+        where: { ...branchFilter, status: COMPLETADA, createdAt: { gte: startOfMonth } },
+        _sum: { totalAmount: true },
+        _count: { _all: true },
+        orderBy: { _sum: { totalAmount: "desc" } },
+        take: 5,
       }),
     ]);
 
@@ -174,6 +189,32 @@ export const getAdminMetrics = async (req: Request, res: Response): Promise<void
     }));
 
     // -----------------------------------------------------------------------
+    // Top vendedores del mes (resuelve nombre y sucursal de cada userId)
+    // -----------------------------------------------------------------------
+    const topSellerUserIds = topSellersRaw.map((t) => t.userId);
+
+    let topSellers: { userId: number; userName: string; branchName: string; total: number; salesCount: number }[] = [];
+
+    if (topSellerUserIds.length > 0) {
+      const topSellerUsers = await prisma.user.findMany({
+        where: { id: { in: topSellerUserIds } },
+        select: { id: true, name: true, branch: { select: { name: true } } },
+      });
+      const sellerInfoById = new Map(topSellerUsers.map((u) => [u.id, { name: u.name, branchName: u.branch.name }]));
+
+      topSellers = topSellersRaw.map((t) => {
+        const info = sellerInfoById.get(t.userId);
+        return {
+          userId: t.userId,
+          userName: info?.name ?? `Usuario #${t.userId}`,
+          branchName: info?.branchName ?? "—",
+          total: Number(t._sum.totalAmount ?? 0),
+          salesCount: t._count._all,
+        };
+      });
+    }
+
+    // -----------------------------------------------------------------------
     // Respuesta consolidada
     // -----------------------------------------------------------------------
     res.status(200).json({
@@ -186,10 +227,12 @@ export const getAdminMetrics = async (req: Request, res: Response): Promise<void
         productosActivos,
         clientesNuevos,
         inventarioBajo,
+        promocionesActivas,
       },
       ventas7dias: week,
       ventasPorSucursal,
       productosMasVendidos,
+      topSellers,
       branches,
     });
   } catch (error: any) {

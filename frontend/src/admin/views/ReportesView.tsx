@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ChevronRight } from "lucide-react";
 import api from "../../shared/services/api";
 import { ui, type ViewProps, SectionHeader, Badge } from "./shared";
@@ -19,7 +19,7 @@ interface BranchOption {
   name: string;
 }
 
-const ReportesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+const ReportesView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFilters }) => {
   const { user } = useAuth();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [branches, setBranches] = useState<BranchOption[]>([]);
@@ -27,6 +27,15 @@ const ReportesView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   useEffect(() => {
     api.get<{ branches: BranchOption[] }>("/api/auth/branches").then((r) => setBranches(r.data.branches)).catch(() => { });
   }, []);
+
+  // Aplica el filtro entregado por la vista de origen (ej. tarjetas del Dashboard)
+  // una sola vez al montar, sin quedar "pegado" a cambios manuales posteriores.
+  const appliedInitialFilters = useRef(false);
+  useEffect(() => {
+    if (appliedInitialFilters.current) return;
+    appliedInitialFilters.current = true;
+    if (initialFilters?.tab === "resumen-ejecutivo") setSelectedKey("resumen");
+  }, [initialFilters]);
 
   const branchLabel =
     branchId === "all" ? "Todas las sucursales" : branches.find((b) => String(b.id) === branchId)?.name || `Sucursal #${branchId}`;

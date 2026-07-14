@@ -77,11 +77,13 @@ export const listSales = async (req: Request, res: Response): Promise<void> => {
     const search = trimQuery(req.query.search);
     const from = trimQuery(req.query.from);
     const to = trimQuery(req.query.to);
+    const userId = req.query.userId as string | undefined;
 
     const where: any = {};
     if (branchId) where.branchId = branchId;
     if (status && status !== "all") where.status = status;
     if (search) where.invoiceNumber = { contains: search };
+    if (userId && !isNaN(Number(userId))) where.userId = Number(userId);
     if (from || to) {
       const createdAt: any = {};
       if (from) createdAt.gte = new Date(`${from}T00:00:00`);

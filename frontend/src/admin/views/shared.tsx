@@ -102,6 +102,10 @@ export const printTicketHtml = (
 export interface ViewProps {
   branchId: string;
   refreshToken: number;
+  // Filtro pre-aplicado al navegar desde otra vista (ej. tarjetas del Dashboard).
+  // Cada vista decide qué claves reconoce; debe aplicarse una sola vez al montar.
+  initialFilters?: Record<string, any>;
+  navigateTo?: (view: string, filter?: Record<string, any>) => void;
 }
 
 // ---------------------------------------------------------------------------
