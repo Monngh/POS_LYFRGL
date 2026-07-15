@@ -22,6 +22,8 @@ interface ConfirmModalProps {
    * (p. ej. el nombre del registro o «ELIMINAR») para habilitar el botón.
    */
   requireText?: string;
+  /** Deshabilita solo el botón de confirmar (p. ej. una validación externa aún no cumplida). */
+  confirmDisabled?: boolean;
 }
 
 const VARIANTS: Record<ConfirmModalVariant, { color: string; tint: string; Icon: React.ComponentType<{ size?: number }> }> = {
@@ -142,6 +144,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   loading = false,
   loadingLabel = "Procesando…",
   requireText,
+  confirmDisabled = false,
 }) => {
   const [typed, setTyped] = useState("");
   const confirmRef = useRef<HTMLButtonElement>(null);
@@ -149,7 +152,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
   const needsText = Boolean(requireText && requireText.trim());
   const textOk = !needsText || typed.trim().toLowerCase() === requireText!.trim().toLowerCase();
-  const canConfirm = !loading && textOk;
+  const canConfirm = !loading && textOk && !confirmDisabled;
 
   useBodyScrollLock(isOpen);
 

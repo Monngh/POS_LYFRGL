@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { ArrowUp, ArrowDown, Printer, ChevronDown, ChevronUp, X, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowUp, ArrowDown, Printer, ChevronDown, ChevronUp, X, Loader2 } from "lucide-react";
 import api from "../../shared/services/api";
 import {
   ui,
@@ -65,7 +65,7 @@ const MOVEMENT_CHIPS: { value: string; label: string }[] = [
 
 const PRINTING_LABEL = "Generando...";
 const PRINT_LOCK_RELEASE_DELAY_MS = 700;
-const PAGE_SIZE = 20;
+
 
 const waitForPrintLockRelease = () =>
   new Promise<void>((resolve) => {
@@ -127,82 +127,8 @@ const kardexMobileResultCount: React.CSSProperties = {
 };
 
 // ── Componente de paginación ────────────────────────────────────────────────
-interface KardexPaginationProps {
-  page: number;
-  totalPages: number;
-  total: number;
-  onPrev: () => void;
-  onNext: () => void;
-}
 
-const KardexPagination: React.FC<KardexPaginationProps> = ({ page, totalPages, total, onPrev, onNext }) => (
-  <div style={{
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "10px 4px",
-    marginTop: 10,
-    flexWrap: "wrap",
-    gap: 8,
-  }}>
-    <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>
-      {total} movimiento{total === 1 ? "" : "s"} en total
-    </span>
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <button
-        onClick={onPrev}
-        disabled={page <= 1}
-        aria-label="Página anterior"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 4,
-          padding: "5px 12px",
-          borderRadius: 7,
-          border: "1px solid var(--border)",
-          backgroundColor: "var(--surface)",
-          color: page <= 1 ? "var(--text-faint)" : "var(--accent-strong)",
-          fontWeight: 700,
-          fontSize: 13,
-          cursor: page <= 1 ? "not-allowed" : "pointer",
-          opacity: page <= 1 ? 0.5 : 1,
-          fontFamily: "inherit",
-          transition: "opacity 0.15s ease",
-        }}
-        className="active-tap"
-      >
-        <ChevronLeft size={14} /> Anterior
-      </button>
-      <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", minWidth: 80, textAlign: "center" }}>
-        Pág. {page} / {totalPages}
-      </span>
-      <button
-        onClick={onNext}
-        disabled={page >= totalPages}
-        aria-label="Página siguiente"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 4,
-          padding: "5px 12px",
-          borderRadius: 7,
-          border: "1px solid var(--border)",
-          backgroundColor: "var(--surface)",
-          color: page >= totalPages ? "var(--text-faint)" : "var(--accent-strong)",
-          fontWeight: 700,
-          fontSize: 13,
-          cursor: page >= totalPages ? "not-allowed" : "pointer",
-          opacity: page >= totalPages ? 0.5 : 1,
-          fontFamily: "inherit",
-          transition: "opacity 0.15s ease",
-        }}
-        className="active-tap"
-      >
-        Siguiente <ChevronRight size={14} />
-      </button>
-    </div>
-  </div>
-);
+
 
 // ── Componente principal ────────────────────────────────────────────────────
 const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
@@ -216,7 +142,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const isMobile = useMediaQuery("(max-width: 1024px)");
+  
   const isSmallScreen = useMediaQuery("(max-width: 640px)");
   const [kardexFiltersOpen, setKardexFiltersOpen] = useState(false);
   const [expandedKardex, setExpandedKardex] = useState<Record<number, boolean>>({});
@@ -314,7 +240,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     }
   }, []);
 
-  const totalPages = Math.ceil(total / PAGE_SIZE);
+  
   const selectedMovementLabel = MOVEMENT_CHIPS.find((chip) => chip.value === movementType)?.label;
   const kardexActiveFilterLabels = [
     movementType !== "all" ? selectedMovementLabel : null,
@@ -415,7 +341,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 
             {!loading &&
               !error &&
-              rows.map((k) => {
+              paged.pageItems.map((k) => {
                 const isExpanded = expandedKardex[k.id];
                 const balanceBefore = k.balanceAfter - k.quantityChange;
                 const isCurrentPrinting = printingId === k.id;
@@ -592,16 +518,6 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
               })}
           </div>
 
-          {/* Paginación mobile */}
-          {!loading && !error && total > 0 && (
-            <KardexPagination
-              page={page}
-              totalPages={totalPages}
-              total={total}
-              onPrev={() => setPage((p) => p - 1)}
-              onNext={() => setPage((p) => p + 1)}
-            />
-          )}
         </>
       ) : (
         <>
@@ -653,7 +569,7 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                 />
                 {!loading &&
                   !error &&
-                  rows.map((k) => {
+                  paged.pageItems.map((k) => {
                     const balanceBefore = k.balanceAfter - k.quantityChange;
                     const isCurrentPrinting = printingId === k.id;
                     const isPrintDisabled = printingId !== null;
@@ -721,318 +637,8 @@ const KardexView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             </table>
           </div>
 
-          {/* Paginación desktop */}
-          {!loading && !error && total > 0 && (
-            <KardexPagination
-              page={page}
-              totalPages={totalPages}
-              total={total}
-              onPrev={() => setPage((p) => p - 1)}
-              onNext={() => setPage((p) => p + 1)}
-            />
-          )}
-          {!loading && error && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
-              {error}
-            </div>
-          )}
-          {!loading && !error && rows.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              {search.trim()
-                ? "No se encontraron productos con esa b\u00fasqueda."
-                : "Sin registros en el periodo seleccionado."}
-            </div>
-          )}
-
-          {!loading &&
-            !error &&
-            paged.pageItems.map((k) => {
-              const isExpanded = expandedKardex[k.id];
-              const balanceBefore = k.balanceAfter - k.quantityChange;
-              const isCurrentPrinting = printingId === k.id;
-              const isPrintDisabled = printingId !== null;
-              return (
-                <div
-                  key={k.id}
-                  style={{
-                    backgroundColor: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 12,
-                    marginBottom: 10,
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
-                    overflow: "hidden",
-                    textAlign: "left",
-                  }}
-                >
-                  {/* Header: SKU y Tipo */}
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "8px 16px 6px 16px",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: "var(--text-muted)",
-                    borderBottom: "1px solid var(--border-soft)",
-                    backgroundColor: "var(--surface-2)",
-                    letterSpacing: "0.2px",
-                  }}>
-                    <span style={{ fontFamily: "monospace" }}>{k.sku}</span>
-                    <Badge tone={typeTone(k.movementType)}>
-                      {movementLabel[k.movementType] ?? k.movementType.replace(/_/g, " ")}
-                    </Badge>
-                  </div>
-
-                  {/* Fila principal */}
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "3fr 1.3fr 1.5fr",
-                    padding: "12px 16px",
-                    alignItems: "center",
-                  }}>
-                    {/* Producto */}
-                    <div style={{ fontSize: 13, color: "var(--text)", fontWeight: 600, paddingRight: 8, overflow: "hidden", display: "-webkit-box" as React.CSSProperties["display"], WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as React.CSSProperties["WebkitBoxOrient"] }}>
-                      {k.product}
-                    </div>
-
-                    {/* Cambio */}
-                    <div style={{ fontSize: 12, fontWeight: 800, color: k.quantityChange >= 0 ? "var(--color-success)" : "var(--color-danger)" }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
-                        {k.quantityChange >= 0 ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
-                        {Math.abs(k.quantityChange)}
-                      </span>
-                    </div>
-
-                    {/* Botones de Acción */}
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
-                        {/* Imprimir */}
-                        <button
-                          onClick={() => { void printMovement(k); }}
-                          disabled={isPrintDisabled}
-                          aria-busy={isCurrentPrinting}
-                          aria-label={isCurrentPrinting ? PRINTING_LABEL : "Imprimir comprobante"}
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            backgroundColor: "var(--accent-soft)",
-                            border: "1px solid var(--border)",
-                            borderRadius: 8,
-                            width: 34,
-                            height: 34,
-                            cursor: isPrintDisabled ? "not-allowed" : "pointer",
-                            color: "var(--accent)",
-                            opacity: isPrintDisabled ? (isCurrentPrinting ? 0.75 : 0.45) : 1,
-                            padding: 0,
-                          }}
-                          className="active-tap"
-                          title={isCurrentPrinting ? PRINTING_LABEL : isPrintDisabled ? "Espere a que termine la impresión actual" : "Imprimir comprobante"}
-                        >
-                          {isCurrentPrinting ? <Loader2 size={15} style={{ animation: "spin 0.8s linear infinite" }} /> : <Printer size={15} />}
-                        </button>
-
-                        {/* Chevron */}
-                        <button
-                          onClick={() => toggleExpandKardex(k.id)}
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            backgroundColor: "var(--surface)",
-                            border: "1px solid var(--border-strong)",
-                            borderRadius: 8,
-                            width: 34,
-                            height: 34,
-                            cursor: "pointer",
-                            color: "var(--text-muted)",
-                            padding: 0,
-                          }}
-                          className="active-tap"
-                        >
-                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        </button>
-                      </div>
-                      {isCurrentPrinting && (
-                        <span style={{ fontSize: 10, lineHeight: 1, fontWeight: 700, color: "var(--text-muted)" }}>
-                          {PRINTING_LABEL}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Detalle expandido */}
-                  {isExpanded && (
-                    <div style={{
-                      padding: "16px",
-                      margin: "0 16px 16px 16px",
-                      backgroundColor: "var(--surface-2)",
-                      borderRadius: "8px",
-                      border: "1px solid var(--border)",
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                      gap: "16px",
-                    }}>
-                      {/* Datos del Movimiento */}
-                      <div>
-                        <h4 style={{ fontSize: 12, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Datos del Movimiento</h4>
-                        <div style={kardexDetailRow}>
-                          <span style={kardexDetailLabel}>Fecha/Hora:</span>
-                          <span style={kardexDetailValue}>
-                            {fmtDate(k.createdAt)} <span style={{ color: "var(--text-faint)", fontWeight: 500 }}>{fmtTime(k.createdAt)}</span>
-                          </span>
-                        </div>
-                        <div style={kardexDetailRow}>
-                          <span style={kardexDetailLabel}>Sucursal:</span>
-                          <span style={kardexDetailValue}>{k.branch}</span>
-                        </div>
-                        <div style={kardexDetailRow}>
-                          <span style={kardexDetailLabel}>Usuario:</span>
-                          <span style={kardexDetailValue}>{k.user}</span>
-                        </div>
-                      </div>
-
-                      {/* Resumen Físico */}
-                      <div>
-                        <h4 style={{ fontSize: 12, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Resumen Físico</h4>
-                        <div style={kardexDetailRow}>
-                          <span style={kardexDetailLabel}>Exist. anterior:</span>
-                          <span style={kardexDetailValue}>{balanceBefore} uds</span>
-                        </div>
-                        <div style={kardexDetailRow}>
-                          <span style={kardexDetailLabel}>Cambio:</span>
-                          <span style={{ ...kardexDetailValue, color: k.quantityChange >= 0 ? "var(--color-success)" : "var(--color-danger)" }}>
-                            {k.quantityChange >= 0 ? `+${k.quantityChange}` : k.quantityChange}
-                          </span>
-                        </div>
-                        <div style={kardexDetailRow}>
-                          <span style={kardexDetailLabel}>Exist. final:</span>
-                          <span style={{ ...kardexDetailValue, fontWeight: 700 }}>{k.balanceAfter} uds</span>
-                        </div>
-                      </div>
-
-                      {/* Referencia / Motivo */}
-                      <div style={{ gridColumn: "1 / -1" }}>
-                        <h4 style={{ fontSize: 12, color: "var(--text)", marginBottom: 6 }}>Referencia / Motivo</h4>
-                        <div style={{
-                          padding: "8px 12px",
-                          backgroundColor: "var(--surface)",
-                          border: "1px solid var(--border)",
-                          borderRadius: 8,
-                          fontSize: 12,
-                          color: "var(--text-secondary)",
-                          fontWeight: 400,
-                          whiteSpace: "normal",
-                          lineHeight: 1.5,
-                        }}>
-                          {k.reason || "Sin observaciones registradas."}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-        </div>
-      ) : (
-        /* ── Desktop: Standard table ── */
-        <div className="table-sticky-head" style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-          <table style={ui.table}>
-            <thead>
-              <tr style={ui.theadRow}>
-                <th style={ui.th}>Fecha</th>
-                <th style={ui.th}>Producto</th>
-                <th style={ui.th}>Sucursal</th>
-                <th style={{ ...ui.th, textAlign: "center" }}>Tipo</th>
-                <th style={{ ...ui.th, textAlign: "center" }}>Cambio</th>
-                <th style={{ ...ui.th, textAlign: "center" }}>Antes</th>
-                <th style={{ ...ui.th, textAlign: "center" }}>Después</th>
-                <th style={ui.th}>Usuario</th>
-                <th style={{ ...ui.th, maxWidth: 200 }}>Motivo</th>
-                <th style={{ ...ui.th, textAlign: "center" }}>Imprimir</th>
-              </tr>
-            </thead>
-            <tbody>
-              <TableState
-                colSpan={10}
-                loading={loading}
-                error={error}
-                empty={!loading && !error && rows.length === 0}
-                emptyText={search.trim() ? "No se encontraron productos con esa b\u00fasqueda." : "Sin registros en el periodo seleccionado."}
-              />
-              {!loading &&
-                !error &&
-                paged.pageItems.map((k) => {
-                  const balanceBefore = k.balanceAfter - k.quantityChange;
-                  const isCurrentPrinting = printingId === k.id;
-                  const isPrintDisabled = printingId !== null;
-                  return (
-                    <tr key={k.id}>
-                      <td style={ui.td}>
-                        {fmtDate(k.createdAt)} <span style={{ color: "var(--text-faint)" }}>{fmtTime(k.createdAt)}</span>
-                      </td>
-                      <td style={{ ...ui.td, whiteSpace: "normal" }}>
-                        <div style={{ fontWeight: 600, color: "var(--text)" }}>{k.product}</div>
-                        <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{k.sku}</div>
-                      </td>
-                      <td style={ui.td}>{k.branch}</td>
-                      <td style={{ ...ui.td, textAlign: "center" }}>
-                        <Badge tone={typeTone(k.movementType)}>
-                          {movementLabel[k.movementType] ?? k.movementType.replace(/_/g, " ")}
-                        </Badge>
-                      </td>
-                      <td style={{ ...ui.td, textAlign: "center", fontWeight: 800, color: k.quantityChange >= 0 ? "var(--color-success)" : "var(--color-danger)" }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
-                          {k.quantityChange >= 0 ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
-                          {Math.abs(k.quantityChange)}
-                        </span>
-                      </td>
-                      <td style={{ ...ui.td, textAlign: "center", color: "var(--text-muted)" }}>{balanceBefore}</td>
-                      <td style={{ ...ui.td, textAlign: "center", fontWeight: 700 }}>{k.balanceAfter}</td>
-                      <td style={ui.td}>{k.user}</td>
-                      <td style={{ ...ui.td, maxWidth: 220, padding: 0, verticalAlign: "top" }}>
-                        <div
-                          style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", color: "var(--text-muted)", fontSize: 12, lineHeight: "1.5", padding: "10px 12px" }}
-                        >
-                          {formatMotivo(k.reason || "—")}
-                        </div>
-                      </td>
-                      <td style={{ ...ui.td, textAlign: "center" }}>
-                        <button
-                          onClick={() => { void printMovement(k); }}
-                          disabled={isPrintDisabled}
-                          aria-busy={isCurrentPrinting}
-                          aria-label={isCurrentPrinting ? PRINTING_LABEL : "Imprimir comprobante de este movimiento"}
-                          title={isCurrentPrinting ? PRINTING_LABEL : isPrintDisabled ? "Espere a que termine la impresión actual" : "Imprimir comprobante de este movimiento"}
-                          className="active-tap"
-                          style={{
-                            minWidth: 112,
-                            height: 32,
-                            borderRadius: 7,
-                            border: "1px solid var(--border)",
-                            backgroundColor: "var(--surface)",
-                            color: "var(--accent-strong)",
-                            cursor: isPrintDisabled ? "not-allowed" : "pointer",
-                            opacity: isPrintDisabled ? (isCurrentPrinting ? 0.75 : 0.45) : 1,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 6,
-                            padding: "0 10px",
-                          }}
-                        >
-                          {isCurrentPrinting ? <Loader2 size={15} style={{ animation: "spin 0.8s linear infinite" }} /> : <Printer size={15} />}
-                          <span>{isCurrentPrinting ? PRINTING_LABEL : "Imprimir"}</span>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-            </tbody>
-          </table>
-        </div>
+        </>
       )}
-
       {!loading && !error && (
         <Pagination page={paged.page} pageCount={paged.pageCount} total={paged.total} from={paged.from} to={paged.to} onPage={paged.setPage} itemLabel="movimientos" />
       )}

@@ -2012,7 +2012,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
           <span>LYFRGL Solutions POS &middot; Ficha de producto &middot; Generado el ${generatedAt}</span>
           <span class="page-number"></span>
         </footer>
-      </main>`
+      </main>`,
+      showToast
     );
   }, [primarySupplierId, selectedProduct, suppliers]);
 
@@ -4481,10 +4482,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
         message={priceConfirmMessage}
         confirmLabel="Aplicar ajuste"
         cancelLabel="Cancelar"
-        isConfirming={priceSaving}
+        loading={priceSaving}
+        loadingLabel="Aplicando..."
         confirmDisabled={!canApplyPricePreview}
-        closeDisabled={priceSaving}
-        confirmingLabel="Aplicando..."
       />
 
       <ConfirmModal

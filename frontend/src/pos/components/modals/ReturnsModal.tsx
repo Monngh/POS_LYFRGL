@@ -68,6 +68,7 @@ export default function ReturnsModal({
   const [returnLoading, setReturnLoading] = useState(false);
   const [returnSaleData, setReturnSaleData] = useState<any>(null);
   const [returnItems, setReturnItems] = useState<any[]>([]);
+  const [, setReturnItemNavIdx] = useState(0);
   const [returnReason, setReturnReason] = useState("");
   const [returnPin, setReturnPin] = useState("");
   const [returnFieldErrors, setReturnFieldErrors] = useState<Partial<Record<"folio" | "reason" | "pin", string>>>({});
@@ -75,7 +76,7 @@ export default function ReturnsModal({
   const [returnPaymentMethod, setReturnPaymentMethod] = useState("VALE_DEVOLUCION");
   const [returnProcessing, setReturnProcessing] = useState(false);
   const [returnReceipt, setReturnReceipt] = useState<any>(null);
-  const [returnItemNavIdx, setReturnItemNavIdx] = useState(0);
+  
   const returnItemsListRef = useRef<HTMLDivElement | null>(null);
   const returnReasonInputRef = useRef<HTMLInputElement | null>(null);
 

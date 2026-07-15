@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Minus, Plus, XCircle, Tag, ShoppingCart } from "lucide-react";
 import { usePosCart } from "../hooks/usePosCart";
 
