@@ -74,6 +74,8 @@ import {
   revokeSession,
   getMySessionStatus,
   getAdminSessionClosures,
+  getCashierActiveSessions,
+  getCashierSessionClosures,
 } from "../controllers/securityAudit.controller";
 import { authenticateJWT, authenticateJWTDecodeOnly, authenticateSSE, authorizeRoles } from "../middlewares/auth.middleware";
 
@@ -183,6 +185,8 @@ router.get("/security/failed-pin-attempts", authorizeRoles(["ADMIN"]), getFailed
 router.get("/security/active-sessions", authorizeRoles(["ADMIN"]), getActiveSessions);
 router.post("/security/revoke-session/:userId", authorizeRoles(["ADMIN"]), revokeSession);
 router.get("/security/admin-session-closures", authorizeRoles(["ADMIN"]), getAdminSessionClosures);
+router.get("/security/cashier-active-sessions", authorizeRoles(["ADMIN", "GERENTE"]), getCashierActiveSessions);
+router.get("/security/cashier-session-closures", authorizeRoles(["ADMIN", "GERENTE"]), getCashierSessionClosures);
 
 // Devoluciones (admin)
 router.get("/returns", authorizeRoles(["ADMIN", "GERENTE"]), getAdminReturns);

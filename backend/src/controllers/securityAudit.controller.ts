@@ -358,3 +358,123 @@ export const getAdminSessionClosures = async (req: Request, res: Response): Prom
     res.status(500).json({ message: "Error al obtener el historial de cierres de sesión." });
   }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Módulo Accesos de Caja — Sesiones Activas y Historial de Cierres de CAJEROS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Sesiones de caja actualmente ABIERTAS (CashSession con status "ABIERTA").
+ * Devuelve los campos necesarios para el tab "Sesiones Activas" de CajaAccessLogView.
+ * Solo ADMIN.
+ */
+export const getCashierActiveSessions = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const branchId = req.query.branchId ? Number(req.query.branchId) : undefined;
+    const where: any = { status: "ABIERTA" };
+    if (branchId && !isNaN(branchId)) where.branchId = branchId;
+
+    const sessions = await prisma.cashSession.findMany({
+      where,
+      orderBy: { openedAt: "desc" },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        branch: { select: { id: true, name: true } },
+      },
+    });
+
+    const result = sessions.map((s) => ({
+      id: s.id,
+      user: s.user,
+      branch: s.branch,
+      openedAt: s.openedAt.toISOString(),
+      initialAmount: Number(s.initialAmount),
+    }));
+
+    res.json({ sessions: result });
+  } catch (err) {
+    console.error("[getCashierActiveSessions]", err);
+    res.status(500).json({ message: "Error al obtener las sesiones de caja activas." });
+  }
+};
+
+const CASHIER_CLOSURES_DEFAULT_PAGE_SIZE = 25;
+const CASHIER_CLOSURES_MAX_PAGE_SIZE = 200;
+
+/**
+ * Historial paginado de CashSessions cerradas (status "CERRADA"), incluyendo
+ * las cerradas forzosamente (forcedByUserId != null). Filtros: fecha y sucursal.
+ * Solo ADMIN.
+ */
+export const getCashierSessionClosures = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { from, to, branchId } = req.query;
+    const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+    const pageSize = Math.max(
+      1,
+      Math.min(
+        CASHIER_CLOSURES_MAX_PAGE_SIZE,
+        parseInt(req.query.pageSize as string, 10) || CASHIER_CLOSURES_DEFAULT_PAGE_SIZE
+      )
+    );
+
+    const where: any = { status: "CERRADA" };
+    if (branchId && !isNaN(Number(branchId))) where.branchId = Number(branchId);
+
+    // Filtramos por closedAt (fecha real de cierre de la sesión de caja)
+    const closedAtFilter: any = {};
+    if (from) closedAtFilter.gte = new Date(from as string);
+    if (to) {
+      const toDate = new Date(to as string);
+      toDate.setHours(23, 59, 59, 999);
+      closedAtFilter.lte = toDate;
+    }
+    if (Object.keys(closedAtFilter).length) where.closedAt = closedAtFilter;
+
+    const [closures, total] = await Promise.all([
+      prisma.cashSession.findMany({
+        where,
+        orderBy: { closedAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          branch: { select: { id: true, name: true } },
+        },
+      }),
+      prisma.cashSession.count({ where }),
+    ]);
+
+    // Resolvemos los nombres de los admins que forzaron el cierre
+    const forcedByIds = [...new Set(closures.map((s) => s.forcedByUserId).filter(Boolean))] as number[];
+    let adminNames: Record<number, string> = {};
+    if (forcedByIds.length > 0) {
+      const admins = await prisma.user.findMany({
+        where: { id: { in: forcedByIds } },
+        select: { id: true, name: true },
+      });
+      adminNames = admins.reduce((acc, a) => {
+        acc[a.id] = a.name;
+        return acc;
+      }, {} as Record<number, string>);
+    }
+
+    const result = closures.map((s) => ({
+      id: s.id,
+      user: s.user,
+      branch: s.branch,
+      openedAt: s.openedAt.toISOString(),
+      closedAt: s.closedAt ? s.closedAt.toISOString() : null,
+      closureType: s.forcedByUserId ? "FORCED" : "NORMAL",
+      forceCloseReason: s.forceCloseReason ?? null,
+      forcedByAdmin: s.forcedByUserId ? (adminNames[s.forcedByUserId] ?? null) : null,
+      declaredAmount: s.declaredAmount !== null ? Number(s.declaredAmount) : null,
+      difference: s.difference !== null ? Number(s.difference) : null,
+    }));
+
+    res.json({ closures: result, total, page, pageSize });
+  } catch (err) {
+    console.error("[getCashierSessionClosures]", err);
+    res.status(500).json({ message: "Error al obtener el historial de cierres de caja." });
+  }
+};
