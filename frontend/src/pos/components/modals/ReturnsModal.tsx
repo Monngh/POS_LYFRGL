@@ -136,10 +136,10 @@ export default function ReturnsModal({
       prev.map((item, i) =>
         i === idx
           ? {
-              ...item,
-              selected: !item.selected,
-              qtyToReturn: !item.selected ? Math.min(1, item.maxReturnableQty) : 0,
-            }
+            ...item,
+            selected: !item.selected,
+            qtyToReturn: !item.selected ? Math.min(1, item.maxReturnableQty) : 0,
+          }
           : item
       )
     );
@@ -326,9 +326,8 @@ export default function ReturnsModal({
         <div class="ticket-section">
           ${rows.join("")}
         </div>
-        ${
-          itemRows
-            ? `<div class="ticket-section">
+        ${itemRows
+        ? `<div class="ticket-section">
                 <table>
                   <thead>
                     <tr style="border-bottom:1px dashed #111111;">
@@ -341,8 +340,8 @@ export default function ReturnsModal({
                   <tbody>${itemRows}</tbody>
                 </table>
               </div>`
-            : ""
-        }
+        : ""
+      }
         <div class="ticket-section">
           <div class="ticket-row ticket-total">
             <span>Total reembolsado:</span>
@@ -380,14 +379,14 @@ export default function ReturnsModal({
     if (returnStep === "select") {
       return (
         <>
-          <button 
-            onClick={() => { setReturnStep("search"); setReturnSaleData(null); setReturnItems([]); }} 
+          <button
+            onClick={() => { setReturnStep("search"); setReturnSaleData(null); setReturnItems([]); }}
             style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
           >
             ← Atrás
           </button>
-          <button 
-            onClick={handleReturnProceed} 
+          <button
+            onClick={handleReturnProceed}
             style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer" }}
           >
             Continuar →
@@ -398,8 +397,8 @@ export default function ReturnsModal({
     if (returnStep === "confirm") {
       return (
         <>
-          <button 
-            onClick={() => setReturnStep("select")} 
+          <button
+            onClick={() => setReturnStep("select")}
             style={{ padding: "10px 24px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "transparent", color: "var(--text)", fontWeight: "600", cursor: "pointer" }}
           >
             ← Atrás
@@ -427,7 +426,7 @@ export default function ReturnsModal({
           >
             Enviar por Correo
           </button>
-           <button
+          <button
             onClick={() => {
               const html = buildReturnReceiptHtml();
               const title = `Comprobante de devolución ${returnReceipt?.returnNumber}`;
@@ -438,8 +437,8 @@ export default function ReturnsModal({
           >
             Imprimir
           </button>
-          <button 
-            onClick={onClose} 
+          <button
+            onClick={onClose}
             style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#2563eb", color: "white", fontWeight: "600", cursor: "pointer" }}
           >
             Cerrar
@@ -531,7 +530,7 @@ export default function ReturnsModal({
                 onClick={handleReturnSelectAll}
                 style={{ fontSize: "11px", color: "var(--accent-strong)", background: "none", border: "none", cursor: "pointer", fontWeight: "600", textDecoration: "underline" }}
               >
-                {returnItems.filter((it) => it.isEligible).every((it) => it.selected) ? "Deseleccionar todos" : "Seleccionar todos (Dev. Total)"}
+                {returnItems.filter((it) => it.isEligible).every((it) => it.selected) ? "Quitar todos" : "Seleccionar todos (Dev. Total)"}
               </button>
             </div>
 

@@ -248,7 +248,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
       return;
     }
     refetch();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshToken]);
 
   const activeCount = useMemo(() => rows.filter((r) => r.active).length, [rows]);
@@ -594,23 +594,23 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
   // ── Input handlers ──
   const set =
     (key: keyof FormState) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      const value = e.target.value;
-      setForm((f) => ({ ...f, [key]: value }));
-      setFormError(null);
-      setFieldErrors((prev) => {
-        const next = { ...prev };
-        const error =
-          key === "name"
-            ? validateSafeText(value, "El nombre del impuesto", { required: true, min: 2, max: 80 })
-            : key === "description"
-              ? validateSafeText(value, "La descripcion", { required: false, max: 180 })
-              : undefined;
-        if (error) next[key] = error;
-        else delete next[key];
-        return next;
-      });
-    };
+      (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const value = e.target.value;
+        setForm((f) => ({ ...f, [key]: value }));
+        setFormError(null);
+        setFieldErrors((prev) => {
+          const next = { ...prev };
+          const error =
+            key === "name"
+              ? validateSafeText(value, "El nombre del impuesto", { required: true, min: 2, max: 80 })
+              : key === "description"
+                ? validateSafeText(value, "La descripcion", { required: false, max: 180 })
+                : undefined;
+          if (error) next[key] = error;
+          else delete next[key];
+          return next;
+        });
+      };
 
   const setRate = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.trim();
@@ -1226,7 +1226,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                           <input
                             type="checkbox"
                             checked={isChecked}
-                            onChange={() => {}}
+                            onChange={() => { }}
                             disabled={manageSaving || disabled}
                             style={{ width: 16, height: 16, accentColor: "var(--accent)", cursor: "pointer", flexShrink: 0 }}
                           />
@@ -1271,7 +1271,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                               onChange={toggleAllVisible}
                               disabled={manageSaving || selectableVisibleProducts.length === 0}
                               style={{ width: 15, height: 15, accentColor: "var(--accent)", cursor: "pointer" }}
-                              title="Seleccionar / deseleccionar productos visibles"
+                              title="Seleccionar / quitar productos visibles"
                             />
                           </th>
                           <th style={{ ...ui.th, width: 110 }}>SKU</th>
@@ -1302,7 +1302,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                                 <input
                                   type="checkbox"
                                   checked={isChecked}
-                                  onChange={() => {}}
+                                  onChange={() => { }}
                                   disabled={manageSaving || disabled}
                                   style={{ width: 15, height: 15, accentColor: "var(--accent)", cursor: disabled ? "default" : "pointer" }}
                                 />

@@ -24,15 +24,6 @@ import { useToast } from "../../shared/context/ToastContext";
 const mxnFmt = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
 const fmt = (n: number) => mxnFmt.format(Number(n));
 
-const SCOPE_OPTIONS: { label: string; value: PromotionProductScope }[] = [
-  { label: "Todos los productos", value: "ALL" },
-  { label: "Por división", value: "DIVISION" },
-  { label: "Por departamento", value: "DEPARTMENT" },
-  { label: "Por categoría", value: "CATEGORY" },
-  { label: "Productos sin categoría", value: "UNCATEGORIZED" },
-];
-
-const SCOPE_NEEDS_CATEGORY: PromotionProductScope[] = ["DIVISION", "DEPARTMENT", "CATEGORY"];
 const LIMIT = 10;
 
 // ---------------------------------------------------------------------------
@@ -64,8 +55,9 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
   const [activeTab, setActiveTab] = useState<ModalTab>(associatedProducts.length > 0 ? "associated" : "available");
 
   // ── Filters state ──────────────────────────────────────────────────────────
-  const [scope, setScope] = useState<PromotionProductScope>("ALL");
-  const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
+  const [selectedDivisionId, setSelectedDivisionId] = useState<number | undefined>(undefined);
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<number | undefined>(undefined);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | undefined>(undefined);
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -130,28 +122,47 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
     };
   }, []);
 
-  // ── Filtered categories by scope ───────────────────────────────────────────
-  const filteredCategories = useMemo(() => {
-    if (!SCOPE_NEEDS_CATEGORY.includes(scope)) return [];
-    return allCategories.filter((cat) => cat.level === scope);
-  }, [allCategories, scope]);
+  // ── Hierarchical category options ─────────────────────────────────────────
+  const divisionOptions = useMemo(
+    () => allCategories.filter((cat) => cat.level === "DIVISION"),
+    [allCategories]
+  );
+
+  const departmentOptions = useMemo(() => {
+    if (!selectedDivisionId) return [];
+    return allCategories.filter(
+      (cat) => cat.level === "DEPARTMENT" && cat.parentId === selectedDivisionId
+    );
+  }, [allCategories, selectedDivisionId]);
+
+  const categoryOptions = useMemo(() => {
+    if (!selectedDepartmentId) return [];
+    return allCategories.filter(
+      (cat) => cat.level === "CATEGORY" && cat.parentId === selectedDepartmentId
+    );
+  }, [allCategories, selectedDepartmentId]);
+
+  // ── Derived scope + categoryId for the API call ───────────────────────────
+  const apiScope: PromotionProductScope = selectedCategoryId
+    ? "CATEGORY"
+    : selectedDepartmentId
+      ? "DEPARTMENT"
+      : selectedDivisionId
+        ? "DIVISION"
+        : "ALL";
+
+  const apiCategoryId: number | undefined =
+    selectedCategoryId ?? selectedDepartmentId ?? selectedDivisionId;
 
   // ── Load products ──────────────────────────────────────────────────────────
   const loadProducts = useCallback(async () => {
-    // For DIVISION, DEPARTMENT, CATEGORY we need a valid categoryId
-    if (SCOPE_NEEDS_CATEGORY.includes(scope) && !categoryId) {
-      setProducts([]);
-      setPagination({ page: 1, limit: LIMIT, total: 0, totalPages: 1 });
-      return;
-    }
-
     setProductsLoading(true);
     setProductsError(null);
     try {
       const result = await getAvailablePromotionProducts(promotionId, {
         search: debouncedSearch.trim() || undefined,
-        scope,
-        categoryId: SCOPE_NEEDS_CATEGORY.includes(scope) ? categoryId : undefined,
+        scope: apiScope,
+        categoryId: apiCategoryId,
         page,
         limit: LIMIT,
         includeAssociated: true,
@@ -167,23 +178,31 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
     } finally {
       setProductsLoading(false);
     }
-  }, [promotionId, scope, categoryId, debouncedSearch, page]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promotionId, apiScope, apiCategoryId, debouncedSearch, page]);
 
   useEffect(() => {
     void loadProducts();
   }, [loadProducts]);
 
-  // ── Scope change ───────────────────────────────────────────────────────────
-  const handleScopeChange = (newScope: PromotionProductScope) => {
-    setScope(newScope);
-    setCategoryId(undefined);
+  // ── Hierarchy change handlers ──────────────────────────────────────────────
+  const handleDivisionChange = (id: number | undefined) => {
+    setSelectedDivisionId(id);
+    setSelectedDepartmentId(undefined);
+    setSelectedCategoryId(undefined);
     setSelectedIds(new Set());
     setPage(1);
   };
 
-  // ── Category change ────────────────────────────────────────────────────────
+  const handleDepartmentChange = (id: number | undefined) => {
+    setSelectedDepartmentId(id);
+    setSelectedCategoryId(undefined);
+    setSelectedIds(new Set());
+    setPage(1);
+  };
+
   const handleCategoryChange = (id: number | undefined) => {
-    setCategoryId(id);
+    setSelectedCategoryId(id);
     setSelectedIds(new Set());
     setPage(1);
   };
@@ -238,13 +257,6 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
   const visibleSelectedCount = products.filter((p) => selectedIds.has(p.id)).length;
   const allVisibleSelected = selectableCount > 0 && visibleSelectedCount === selectableCount;
 
-  // ── Category label for current scope ──────────────────────────────────────
-  const scopeLabel = (s: PromotionProductScope) => {
-    if (s === "DIVISION") return "División";
-    if (s === "DEPARTMENT") return "Departamento";
-    if (s === "CATEGORY") return "Categoría";
-    return "";
-  };
 
   const categoryText = (categories: AvailablePromotionProduct["categories"] | undefined) =>
     categories && categories.length > 0
@@ -404,295 +416,328 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
           </div>
 
           {activeTab === "associated" ? renderAssociatedProducts() : (
-          <>
+            <>
 
-          {/* ── Filters row ── */}
-          <div style={s.filtersRow}>
-            {/* Scope selector */}
-            <div style={s.filterGroup}>
-              <label style={ui.fieldLabel}>Alcance</label>
-              <select
-                style={{ ...ui.input, ...s.select }}
-                value={scope}
-                onChange={(e) => handleScopeChange(e.target.value as PromotionProductScope)}
-              >
-                {SCOPE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Category selector — only when scope requires it */}
-            {SCOPE_NEEDS_CATEGORY.includes(scope) && (
-              <div style={s.filterGroup}>
-                <label style={ui.fieldLabel}>{scopeLabel(scope)}</label>
-                {categoriesLoading ? (
-                  <div style={s.selectPlaceholder}>Cargando categorías...</div>
-                ) : (
-                  <select
-                    style={{ ...ui.input, ...s.select }}
-                    value={categoryId ?? ""}
-                    onChange={(e) =>
-                      handleCategoryChange(e.target.value ? Number(e.target.value) : undefined)
-                    }
-                  >
-                    <option value="">Selecciona {scopeLabel(scope).toLowerCase()}...</option>
-                    {filteredCategories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* ── Search ── */}
-          <div style={{ marginBottom: 12 }}>
-            <SearchInput
-              value={searchInput}
-              onChange={(v) => { setSearchInput(v); setPage(1); }}
-              placeholder="Buscar por SKU, código, nombre o descripción"
-            />
-          </div>
-
-          {/* ── Selection controls ── */}
-          <div style={s.selectionBar}>
-            <button
-              type="button"
-              style={{ ...ui.ghostBtn, fontSize: 12, padding: "5px 10px", height: 30 }}
-              onClick={selectVisible}
-              disabled={selectableCount === 0 || productsLoading}
-              title="Seleccionar todos los productos visibles en esta página"
-            >
-              {allVisibleSelected ? "✓ " : ""}Seleccionar visibles
-            </button>
-            <button
-              type="button"
-              style={{ ...ui.ghostBtn, fontSize: 12, padding: "5px 10px", height: 30 }}
-              onClick={clearSelection}
-              disabled={selectedIds.size === 0}
-            >
-              Limpiar selección
-            </button>
-            <span style={s.counter}>
-              {selectedIds.size} producto{selectedIds.size === 1 ? "" : "s"} seleccionado{selectedIds.size === 1 ? "" : "s"}
-            </span>
-          </div>
-
-          {/* ── Products table ── */}
-          <div style={s.tableWrap}>
-            {/* Table header */}
-            <div style={{ ...s.tableRow, ...s.tableHead }}>
-              <div style={{ ...s.cell, ...s.colCheck }} />
-              <div style={{ ...s.cell, ...s.colSku }}>SKU</div>
-              <div style={{ ...s.cell, ...s.colBarcode }}>Código barras</div>
-              <div style={{ ...s.cell, ...s.colName }}>Producto</div>
-              <div style={{ ...s.cell, ...s.colCost }}>Costo</div>
-              <div style={{ ...s.cell, ...s.colPrice }}>Precio venta</div>
-              <div style={{ ...s.cell, ...s.colCats }}>Categorías</div>
-              <div style={{ ...s.cell, ...s.colStatus }}>Estado</div>
-            </div>
-
-            {/* Table body */}
-            <div style={s.tableBody}>
-              {/* Loading */}
-              {productsLoading && (
-                <div style={s.stateRow}>Cargando productos...</div>
-              )}
-
-              {/* Error */}
-              {!productsLoading && productsError && (
-                <div style={{ ...s.stateRow, color: "#b91c1c" }}>{productsError}</div>
-              )}
-
-              {/* Empty state: waiting for category */}
-              {!productsLoading &&
-                !productsError &&
-                SCOPE_NEEDS_CATEGORY.includes(scope) &&
-                !categoryId && (
-                  <div style={s.stateRow}>
-                    Selecciona una {scopeLabel(scope).toLowerCase()} para ver productos.
-                  </div>
-                )}
-
-              {/* Empty results */}
-              {!productsLoading &&
-                !productsError &&
-                products.length === 0 &&
-                (!SCOPE_NEEDS_CATEGORY.includes(scope) || categoryId) && (
-                  <div style={s.stateRow}>
-                    {debouncedSearch.trim()
-                      ? "No se encontraron productos con esa búsqueda."
-                      : "No hay productos disponibles con estos filtros."}
-                  </div>
-                )}
-
-              {/* Products */}
-              {!productsLoading &&
-                !productsError &&
-                products.map((product) => {
-                  const isSelected = selectedIds.has(product.id);
-                  const disabled = product.alreadyAssociated;
-                  return (
-                    <div
-                      key={product.id}
-                      style={{
-                        ...s.tableRow,
-                        backgroundColor: isSelected
-                          ? "rgba(30,58,138,0.06)"
-                          : disabled
-                          ? "var(--surface-2)"
-                          : undefined,
-                        opacity: disabled ? 0.65 : 1,
-                        cursor: disabled ? "default" : "pointer",
-                      }}
-                      onClick={() => !disabled && toggleProduct(product.id, product.alreadyAssociated)}
+              {/* ── Filters row — Jerarquía División → Departamento → Categoría ── */}
+              <div style={s.filtersRow}>
+                {/* División */}
+                <div style={s.filterGroup}>
+                  <label style={ui.fieldLabel}>División</label>
+                  {categoriesLoading ? (
+                    <div style={s.selectPlaceholder}>Cargando...</div>
+                  ) : (
+                    <select
+                      style={{ ...ui.input, ...s.select }}
+                      value={selectedDivisionId ?? ""}
+                      onChange={(e) =>
+                        handleDivisionChange(e.target.value ? Number(e.target.value) : undefined)
+                      }
                     >
-                      {/* Checkbox */}
-                      <div style={{ ...s.cell, ...s.colCheck, textAlign: "center" as const }}>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          disabled={disabled}
-                          onChange={() => toggleProduct(product.id, product.alreadyAssociated)}
-                          onClick={(e) => e.stopPropagation()}
-                          style={s.check}
-                          aria-label={`Seleccionar ${product.name}`}
-                        />
-                      </div>
+                      <option value="">Todas las divisiones</option>
+                      {divisionOptions.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
 
-                      {/* SKU */}
-                      <div style={{ ...s.cell, ...s.colSku }}>
-                        <span style={s.skuBadge}>{product.sku}</span>
-                      </div>
+                {/* Departamento — solo cuando hay división seleccionada */}
+                <div style={s.filterGroup}>
+                  <label style={ui.fieldLabel}>Departamento</label>
+                  {categoriesLoading ? (
+                    <div style={s.selectPlaceholder}>Cargando...</div>
+                  ) : (
+                    <select
+                      style={{
+                        ...ui.input,
+                        ...s.select,
+                        opacity: !selectedDivisionId ? 0.5 : 1,
+                      }}
+                      value={selectedDepartmentId ?? ""}
+                      disabled={!selectedDivisionId}
+                      onChange={(e) =>
+                        handleDepartmentChange(e.target.value ? Number(e.target.value) : undefined)
+                      }
+                    >
+                      <option value="">
+                        {selectedDivisionId ? "Todos los departamentos" : "Selecciona una división"}
+                      </option>
+                      {departmentOptions.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
 
-                      {/* Barcode */}
-                      <div style={{ ...s.cell, ...s.colBarcode, color: "var(--text-muted)", fontSize: 12 }}>
-                        {product.barcode ?? "—"}
-                      </div>
+                {/* Categoría — solo cuando hay departamento seleccionado */}
+                <div style={s.filterGroup}>
+                  <label style={ui.fieldLabel}>Categoría</label>
+                  {categoriesLoading ? (
+                    <div style={s.selectPlaceholder}>Cargando...</div>
+                  ) : (
+                    <select
+                      style={{
+                        ...ui.input,
+                        ...s.select,
+                        opacity: !selectedDepartmentId ? 0.5 : 1,
+                      }}
+                      value={selectedCategoryId ?? ""}
+                      disabled={!selectedDepartmentId}
+                      onChange={(e) =>
+                        handleCategoryChange(e.target.value ? Number(e.target.value) : undefined)
+                      }
+                    >
+                      <option value="">
+                        {selectedDepartmentId ? "Todas las categorías" : "Selecciona un departamento"}
+                      </option>
+                      {categoryOptions.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </div>
 
-                      {/* Name */}
-                      <div style={{ ...s.cell, ...s.colName }}>
-                        <div style={s.productName}>{product.name}</div>
-                        {product.description && (
-                          <div style={s.productDesc}>{product.description}</div>
-                        )}
-                      </div>
+              {/* ── Search ── */}
+              <div style={{ marginBottom: 12 }}>
+                <SearchInput
+                  value={searchInput}
+                  onChange={(v) => { setSearchInput(v); setPage(1); }}
+                  placeholder="Buscar por SKU, código, nombre o descripción"
+                />
+              </div>
 
-                      {/* Cost */}
-                      <div style={{ ...s.cell, ...s.colCost, fontVariantNumeric: "tabular-nums" as const }}>
-                        {fmt(product.costPrice)}
-                      </div>
-
-                      {/* Sell price */}
-                      <div
-                        style={{
-                          ...s.cell,
-                          ...s.colPrice,
-                          fontWeight: 800,
-                          fontVariantNumeric: "tabular-nums" as const,
-                        }}
-                      >
-                        {moneyExact(Number(product.sellPrice))}
-                      </div>
-
-                      {/* Categories */}
-                      <div style={{ ...s.cell, ...s.colCats }}>
-                        {product.categories.length === 0 ? (
-                          <span style={s.noCatBadge}>Sin categoría</span>
-                        ) : (
-                          <div style={s.catList}>
-                            {product.categories.map((cat) => (
-                              <span key={cat.id} style={s.catBadge}>
-                                {cat.name}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Status */}
-                      <div style={{ ...s.cell, ...s.colStatus, textAlign: "center" as const }}>
-                        {product.alreadyAssociated ? (
-                          <Badge tone="blue">Ya asociado</Badge>
-                        ) : product.active ? (
-                          <Badge tone="green">Activo</Badge>
-                        ) : (
-                          <Badge tone="slate">Inactivo</Badge>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-
-          {/* ── Pagination ── */}
-          {pagination.totalPages > 1 && (
-            <div style={s.paginationBar}>
-              <button
-                type="button"
-                style={{ ...ui.ghostBtn, padding: "5px 10px", height: 30, fontSize: 12 }}
-                disabled={page <= 1 || productsLoading}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                <ChevronLeft size={14} /> Anterior
-              </button>
-              <span style={s.pageInfo}>
-                Página {pagination.page} de {pagination.totalPages}
-                <span style={{ marginLeft: 8, color: "var(--text-faint)", fontWeight: 500 }}>
-                  ({pagination.total} producto{pagination.total === 1 ? "" : "s"})
+              {/* ── Selection controls ── */}
+              <div style={s.selectionBar}>
+                <button
+                  type="button"
+                  style={{ ...ui.ghostBtn, fontSize: 12, padding: "5px 10px", height: 30 }}
+                  onClick={selectVisible}
+                  disabled={selectableCount === 0 || productsLoading}
+                  title="Seleccionar todos los productos visibles en esta página"
+                >
+                  {allVisibleSelected ? "✓ " : ""}Seleccionar todos
+                </button>
+                <button
+                  type="button"
+                  style={{ ...ui.ghostBtn, fontSize: 12, padding: "5px 10px", height: 30 }}
+                  onClick={clearSelection}
+                  disabled={selectedIds.size === 0}
+                >
+                  Quitar todos
+                </button>
+                <span style={s.counter}>
+                  {selectedIds.size} producto{selectedIds.size === 1 ? "" : "s"} seleccionado{selectedIds.size === 1 ? "" : "s"}
                 </span>
-              </span>
-              <button
-                type="button"
-                style={{ ...ui.ghostBtn, padding: "5px 10px", height: 30, fontSize: 12 }}
-                disabled={page >= pagination.totalPages || productsLoading}
-                onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
-              >
-                Siguiente <ChevronRight size={14} />
-              </button>
-            </div>
-          )}
+              </div>
 
-          {/* ── Submit error ── */}
-          {submitError && (
-            <div style={s.errorBox}>{submitError}</div>
-          )}
+              {/* ── Products table ── */}
+              <div style={s.tableWrap}>
+                {/* Table header */}
+                <div style={{ ...s.tableRow, ...s.tableHead }}>
+                  <div style={{ ...s.cell, ...s.colCheck }} />
+                  <div style={{ ...s.cell, ...s.colSku }}>SKU</div>
+                  <div style={{ ...s.cell, ...s.colBarcode }}>Código barras</div>
+                  <div style={{ ...s.cell, ...s.colName }}>Producto</div>
+                  <div style={{ ...s.cell, ...s.colCost }}>Costo</div>
+                  <div style={{ ...s.cell, ...s.colPrice }}>Precio venta</div>
+                  <div style={{ ...s.cell, ...s.colCats }}>Categorías</div>
+                  <div style={{ ...s.cell, ...s.colStatus }}>Estado</div>
+                </div>
 
-          {/* ── Action buttons ── */}
-          <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-            <button
-              type="button"
-              style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }}
-              onClick={onClose}
-              disabled={submitting}
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              style={{
-                ...ui.primaryBtn,
-                flex: 2,
-                justifyContent: "center",
-                opacity: selectedIds.size === 0 || submitting ? 0.55 : 1,
-                cursor: selectedIds.size === 0 || submitting ? "not-allowed" : "pointer",
-              }}
-              disabled={selectedIds.size === 0 || submitting}
-              onClick={handleSubmit}
-            >
-              <PackagePlus size={15} />
-              {submitting
-                ? "Agregando..."
-                : `Agregar ${selectedIds.size > 0 ? selectedIds.size : ""} producto${selectedIds.size === 1 ? "" : "s"} seleccionado${selectedIds.size === 1 ? "" : "s"}`}
-            </button>
-          </div>
-          </>
+                {/* Table body */}
+                <div style={s.tableBody}>
+                  {/* Loading */}
+                  {productsLoading && (
+                    <div style={s.stateRow}>Cargando productos...</div>
+                  )}
+
+                  {/* Error */}
+                  {!productsLoading && productsError && (
+                    <div style={{ ...s.stateRow, color: "#b91c1c" }}>{productsError}</div>
+                  )}
+
+                  {/* Products load regardless of hierarchy selection — hierarchy is just a filter */}
+
+                  {/* Empty results */}
+                  {!productsLoading &&
+                    !productsError &&
+                    products.length === 0 && (
+                      <div style={s.stateRow}>
+                        {debouncedSearch.trim()
+                          ? "No se encontraron productos con esa búsqueda."
+                          : "No hay productos disponibles con estos filtros."}
+                      </div>
+                    )}
+
+                  {/* Products */}
+                  {!productsLoading &&
+                    !productsError &&
+                    products.map((product) => {
+                      const isSelected = selectedIds.has(product.id);
+                      const disabled = product.alreadyAssociated;
+                      return (
+                        <div
+                          key={product.id}
+                          style={{
+                            ...s.tableRow,
+                            backgroundColor: isSelected
+                              ? "rgba(30,58,138,0.06)"
+                              : disabled
+                                ? "var(--surface-2)"
+                                : undefined,
+                            opacity: disabled ? 0.65 : 1,
+                            cursor: disabled ? "default" : "pointer",
+                          }}
+                          onClick={() => !disabled && toggleProduct(product.id, product.alreadyAssociated)}
+                        >
+                          {/* Checkbox */}
+                          <div style={{ ...s.cell, ...s.colCheck, textAlign: "center" as const }}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              disabled={disabled}
+                              onChange={() => toggleProduct(product.id, product.alreadyAssociated)}
+                              onClick={(e) => e.stopPropagation()}
+                              style={s.check}
+                              aria-label={`Seleccionar ${product.name}`}
+                            />
+                          </div>
+
+                          {/* SKU */}
+                          <div style={{ ...s.cell, ...s.colSku }}>
+                            <span style={s.skuBadge}>{product.sku}</span>
+                          </div>
+
+                          {/* Barcode */}
+                          <div style={{ ...s.cell, ...s.colBarcode, color: "var(--text-muted)", fontSize: 12 }}>
+                            {product.barcode ?? "—"}
+                          </div>
+
+                          {/* Name */}
+                          <div style={{ ...s.cell, ...s.colName }}>
+                            <div style={s.productName}>{product.name}</div>
+                            {product.description && (
+                              <div style={s.productDesc}>{product.description}</div>
+                            )}
+                          </div>
+
+                          {/* Cost */}
+                          <div style={{ ...s.cell, ...s.colCost, fontVariantNumeric: "tabular-nums" as const }}>
+                            {fmt(product.costPrice)}
+                          </div>
+
+                          {/* Sell price */}
+                          <div
+                            style={{
+                              ...s.cell,
+                              ...s.colPrice,
+                              fontWeight: 800,
+                              fontVariantNumeric: "tabular-nums" as const,
+                            }}
+                          >
+                            {moneyExact(Number(product.sellPrice))}
+                          </div>
+
+                          {/* Categories */}
+                          <div style={{ ...s.cell, ...s.colCats }}>
+                            {product.categories.length === 0 ? (
+                              <span style={s.noCatBadge}>Sin categoría</span>
+                            ) : (
+                              <div style={s.catList}>
+                                {product.categories.map((cat) => (
+                                  <span key={cat.id} style={s.catBadge}>
+                                    {cat.name}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Status */}
+                          <div style={{ ...s.cell, ...s.colStatus, textAlign: "center" as const }}>
+                            {product.alreadyAssociated ? (
+                              <Badge tone="blue">Ya asociado</Badge>
+                            ) : product.active ? (
+                              <Badge tone="green">Activo</Badge>
+                            ) : (
+                              <Badge tone="slate">Inactivo</Badge>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* ── Pagination ── */}
+              {pagination.totalPages > 1 && (
+                <div style={s.paginationBar}>
+                  <button
+                    type="button"
+                    style={{ ...ui.ghostBtn, padding: "5px 10px", height: 30, fontSize: 12 }}
+                    disabled={page <= 1 || productsLoading}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    <ChevronLeft size={14} /> Anterior
+                  </button>
+                  <span style={s.pageInfo}>
+                    Página {pagination.page} de {pagination.totalPages}
+                    <span style={{ marginLeft: 8, color: "var(--text-faint)", fontWeight: 500 }}>
+                      ({pagination.total} producto{pagination.total === 1 ? "" : "s"})
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    style={{ ...ui.ghostBtn, padding: "5px 10px", height: 30, fontSize: 12 }}
+                    disabled={page >= pagination.totalPages || productsLoading}
+                    onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                  >
+                    Siguiente <ChevronRight size={14} />
+                  </button>
+                </div>
+              )}
+
+              {/* ── Submit error ── */}
+              {submitError && (
+                <div style={s.errorBox}>{submitError}</div>
+              )}
+
+              {/* ── Action buttons ── */}
+              <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+                <button
+                  type="button"
+                  style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }}
+                  onClick={onClose}
+                  disabled={submitting}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    ...ui.primaryBtn,
+                    flex: 2,
+                    justifyContent: "center",
+                    opacity: selectedIds.size === 0 || submitting ? 0.55 : 1,
+                    cursor: selectedIds.size === 0 || submitting ? "not-allowed" : "pointer",
+                  }}
+                  disabled={selectedIds.size === 0 || submitting}
+                  onClick={handleSubmit}
+                >
+                  <PackagePlus size={15} />
+                  {submitting
+                    ? "Agregando..."
+                    : `Agregar ${selectedIds.size > 0 ? selectedIds.size : ""} producto${selectedIds.size === 1 ? "" : "s"} seleccionado${selectedIds.size === 1 ? "" : "s"}`}
+                </button>
+              </div>
+            </>
           )}
         </div>
       </div>

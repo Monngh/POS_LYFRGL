@@ -446,11 +446,25 @@ export const getActiveProductsForPromotions = async (search?: string) => {
       active: true,
       ...(q ? { OR: [{ sku: { contains: q } }, { name: { contains: q } }] } : {}),
     },
-    select: { id: true, sku: true, name: true, sellPrice: true, active: true },
+    select: {
+      id: true,
+      sku: true,
+      name: true,
+      sellPrice: true,
+      active: true,
+      categories: { select: { categoryId: true } },
+    },
     orderBy: { name: "asc" },
     take: 500,
   });
-  return products.map((product) => ({ ...product, sellPrice: Number(product.sellPrice) }));
+  return products.map((product) => ({
+    id: product.id,
+    sku: product.sku,
+    name: product.name,
+    sellPrice: Number(product.sellPrice),
+    active: product.active,
+    categoryIds: product.categories.map((row) => row.categoryId),
+  }));
 };
 
 export const getPromotions = async (search?: string) => {

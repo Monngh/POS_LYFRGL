@@ -2,6 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Eye, PackagePlus, Pencil, Plus, Power, Tags, X } from "lucide-react";
 import api from "../../shared/services/api";
 import AddProductsToPromotionModal from "../components/AddProductsToPromotionModal";
+import {
+  adminCategoryService,
+  type AdminCategoryFlatItem,
+} from "../services/categoryAdmin.service";
 import type { PromotionAssociatedProductDetail } from "../types/promotions.types";
 import {
   collectRoundedDecimalMessages,
@@ -38,6 +42,7 @@ interface ProductOption {
   name: string;
   sellPrice: number;
   active: boolean;
+  categoryIds: number[];
 }
 
 interface PromotionProduct {
@@ -205,20 +210,149 @@ const productSummary = (promotion: PromotionRow) => {
 const ProductSelector: React.FC<{
   products: ProductOption[];
   selectedIds: number[];
-  onToggle: (productId: number) => void;
+  onChangeSelected: (ids: number[]) => void;
   disabled?: boolean;
-}> = ({ products, selectedIds, onToggle, disabled }) => {
+  allCategories: AdminCategoryFlatItem[];
+}> = ({ products, selectedIds, onChangeSelected, disabled, allCategories }) => {
   const [query, setQuery] = useState("");
+  const [selDivisionId, setSelDivisionId] = useState<number | undefined>(undefined);
+  const [selDepartmentId, setSelDepartmentId] = useState<number | undefined>(undefined);
+  const [selCategoryId, setSelCategoryId] = useState<number | undefined>(undefined);
   const isMobile = useMediaQuery("(max-width: 1024px)");
+
+  // Hierarchical options
+  const divisionOptions = useMemo(
+    () => allCategories.filter((cat) => cat.level === "DIVISION"),
+    [allCategories]
+  );
+  const departmentOptions = useMemo(
+    () => selDivisionId
+      ? allCategories.filter((cat) => cat.level === "DEPARTMENT" && cat.parentId === selDivisionId)
+      : [],
+    [allCategories, selDivisionId]
+  );
+  const categoryOptions = useMemo(
+    () => selDepartmentId
+      ? allCategories.filter((cat) => cat.level === "CATEGORY" && cat.parentId === selDepartmentId)
+      : [],
+    [allCategories, selDepartmentId]
+  );
+
+  // Filter products by hierarchy + text
   const filtered = useMemo(() => {
-    return filterProductsBySearch(products, query);
-  }, [products, query]);
+    let list = filterProductsBySearch(products, query);
+    if (selCategoryId) {
+      list = list.filter((p) => p.categoryIds.includes(selCategoryId));
+    } else if (selDepartmentId) {
+      const catIds = new Set(categoryOptions.map((c) => c.id));
+      list = list.filter((p) => p.categoryIds.some((id) => catIds.has(id)));
+    } else if (selDivisionId) {
+      const allDeptIds = allCategories
+        .filter((c) => c.level === "DEPARTMENT" && c.parentId === selDivisionId)
+        .map((c) => c.id);
+      const catIds = new Set(
+        allCategories
+          .filter((c) => c.level === "CATEGORY" && allDeptIds.includes(c.parentId!))
+          .map((c) => c.id)
+      );
+      list = list.filter((p) => p.categoryIds.some((id) => catIds.has(id)));
+    }
+    return list;
+  }, [products, query, selCategoryId, selDepartmentId, selDivisionId, categoryOptions, allCategories]);
+
+  const handleDivisionChange = (id: number | undefined) => {
+    setSelDivisionId(id);
+    setSelDepartmentId(undefined);
+    setSelCategoryId(undefined);
+  };
+  const handleDepartmentChange = (id: number | undefined) => {
+    setSelDepartmentId(id);
+    setSelCategoryId(undefined);
+  };
+
+  const selectorStyle: React.CSSProperties = {
+    height: 36,
+    padding: "0 10px",
+    fontSize: 12,
+    border: "1px solid var(--border)",
+    borderRadius: 7,
+    backgroundColor: "var(--input-bg, var(--surface))",
+    color: "var(--text)",
+    cursor: "pointer",
+    flex: "1 1 140px",
+    minWidth: 130,
+  };
 
   return (
     <div style={styles.productPicker}>
-      <div style={styles.productPickerTop}>
-        <SearchInput value={query} onChange={setQuery} placeholder="Buscar SKU o producto" />
-        <span style={styles.selectedCount}>{selectedIds.length} seleccionado{selectedIds.length === 1 ? "" : "s"}</span>
+      {/* Hierarchy filters row */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+        <select
+          style={selectorStyle}
+          value={selDivisionId ?? ""}
+          onChange={(e) => handleDivisionChange(e.target.value ? Number(e.target.value) : undefined)}
+        >
+          <option value="">Todas las divisiones</option>
+          {divisionOptions.map((cat) => (
+            <option key={cat.id} value={cat.id}>{cat.name}</option>
+          ))}
+        </select>
+        <select
+          style={{ ...selectorStyle, opacity: !selDivisionId ? 0.5 : 1 }}
+          value={selDepartmentId ?? ""}
+          disabled={!selDivisionId}
+          onChange={(e) => handleDepartmentChange(e.target.value ? Number(e.target.value) : undefined)}
+        >
+          <option value="">{selDivisionId ? "Todos los departamentos" : "Selecciona una división"}</option>
+          {departmentOptions.map((cat) => (
+            <option key={cat.id} value={cat.id}>{cat.name}</option>
+          ))}
+        </select>
+        <select
+          style={{ ...selectorStyle, opacity: !selDepartmentId ? 0.5 : 1 }}
+          value={selCategoryId ?? ""}
+          disabled={!selDepartmentId}
+          onChange={(e) => setSelCategoryId(e.target.value ? Number(e.target.value) : undefined)}
+        >
+          <option value="">{selDepartmentId ? "Todas las categorías" : "Selecciona un departamento"}</option>
+          {categoryOptions.map((cat) => (
+            <option key={cat.id} value={cat.id}>{cat.name}</option>
+          ))}
+        </select>
+      </div>
+      <div style={{ ...styles.productPickerTop, flexWrap: "wrap", gap: 12 }}>
+        <div style={{ flex: "1 1 200px" }}>
+          <SearchInput value={query} onChange={setQuery} placeholder="Buscar SKU o producto" />
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button
+            type="button"
+            style={{ ...ui.ghostBtn, fontSize: 12, padding: "5px 10px", height: 30 }}
+            onClick={() => {
+              const allIds = new Set(selectedIds);
+              filtered.forEach((p) => allIds.add(p.id));
+              onChangeSelected(Array.from(allIds));
+            }}
+            disabled={filtered.length === 0 || disabled}
+          >
+            Seleccionar todos
+          </button>
+          <button
+            type="button"
+            style={{ ...ui.ghostBtn, fontSize: 12, padding: "5px 10px", height: 30 }}
+            onClick={() => {
+              const filteredIds = new Set(filtered.map((p) => p.id));
+              const remaining = selectedIds.filter((id) => !filteredIds.has(id));
+              onChangeSelected(remaining);
+            }}
+            disabled={selectedIds.length === 0 || disabled}
+          >
+            Quitar todos
+          </button>
+          <span style={{ ...styles.selectedCount, marginLeft: 8 }}>
+            {selectedIds.length} seleccionado{selectedIds.length === 1 ? "" : "s"}
+          </span>
+        </div>
       </div>
       {isMobile ? (
         <div style={{ border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden" }}>
@@ -265,7 +399,11 @@ const ProductSelector: React.FC<{
                     type="checkbox"
                     checked={selectedIds.includes(product.id)}
                     disabled={disabled}
-                    onChange={() => onToggle(product.id)}
+                    onChange={() => onChangeSelected(
+                      selectedIds.includes(product.id)
+                        ? selectedIds.filter((id) => id !== product.id)
+                        : [...selectedIds, product.id]
+                    )}
                     style={{ width: 18, height: 18, flexShrink: 0 }}
                     aria-label={`Seleccionar ${product.name}`}
                   />
@@ -326,7 +464,11 @@ const ProductSelector: React.FC<{
                       type="checkbox"
                       checked={selectedIds.includes(product.id)}
                       disabled={disabled}
-                      onChange={() => onToggle(product.id)}
+                      onChange={() => onChangeSelected(
+                        selectedIds.includes(product.id)
+                          ? selectedIds.filter((id) => id !== product.id)
+                          : [...selectedIds, product.id]
+                      )}
                       style={styles.check}
                       aria-label={`Seleccionar ${product.name}`}
                     />
@@ -367,7 +509,18 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [addProductsTarget, setAddProductsTarget] = useState<PromotionRow | null>(null);
 
   const [expandedPromotions, setExpandedPromotions] = useState<Record<number, boolean>>({});
+  const [allCategories, setAllCategories] = useState<AdminCategoryFlatItem[]>([]);
   const isMobile = useMediaQuery("(max-width: 1024px)");
+
+  // Load categories once for the hierarchical filter in ProductSelector
+  useEffect(() => {
+    let cancelled = false;
+    adminCategoryService
+      .listFlat({ active: true })
+      .then((data) => { if (!cancelled) setAllCategories(data); })
+      .catch(() => { if (!cancelled) setAllCategories([]); });
+    return () => { cancelled = true; };
+  }, []);
 
   const toggleExpandPromotion = (id: number) =>
     setExpandedPromotions((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -580,12 +733,10 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     });
   };
 
-  const toggleFormProduct = (productId: number) => {
+  const setFormProductIds = (productIds: number[]) => {
     setForm((current) => ({
       ...current,
-      productIds: current.productIds.includes(productId)
-        ? current.productIds.filter((id) => id !== productId)
-        : [...current.productIds, productId],
+      productIds,
     }));
     setFieldErrors((prev) => {
       const next = { ...prev };
@@ -1326,7 +1477,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
               <div style={{ marginTop: 18 }}>
                 <label style={ui.fieldLabel}>Productos *</label>
-                <ProductSelector products={products} selectedIds={form.productIds} onToggle={toggleFormProduct} disabled={saving} />
+                <ProductSelector products={products} selectedIds={form.productIds} onChangeSelected={setFormProductIds} disabled={saving} allCategories={allCategories} />
                 {fieldErrors.productIds && <p style={styles.fieldError}>{fieldErrors.productIds}</p>}
               </div>
 
