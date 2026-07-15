@@ -1414,15 +1414,18 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                   {fieldErrors.promotionTypeId && <p style={styles.fieldError}>{fieldErrors.promotionTypeId}</p>}
                 </div>
 
-                <label style={styles.checkRow}>
-                  <input
-                    type="checkbox"
-                    checked={form.isActive}
-                    onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.checked }))}
-                    style={styles.check}
-                  />
-                  <span>Promocion activa</span>
-                </label>
+                <div>
+                  <label style={ui.fieldLabel}>Estado *</label>
+                  <select
+                    style={ui.input}
+                    value={form.isActive ? "true" : "false"}
+                    onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "true" }))}
+                  >
+                    <option value="true">Activa</option>
+                    <option value="false">Inactiva</option>
+                  </select>
+                  {fieldErrors.isActive && <p style={styles.fieldError}>{fieldErrors.isActive}</p>}
+                </div>
 
                 <div>
                   <label style={ui.fieldLabel}>Inicio *</label>
