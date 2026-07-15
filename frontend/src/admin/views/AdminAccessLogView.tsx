@@ -1,15 +1,18 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { AlertTriangle, ShieldAlert, Lock, ChevronDown, ChevronUp, ShieldOff, X } from "lucide-react";
+import { AlertTriangle, ShieldAlert, Lock, ChevronDown, ChevronUp, ShieldOff, X, Activity, MousePointerClick, Award } from "lucide-react";
 import api from "../../shared/services/api";
 import { validateDateRange, validateSearchText, validateReference } from "../../shared/utils/formValidation";
 import { useAuth } from "../../auth";
 import { useToast } from "../../shared/context/ToastContext";
 import { useSecurityEvents } from "../context/SecurityEventsContext";
+import { DataTable } from "../../shared/ui";
+import type { Column } from "../../shared/ui";
 import {
   ui,
   type ViewProps,
   Toolbar,
-  TableState,
+  MobileFilterDisclosure,
+  FilterSelect,
   SectionHeader,
   useMediaQuery,
   usePagination,
@@ -55,6 +58,22 @@ interface AdminSessionClosureRow {
   revokedBy: { id: number; name: string; email: string } | null;
 }
 
+// Fase 1 del log de movimientos administrativos: navegación entre vistas y acciones
+// sensibles (revocar sesión, cambio de estado de empleado). Catálogo queda para Fase 2.
+interface AdminActionLogRow {
+  id: number;
+  actionType: string;
+  target: string | null;
+  details: string | null;
+  ipAddress: string | null;
+  createdAt: string;
+  user: { id: number; name: string; email: string };
+}
+
+type ActiveTab = "logins" | "active-sessions" | "closures" | "movements";
+type ActionTypeFilter = "all" | "NAVIGATION" | "REVOKE_SESSION" | "EMPLOYEE_STATUS_CHANGE";
+type ClosureTypeFilter = "all" | "NORMAL" | "REVOKED";
+
 // No existe ya un helper de formato de duración reutilizable en el proyecto (se
 // revisó formValidation/decimalInput y las vistas de reportes): se calcula aquí,
 // a partir de las dos fechas crudas que ya manda el backend.
@@ -84,6 +103,39 @@ const ClosureTypeBadge: React.FC<{ type: string }> = ({ type }) => {
       }}
     >
       {isRevoked ? "Revocado" : "Normal"}
+    </span>
+  );
+};
+
+const ACTION_TYPE_LABELS: Record<string, { label: string; tone: "blue" | "red" | "amber" }> = {
+  NAVIGATION: { label: "Navegación", tone: "blue" },
+  REVOKE_SESSION: { label: "Revocar sesión", tone: "red" },
+  EMPLOYEE_STATUS_CHANGE: { label: "Cambio de estado", tone: "amber" },
+};
+
+const ActionTypeBadge: React.FC<{ type: string }> = ({ type }) => {
+  const isDark = document.documentElement.classList.contains("theme-dark");
+  const cfg = ACTION_TYPE_LABELS[type] ?? { label: type.replace(/_/g, " "), tone: "blue" as const };
+  const toneMap: Record<"blue" | "red" | "amber", { bg: string; color: string }> = {
+    blue: { bg: isDark ? "rgba(96,165,250,0.15)" : "#dbeafe", color: isDark ? "#60a5fa" : "#1d4ed8" },
+    red: { bg: isDark ? "rgba(239,68,68,0.15)" : "#fee2e2", color: isDark ? "#f87171" : "#b91c1c" },
+    amber: { bg: isDark ? "rgba(245,158,11,0.15)" : "#fef3c7", color: isDark ? "#f59e0b" : "#92400e" },
+  };
+  const c = toneMap[cfg.tone];
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        padding: "2px 10px",
+        borderRadius: 12,
+        fontSize: 11,
+        fontWeight: 700,
+        backgroundColor: c.bg,
+        color: c.color,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {cfg.label}
     </span>
   );
 };
@@ -130,33 +182,275 @@ const RoleBadge: React.FC<{ role: string }> = ({ role }) => {
   );
 };
 
+const detailRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-start",
+  alignItems: "flex-start",
+  gap: "6px",
+  fontSize: 12,
+  marginBottom: 3,
+};
+
+const detailLabelStyle: React.CSSProperties = {
+  fontWeight: 700,
+  color: "var(--text-muted)",
+  minWidth: "70px",
+  display: "inline-block",
+  fontSize: "inherit",
+};
+
+const detailValueStyle: React.CSSProperties = {
+  fontWeight: 600,
+  color: "var(--text-secondary)",
+  flex: 1,
+  fontSize: "inherit",
+  wordBreak: "break-word",
+};
+
+const detailRow = (label: string, value: React.ReactNode) => (
+  <div style={detailRowStyle}>
+    <span style={detailLabelStyle}>{label}:</span>
+    <span style={detailValueStyle}>{value}</span>
+  </div>
+);
+
+// Tarjeta expandible "Premium" de 2 niveles — misma estructura exacta que
+// ReportAuditLogView.tsx: cabecera gris (fecha + badge), cuerpo blanco (título/
+// subtítulo + botón chevron cuadrado independiente) y panel expandido gris con
+// margen interno.
+const ExpandableCard: React.FC<{
+  topDate: React.ReactNode;
+  topBadge: React.ReactNode;
+  mainTitle: React.ReactNode;
+  mainSubtitle: React.ReactNode;
+  isExpanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  extraActions?: React.ReactNode;
+}> = ({ topDate, topBadge, mainTitle, mainSubtitle, isExpanded, onToggle, children, extraActions }) => (
+  <div
+    style={{
+      backgroundColor: "var(--surface)",
+      border: "1px solid var(--border)",
+      borderRadius: 12,
+      marginBottom: 10,
+      boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+      overflow: "hidden",
+    }}
+  >
+    {/* Cabecera gris: fecha + badge */}
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "8px 16px 6px 16px",
+        fontSize: 11,
+        fontWeight: 700,
+        color: "var(--text-muted)",
+        borderBottom: "1px solid var(--border-soft)",
+        backgroundColor: "var(--surface-2)",
+        letterSpacing: "0.2px",
+      }}
+    >
+      <span>{topDate}</span>
+      {topBadge}
+    </div>
+
+    {/* Cuerpo blanco: título/subtítulo + chevron independiente */}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", gap: 12 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: "var(--text)",
+            wordBreak: "break-word",
+            overflowWrap: "anywhere",
+            whiteSpace: "normal",
+          }}
+        >
+          {mainTitle}
+        </div>
+        <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>{mainSubtitle}</div>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", alignSelf: "center" }}>
+        <button
+          type="button"
+          onClick={onToggle}
+          className="active-tap"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "var(--surface)",
+            border: "1px solid var(--border-strong)",
+            borderRadius: 8,
+            width: 38,
+            height: 38,
+            cursor: "pointer",
+            color: "var(--accent)",
+            padding: 0,
+          }}
+        >
+          {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </button>
+      </div>
+    </div>
+
+    {/* Panel expandido gris con margen interno */}
+    {isExpanded && (
+      <div
+        style={{
+          padding: "16px",
+          margin: "0 16px 16px 16px",
+          backgroundColor: "var(--surface-2)",
+          borderRadius: "12px",
+          border: "1px solid var(--border)",
+        }}
+      >
+        {children}
+        {extraActions}
+      </div>
+    )}
+  </div>
+);
+
+const truncatedSummary = (text: string): React.ReactNode => (
+  <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{text}</span>
+);
+
+// Tarjeta de estadística "premium" (mismo patrón que las tarjetas del Dashboard:
+// fondo var(--surface), borde definido, sombra sutil y chip de ícono a color).
+const statCardStyle: React.CSSProperties = {
+  backgroundColor: "var(--surface)",
+  border: "1px solid var(--border)",
+  borderRadius: 12,
+  padding: "16px 18px",
+  boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+  minWidth: 0,
+};
+const statHeadStyle: React.CSSProperties = { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 };
+const statLabelStyle: React.CSSProperties = { fontSize: 12.5, fontWeight: 600, color: "var(--text-muted)", minWidth: 0, lineHeight: 1.3 };
+const statIconStyle: React.CSSProperties = {
+  width: 30,
+  height: 30,
+  borderRadius: 8,
+  flexShrink: 0,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+const statValueStyle: React.CSSProperties = {
+  fontSize: "clamp(19px, 4.6vw, 26px)",
+  fontWeight: 800,
+  marginTop: 10,
+  letterSpacing: "-0.4px",
+  lineHeight: 1.15,
+  color: "var(--text)",
+  minWidth: 0,
+  overflowWrap: "break-word",
+};
+
+const StatCard: React.FC<{
+  label: string;
+  value: React.ReactNode;
+  icon: React.ReactNode;
+  iconBg: string;
+  valueFontSize?: string;
+}> = ({ label, value, icon, iconBg, valueFontSize }) => (
+  <div style={statCardStyle}>
+    <div style={statHeadStyle}>
+      <span style={statLabelStyle}>{label}</span>
+      <div style={{ ...statIconStyle, backgroundColor: iconBg }}>{icon}</div>
+    </div>
+    <h2 style={{ ...statValueStyle, ...(valueFontSize ? { fontSize: valueFontSize } : {}) }}>{value}</h2>
+  </div>
+);
+
+// Agrupa visualmente el rango de fechas (Desde/Hasta) dentro de MobileFilterDisclosure,
+// para que no compita al mismo nivel que la búsqueda/combobox/botón — mismo padding y
+// contenedor en las 3 pestañas que usan filtros de fecha.
+const dateRangeGroupStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flex: "1 1 100%",
+  padding: 10,
+  backgroundColor: "var(--surface-2)",
+  borderRadius: 8,
+  border: "1px solid var(--border-soft)",
+};
+const dateFieldStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, flex: "1 1 0", minWidth: 0 };
+const mobileFilterFieldsWrap: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 12 };
+
+const MobileDateRangeFields: React.FC<{
+  from: string;
+  to: string;
+  onFrom: (v: string) => void;
+  onTo: (v: string) => void;
+  hasError?: boolean;
+}> = ({ from, to, onFrom, onTo, hasError }) => (
+  <div style={dateRangeGroupStyle}>
+    <div style={dateFieldStyle}>
+      <label style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-strong)" }}>Desde:</label>
+      <input
+        type="date"
+        value={from}
+        max={to || undefined}
+        onChange={(e) => onFrom(e.target.value)}
+        style={{ ...ui.input, maxWidth: "100%", padding: "6px 8px", ...(hasError ? { borderColor: "#ef4444" } : {}) }}
+      />
+    </div>
+    <div style={dateFieldStyle}>
+      <label style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-strong)" }}>Hasta:</label>
+      <input
+        type="date"
+        value={to}
+        min={from || undefined}
+        onChange={(e) => onTo(e.target.value)}
+        style={{ ...ui.input, maxWidth: "100%", padding: "6px 8px", ...(hasError ? { borderColor: "#ef4444" } : {}) }}
+      />
+    </div>
+  </div>
+);
+
 const AdminAccessLogView: React.FC<ViewProps> = () => {
   const { user } = useAuth();
   const { showToast } = useToast();
   const isMobile = useMediaQuery("(max-width: 1024px)");
-  const [activeTab, setActiveTab] = useState<"logins" | "active-sessions" | "closures">("logins");
-  const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
+  const [activeTab, setActiveTab] = useState<ActiveTab>("logins");
   const [unlocked, setUnlocked] = useState(false);
   const [auditToken, setAuditToken] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [unlockLoading, setUnlockLoading] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
 
+  // Calcula cuántas filas caben en pantalla según la altura disponible (mismo
+  // patrón usado en ReportAuditLogView/ClientesView), compartido por las 4 pestañas.
+  const [dynPageSize, setDynPageSize] = useState(10);
+  useEffect(() => {
+    const ROW_H = 50;
+    const FIXED = 314;
+    const compute = () => setDynPageSize(Math.max(5, Math.floor((window.innerHeight - FIXED) / ROW_H)));
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, []);
+
+  // ── Tab "Accesos" ──
   const [rows, setRows] = useState<AccessLogRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [userSearch, setUserSearch] = useState("");
+  const [logsFiltersOpen, setLogsFiltersOpen] = useState(false);
+  const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
   const dateError = from && to ? validateDateRange(from, to) : undefined;
   const userSearchError = validateSearchText(userSearch, "La busqueda de usuario", { max: 120 });
 
-  const toggleExpand = (id: number) => {
-    setExpandedLogs((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
+  const toggleExpand = (id: number) => setExpandedLogs((prev) => ({ ...prev, [id]: !prev[id] }));
 
   const relock = (msg: string) => {
     setUnlocked(false);
@@ -214,17 +508,23 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
     }
   }, [auditToken, from, to, load]);
 
-  // Filtro limpio del lado del cliente
-  const filteredByDate = rows;
-
   // Filtrado local exclusivo para la búsqueda por texto de usuario
   const visible = userSearch.trim()
-    ? filteredByDate.filter(
-      (r) =>
-        r.user.name.toLowerCase().includes(userSearch.toLowerCase()) ||
-        r.user.email.toLowerCase().includes(userSearch.toLowerCase())
-    )
-    : filteredByDate;
+    ? rows.filter(
+        (r) =>
+          r.user.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+          r.user.email.toLowerCase().includes(userSearch.toLowerCase())
+      )
+    : rows;
+
+  const logsPagination = usePagination(visible, { pageSize: dynPageSize, resetKey: `${from}|${to}|${userSearch}` });
+
+  const logsActiveFilterLabels = [
+    from ? `Desde ${from}` : null,
+    to ? `Hasta ${to}` : null,
+    userSearch.trim() ? "Búsqueda de usuario" : null,
+  ].filter((l): l is string => Boolean(l));
+  const logsFilterSummary = logsActiveFilterLabels.length > 0 ? logsActiveFilterLabels.join(", ") : "Sin filtros activos";
 
   // ── Tab "Sesiones Activas" ──
   const [sessionRows, setSessionRows] = useState<ActiveSessionRow[]>([]);
@@ -235,6 +535,8 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
   const [revokeReason, setRevokeReason] = useState("");
   const [revokeReasonError, setRevokeReasonError] = useState("");
   const [revoking, setRevoking] = useState(false);
+  const [expandedSessions, setExpandedSessions] = useState<Record<number, boolean>>({});
+  const toggleExpandSession = (id: number) => setExpandedSessions((prev) => ({ ...prev, [id]: !prev[id] }));
 
   const loadActiveSessions = useCallback(async () => {
     setSessionsLoading(true);
@@ -255,12 +557,17 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
     }
   }, [unlocked, activeTab, loadActiveSessions]);
 
-  const sessionsPagination = usePagination(sessionRows, { pageSize: 20, resetKey: activeTab });
+  const sessionsPagination = usePagination(sessionRows, { pageSize: dynPageSize, resetKey: activeTab });
 
   // ── Tab "Historial de Cierres" ──
   const [closureRows, setClosureRows] = useState<AdminSessionClosureRow[]>([]);
   const [closuresLoading, setClosuresLoading] = useState(false);
   const [closuresError, setClosuresError] = useState<string | null>(null);
+  const [closureSearch, setClosureSearch] = useState("");
+  const [closureTypeFilter, setClosureTypeFilter] = useState<ClosureTypeFilter>("all");
+  const [closuresFiltersOpen, setClosuresFiltersOpen] = useState(false);
+  const [expandedClosures, setExpandedClosures] = useState<Record<number, boolean>>({});
+  const toggleExpandClosure = (id: number) => setExpandedClosures((prev) => ({ ...prev, [id]: !prev[id] }));
 
   // Mismo patrón de carga que "Accesos": reutiliza los filtros from/to ya
   // existentes en el componente (misma UI de fechas, un solo rango compartido).
@@ -299,7 +606,117 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
     }
   }, [unlocked, activeTab, from, to, loadClosures]);
 
-  const closuresPagination = usePagination(closureRows, { pageSize: 20, resetKey: `${activeTab}|${from}|${to}` });
+  // Filtrado 100% client-side sobre los datos ya cargados: busca en usuario
+  // (nombre/correo) y motivo de revocación; el combobox filtra por tipo de cierre.
+  const filteredClosures = closureRows.filter((c) => {
+    if (closureTypeFilter !== "all" && c.closureType !== closureTypeFilter) return false;
+    if (!closureSearch.trim()) return true;
+    const q = closureSearch.trim().toLowerCase();
+    return (
+      c.user.name.toLowerCase().includes(q) ||
+      c.user.email.toLowerCase().includes(q) ||
+      (c.revokedReason ?? "").toLowerCase().includes(q)
+    );
+  });
+
+  const closuresPagination = usePagination(filteredClosures, {
+    pageSize: dynPageSize,
+    resetKey: `${activeTab}|${from}|${to}|${closureSearch}|${closureTypeFilter}`,
+  });
+
+  const closuresActiveFilterLabels = [
+    from ? `Desde ${from}` : null,
+    to ? `Hasta ${to}` : null,
+    closureSearch.trim() ? "Búsqueda" : null,
+    closureTypeFilter !== "all" ? (closureTypeFilter === "REVOKED" ? "Revocado" : "Normal") : null,
+  ].filter((l): l is string => Boolean(l));
+  const closuresFilterSummary =
+    closuresActiveFilterLabels.length > 0 ? closuresActiveFilterLabels.join(", ") : "Sin filtros activos";
+
+  // ── Tab "Log de movimientos" (Fase 1: navegación + acciones sensibles) ──
+  const [movementRows, setMovementRows] = useState<AdminActionLogRow[]>([]);
+  const [movementsLoading, setMovementsLoading] = useState(false);
+  const [movementsError, setMovementsError] = useState<string | null>(null);
+  const [movementSearch, setMovementSearch] = useState("");
+  const [actionTypeFilter, setActionTypeFilter] = useState<ActionTypeFilter>("all");
+  const [movementsFiltersOpen, setMovementsFiltersOpen] = useState(false);
+  const [expandedMovements, setExpandedMovements] = useState<Record<number, boolean>>({});
+  const toggleExpandMovement = (id: number) => setExpandedMovements((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  const loadMovements = useCallback(async (f: string, t: string) => {
+    const invalidRange = f && t ? validateDateRange(f, t) : undefined;
+    if (invalidRange) {
+      setMovementRows([]);
+      setMovementsError(invalidRange);
+      setMovementsLoading(false);
+      return;
+    }
+    setMovementsLoading(true);
+    setMovementsError(null);
+    try {
+      const params: any = {};
+      if (f) params.from = new Date(`${f}T00:00:00`).toISOString();
+      if (t) params.to = new Date(`${t}T23:59:59.999`).toISOString();
+      const res = await api.get<{ logs: AdminActionLogRow[] }>("/api/admin/security/action-log", { params });
+      setMovementRows(res.data.logs);
+    } catch (err: any) {
+      setMovementsError(err.response?.data?.message || "No se pudo cargar el log de movimientos.");
+    } finally {
+      setMovementsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (unlocked && activeTab === "movements") {
+      loadMovements(from, to);
+    }
+  }, [unlocked, activeTab, from, to, loadMovements]);
+
+  const filteredMovements = movementRows.filter((m) => {
+    if (actionTypeFilter !== "all" && m.actionType !== actionTypeFilter) return false;
+    if (!movementSearch.trim()) return true;
+    const q = movementSearch.trim().toLowerCase();
+    return (
+      m.user.name.toLowerCase().includes(q) ||
+      m.user.email.toLowerCase().includes(q) ||
+      (m.target ?? "").toLowerCase().includes(q)
+    );
+  });
+
+  const movementsPagination = usePagination(filteredMovements, {
+    pageSize: dynPageSize,
+    resetKey: `${activeTab}|${from}|${to}|${movementSearch}|${actionTypeFilter}`,
+  });
+
+  const movementsActiveFilterLabels = [
+    from ? `Desde ${from}` : null,
+    to ? `Hasta ${to}` : null,
+    movementSearch.trim() ? "Búsqueda" : null,
+    actionTypeFilter !== "all" ? ACTION_TYPE_LABELS[actionTypeFilter]?.label ?? actionTypeFilter : null,
+  ].filter((l): l is string => Boolean(l));
+  const movementsFilterSummary =
+    movementsActiveFilterLabels.length > 0 ? movementsActiveFilterLabels.join(", ") : "Sin filtros activos";
+
+  // Tarjetas de resumen del "Log de movimientos": se calculan en el frontend sobre
+  // filteredMovements (los mismos datos ya filtrados que alimentan la tabla), así que
+  // se recalculan solas cuando cambian fecha/búsqueda/tipo — sin endpoint nuevo.
+  const movementsTotal = filteredMovements.length;
+  const navigationCount = filteredMovements.filter((m) => m.actionType === "NAVIGATION").length;
+  const sensitiveCount = movementsTotal - navigationCount;
+  const mostActiveAdmin = (() => {
+    if (movementsTotal === 0) return "—";
+    const counts = new Map<string, number>();
+    filteredMovements.forEach((m) => counts.set(m.user.name, (counts.get(m.user.name) ?? 0) + 1));
+    let topName = "—";
+    let topCount = 0;
+    counts.forEach((count, name) => {
+      if (count > topCount) {
+        topCount = count;
+        topName = name;
+      }
+    });
+    return `${topName} (${topCount})`;
+  })();
 
   const closeRevokeFlow = () => {
     setRevokeTarget(null);
@@ -384,6 +801,20 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
     setUserSearch("");
   };
 
+  const clearClosureFilters = () => {
+    setFrom("");
+    setTo("");
+    setClosureSearch("");
+    setClosureTypeFilter("all");
+  };
+
+  const clearMovementFilters = () => {
+    setFrom("");
+    setTo("");
+    setMovementSearch("");
+    setActionTypeFilter("all");
+  };
+
   // ---- Pantalla de candado ----
   if (!unlocked) {
     return (
@@ -431,6 +862,214 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
     );
   }
 
+  // ---- Columnas de las tablas de escritorio (DataTable) ----
+  const loginColumns: Column<AccessLogRow>[] = [
+    {
+      key: "createdAt",
+      header: "Fecha / Hora",
+      render: (row) => <span style={{ whiteSpace: "nowrap", color: "var(--text-secondary)" }}>{fmtDateTime(row.createdAt)}</span>,
+    },
+    {
+      key: "user",
+      header: "Usuario",
+      render: (row) => (
+        <div>
+          <div style={{ fontWeight: 700, color: "var(--text)" }}>{row.user.name}</div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{row.user.email}</div>
+        </div>
+      ),
+    },
+    { key: "role", header: "Rol", align: "center", render: (row) => <RoleBadge role={row.role} /> },
+    {
+      key: "branch",
+      header: "Sucursal",
+      render: (row) => row.branch?.name ?? <span style={{ color: "var(--text-faint)" }}>—</span>,
+    },
+    {
+      key: "method",
+      header: "Método",
+      align: "center",
+      render: (row) => <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{row.method}</span>,
+    },
+    {
+      key: "ipAddress",
+      header: "IP",
+      render: (row) => (
+        <span style={{ fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+          {row.ipAddress ?? "—"}
+        </span>
+      ),
+    },
+  ];
+
+  const sessionColumns: Column<ActiveSessionRow>[] = [
+    {
+      key: "user",
+      header: "Usuario",
+      render: (s) => (
+        <div>
+          <div style={{ fontWeight: 700, color: "var(--text)" }}>
+            {s.name}
+            {user?.id === s.userId ? " (tú)" : ""}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{s.email}</div>
+        </div>
+      ),
+    },
+    { key: "role", header: "Rol", align: "center", render: (s) => <RoleBadge role={s.role} /> },
+    {
+      key: "branch",
+      header: "Sucursal",
+      render: (s) => s.branch?.name ?? <span style={{ color: "var(--text-faint)" }}>—</span>,
+    },
+    {
+      key: "since",
+      header: "Activo desde",
+      render: (s) => <span style={{ whiteSpace: "nowrap", color: "var(--text-secondary)" }}>{fmtDateTime(s.since)}</span>,
+    },
+    {
+      key: "device",
+      header: "Dispositivo",
+      render: (s) => (
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)" }}>{formatDevice(s.deviceId)}</div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, fontFamily: "monospace" }}>
+            {formatDeviceShort(s.deviceId)}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "ipAddress",
+      header: "IP",
+      render: (s) => (
+        <span style={{ fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+          {formatIP(s.ipAddress)}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      header: "Acción",
+      align: "right",
+      render: (s) =>
+        user?.id !== s.userId ? (
+          <button
+            onClick={() => setRevokeTarget(s)}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 8,
+              border: "1px solid #fca5a5",
+              backgroundColor: "#fef2f2",
+              color: "#b91c1c",
+              fontWeight: 700,
+              fontSize: 12,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+            className="active-tap"
+          >
+            <ShieldOff size={13} /> Cerrar sesión
+          </button>
+        ) : null,
+    },
+  ];
+
+  const closureColumns: Column<AdminSessionClosureRow>[] = [
+    {
+      key: "user",
+      header: "Usuario",
+      render: (c) => (
+        <div>
+          <div style={{ fontWeight: 700, color: "var(--text)" }}>{c.user.name}</div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{c.user.email}</div>
+        </div>
+      ),
+    },
+    {
+      key: "branch",
+      header: "Sucursal",
+      render: (c) => c.branch?.name ?? <span style={{ color: "var(--text-faint)" }}>—</span>,
+    },
+    {
+      key: "closedAt",
+      header: "Cerrado",
+      render: (c) => <span style={{ whiteSpace: "nowrap", color: "var(--text-secondary)" }}>{fmtDateTime(c.closedAt)}</span>,
+    },
+    {
+      key: "duration",
+      header: "Duración",
+      render: (c) => <span style={{ whiteSpace: "nowrap", color: "var(--text-secondary)" }}>{formatDuration(c.loginAt, c.closedAt)}</span>,
+    },
+    { key: "closureType", header: "Tipo", align: "center", render: (c) => <ClosureTypeBadge type={c.closureType} /> },
+    {
+      key: "device",
+      header: "Dispositivo",
+      render: (c) => (
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)" }}>{formatDevice(c.deviceId)}</div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, fontFamily: "monospace" }}>
+            {formatDeviceShort(c.deviceId)}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "ipAddress",
+      header: "IP",
+      render: (c) => (
+        <span style={{ fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+          {formatIP(c.ipAddress)}
+        </span>
+      ),
+    },
+    {
+      key: "reason",
+      header: "Motivo",
+      width: "220px",
+      render: (c) =>
+        c.closureType === "REVOKED" ? (
+          <>
+            <div style={{ fontSize: 12, color: "var(--text-secondary)", wordBreak: "break-word" }}>{c.revokedReason ?? "—"}</div>
+            {c.revokedBy && <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Por: {c.revokedBy.name}</div>}
+          </>
+        ) : (
+          <span style={{ color: "var(--border-strong)" }}>—</span>
+        ),
+    },
+  ];
+
+  const movementColumns: Column<AdminActionLogRow>[] = [
+    {
+      key: "createdAt",
+      header: "Fecha / Hora",
+      render: (m) => <span style={{ whiteSpace: "nowrap", color: "var(--text-secondary)" }}>{fmtDateTime(m.createdAt)}</span>,
+    },
+    {
+      key: "user",
+      header: "Usuario",
+      render: (m) => (
+        <div>
+          <div style={{ fontWeight: 700, color: "var(--text)" }}>{m.user.name}</div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{m.user.email}</div>
+        </div>
+      ),
+    },
+    { key: "actionType", header: "Tipo de acción", align: "center", render: (m) => <ActionTypeBadge type={m.actionType} /> },
+    {
+      key: "detail",
+      header: "Detalle",
+      render: (m) => (
+        <div style={{ fontSize: 12, color: "var(--text-secondary)", wordBreak: "break-word" }}>
+          {m.target ?? "—"}
+          {m.details && <span style={{ color: "var(--text-muted)" }}> — {m.details}</span>}
+        </div>
+      ),
+    },
+  ];
+
   // ---- Bitácora (ya desbloqueada) ----
   return (
     <div>
@@ -441,937 +1080,789 @@ const AdminAccessLogView: React.FC<ViewProps> = () => {
             ? "Historial de inicios de sesión de administradores y gerentes"
             : activeTab === "active-sessions"
             ? "Sesiones de administrador/gerente activas en este momento"
-            : "Historial de cierres de sesión (normales y revocados)"
+            : activeTab === "closures"
+            ? "Historial de cierres de sesión (normales y revocados)"
+            : "Log de movimientos administrativos (navegación y acciones sensibles)"
         }
       />
 
-      <div style={{ display: "flex", gap: 0, marginBottom: 18, borderBottom: "1px solid var(--border)" }}>
-        {(["logins", "active-sessions", "closures"] as const).map((tab) => {
-          const isActive = activeTab === tab;
-          return (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              style={{
-                background: "none",
-                border: "none",
-                borderBottom: isActive ? "2px solid var(--accent)" : "2px solid transparent",
-                marginBottom: -1,
-                padding: "8px 20px",
-                fontSize: 14,
-                fontWeight: isActive ? 700 : 500,
-                color: isActive ? "var(--accent-strong)" : "var(--text-muted)",
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              {tab === "logins" ? "Accesos" : tab === "active-sessions" ? "Sesiones Activas" : "Historial de Cierres"}
-            </button>
-          );
-        })}
+      <style>{`
+        .admin-access-tabs-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+        .admin-access-tabs-scroll::-webkit-scrollbar { display: none; }
+      `}</style>
+      <div style={{ position: "relative", marginBottom: 18 }}>
+        <div
+          className="admin-access-tabs-scroll"
+          style={{
+            display: "flex",
+            gap: 0,
+            borderBottom: "1px solid var(--border)",
+            overflowX: "auto",
+            overflowY: "hidden",
+          }}
+        >
+          {(["logins", "active-sessions", "closures", "movements"] as const).map((tab) => {
+            const isActive = activeTab === tab;
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  borderBottom: isActive ? "2px solid var(--accent)" : "2px solid transparent",
+                  marginBottom: -1,
+                  padding: "8px 20px",
+                  fontSize: 14,
+                  fontWeight: isActive ? 700 : 500,
+                  color: isActive ? "var(--accent-strong)" : "var(--text-muted)",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                }}
+              >
+                {tab === "logins"
+                  ? "Accesos"
+                  : tab === "active-sessions"
+                  ? "Sesiones Activas"
+                  : tab === "closures"
+                  ? "Historial de Cierres"
+                  : "Log de movimientos"}
+              </button>
+            );
+          })}
+        </div>
+        {/* Indicio visual de que hay más pestañas a la derecha (el scroll horizontal
+            corta el texto en el borde): fundido sutil hacia el fondo de la página. */}
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            bottom: 1,
+            width: 28,
+            background: "linear-gradient(to right, transparent, var(--app-bg))",
+            pointerEvents: "none",
+          }}
+        />
       </div>
 
       {activeTab === "logins" && (
-      <>
-      {isMobile ? (
-        <div style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-          marginBottom: 16,
-          padding: "12px",
-          backgroundColor: "var(--surface-2)",
-          borderRadius: 12,
-          border: "1px solid var(--border)"
-        }}>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Desde:</label>
-            <input
-              type="date"
-              value={from}
-              max={to || undefined}
-              onChange={(e) => setFrom(e.target.value)}
-              style={{
-                ...ui.input,
-                padding: "6px 10px",
-                fontSize: 13,
-                flex: 1,
-                minWidth: 0,
-                ...(dateError ? { borderColor: "#ef4444" } : {})
-              }}
-            />
-          </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Hasta:</label>
-            <input
-              type="date"
-              value={to}
-              min={from || undefined}
-              onChange={(e) => setTo(e.target.value)}
-              style={{
-                ...ui.input,
-                padding: "6px 10px",
-                fontSize: 13,
-                flex: 1,
-                minWidth: 0,
-                ...(dateError ? { borderColor: "#ef4444" } : {})
-              }}
-            />
-          </div>
-          <div>
-            <input
-              type="text"
-              placeholder="Buscar usuario..."
-              value={userSearch}
-              onChange={(e) => setUserSearch(e.target.value)}
-              maxLength={120}
-              style={{
-                ...ui.input,
-                padding: "6px 10px",
-                fontSize: 13,
-                width: "100%"
-              }}
-            />
-          </div>
-          <button
-            onClick={clearFilters}
-            style={{
-              ...ui.ghostBtn,
-              padding: "8px 14px",
-              fontSize: 13,
-              backgroundColor: "var(--surface-3)",
-              border: "1px solid var(--border)",
-              borderRadius: "8px",
-              color: "var(--text-muted)",
-              fontWeight: 600,
-              width: "100%"
-            }}
-            className="active-tap"
-          >
-            Limpiar filtros
-          </button>
-          {(dateError || userSearchError) && (
-            <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 600 }}>
-              {dateError || userSearchError}
-            </span>
-          )}
-          <div style={{
-            fontSize: 12,
-            color: "var(--text-muted)",
-            fontWeight: 600,
-            textAlign: "center",
-            paddingTop: 4,
-            borderTop: "1px solid var(--border)"
-          }}>
-            {visible.length} registro{visible.length !== 1 ? "s" : ""}
-          </div>
-        </div>
-      ) : (
-        <Toolbar>
-          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Desde:</label>
-            <input
-              type="date"
-              value={from}
-              max={to || undefined}
-              onChange={(e) => setFrom(e.target.value)}
-              style={{ ...inputStyle, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
-            />
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Hasta:</label>
-            <input
-              type="date"
-              value={to}
-              min={from || undefined}
-              onChange={(e) => setTo(e.target.value)}
-              style={{ ...inputStyle, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
-            />
-            <input
-              type="text"
-              placeholder="Buscar usuario..."
-              value={userSearch}
-              onChange={(e) => setUserSearch(e.target.value)}
-              maxLength={120}
-              style={{ ...inputStyle, minWidth: 160 }}
-            />
-            <button
-              onClick={clearFilters}
-              style={{
-                padding: "8px 14px",
-                background: "#f3f4f6",
-                border: "1px solid #d1d5db",
-                borderRadius: 6,
-                cursor: "pointer",
-                fontSize: 13,
-                fontWeight: 600,
-                color: "#374151",
-              }}
-              className="active-tap"
+        <>
+          {/* ============================== FILTROS ============================== */}
+          {isMobile ? (
+            <MobileFilterDisclosure
+              id="admin-access-logs-filters"
+              title="Filtros"
+              activeCount={logsActiveFilterLabels.length}
+              summary={truncatedSummary(logsFilterSummary)}
+              isOpen={logsFiltersOpen}
+              onToggle={() => setLogsFiltersOpen((c) => !c)}
             >
-              Limpiar
-            </button>
-          </div>
-          <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-            {visible.length} registro{visible.length !== 1 ? "s" : ""}
-          </span>
-        </Toolbar>
-      )}
-
-      {isMobile ? (
-        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 4px" }}>
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "1.8fr 1.8fr 1.2fr",
-            padding: "10px 12px",
-            fontWeight: 700,
-            fontSize: 10,
-            color: "var(--text-muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.3px",
-          }}>
-            <div>Fecha</div>
-            <div>Sucursal</div>
-            <div style={{ textAlign: "right" }}>Acción</div>
-          </div>
-
-          {loading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              Cargando información...
-            </div>
-          )}
-          {error && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
-              {error}
-            </div>
-          )}
-          {!loading && !error && visible.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              No hay registros para mostrar.
-            </div>
-          )}
-
-          {!loading &&
-            !error &&
-            visible.map((row) => {
-              const isExpanded = expandedLogs[row.id];
-              return (
-                <div
-                  key={row.id}
-                  style={{
-                    backgroundColor: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 12,
-                    marginBottom: 10,
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
-                    overflow: "hidden",
-                  }}
+              <div style={mobileFilterFieldsWrap}>
+                <MobileDateRangeFields from={from} to={to} onFrom={setFrom} onTo={setTo} hasError={Boolean(dateError)} />
+                <input
+                  type="text"
+                  placeholder="Buscar usuario..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  maxLength={120}
+                  style={{ ...ui.input, flex: "1 1 100%", maxWidth: "100%", padding: "6px 8px" }}
+                />
+                <button
+                  onClick={clearFilters}
+                  style={{ ...ui.ghostBtn, flex: "1 1 100%", justifyContent: "center", padding: "6px 8px", fontSize: 12 }}
+                  className="active-tap"
                 >
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "6px 12px 5px 12px",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: "var(--text-muted)",
-                    borderBottom: "1px solid var(--surface-3)",
-                    backgroundColor: "var(--surface-2)",
-                    letterSpacing: "0.2px",
-                    textTransform: "uppercase"
-                  }}>
-                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "55%" }}>
-                      {row.user.name}
-                    </span>
-                    <RoleBadge role={row.role} />
-                  </div>
+                  Limpiar filtros
+                </button>
+                {(dateError || userSearchError) && (
+                  <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 600, flex: "1 1 100%" }}>{dateError || userSearchError}</span>
+                )}
+              </div>
+            </MobileFilterDisclosure>
+          ) : (
+            <Toolbar>
+              <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Desde:</label>
+                <input
+                  type="date"
+                  value={from}
+                  max={to || undefined}
+                  onChange={(e) => setFrom(e.target.value)}
+                  style={{ ...inputStyle, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
+                />
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Hasta:</label>
+                <input
+                  type="date"
+                  value={to}
+                  min={from || undefined}
+                  onChange={(e) => setTo(e.target.value)}
+                  style={{ ...inputStyle, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
+                />
+                <input
+                  type="text"
+                  placeholder="Buscar usuario..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  maxLength={120}
+                  style={{ ...inputStyle, minWidth: 160 }}
+                />
+                <button onClick={clearFilters} style={ui.ghostBtn} className="active-tap">
+                  Limpiar
+                </button>
+              </div>
+              <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                {visible.length} registro{visible.length !== 1 ? "s" : ""}
+              </span>
+            </Toolbar>
+          )}
 
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.8fr 1.8fr 1.2fr",
-                    padding: "10px 12px",
-                    alignItems: "center",
-                    gap: "4px"
-                  }}>
-                    <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-                      <div>{fmtDate(row.createdAt)}</div>
-                      <div style={{ fontSize: 10, color: "var(--text-faint)", marginTop: 1 }}>
-                        {fmtTime(row.createdAt)}
-                      </div>
-                    </div>
-
-                    <div style={{
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: "var(--text-secondary)",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis"
-                    }}>
-                      {row.branch?.name ?? "—"}
-                    </div>
-
-                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                      <button
-                        onClick={() => toggleExpand(row.id)}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: "var(--surface)",
-                          border: "1px solid var(--border-strong)",
-                          borderRadius: 6,
-                          width: 30,
-                          height: 30,
-                          cursor: "pointer",
-                          color: "var(--text-muted)",
-                          padding: 0,
-                        }}
-                        className="active-tap"
-                      >
-                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                      </button>
-                    </div>
-                  </div>
-
-                  {isExpanded && (
-                    <div style={{
-                      padding: "12px",
-                      margin: "0 12px 12px 12px",
-                      backgroundColor: "var(--surface-2)",
-                      borderRadius: "8px",
-                      border: "1px solid var(--border)",
-                      display: "grid",
-                      gridTemplateColumns: "1fr",
-                      gap: "6px",
-                      textAlign: "left",
-                    }}>
-                      <div style={detailRowStyle}>
-                        <span style={detailLabelStyle}>Usuario:</span>
-                        <span style={detailValueStyle}>{row.user.name} ({row.user.email})</span>
-                      </div>
-                      <div style={detailRowStyle}>
-                        <span style={detailLabelStyle}>Rol:</span>
-                        <span style={detailValueStyle}>{row.role}</span>
-                      </div>
-                      <div style={detailRowStyle}>
-                        <span style={detailLabelStyle}>Sucursal:</span>
-                        <span style={detailValueStyle}>{row.branch?.name ?? "—"}</span>
-                      </div>
-                      <div style={detailRowStyle}>
-                        <span style={detailLabelStyle}>Método:</span>
-                        <span style={detailValueStyle}>{row.method}</span>
-                      </div>
-                      <div style={detailRowStyle}>
-                        <span style={detailLabelStyle}>Dirección IP:</span>
-                        <span style={{ ...detailValueStyle, fontFamily: "monospace", fontSize: 11 }}>
-                          {row.ipAddress ?? "—"}
-                        </span>
-                      </div>
-                    </div>
-                  )}
+          {/* ============================== MÓVIL / ESCRITORIO ============================== */}
+          {isMobile ? (
+            <div style={{ padding: "8px 4px" }}>
+              {loading && (
+                <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+                  Cargando información...
                 </div>
-              );
-            })}
-        </div>
-      ) : (
-        <div
-          className="table-sticky-head"
-          style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}
-        >
-          <table style={ui.table}>
-            <thead>
-              <tr style={ui.theadRow}>
-                <th style={ui.th}>Fecha / Hora</th>
-                <th style={ui.th}>Usuario</th>
-                <th style={{ ...ui.th, textAlign: "center" }}>Rol</th>
-                <th style={ui.th}>Sucursal</th>
-                <th style={{ ...ui.th, textAlign: "center" }}>Método</th>
-                <th style={{ ...ui.th, fontFamily: "monospace" }}>IP</th>
-              </tr>
-            </thead>
-            <tbody>
-              <TableState
-                colSpan={6}
-                loading={loading}
-                error={error}
-                empty={!loading && visible.length === 0}
-                emptyText="No hay accesos administrativos para los filtros seleccionados."
-              />
+              )}
+              {error && (
+                <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>{error}</div>
+              )}
+              {!loading && !error && logsPagination.total === 0 && (
+                <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+                  No hay registros para mostrar.
+                </div>
+              )}
               {!loading &&
                 !error &&
-                visible.map((row) => (
-                  <tr key={row.id}>
-                    <td style={{ ...ui.td, whiteSpace: "nowrap", color: "var(--text-secondary)" }}>{fmtDateTime(row.createdAt)}</td>
-                    <td style={ui.td}>
-                      <div style={{ fontWeight: 700, color: "var(--text)" }}>{row.user.name}</div>
-                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{row.user.email}</div>
-                    </td>
-                    <td style={{ ...ui.td, textAlign: "center" }}>
-                      <RoleBadge role={row.role} />
-                    </td>
-                    <td style={{ ...ui.td, color: "var(--text-muted)" }}>
-                      {row.branch?.name ?? <span style={{ color: "var(--border-strong)" }}>—</span>}
-                    </td>
-                    <td style={{ ...ui.td, textAlign: "center", fontSize: 12, color: "var(--text-secondary)" }}>{row.method}</td>
-                    <td style={{ ...ui.td, fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-                      {row.ipAddress ?? "—"}
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      </>
+                logsPagination.pageItems.map((row) => {
+                  const isExpanded = expandedLogs[row.id];
+                  return (
+                    <ExpandableCard
+                      key={row.id}
+                      isExpanded={isExpanded}
+                      onToggle={() => toggleExpand(row.id)}
+                      topDate={`${fmtDate(row.createdAt)} ${fmtTime(row.createdAt)}`}
+                      topBadge={<RoleBadge role={row.role} />}
+                      mainTitle={row.user.name}
+                      mainSubtitle={
+                        <>
+                          Sucursal: <strong>{row.branch?.name ?? "—"}</strong>
+                        </>
+                      }
+                    >
+                      {detailRow("Usuario", row.user.email)}
+                      {detailRow("Sucursal", row.branch?.name ?? "—")}
+                      {detailRow("Método", row.method)}
+                      {detailRow("IP", <span style={{ fontFamily: "monospace" }}>{row.ipAddress ?? "—"}</span>)}
+                    </ExpandableCard>
+                  );
+                })}
+            </div>
+          ) : (
+            <DataTable
+              columns={loginColumns}
+              data={logsPagination.pageItems}
+              loading={loading}
+              error={error}
+              emptyMessage="No hay accesos administrativos para los filtros seleccionados."
+              keyExtractor={(row) => row.id}
+              height="calc(100vh - 275px)"
+            />
+          )}
+
+          {!loading && !error && (
+            <Pagination
+              page={logsPagination.page}
+              pageCount={logsPagination.pageCount}
+              total={logsPagination.total}
+              from={logsPagination.from}
+              to={logsPagination.to}
+              onPage={logsPagination.setPage}
+              itemLabel="registros"
+            />
+          )}
+        </>
       )}
 
       {activeTab === "active-sessions" && (
-      <>
-      {isMobile ? (
-        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 4px" }}>
-          {sessionsLoading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              Cargando información...
-            </div>
-          )}
-          {sessionsError && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
-              {sessionsError}
-            </div>
-          )}
-          {!sessionsLoading && !sessionsError && sessionsPagination.pageItems.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              No hay sesiones de administrador/gerente activas.
-            </div>
-          )}
-
-          {!sessionsLoading &&
-            !sessionsError &&
-            sessionsPagination.pageItems.map((s) => {
-              const isSelf = user?.id === s.userId;
-              return (
-                <div
-                  key={s.userId}
-                  style={{
-                    backgroundColor: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 12,
-                    marginBottom: 10,
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
-                    overflow: "hidden",
-                  }}
-                >
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "8px 12px 6px 12px",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: "var(--text-muted)",
-                    borderBottom: "1px solid var(--surface-3)",
-                    backgroundColor: "var(--surface-2)",
-                    letterSpacing: "0.2px",
-                    textTransform: "uppercase"
-                  }}>
-                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "60%" }}>
-                      {s.name}{isSelf ? " (tú)" : ""}
-                    </span>
-                    <RoleBadge role={s.role} />
-                  </div>
-                  <div style={{ padding: "12px", display: "grid", gap: "6px" }}>
-                    <div style={detailRowStyle}>
-                      <span style={detailLabelStyle}>Correo:</span>
-                      <span style={detailValueStyle}>{s.email}</span>
-                    </div>
-                    <div style={detailRowStyle}>
-                      <span style={detailLabelStyle}>Sucursal:</span>
-                      <span style={detailValueStyle}>{s.branch?.name ?? "—"}</span>
-                    </div>
-                    <div style={detailRowStyle}>
-                      <span style={detailLabelStyle}>Desde:</span>
-                      <span style={detailValueStyle}>{fmtDateTime(s.since)}</span>
-                    </div>
-                    <div style={detailRowStyle}>
-                      <span style={detailLabelStyle}>Dispositivo:</span>
-                      <span style={detailValueStyle}>
-                        <div style={{ fontWeight: 600, fontSize: 12 }}>{formatDevice(s.deviceId)}</div>
-                        <div style={{ fontFamily: "monospace", fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>
-                          {formatDeviceShort(s.deviceId)}
-                        </div>
-                      </span>
-                    </div>
-                    <div style={detailRowStyle}>
-                      <span style={detailLabelStyle}>IP:</span>
-                      <span style={{ ...detailValueStyle, fontFamily: "monospace", fontSize: 11 }}>{formatIP(s.ipAddress)}</span>
-                    </div>
-                    {!isSelf && (
-                      <button
-                        onClick={() => setRevokeTarget(s)}
-                        style={{
-                          marginTop: 6,
-                          padding: "8px 14px",
-                          borderRadius: 8,
-                          border: "1px solid #fca5a5",
-                          backgroundColor: "#fef2f2",
-                          color: "#b91c1c",
-                          fontWeight: 700,
-                          fontSize: 13,
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 6,
-                        }}
-                        className="active-tap"
-                      >
-                        <ShieldOff size={14} /> Cerrar sesión
-                      </button>
-                    )}
-                  </div>
+        <>
+          {isMobile ? (
+            <div style={{ padding: "8px 4px" }}>
+              {sessionsLoading && (
+                <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+                  Cargando información...
                 </div>
-              );
-            })}
-          <Pagination {...sessionsPagination} onPage={sessionsPagination.setPage} itemLabel="sesiones" />
-        </div>
-      ) : (
-        <div
-          className="table-sticky-head"
-          style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}
-        >
-          <table style={ui.table}>
-            <thead>
-              <tr style={ui.theadRow}>
-                <th style={ui.th}>Usuario</th>
-                <th style={{ ...ui.th, textAlign: "center" }}>Rol</th>
-                <th style={ui.th}>Sucursal</th>
-                <th style={ui.th}>Activo desde</th>
-                <th style={ui.th}>Dispositivo</th>
-                <th style={{ ...ui.th, fontFamily: "monospace" }}>IP</th>
-                <th style={{ ...ui.th, textAlign: "right" }}>Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              <TableState
-                colSpan={7}
-                loading={sessionsLoading}
-                error={sessionsError}
-                empty={!sessionsLoading && sessionsPagination.pageItems.length === 0}
-                emptyText="No hay sesiones de administrador/gerente activas."
-              />
+              )}
+              {sessionsError && (
+                <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>{sessionsError}</div>
+              )}
+              {!sessionsLoading && !sessionsError && sessionsPagination.total === 0 && (
+                <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+                  No hay sesiones de administrador/gerente activas.
+                </div>
+              )}
+
               {!sessionsLoading &&
                 !sessionsError &&
                 sessionsPagination.pageItems.map((s) => {
                   const isSelf = user?.id === s.userId;
+                  const isExpanded = expandedSessions[s.userId];
                   return (
-                    <tr key={s.userId}>
-                      <td style={ui.td}>
-                        <div style={{ fontWeight: 700, color: "var(--text)" }}>{s.name}{isSelf ? " (tú)" : ""}</div>
-                        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{s.email}</div>
-                      </td>
-                      <td style={{ ...ui.td, textAlign: "center" }}>
-                        <RoleBadge role={s.role} />
-                      </td>
-                      <td style={{ ...ui.td, color: "var(--text-muted)" }}>
-                        {s.branch?.name ?? <span style={{ color: "var(--border-strong)" }}>—</span>}
-                      </td>
-                      <td style={{ ...ui.td, whiteSpace: "nowrap", color: "var(--text-secondary)" }}>{fmtDateTime(s.since)}</td>
-                      <td style={ui.td}>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)" }}>
-                          {formatDevice(s.deviceId)}
-                        </div>
-                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, fontFamily: "monospace" }}>
-                          {formatDeviceShort(s.deviceId)}
-                        </div>
-                      </td>
-                      <td style={{ ...ui.td, fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-                        {formatIP(s.ipAddress)}
-                      </td>
-                      <td style={{ ...ui.td, textAlign: "right" }}>
-                        {!isSelf && (
+                    <ExpandableCard
+                      key={s.userId}
+                      isExpanded={isExpanded}
+                      onToggle={() => toggleExpandSession(s.userId)}
+                      topDate={`Desde ${fmtDateTime(s.since)}`}
+                      topBadge={<RoleBadge role={s.role} />}
+                      mainTitle={
+                        <>
+                          {s.name}
+                          {isSelf ? " (tú)" : ""}
+                        </>
+                      }
+                      mainSubtitle={
+                        <>
+                          Sucursal: <strong>{s.branch?.name ?? "—"}</strong>
+                        </>
+                      }
+                      extraActions={
+                        !isSelf && (
                           <button
                             onClick={() => setRevokeTarget(s)}
                             style={{
-                              padding: "6px 12px",
+                              marginTop: 10,
+                              padding: "8px 14px",
                               borderRadius: 8,
                               border: "1px solid #fca5a5",
                               backgroundColor: "#fef2f2",
                               color: "#b91c1c",
                               fontWeight: 700,
-                              fontSize: 12,
+                              fontSize: 13,
                               cursor: "pointer",
                               display: "inline-flex",
                               alignItems: "center",
-                              gap: 5,
+                              justifyContent: "center",
+                              gap: 6,
+                              width: "100%",
                             }}
                             className="active-tap"
                           >
-                            <ShieldOff size={13} /> Cerrar sesión
+                            <ShieldOff size={14} /> Cerrar sesión
                           </button>
-                        )}
-                      </td>
-                    </tr>
+                        )
+                      }
+                    >
+                      {detailRow("Correo", s.email)}
+                      {detailRow("Sucursal", s.branch?.name ?? "—")}
+                      {detailRow(
+                        "Dispositivo",
+                        <>
+                          <div style={{ fontWeight: 600 }}>{formatDevice(s.deviceId)}</div>
+                          <div style={{ fontFamily: "monospace", fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>
+                            {formatDeviceShort(s.deviceId)}
+                          </div>
+                        </>
+                      )}
+                      {detailRow("IP", <span style={{ fontFamily: "monospace" }}>{formatIP(s.ipAddress)}</span>)}
+                    </ExpandableCard>
                   );
                 })}
-            </tbody>
-          </table>
-          <div style={{ padding: "0 4px" }}>
-            <Pagination {...sessionsPagination} onPage={sessionsPagination.setPage} itemLabel="sesiones" />
-          </div>
-        </div>
-      )}
-
-      {/* ===================== SUB-MODAL PASO 1: MOTIVO DE CIERRE ===================== */}
-      {revokeTarget && !revokeConfirmOpen && (
-        <div style={ui.overlay} onClick={closeRevokeFlow}>
-          <div
-            style={{ ...ui.modal, maxWidth: 440, width: "100%" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={ui.modalHeader}>
-              <span style={ui.modalTitle}>¿Cerrar la sesión de "{revokeTarget.name}"?</span>
-              <button style={ui.ghostBtn} onClick={closeRevokeFlow} title="Cerrar"><X size={15} /></button>
+              <Pagination {...sessionsPagination} onPage={sessionsPagination.setPage} itemLabel="sesiones" />
             </div>
-            <div style={ui.modalBody}>
-              <p style={{ fontSize: 13, color: "#b91c1c", fontWeight: 600, marginBottom: 18, display: "flex", alignItems: "center", gap: 6 }}>
-                <AlertTriangle size={14} /> Se cerrará de inmediato y deberá volver a iniciar sesión.
-              </p>
-              <label style={ui.fieldLabel}>Motivo del cierre *</label>
-              <textarea
-                value={revokeReason}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setRevokeReason(value);
-                  setRevokeReasonError(validateReference(value, "El motivo", { required: true, max: 180 }) || "");
-                }}
-                placeholder="Ingresa el motivo del cierre de sesión..."
-                rows={3}
-                style={{
-                  ...ui.input,
-                  resize: "vertical",
-                  minHeight: 80,
-                  fontFamily: "inherit",
-                  lineHeight: 1.5,
-                }}
+          ) : (
+            <>
+              <DataTable
+                columns={sessionColumns}
+                data={sessionsPagination.pageItems}
+                loading={sessionsLoading}
+                error={sessionsError}
+                emptyMessage="No hay sesiones de administrador/gerente activas."
+                keyExtractor={(s) => s.userId}
+                height="calc(100vh - 275px)"
               />
-              {revokeReasonError && <p style={ui.fieldError}>{revokeReasonError}</p>}
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
-                <button style={ui.ghostBtn} onClick={closeRevokeFlow}>
-                  Cancelar
-                </button>
-                <button
-                  style={{
-                    ...ui.primaryBtn,
-                    backgroundColor: !revokeReason.trim() ? "#94a3b8" : "#b91c1c",
-                    cursor: !revokeReason.trim() ? "not-allowed" : "pointer",
-                  }}
-                  onClick={() => {
-                    const err = validateReference(revokeReason, "El motivo", { required: true, max: 180 });
-                    if (err) { setRevokeReasonError(err); return; }
-                    setRevokeReasonError("");
-                    setRevokeConfirmOpen(true);
-                  }}
-                  disabled={!revokeReason.trim()}
-                >
-                  Continuar →
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+              {!sessionsLoading && !sessionsError && (
+                <Pagination {...sessionsPagination} onPage={sessionsPagination.setPage} itemLabel="sesiones" />
+              )}
+            </>
+          )}
 
-      {/* ================= SUB-MODAL PASO 2: CONFIRMAR CIERRE DE SESIÓN ================= */}
-      {revokeTarget && revokeConfirmOpen && (
-        <div style={{ ...ui.overlay, zIndex: 310 }} onClick={() => setRevokeConfirmOpen(false)}>
-          <div
-            style={{ ...ui.modal, maxWidth: 440, width: "100%" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={ui.modalHeader}>
-              <span style={ui.modalTitle}>Confirmar cierre de sesión</span>
-              <button style={ui.ghostBtn} onClick={() => setRevokeConfirmOpen(false)} title="Cerrar"><X size={15} /></button>
-            </div>
-            <div style={ui.modalBody}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20 }}>
-                <div style={detailRowStyle}>
-                  <span style={detailLabelStyle}>Usuario:</span>
-                  <span style={detailValueStyle}>{revokeTarget.name} ({revokeTarget.email})</span>
+          {/* ===================== SUB-MODAL PASO 1: MOTIVO DE CIERRE ===================== */}
+          {revokeTarget && !revokeConfirmOpen && (
+            <div style={ui.overlay} onClick={closeRevokeFlow}>
+              <div style={{ ...ui.modal, maxWidth: 440, width: "100%" }} onClick={(e) => e.stopPropagation()}>
+                <div style={ui.modalHeader}>
+                  <span style={ui.modalTitle}>¿Cerrar la sesión de "{revokeTarget.name}"?</span>
+                  <button style={ui.ghostBtn} onClick={closeRevokeFlow} title="Cerrar">
+                    <X size={15} />
+                  </button>
                 </div>
-                <div style={detailRowStyle}>
-                  <span style={detailLabelStyle}>Sucursal:</span>
-                  <span style={detailValueStyle}>{revokeTarget.branch?.name ?? "—"}</span>
-                </div>
-                <div style={{ ...detailRowStyle, alignItems: "flex-start" }}>
-                  <span style={detailLabelStyle}>Motivo:</span>
-                  <span style={{ ...detailValueStyle, wordBreak: "break-word", flex: 1 }}>{revokeReason}</span>
+                <div style={ui.modalBody}>
+                  <p
+                    style={{
+                      fontSize: 13,
+                      color: "#b91c1c",
+                      fontWeight: 600,
+                      marginBottom: 18,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <AlertTriangle size={14} /> Se cerrará de inmediato y deberá volver a iniciar sesión.
+                  </p>
+                  <label style={ui.fieldLabel}>Motivo del cierre *</label>
+                  <textarea
+                    value={revokeReason}
+                    maxLength={180}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value.length <= 180) {
+                        setRevokeReason(value);
+                        setRevokeReasonError(validateReference(value, "El motivo", { required: true, max: 180 }) || "");
+                      }
+                    }}
+                    placeholder="Ingresa el motivo del cierre de sesión..."
+                    rows={3}
+                    style={{
+                      ...ui.input,
+                      resize: "vertical",
+                      minHeight: 80,
+                      fontFamily: "inherit",
+                      lineHeight: 1.5,
+                    }}
+                  />
+                  {revokeReasonError && <p style={ui.fieldError}>{revokeReasonError}</p>}
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
+                    <button style={ui.ghostBtn} onClick={closeRevokeFlow}>
+                      Cancelar
+                    </button>
+                    <button
+                      style={{
+                        ...ui.primaryBtn,
+                        backgroundColor: !revokeReason.trim() ? "#94a3b8" : "#b91c1c",
+                        cursor: !revokeReason.trim() ? "not-allowed" : "pointer",
+                      }}
+                      onClick={() => {
+                        const err = validateReference(revokeReason, "El motivo", { required: true, max: 180 });
+                        if (err) {
+                          setRevokeReasonError(err);
+                          return;
+                        }
+                        setRevokeReasonError("");
+                        setRevokeConfirmOpen(true);
+                      }}
+                      disabled={!revokeReason.trim()}
+                    >
+                      Continuar →
+                    </button>
+                  </div>
                 </div>
               </div>
-              <p style={{ fontSize: 13, color: "#b91c1c", fontWeight: 600, marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
-                <AlertTriangle size={14} /> Esta acción cerrará la sesión de inmediato y no se puede deshacer.
-              </p>
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-                <button
-                  style={ui.ghostBtn}
-                  onClick={() => setRevokeConfirmOpen(false)}
-                  disabled={revoking}
-                >
-                  ← Regresar
-                </button>
-                <button
-                  style={{
-                    ...ui.primaryBtn,
-                    backgroundColor: "#b91c1c",
-                    cursor: revoking ? "not-allowed" : "pointer",
-                  }}
-                  onClick={confirmRevokeSession}
-                  disabled={revoking}
-                >
-                  {revoking ? "Cerrando..." : "Confirmar cierre"}
-                </button>
+            </div>
+          )}
+
+          {/* ================= SUB-MODAL PASO 2: CONFIRMAR CIERRE DE SESIÓN ================= */}
+          {revokeTarget && revokeConfirmOpen && (
+            <div style={{ ...ui.overlay, zIndex: 310 }} onClick={() => setRevokeConfirmOpen(false)}>
+              <div style={{ ...ui.modal, maxWidth: 440, width: "100%" }} onClick={(e) => e.stopPropagation()}>
+                <div style={ui.modalHeader}>
+                  <span style={ui.modalTitle}>Confirmar cierre de sesión</span>
+                  <button style={ui.ghostBtn} onClick={() => setRevokeConfirmOpen(false)} title="Cerrar">
+                    <X size={15} />
+                  </button>
+                </div>
+                <div style={ui.modalBody}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20 }}>
+                    {detailRow("Usuario", `${revokeTarget.name} (${revokeTarget.email})`)}
+                    {detailRow("Sucursal", revokeTarget.branch?.name ?? "—")}
+                    <div style={{ ...detailRowStyle, alignItems: "flex-start" }}>
+                      <span style={detailLabelStyle}>Motivo:</span>
+                      <span style={{ ...detailValueStyle, wordBreak: "break-word", flex: 1 }}>{revokeReason}</span>
+                    </div>
+                  </div>
+                  <p
+                    style={{
+                      fontSize: 13,
+                      color: "#b91c1c",
+                      fontWeight: 600,
+                      marginBottom: 20,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <AlertTriangle size={14} /> Esta acción cerrará la sesión de inmediato y no se puede deshacer.
+                  </p>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                    <button style={ui.ghostBtn} onClick={() => setRevokeConfirmOpen(false)} disabled={revoking}>
+                      ← Regresar
+                    </button>
+                    <button
+                      style={{
+                        ...ui.primaryBtn,
+                        backgroundColor: "#b91c1c",
+                        cursor: revoking ? "not-allowed" : "pointer",
+                      }}
+                      onClick={confirmRevokeSession}
+                      disabled={revoking}
+                    >
+                      {revoking ? "Cerrando..." : "Confirmar cierre"}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-      </>
+          )}
+        </>
       )}
 
       {activeTab === "closures" && (
-      <>
-      {isMobile ? (
-        <div style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-          marginBottom: 16,
-          padding: "12px",
-          backgroundColor: "var(--surface-2)",
-          borderRadius: 12,
-          border: "1px solid var(--border)"
-        }}>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Desde:</label>
-            <input
-              type="date"
-              value={from}
-              max={to || undefined}
-              onChange={(e) => setFrom(e.target.value)}
-              style={{ ...ui.input, padding: "6px 10px", fontSize: 13, flex: 1, minWidth: 0, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
-            />
-          </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Hasta:</label>
-            <input
-              type="date"
-              value={to}
-              min={from || undefined}
-              onChange={(e) => setTo(e.target.value)}
-              style={{ ...ui.input, padding: "6px 10px", fontSize: 13, flex: 1, minWidth: 0, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
-            />
-          </div>
-          {dateError && (
-            <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 600 }}>{dateError}</span>
-          )}
-        </div>
-      ) : (
-        <Toolbar>
-          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Desde:</label>
-            <input
-              type="date"
-              value={from}
-              max={to || undefined}
-              onChange={(e) => setFrom(e.target.value)}
-              style={{ ...inputStyle, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
-            />
-            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Hasta:</label>
-            <input
-              type="date"
-              value={to}
-              min={from || undefined}
-              onChange={(e) => setTo(e.target.value)}
-              style={{ ...inputStyle, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
-            />
-          </div>
-          <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-            {closureRows.length} registro{closureRows.length !== 1 ? "s" : ""}
-          </span>
-        </Toolbar>
-      )}
-
-      {isMobile ? (
-        <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 4px" }}>
-          {closuresLoading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              Cargando información...
-            </div>
-          )}
-          {closuresError && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>
-              {closuresError}
-            </div>
-          )}
-          {!closuresLoading && !closuresError && closuresPagination.pageItems.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              No hay cierres de sesión para mostrar.
-            </div>
-          )}
-
-          {!closuresLoading &&
-            !closuresError &&
-            closuresPagination.pageItems.map((c) => (
-              <div
-                key={c.id}
-                style={{
-                  backgroundColor: "var(--surface)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 12,
-                  marginBottom: 10,
-                  boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
-                  overflow: "hidden",
-                }}
-              >
-                <div style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "8px 12px 6px 12px",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: "var(--text-muted)",
-                  borderBottom: "1px solid var(--surface-3)",
-                  backgroundColor: "var(--surface-2)",
-                  letterSpacing: "0.2px",
-                  textTransform: "uppercase"
-                }}>
-                  <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "60%" }}>
-                    {c.user.name}
-                  </span>
-                  <ClosureTypeBadge type={c.closureType} />
-                </div>
-                <div style={{ padding: "12px", display: "grid", gap: "6px" }}>
-                  <div style={detailRowStyle}>
-                    <span style={detailLabelStyle}>Sucursal:</span>
-                    <span style={detailValueStyle}>{c.branch?.name ?? "—"}</span>
-                  </div>
-                  <div style={detailRowStyle}>
-                    <span style={detailLabelStyle}>Cerrado:</span>
-                    <span style={detailValueStyle}>{fmtDateTime(c.closedAt)}</span>
-                  </div>
-                  <div style={detailRowStyle}>
-                    <span style={detailLabelStyle}>Duración:</span>
-                    <span style={detailValueStyle}>{formatDuration(c.loginAt, c.closedAt)}</span>
-                  </div>
-                  <div style={detailRowStyle}>
-                    <span style={detailLabelStyle}>Dispositivo:</span>
-                    <span style={detailValueStyle}>
-                      <div style={{ fontWeight: 600, fontSize: 12 }}>{formatDevice(c.deviceId)}</div>
-                      <div style={{ fontFamily: "monospace", fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>
-                        {formatDeviceShort(c.deviceId)}
-                      </div>
-                    </span>
-                  </div>
-                  <div style={detailRowStyle}>
-                    <span style={detailLabelStyle}>IP:</span>
-                    <span style={{ ...detailValueStyle, fontFamily: "monospace", fontSize: 11 }}>{formatIP(c.ipAddress)}</span>
-                  </div>
-                  {c.closureType === "REVOKED" && (
-                    <div style={{ ...detailRowStyle, alignItems: "flex-start" }}>
-                      <span style={detailLabelStyle}>Motivo:</span>
-                      <span style={{ ...detailValueStyle, wordBreak: "break-word" }}>
-                        {c.revokedReason ?? "—"}
-                        {c.revokedBy && (
-                          <span style={{ color: "var(--text-muted)" }}> (por {c.revokedBy.name})</span>
-                        )}
-                      </span>
-                    </div>
-                  )}
-                </div>
+        <>
+          {/* ============================== FILTROS ============================== */}
+          {isMobile ? (
+            <MobileFilterDisclosure
+              id="admin-closures-filters"
+              title="Filtros"
+              activeCount={closuresActiveFilterLabels.length}
+              summary={truncatedSummary(closuresFilterSummary)}
+              isOpen={closuresFiltersOpen}
+              onToggle={() => setClosuresFiltersOpen((c) => !c)}
+            >
+              <div style={mobileFilterFieldsWrap}>
+                <MobileDateRangeFields from={from} to={to} onFrom={setFrom} onTo={setTo} hasError={Boolean(dateError)} />
+                <input
+                  type="text"
+                  placeholder="Buscar usuario o motivo..."
+                  value={closureSearch}
+                  onChange={(e) => setClosureSearch(e.target.value)}
+                  maxLength={120}
+                  style={{ ...ui.input, flex: "1 1 100%", maxWidth: "100%", padding: "6px 8px" }}
+                />
+                <FilterSelect
+                  value={closureTypeFilter}
+                  onChange={(v) => setClosureTypeFilter(v as ClosureTypeFilter)}
+                  options={[
+                    { value: "all", label: "Todos los tipos" },
+                    { value: "NORMAL", label: "Normal" },
+                    { value: "REVOKED", label: "Revocado" },
+                  ]}
+                  style={{ flex: "1 1 100%", maxWidth: "100%", width: "100%" }}
+                />
+                <button
+                  onClick={clearClosureFilters}
+                  style={{ ...ui.ghostBtn, flex: "1 1 100%", justifyContent: "center", padding: "6px 8px", fontSize: 12 }}
+                  className="active-tap"
+                >
+                  Limpiar filtros
+                </button>
+                {dateError && <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 600, flex: "1 1 100%" }}>{dateError}</span>}
               </div>
-            ))}
-          <Pagination {...closuresPagination} onPage={closuresPagination.setPage} itemLabel="cierres" />
-        </div>
-      ) : (
-        <div
-          className="table-sticky-head"
-          style={{ ...ui.tableWrap, overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}
-        >
-          <table style={ui.table}>
-            <thead>
-              <tr style={ui.theadRow}>
-                <th style={ui.th}>Usuario</th>
-                <th style={ui.th}>Sucursal</th>
-                <th style={ui.th}>Cerrado</th>
-                <th style={ui.th}>Duración</th>
-                <th style={{ ...ui.th, textAlign: "center" }}>Tipo</th>
-                <th style={ui.th}>Dispositivo</th>
-                <th style={{ ...ui.th, fontFamily: "monospace" }}>IP</th>
-                <th style={ui.th}>Motivo</th>
-              </tr>
-            </thead>
-            <tbody>
-              <TableState
-                colSpan={8}
-                loading={closuresLoading}
-                error={closuresError}
-                empty={!closuresLoading && closuresPagination.pageItems.length === 0}
-                emptyText="No hay cierres de sesión para los filtros seleccionados."
-              />
+            </MobileFilterDisclosure>
+          ) : (
+            <Toolbar>
+              <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Desde:</label>
+                <input
+                  type="date"
+                  value={from}
+                  max={to || undefined}
+                  onChange={(e) => setFrom(e.target.value)}
+                  style={{ ...inputStyle, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
+                />
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Hasta:</label>
+                <input
+                  type="date"
+                  value={to}
+                  min={from || undefined}
+                  onChange={(e) => setTo(e.target.value)}
+                  style={{ ...inputStyle, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
+                />
+                <input
+                  type="text"
+                  placeholder="Buscar usuario o motivo..."
+                  value={closureSearch}
+                  onChange={(e) => setClosureSearch(e.target.value)}
+                  maxLength={120}
+                  style={{ ...inputStyle, minWidth: 160 }}
+                />
+                <FilterSelect
+                  value={closureTypeFilter}
+                  onChange={(v) => setClosureTypeFilter(v as ClosureTypeFilter)}
+                  options={[
+                    { value: "all", label: "Todos los tipos" },
+                    { value: "NORMAL", label: "Normal" },
+                    { value: "REVOKED", label: "Revocado" },
+                  ]}
+                />
+                <button onClick={clearClosureFilters} style={ui.ghostBtn} className="active-tap">
+                  Limpiar
+                </button>
+              </div>
+              <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                {filteredClosures.length} registro{filteredClosures.length !== 1 ? "s" : ""}
+              </span>
+            </Toolbar>
+          )}
+
+          {isMobile ? (
+            <div style={{ padding: "8px 4px" }}>
+              {closuresLoading && (
+                <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+                  Cargando información...
+                </div>
+              )}
+              {closuresError && (
+                <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>{closuresError}</div>
+              )}
+              {!closuresLoading && !closuresError && closuresPagination.total === 0 && (
+                <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+                  No hay cierres de sesión para mostrar.
+                </div>
+              )}
+
               {!closuresLoading &&
                 !closuresError &&
-                closuresPagination.pageItems.map((c) => (
-                  <tr key={c.id}>
-                    <td style={ui.td}>
-                      <div style={{ fontWeight: 700, color: "var(--text)" }}>{c.user.name}</div>
-                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{c.user.email}</div>
-                    </td>
-                    <td style={{ ...ui.td, color: "var(--text-muted)" }}>
-                      {c.branch?.name ?? <span style={{ color: "var(--border-strong)" }}>—</span>}
-                    </td>
-                    <td style={{ ...ui.td, whiteSpace: "nowrap", color: "var(--text-secondary)" }}>{fmtDateTime(c.closedAt)}</td>
-                    <td style={{ ...ui.td, whiteSpace: "nowrap", color: "var(--text-secondary)" }}>
-                      {formatDuration(c.loginAt, c.closedAt)}
-                    </td>
-                    <td style={{ ...ui.td, textAlign: "center" }}>
-                      <ClosureTypeBadge type={c.closureType} />
-                    </td>
-                    <td style={ui.td}>
-                      <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)" }}>
-                        {formatDevice(c.deviceId)}
-                      </div>
-                      <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, fontFamily: "monospace" }}>
-                        {formatDeviceShort(c.deviceId)}
-                      </div>
-                    </td>
-                    <td style={{ ...ui.td, fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-                      {formatIP(c.ipAddress)}
-                    </td>
-                    <td style={{ ...ui.td, maxWidth: 220 }}>
-                      {c.closureType === "REVOKED" ? (
+                closuresPagination.pageItems.map((c) => {
+                  const isExpanded = expandedClosures[c.id];
+                  return (
+                    <ExpandableCard
+                      key={c.id}
+                      isExpanded={isExpanded}
+                      onToggle={() => toggleExpandClosure(c.id)}
+                      topDate={fmtDateTime(c.closedAt)}
+                      topBadge={<ClosureTypeBadge type={c.closureType} />}
+                      mainTitle={c.user.name}
+                      mainSubtitle={
                         <>
-                          <div style={{ fontSize: 12, color: "var(--text-secondary)", wordBreak: "break-word" }}>
-                            {c.revokedReason ?? "—"}
-                          </div>
-                          {c.revokedBy && (
-                            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-                              Por: {c.revokedBy.name}
-                            </div>
-                          )}
+                          Sucursal: <strong>{c.branch?.name ?? "—"}</strong>
                         </>
-                      ) : (
-                        <span style={{ color: "var(--border-strong)" }}>—</span>
+                      }
+                    >
+                      {detailRow("Duración", formatDuration(c.loginAt, c.closedAt))}
+                      {detailRow(
+                        "Dispositivo",
+                        <>
+                          <div style={{ fontWeight: 600 }}>{formatDevice(c.deviceId)}</div>
+                          <div style={{ fontFamily: "monospace", fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>
+                            {formatDeviceShort(c.deviceId)}
+                          </div>
+                        </>
                       )}
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-          <div style={{ padding: "0 4px" }}>
-            <Pagination {...closuresPagination} onPage={closuresPagination.setPage} itemLabel="cierres" />
-          </div>
-        </div>
+                      {detailRow("IP", <span style={{ fontFamily: "monospace" }}>{formatIP(c.ipAddress)}</span>)}
+                      {c.closureType === "REVOKED" &&
+                        detailRow(
+                          "Motivo",
+                          <>
+                            {c.revokedReason ?? "—"}
+                            {c.revokedBy && <span style={{ color: "var(--text-muted)" }}> (por {c.revokedBy.name})</span>}
+                          </>
+                        )}
+                    </ExpandableCard>
+                  );
+                })}
+              <Pagination {...closuresPagination} onPage={closuresPagination.setPage} itemLabel="cierres" />
+            </div>
+          ) : (
+            <>
+              <DataTable
+                columns={closureColumns}
+                data={closuresPagination.pageItems}
+                loading={closuresLoading}
+                error={closuresError}
+                emptyMessage="No hay cierres de sesión para los filtros seleccionados."
+                keyExtractor={(c) => c.id}
+                height="calc(100vh - 275px)"
+              />
+              {!closuresLoading && !closuresError && (
+                <Pagination {...closuresPagination} onPage={closuresPagination.setPage} itemLabel="cierres" />
+              )}
+            </>
+          )}
+        </>
       )}
-      </>
+
+      {activeTab === "movements" && (
+        <>
+          {/* ============================== FILTROS ============================== */}
+          {isMobile ? (
+            <MobileFilterDisclosure
+              id="admin-movements-filters"
+              title="Filtros"
+              activeCount={movementsActiveFilterLabels.length}
+              summary={truncatedSummary(movementsFilterSummary)}
+              isOpen={movementsFiltersOpen}
+              onToggle={() => setMovementsFiltersOpen((c) => !c)}
+            >
+              <div style={mobileFilterFieldsWrap}>
+                <MobileDateRangeFields from={from} to={to} onFrom={setFrom} onTo={setTo} hasError={Boolean(dateError)} />
+                <input
+                  type="text"
+                  placeholder="Buscar usuario o detalle..."
+                  value={movementSearch}
+                  onChange={(e) => setMovementSearch(e.target.value)}
+                  maxLength={120}
+                  style={{ ...ui.input, flex: "1 1 100%", maxWidth: "100%", padding: "6px 8px" }}
+                />
+                <FilterSelect
+                  value={actionTypeFilter}
+                  onChange={(v) => setActionTypeFilter(v as ActionTypeFilter)}
+                  options={[
+                    { value: "all", label: "Todos los tipos" },
+                    { value: "NAVIGATION", label: "Navegación" },
+                    { value: "REVOKE_SESSION", label: "Revocar sesión" },
+                    { value: "EMPLOYEE_STATUS_CHANGE", label: "Cambio de estado" },
+                  ]}
+                  style={{ flex: "1 1 100%", maxWidth: "100%", width: "100%" }}
+                />
+                <button
+                  onClick={clearMovementFilters}
+                  style={{ ...ui.ghostBtn, flex: "1 1 100%", justifyContent: "center", padding: "6px 8px", fontSize: 12 }}
+                  className="active-tap"
+                >
+                  Limpiar filtros
+                </button>
+                {dateError && <span style={{ color: "#b91c1c", fontSize: 12, fontWeight: 600, flex: "1 1 100%" }}>{dateError}</span>}
+              </div>
+            </MobileFilterDisclosure>
+          ) : (
+            <Toolbar>
+              <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Desde:</label>
+                <input
+                  type="date"
+                  value={from}
+                  max={to || undefined}
+                  onChange={(e) => setFrom(e.target.value)}
+                  style={{ ...inputStyle, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
+                />
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-strong)" }}>Hasta:</label>
+                <input
+                  type="date"
+                  value={to}
+                  min={from || undefined}
+                  onChange={(e) => setTo(e.target.value)}
+                  style={{ ...inputStyle, ...(dateError ? { borderColor: "#ef4444" } : {}) }}
+                />
+                <input
+                  type="text"
+                  placeholder="Buscar usuario o detalle..."
+                  value={movementSearch}
+                  onChange={(e) => setMovementSearch(e.target.value)}
+                  maxLength={120}
+                  style={{ ...inputStyle, minWidth: 160 }}
+                />
+                <FilterSelect
+                  value={actionTypeFilter}
+                  onChange={(v) => setActionTypeFilter(v as ActionTypeFilter)}
+                  options={[
+                    { value: "all", label: "Todos los tipos" },
+                    { value: "NAVIGATION", label: "Navegación" },
+                    { value: "REVOKE_SESSION", label: "Revocar sesión" },
+                    { value: "EMPLOYEE_STATUS_CHANGE", label: "Cambio de estado" },
+                  ]}
+                />
+                <button onClick={clearMovementFilters} style={ui.ghostBtn} className="active-tap">
+                  Limpiar
+                </button>
+              </div>
+              <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                {filteredMovements.length} registro{filteredMovements.length !== 1 ? "s" : ""}
+              </span>
+            </Toolbar>
+          )}
+
+          {/* ============================== TARJETAS DE RESUMEN ============================== */}
+          <div style={{ ...ui.kpiGrid, marginBottom: 16 }}>
+            <StatCard
+              label="Total de movimientos"
+              value={movementsTotal}
+              icon={<Activity size={16} color="#2563eb" />}
+              iconBg="var(--icon-bg-blue)"
+            />
+            <StatCard
+              label="Navegaciones"
+              value={navigationCount}
+              icon={<MousePointerClick size={16} color="#2563eb" />}
+              iconBg="var(--icon-bg-blue)"
+            />
+            <StatCard
+              label="Acciones sensibles"
+              value={sensitiveCount}
+              icon={<ShieldAlert size={16} color="#d97706" />}
+              iconBg="var(--icon-bg-amber)"
+            />
+            <StatCard
+              label="Admin más activo"
+              value={mostActiveAdmin}
+              icon={<Award size={16} color="#16a34a" />}
+              iconBg="var(--icon-bg-green)"
+              valueFontSize="clamp(14px, 3.5vw, 17px)"
+            />
+          </div>
+
+          {isMobile ? (
+            <div style={{ padding: "8px 4px" }}>
+              {movementsLoading && (
+                <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+                  Cargando información...
+                </div>
+              )}
+              {movementsError && (
+                <div style={{ textAlign: "center", padding: "32px 16px", color: "#b91c1c", fontSize: 13, fontWeight: 500 }}>{movementsError}</div>
+              )}
+              {!movementsLoading && !movementsError && movementsPagination.total === 0 && (
+                <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
+                  No hay movimientos administrativos para mostrar.
+                </div>
+              )}
+
+              {!movementsLoading &&
+                !movementsError &&
+                movementsPagination.pageItems.map((m) => {
+                  const isExpanded = expandedMovements[m.id];
+                  return (
+                    <ExpandableCard
+                      key={m.id}
+                      isExpanded={isExpanded}
+                      onToggle={() => toggleExpandMovement(m.id)}
+                      topDate={`${fmtDate(m.createdAt)} ${fmtTime(m.createdAt)}`}
+                      topBadge={<ActionTypeBadge type={m.actionType} />}
+                      mainTitle={m.user.name}
+                      mainSubtitle={
+                        <>
+                          Detalle: <strong>{m.target ?? "—"}</strong>
+                        </>
+                      }
+                    >
+                      {detailRow("Usuario", m.user.email)}
+                      {detailRow("Detalle", m.target ?? "—")}
+                      {m.details && detailRow("Info. adicional", m.details)}
+                      {detailRow("IP", <span style={{ fontFamily: "monospace" }}>{m.ipAddress ?? "—"}</span>)}
+                    </ExpandableCard>
+                  );
+                })}
+              <Pagination {...movementsPagination} onPage={movementsPagination.setPage} itemLabel="movimientos" />
+            </div>
+          ) : (
+            <>
+              <DataTable
+                columns={movementColumns}
+                data={movementsPagination.pageItems}
+                loading={movementsLoading}
+                error={movementsError}
+                emptyMessage="No hay movimientos administrativos para los filtros seleccionados."
+                keyExtractor={(m) => m.id}
+                height="calc(100vh - 275px)"
+              />
+              {!movementsLoading && !movementsError && (
+                <Pagination {...movementsPagination} onPage={movementsPagination.setPage} itemLabel="movimientos" />
+              )}
+            </>
+          )}
+        </>
       )}
     </div>
   );
@@ -1453,31 +1944,6 @@ const lockStyles: { [k: string]: React.CSSProperties } = {
     cursor: "pointer",
     transition: "opacity 0.2s",
   },
-};
-
-const detailRowStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "flex-start",
-  alignItems: "flex-start",
-  gap: "6px",
-  fontSize: 12,
-  marginBottom: 3,
-};
-
-const detailLabelStyle: React.CSSProperties = {
-  fontWeight: 700,
-  color: "var(--text-muted)",
-  minWidth: "70px",
-  display: "inline-block",
-  fontSize: "inherit",
-};
-
-const detailValueStyle: React.CSSProperties = {
-  fontWeight: 600,
-  color: "var(--text-secondary)",
-  flex: 1,
-  fontSize: "inherit",
-  wordBreak: "break-word",
 };
 
 export default AdminAccessLogView;

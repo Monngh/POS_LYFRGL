@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../auth";
 import api from "../../shared/services/api";
 import {
@@ -303,6 +303,19 @@ const AdminDashboard: React.FC = () => {
 
   const active = NAV_ITEMS.find((n) => n.key === activeNav) ?? NAV_ITEMS[0];
   const ActiveView = active.view;
+
+  // Log de movimientos administrativos (AdminActionLog, Fase 1): solo se dispara
+  // cuando activeNav cambia de verdad, no en cada re-render. El guard con ref evita
+  // duplicados por el doble-montaje de efectos de React StrictMode en desarrollo
+  // (monta -> desmonta -> monta), además de re-renders genuinos que no cambian de
+  // pestaña. Fire-and-forget — no debe bloquear la navegación ni mostrar error si falla.
+  const lastLoggedNav = useRef<string | null>(null);
+  useEffect(() => {
+    if (lastLoggedNav.current === activeNav) return;
+    lastLoggedNav.current = activeNav;
+    api.post("/api/admin/security/action-log", { target: active.label }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeNav]);
 
   // Estilo del sidebar: cajón fijo deslizable en móvil, acoplado en escritorio
   const sidebarStyle: React.CSSProperties = isMobile

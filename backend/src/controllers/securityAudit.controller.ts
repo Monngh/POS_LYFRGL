@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import { prisma } from "../app";
 import { comparePassword, generateAuditToken, verifyToken } from "../utils/auth";
 import { onSecurityEvent, offSecurityEvent, type SecurityEventPayload } from "../utils/securityEvents";
+import { clientIp } from "../utils/authAudit";
+import { logAdminAction } from "../utils/adminActionLog";
 
 /** Construye el filtro de rango de fechas para createdAt. */
 const buildDateWhere = (from: unknown, to: unknown) => {
@@ -254,7 +256,10 @@ export const revokeSession = async (req: Request, res: Response): Promise<void> 
   }
 
   try {
-    const session = await prisma.adminSession.findFirst({ where: { userId: targetUserId, status: "ACTIVE" } });
+    const session = await prisma.adminSession.findFirst({
+      where: { userId: targetUserId, status: "ACTIVE" },
+      include: { user: { select: { name: true } } },
+    });
     if (!session) {
       res.status(404).json({ message: "El usuario no tiene una sesión activa." });
       return;
@@ -287,6 +292,8 @@ export const revokeSession = async (req: Request, res: Response): Promise<void> 
         },
       }),
     ]);
+
+    logAdminAction(revokedByUserId, "REVOKE_SESSION", session.user.name, trimmedReason, clientIp(req));
 
     res.json({ message: "Sesión revocada correctamente." });
   } catch (err) {
@@ -357,4 +364,54 @@ export const getAdminSessionClosures = async (req: Request, res: Response): Prom
     console.error("[getAdminSessionClosures]", err);
     res.status(500).json({ message: "Error al obtener el historial de cierres de sesión." });
   }
+};
+
+/**
+ * Log de movimientos administrativos (AdminActionLog): navegación entre vistas y
+ * acciones sensibles (revocar sesión, cambio de estado de empleado). Fase 1 — no
+ * incluye catálogo (productos/precios/promociones). Solo ADMIN.
+ */
+export const getAdminActionLog = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { from, to } = req.query;
+    const where: any = {};
+    const dateWhere = buildDateWhere(from, to);
+    if (dateWhere) where.createdAt = dateWhere;
+
+    const logs = await prisma.adminActionLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: 500,
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    res.json({ logs });
+  } catch (err) {
+    console.error("[getAdminActionLog]", err);
+    res.status(500).json({ message: "Error al obtener el log de movimientos administrativos." });
+  }
+};
+
+/**
+ * Registra un movimiento de NAVEGACIÓN entre vistas del panel admin. El actionType
+ * queda fijo en el backend (no lo decide el cliente) para que este endpoint no pueda
+ * usarse para falsificar otros tipos de acción sensible. Disponible para ADMIN y
+ * GERENTE, igual que el resto del panel administrativo.
+ */
+export const recordNavigationAction = (req: Request, res: Response): void => {
+  if (!req.user) {
+    res.status(401).json({ message: "No autenticado." });
+    return;
+  }
+
+  const { target } = req.body;
+  if (!target || typeof target !== "string" || !target.trim()) {
+    res.status(400).json({ message: "Debe indicar la vista visitada." });
+    return;
+  }
+
+  logAdminAction(req.user.userId, "NAVIGATION", target.trim().slice(0, 255), null, clientIp(req));
+  res.status(202).json({ message: "Movimiento registrado." });
 };

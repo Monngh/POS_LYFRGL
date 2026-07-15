@@ -71,6 +71,7 @@ model User {
   revokedAdminSessions   AdminSession[]        @relation("AdminSessionRevokedBy")
   adminSessionClosures   AdminSessionClosure[]
   revokedSessionClosures AdminSessionClosure[] @relation("AdminSessionClosureRevokedBy")
+  adminActionLogs        AdminActionLog[]
 }
 
 model Product {
@@ -589,6 +590,23 @@ model AdminSessionClosure {
   user      User    @relation(fields: [userId], references: [id], onUpdate: NoAction)
   branch    Branch? @relation(fields: [branchId], references: [id], onUpdate: NoAction)
   revokedBy User?   @relation("AdminSessionClosureRevokedBy", fields: [revokedByUserId], references: [id], onUpdate: NoAction)
+}
+
+// Log de movimientos administrativos: navegación entre vistas (registrada desde el
+// frontend) y acciones sensibles (revocar sesión, cambio de estado de empleado).
+// Fase 1: no cubre catálogo (productos/precios/promociones) — queda para una Fase 2.
+model AdminActionLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  actionType String   @db.VarChar(50) // "NAVIGATION" | "REVOKE_SESSION" | "EMPLOYEE_STATUS_CHANGE" | etc.
+  target     String?  @db.VarChar(255) // ej. nombre de vista, o nombre del empleado/usuario afectado
+  details    String?  @db.NVarChar(1000) // JSON opcional con detalles adicionales
+  ipAddress  String?  @db.NVarChar(45)
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onUpdate: NoAction)
+
+  @@index([actionType, createdAt])
 }
 
 // ─── CATEGORÍAS ────────────────────────────────────────────
