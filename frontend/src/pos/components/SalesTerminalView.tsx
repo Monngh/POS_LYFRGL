@@ -126,11 +126,21 @@ export function SalesTerminalView({
 
   const { parkedSales, fetchParkedSales, parkSale, deleteParkedSale } = useParkedSales(user?.branch?.id);
   const [mixedModalOpen, setMixedModalOpen] = React.useState(false);
-  const checkoutModalRef = useModalInitialFocus(checkoutModalOpen);
+  const checkoutModalRef = useModalInitialFocus(checkoutModalOpen, { preferSelector: `[data-method-btn="${paymentMethod}"]` });
 
   // Cobro en dos fases: primero elegir método con flechas, Enter confirma y da foco al input/botón, luego Enter cobra
   const [checkoutPhase, setCheckoutPhase] = React.useState<"select-method" | "fill-fields">("select-method");
   React.useEffect(() => { if (checkoutModalOpen) setCheckoutPhase("select-method"); }, [checkoutModalOpen]);
+
+  const pointsInputRef = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    if (usePoints) {
+      setTimeout(() => {
+        pointsInputRef.current?.focus();
+        pointsInputRef.current?.select();
+      }, 80);
+    }
+  }, [usePoints]);
 
   const handleGlobalQuickAction = (actionId: string) => {
     if (actionId === "autofacturacion") {
@@ -167,6 +177,12 @@ export function SalesTerminalView({
     : "";
 
   const handleCheckoutModalKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const activeElement = document.activeElement;
+    const isEditing = activeElement && (activeElement.tagName === "INPUT" || activeElement.tagName === "TEXTAREA" || (activeElement as HTMLElement).isContentEditable);
+    if (isEditing && e.key !== "Escape" && e.key !== "Enter") {
+      return;
+    }
+
     if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
       const active = document.activeElement;
       if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || (active as HTMLElement).isContentEditable)) return;
@@ -178,6 +194,11 @@ export function SalesTerminalView({
         if (idx === -1) return;
         const next = e.key === "ArrowRight" ? Math.min(idx + 1, methods.length - 1) : Math.max(idx - 1, 0);
         setPaymentMethod(methods[next] as any);
+        // Focus the button
+        setTimeout(() => {
+          const btn = checkoutModalRef.current?.querySelector<HTMLElement>(`[data-method-btn="${methods[next]}"]`);
+          if (btn) btn.focus();
+        }, 50);
       }
       return;
     }
@@ -187,6 +208,10 @@ export function SalesTerminalView({
       const methods = ["EFECTIVO", "TARJETA", "STORE_CREDIT", "MIXTO", "QR_MERCADOPAGO"];
       const index = parseInt(e.key) - 1;
       setPaymentMethod(methods[index] as any);
+      setTimeout(() => {
+        const btn = checkoutModalRef.current?.querySelector<HTMLElement>(`[data-method-btn="${methods[index]}"]`);
+        if (btn) btn.focus();
+      }, 50);
       return;
     }
 
@@ -212,6 +237,9 @@ export function SalesTerminalView({
           );
           if (firstInput) {
             firstInput.focus();
+            if (firstInput instanceof HTMLInputElement) {
+              firstInput.select();
+            }
           } else if (paymentMethod === "QR_MERCADOPAGO" || paymentMethod === "MIXTO") {
             // Para métodos sin input extra, disparar directo
             if (paymentMethod === "MIXTO") { setMixedModalOpen(true); }
@@ -223,8 +251,31 @@ export function SalesTerminalView({
         return;
       }
 
-      // Fase fill-fields: si estoy escribiendo en un input NO disparo el cobro
-      if (isTyping) return;
+      // Si es la fase fill-fields
+      if (isTyping) {
+        if (paymentMethod === "EFECTIVO" && active instanceof HTMLInputElement) {
+          const val = Number(active.value) || 0;
+          const netTotal = cartTotal - pointsDiscount;
+          if (val < netTotal) {
+            setCheckoutFieldErrors((prev) => ({
+              ...prev,
+              cashReceived: "El efectivo recibido es menor al total a pagar."
+            }));
+            active.focus();
+            active.select();
+            return;
+          }
+        } else if (paymentMethod === "STORE_CREDIT" && active instanceof HTMLInputElement) {
+          if (!active.value.trim()) {
+            setCheckoutFieldErrors((prev) => ({
+              ...prev,
+              storeCreditCode: "El código de vale es requerido."
+            }));
+            active.focus();
+            return;
+          }
+        }
+      }
 
       if (paymentMethod === "MIXTO") {
         setMixedModalOpen(true);
@@ -420,10 +471,10 @@ export function SalesTerminalView({
               </div>
             )}
 
-            {/* Selector Métodos Pago */}
             <div style={{ ...styles.paymentMethodsGrid, gridTemplateColumns: "repeat(5, 1fr)" }} className="pos-cashier-pay-methods">
               <button
                 type="button"
+                data-method-btn="EFECTIVO"
                 onClick={() => { setPaymentMethod("EFECTIVO"); setCheckoutError(null); setCheckoutFieldErrors({}); }}
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "EFECTIVO" ? styles.paymentMethodBtnActive : {}) }}
               >
@@ -432,6 +483,7 @@ export function SalesTerminalView({
               </button>
               <button
                 type="button"
+                data-method-btn="TARJETA"
                 onClick={() => { setPaymentMethod("TARJETA"); setCheckoutError(null); setCheckoutFieldErrors({}); }}
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "TARJETA" ? styles.paymentMethodBtnActive : {}) }}
               >
@@ -440,6 +492,7 @@ export function SalesTerminalView({
               </button>
               <button
                 type="button"
+                data-method-btn="STORE_CREDIT"
                 onClick={() => { setPaymentMethod("STORE_CREDIT"); setCheckoutError(null); setCheckoutFieldErrors({}); }}
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "STORE_CREDIT" ? styles.paymentMethodBtnActive : {}) }}
               >
@@ -448,6 +501,7 @@ export function SalesTerminalView({
               </button>
               <button
                 type="button"
+                data-method-btn="MIXTO"
                 onClick={() => { setPaymentMethod("MIXTO"); setCheckoutError(null); setCheckoutFieldErrors({}); }}
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "MIXTO" ? styles.paymentMethodBtnActive : {}) }}
               >
@@ -456,6 +510,7 @@ export function SalesTerminalView({
               </button>
               <button
                 type="button"
+                data-method-btn="QR_MERCADOPAGO"
                 onClick={() => { setPaymentMethod("QR_MERCADOPAGO"); setCheckoutError(null); setCheckoutFieldErrors({}); }}
                 style={{ ...styles.paymentMethodBtn, ...(paymentMethod === "QR_MERCADOPAGO" ? styles.paymentMethodBtnActive : {}) }}
               >
@@ -550,45 +605,66 @@ export function SalesTerminalView({
             {selectedCustomer && (
               <div style={{ borderTop: "1px solid var(--border)", paddingTop: "14px", marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", margin: 0 }}>
+                  <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", margin: 0 }} data-shortcut-letter="B" title="Usar puntos (Alt+B)">
                     <input
                       type="checkbox"
                       checked={usePoints}
-                      onChange={(e) => { setUsePoints(e.target.checked); if (!e.target.checked) setPointsToRedeem(0); }}
+                      onChange={(e) => {
+                        setUsePoints(e.target.checked);
+                        if (!e.target.checked) {
+                          setPointsToRedeem(0);
+                          setCheckoutFieldErrors((prev) => {
+                            const next = { ...prev };
+                            delete next.pointsToRedeem;
+                            return next;
+                          });
+                        }
+                      }}
                     />
-                    <span>¿Usar Puntos?</span>
+                    <span>¿Usar Puntos? <span style={{ fontSize: "9px", backgroundColor: "rgba(0,0,0,0.08)", color: "var(--text-secondary)", padding: "1px 4px", borderRadius: "3px", fontWeight: "800", marginLeft: "4px" }}>Alt+B</span></span>
                   </label>
                   <span style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: "600" }}>
                     Disponibles: <strong style={{ color: "#166534" }}>{selectedCustomer.points}</strong> pts
                   </span>
                 </div>
                 {usePoints && (
-                  <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "4px" }}>
-                    <div style={{ flex: 1 }}>
-                      <input
-                        type="number"
-                        min={0}
-                        max={Math.min(selectedCustomer.points, Math.floor(cartTotal))}
-                        className="input-corporate"
-                        placeholder="Puntos a canjear"
-                        value={pointsToRedeem || ""}
-                        onChange={(e) => {
-                          const val = Math.max(0, parseInt(e.target.value) || 0);
-                          const maxVal = Math.min(selectedCustomer.points, Math.floor(cartTotal));
-                          if (val > maxVal) {
-                            setPointsToRedeem(maxVal);
-                            onToast(`El canje máximo es de ${maxVal} puntos.`, "info");
-                          } else {
-                            setPointsToRedeem(val);
-                          }
-                          setCheckoutError(null);
-                        }}
-                      />
+                  <>
+                    <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "4px" }}>
+                      <div style={{ flex: 1 }}>
+                        <input
+                          ref={pointsInputRef}
+                          type="number"
+                          min={0}
+                          max={Math.min(selectedCustomer.points, Math.floor(cartTotal))}
+                          className="input-corporate"
+                          placeholder="Puntos a canjear"
+                          value={pointsToRedeem || ""}
+                          onChange={(e) => {
+                            const val = Math.max(0, parseInt(e.target.value) || 0);
+                            const maxVal = Math.min(selectedCustomer.points, Math.floor(cartTotal));
+                            if (val > maxVal) {
+                              setPointsToRedeem(maxVal);
+                              onToast(`El canje máximo es de ${maxVal} puntos.`, "info");
+                            } else {
+                              setPointsToRedeem(val);
+                            }
+                            setCheckoutError(null);
+                            setCheckoutFieldErrors((prev) => {
+                              const next = { ...prev };
+                              delete next.pointsToRedeem;
+                              return next;
+                            });
+                          }}
+                        />
+                      </div>
+                      <span style={{ fontSize: "13px", color: "#059669", fontWeight: "700" }}>
+                        Descuento: -${(Math.min(selectedCustomer.points, pointsToRedeem) * 1.0).toFixed(2)}
+                      </span>
                     </div>
-                    <span style={{ fontSize: "13px", color: "#059669", fontWeight: "700" }}>
-                      Descuento: -${(Math.min(selectedCustomer.points, pointsToRedeem) * 1.0).toFixed(2)}
-                    </span>
-                  </div>
+                    {checkoutFieldErrors.pointsToRedeem && (
+                      <p style={styles.fieldError}>{checkoutFieldErrors.pointsToRedeem}</p>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -597,9 +673,9 @@ export function SalesTerminalView({
             {selectedCustomer && (
               <div style={{ borderTop: "1px solid var(--border)", paddingTop: "14px", marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", margin: 0 }}>
+                  <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", margin: 0 }} data-shortcut-letter="F" title="Solicitar factura (Alt+F)">
                     <input type="checkbox" checked={invoiceRequested} onChange={(e) => { setInvoiceRequested(e.target.checked); }} />
-                    <span>¿Solicitar Factura CFDI?</span>
+                    <span>¿Solicitar Factura CFDI? <span style={{ fontSize: "9px", backgroundColor: "rgba(0,0,0,0.08)", color: "var(--text-secondary)", padding: "1px 4px", borderRadius: "3px", fontWeight: "800", marginLeft: "4px" }}>Alt+F</span></span>
                   </label>
                   <span style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: "600" }}>Se enviará al correo registrado</span>
                 </div>
@@ -625,7 +701,7 @@ export function SalesTerminalView({
                 CANCELAR
               </button>
               <button
-                title="Cobrar (C)"
+                title="Cobrar (Alt+C)"
                 data-shortcut="confirm"
                 data-shortcut-letter="C"
                 disabled={checkoutLoading}
@@ -642,6 +718,7 @@ export function SalesTerminalView({
                   <div className="pos-cashier-loading-spinner" style={{ width: "14px", height: "14px", borderWidth: "2px", borderColor: "rgba(255,255,255,0.4)", borderTopColor: "#ffffff", flexShrink: 0 }} />
                 )}
                 {checkoutLoading ? "PROCESANDO..." : paymentMethod === "MIXTO" ? "CONFIGURAR PAGOS" : "COBRAR"}
+                <span style={{ fontSize: "9px", backgroundColor: "rgba(255,255,255,0.2)", color: "white", padding: "1px 4px", borderRadius: "3px", fontWeight: "800", marginLeft: "2px" }}>Alt+C</span>
               </button>
             </div>
           </div>

@@ -44,7 +44,7 @@ export function LockScreen({
     if (pinCode.length === 4 && !unlockLoading) {
       try {
         await unlock(pinCode);
-      } catch (err) {
+      } catch {
         setPinCode("");
         hiddenInputRef.current?.focus();
       }
@@ -79,7 +79,6 @@ export function LockScreen({
     };
 
     window.addEventListener("keydown", handlePhysicalKeyDown);
-    // Auto-focus physical input reference for focus retention on desktop
     hiddenInputRef.current?.focus();
 
     return () => {
@@ -94,10 +93,11 @@ export function LockScreen({
       className="pos-lock-overlay"
       onClick={() => hiddenInputRef.current?.focus()}
     >
-      {/* Hidden text input to trigger focus/keyboard easily on mobile/desktop */}
+      {/* Input oculto — captura el teclado físico sin mostrarse */}
       <input
         ref={hiddenInputRef}
         type="password"
+        inputMode="none"
         pattern="\d*"
         maxLength={4}
         value={pinCode}
@@ -119,15 +119,17 @@ export function LockScreen({
       />
 
       <div className="pos-lock-card" onClick={(e) => e.stopPropagation()}>
-        <div className="pos-lock-header">
-          <div className="pos-lock-icon-container">
-            <Lock size={32} className="pos-lock-icon" />
-          </div>
-          <h2 className="pos-lock-title">PANTALLA BLOQUEADA</h2>
-          <p className="pos-lock-subtitle">Ingresa tu PIN para continuar</p>
+
+        {/* Icono */}
+        <div className="pos-lock-icon-container">
+          <Lock size={32} className="pos-lock-icon" />
         </div>
 
-        {/* User Card */}
+        {/* Títulos */}
+        <h2 className="pos-lock-title">Pantalla bloqueada</h2>
+        <p className="pos-lock-subtitle">Ingresa tu PIN para continuar</p>
+
+        {/* Badge del usuario */}
         <div className="pos-lock-user-badge">
           <div className="pos-lock-user-avatar">
             {user?.name ? user.name.slice(0, 2).toUpperCase() : "CA"}
@@ -138,7 +140,7 @@ export function LockScreen({
           </div>
         </div>
 
-        {/* PIN Dots Display */}
+        {/* Puntos PIN */}
         <div className="pos-lock-dots-display">
           {dots.map((_, i) => (
             <div
@@ -148,15 +150,18 @@ export function LockScreen({
           ))}
         </div>
 
-        {/* Unlock Error alert */}
-        {unlockError && <div className="pos-lock-error-alert">{unlockError}</div>}
+        {/* Error de desbloqueo */}
+        {unlockError && (
+          <div className="pos-lock-error-alert">{unlockError}</div>
+        )}
 
-        {/* Physical Keyboard Tip */}
-        <p className="pos-lock-keyboard-tip" style={{ marginTop: "24px" }}>
+        {/* Instrucción de teclado */}
+        <p className="pos-lock-keyboard-tip">
           {unlockLoading
-            ? "Desbloqueando..."
-            : "Utiliza tu teclado numérico para continuar"}
+            ? "Verificando PIN..."
+            : "Usa el teclado numérico físico para ingresar tu PIN"}
         </p>
+
       </div>
     </div>
   );

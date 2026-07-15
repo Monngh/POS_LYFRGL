@@ -16,9 +16,9 @@ export const GLOBAL_QUICK_ACTIONS: Record<GlobalQuickActionLetter, string> = {
 /** Atajos reservados del POS que deben hacer preventDefault antes que el navegador. */
 export const POS_ALT_LETTERS = [
   ...GLOBAL_QUICK_ACTION_LETTERS,
-  "A",
+  "A", // Atrás
+  "O", // Otro método
   "E",
-  "B",
   "R",
   "M",
   "K",
@@ -33,4 +33,7 @@ export const POS_ALT_LETTERS = [
   "L", // Cerrar sesión
   "V", // Cancelar compra
   "F", // Bloquear Alt+F del navegador (menú archivo en Firefox)
+  "B", // Atajo para Puntos / Beneficios
 ] as const;
+
+

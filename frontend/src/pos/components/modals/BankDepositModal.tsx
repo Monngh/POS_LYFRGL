@@ -444,9 +444,10 @@ export default function BankDepositModal({
             data-shortcut-letter="C"
             onClick={(e) => handleDepositSubmit(e as any)}
             disabled={depLoading}
-            style={{ ...modalBtn, backgroundColor: "#2563eb", color: "white" }}
+            style={{ ...modalBtn, backgroundColor: "#2563eb", color: "white", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
           >
             {depLoading ? "Procesando..." : "REGISTRAR RESGUARDO"}
+            {!depLoading && <span style={{ fontSize: "9px", backgroundColor: "rgba(255,255,255,0.25)", color: "white", padding: "1px 4px", borderRadius: "3px", fontWeight: "800", lineHeight: 1 }}>Alt+C</span>}
           </button>
         </div>
       );
@@ -566,9 +567,14 @@ export default function BankDepositModal({
                   fontWeight: "700",
                   color: depTab === "registrar" ? "#2563eb" : "var(--text-muted)",
                   cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
                 }}
               >
                 REGISTRAR RESGUARDO
+                <span style={{ fontSize: "9px", backgroundColor: depTab === "registrar" ? "#2563eb" : "#94a3b8", color: "white", padding: "1px 4px", borderRadius: "3px", fontWeight: "800", lineHeight: 1 }}>Alt+M</span>
               </button>
               <button
                 type="button"
@@ -587,9 +593,14 @@ export default function BankDepositModal({
                   fontWeight: "700",
                   color: depTab === "buscar" ? "#2563eb" : "var(--text-muted)",
                   cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
                 }}
               >
                 BUSCAR / HISTORIAL
+                <span style={{ fontSize: "9px", backgroundColor: depTab === "buscar" ? "#2563eb" : "#94a3b8", color: "white", padding: "1px 4px", borderRadius: "3px", fontWeight: "800", lineHeight: 1 }}>Alt+K</span>
               </button>
             </div>
 

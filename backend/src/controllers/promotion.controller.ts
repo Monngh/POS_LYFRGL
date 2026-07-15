@@ -17,6 +17,46 @@ export class PromotionController {
   }
 
   /**
+   * GET /api/promotions/search?q=query
+   * Busca promociones activas por nombre de promoción o producto
+   */
+  static async search(req: Request, res: Response) {
+    try {
+      const q = ((req.query.q as string) || "").trim().normalize("NFC");
+
+      if (q.length > 100) {
+        res.status(400).json({ message: "La búsqueda no puede exceder los 100 caracteres." });
+        return;
+      }
+
+      const weirdSymbolsPattern = /[^\p{L}\p{M}\p{N}\s.,#_\/:@()+\$%\-]/u;
+      if (weirdSymbolsPattern.test(q)) {
+        res.status(400).json({ message: "La búsqueda contiene caracteres no permitidos." });
+        return;
+      }
+
+      const queryLower = q.toLowerCase();
+      const promotions = await PromotionService.getActivePromotions();
+
+      const filtered = queryLower
+        ? promotions.filter((promo) => {
+            const nameMatch = promo.name.toLowerCase().includes(queryLower);
+            const productMatch = promo.products.some((pp: any) =>
+              pp.product.name.toLowerCase().includes(queryLower) ||
+              pp.product.sku.toLowerCase().includes(queryLower)
+            );
+            return nameMatch || productMatch;
+          })
+        : promotions;
+
+      res.json(filtered);
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ message: "Error interno del servidor." });
+    }
+  }
+
+  /**
    * POST /api/promotions/calculate
    * Calcula el descuento de promociones para un conjunto de productos en el carrito
    */

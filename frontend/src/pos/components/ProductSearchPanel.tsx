@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Search } from "lucide-react";
+import { Search, XCircle, CheckCircle } from "lucide-react";
 import { usePosSearch } from "../hooks/usePosSearch";
 import { usePosCart } from "../hooks/usePosCart";
 
 const validateTextInput = (value: string): string =>
-  value
-    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
-    .replace(/[^\p{L}\p{N}\s\-,.]/gu, "");
+  value.normalize("NFC").replace(/[^\p{L}\p{M}\p{N}\s.,#_\/:@()+\$%\-]/gu, "");
 
 // maskPhoneLast2 removed
 
@@ -101,13 +99,12 @@ export function ProductSearchPanel({ searchData, cartData }: ProductSearchPanelP
               style={{ paddingLeft: "30px", paddingRight: "50px", fontSize: "12px", padding: "4px 50px 4px 30px", height: "28px" }}
               placeholder="Ingrese código o nombre del producto..."
               data-shortcut-key="F2"
-              data-shortcut-letter="B"
-              title="Buscar producto (Alt+B)"
+              title="Buscar producto (F2)"
               value={barcodeSearch}
               onChange={(e) => setBarcodeSearch(validateTextInput(e.target.value))}
               onKeyDown={handleSearchInputKeyDown}
             />
-            <span className="pos-fkey-badge" style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", fontSize: "10px", padding: "2px 6px", pointerEvents: "none" }}>Alt+B</span>
+            <span className="pos-fkey-badge" style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", fontSize: "10px", padding: "2px 6px", pointerEvents: "none" }}>F2</span>
             {barcodeSearchError && <p style={styles.fieldError}>{barcodeSearchError}</p>}
           </div>
         </form>
@@ -157,7 +154,11 @@ export function ProductSearchPanel({ searchData, cartData }: ProductSearchPanelP
                     display: "inline-block",
                     width: "fit-content",
                   }}>
-                    {p.stock === 0 ? "❌ Sin stock" : `✅ ${p.stock} en stock`}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                      {p.stock === 0
+                        ? <><XCircle size={11} color="#b91c1c" /> Sin stock</>
+                        : <><CheckCircle size={11} color="#15803d" /> {p.stock} en stock</>}
+                    </span>
                   </span>
                 </div>
                 {/* Precio */}

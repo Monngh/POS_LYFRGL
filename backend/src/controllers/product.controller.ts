@@ -15,7 +15,14 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
   const catId = categoryId ? Number(categoryId) : undefined;
 
   try {
-    const qStr = query ? String(query).trim() : "";
+    const qStr = (query ? String(query).trim() : "").normalize("NFC");
+
+    const weirdSymbolsPattern = /[^\p{L}\p{M}\p{N}\s.,#_\/:@()+\$%\-]/u;
+    if (weirdSymbolsPattern.test(qStr)) {
+      res.status(400).json({ message: "La búsqueda contiene caracteres no permitidos." });
+      return;
+    }
+
     const rawWords = qStr ? qStr.split(/\s+/).filter((w) => w.length > 0) : [];
     const searchWords = qStr ? parseSearchWords(qStr) : [];
 
