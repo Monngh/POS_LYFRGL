@@ -25,10 +25,15 @@ async function main() {
         });
 
         if (!existing) {
+          const hasPrimarySupplier = await prisma.supplierProduct.count({
+            where: { productId: detail.productId, isPrimary: true },
+          });
+
           await prisma.supplierProduct.create({
             data: {
               supplierId: purchase.supplierId,
               productId: detail.productId,
+              isPrimary: hasPrimarySupplier === 0,
             },
           });
           created++;

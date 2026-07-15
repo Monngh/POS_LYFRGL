@@ -26,6 +26,13 @@ const productCategorySummarySelect = {
   active: true,
 } satisfies Prisma.CategorySelect;
 
+const supplierSummarySelect = {
+  id: true,
+  name: true,
+  rfc: true,
+  email: true,
+} satisfies Prisma.SupplierSelect;
+
 const cleanBodyText = (value: unknown): string => String(value ?? "").trim();
 const cleanOptionalBodyText = (value: unknown): string | null => {
   const text = cleanBodyText(value);
@@ -82,6 +89,25 @@ const parseCategoryIds = (value: unknown, required: boolean): number[] | undefin
   }
 
   return categoryIds;
+};
+
+const parseSupplierIds = (value: unknown): number[] => {
+  if (!Array.isArray(value)) {
+    throw new AppError("supplierIds debe ser un arreglo de ids numericos.", 400);
+  }
+
+  const supplierIds: number[] = [];
+  for (const raw of value) {
+    const supplierId = parsePositiveInteger(raw);
+    if (supplierId === null) {
+      throw new AppError("supplierIds debe contener ids numericos validos.", 400);
+    }
+    if (!supplierIds.includes(supplierId)) {
+      supplierIds.push(supplierId);
+    }
+  }
+
+  return supplierIds;
 };
 
 const validateAssignableCategories = async (
@@ -219,6 +245,33 @@ interface SupplierValidationData {
   zipCode?: string;
   contactName?: string;
 }
+
+interface ProductSupplierResponse {
+  id: number;
+  name: string;
+  rfc: string | null;
+  email: string | null;
+  isPrimary: boolean;
+}
+
+const sortProductSuppliers = (suppliers: ProductSupplierResponse[]): ProductSupplierResponse[] =>
+  [...suppliers].sort((a, b) => {
+    if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+    return a.name.localeCompare(b.name, "es");
+  });
+
+const isMissingSupplierProductPrimaryColumnError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : "";
+  if (/isPrimary/i.test(message) && /column|columna|invalid|no existe/i.test(message)) {
+    return true;
+  }
+
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2022") {
+    return /isPrimary/i.test(JSON.stringify(error.meta ?? {}));
+  }
+
+  return false;
+};
 
 const validateSupplierData = (data: SupplierValidationData, isUpdate = false): string[] => {
   const errors: string[] = [];
@@ -725,34 +778,75 @@ export const updateSupplier = async (id: number, body: Record<string, unknown>) 
 };
 
 export const getSupplierProducts = async (supplierId: number) => {
-  const records = await prisma.supplierProduct.findMany({
-    where: { supplierId },
-    include: { product: { select: { id: true, sku: true, name: true, costPrice: true, sellPrice: true, active: true, satUnitKey: true } } },
-  });
+  try {
+    const records = await prisma.supplierProduct.findMany({
+      where: { supplierId },
+      include: { product: { select: { id: true, sku: true, name: true, costPrice: true, sellPrice: true, active: true, satUnitKey: true } } },
+    });
 
-  return records.map((sp) => ({
-    id: sp.product.id,
-    sku: sp.product.sku,
-    name: sp.product.name,
-    costPrice: Number(sp.product.costPrice),
-    sellPrice: Number(sp.product.sellPrice),
-    active: sp.product.active,
-    satUnitKey: sp.product.satUnitKey,
-  }));
+    return records.map((sp) => ({
+      id: sp.product.id,
+      sku: sp.product.sku,
+      name: sp.product.name,
+      costPrice: Number(sp.product.costPrice),
+      sellPrice: Number(sp.product.sellPrice),
+      active: sp.product.active,
+      satUnitKey: sp.product.satUnitKey,
+      isPrimary: sp.isPrimary,
+    }));
+  } catch (error: unknown) {
+    if (!isMissingSupplierProductPrimaryColumnError(error)) throw error;
+
+    const products = await prisma.product.findMany({
+      where: { suppliers: { some: { supplierId } } },
+      orderBy: { name: "asc" },
+      select: { id: true, sku: true, name: true, costPrice: true, sellPrice: true, active: true, satUnitKey: true },
+    });
+
+    return products.map((product) => ({
+      id: product.id,
+      sku: product.sku,
+      name: product.name,
+      costPrice: Number(product.costPrice),
+      sellPrice: Number(product.sellPrice),
+      active: product.active,
+      satUnitKey: product.satUnitKey,
+      isPrimary: false,
+    }));
+  }
 };
 
-export const assignProductToSupplier = async (supplierId: number, productId: number) => {
-  const existing = await prisma.supplierProduct.findUnique({
-    where: { supplierId_productId: { supplierId, productId } },
-  });
-  if (existing) throw new AppError("Este producto ya está asignado a este proveedor.", 400);
+export const assignProductToSupplier = async (supplierId: number, productId: number, isPrimary = false) => {
+  return prisma.$transaction(async (tx) => {
+    const [supplier, product, existing] = await Promise.all([
+      tx.supplier.findUnique({ where: { id: supplierId }, select: { id: true } }),
+      tx.product.findUnique({ where: { id: productId }, select: { id: true } }),
+      tx.supplierProduct.findUnique({
+        where: { supplierId_productId: { supplierId, productId } },
+      }),
+    ]);
+    if (existing) throw new AppError("Este producto ya está asignado a este proveedor.", 400);
 
-  return prisma.supplierProduct.create({
-    data: { supplierId, productId },
-    include: {
-      product: { select: { id: true, sku: true, name: true } },
-      supplier: { select: { id: true, name: true } },
-    },
+    if (!supplier) throw new AppError("Proveedor no encontrado.", 404);
+    if (!product) throw new AppError("Producto no encontrado.", 404);
+
+    const currentPrimaryCount = await tx.supplierProduct.count({ where: { productId, isPrimary: true } });
+    const shouldSetPrimary = isPrimary || currentPrimaryCount === 0;
+
+    if (shouldSetPrimary) {
+      await tx.supplierProduct.updateMany({
+        where: { productId },
+        data: { isPrimary: false },
+      });
+    }
+
+    return tx.supplierProduct.create({
+      data: { supplierId, productId, isPrimary: shouldSetPrimary },
+      include: {
+        product: { select: { id: true, sku: true, name: true } },
+        supplier: { select: { id: true, name: true } },
+      },
+    });
   });
 };
 
@@ -762,11 +856,105 @@ export const removeProductFromSupplier = async (supplierId: number, productId: n
   });
 };
 
-export const getProductSuppliers = async (productId: number) => {
-  const records = await prisma.supplierProduct.findMany({
-    where: { productId },
-    include: { supplier: { select: { id: true, name: true, rfc: true, email: true } } },
-  });
+export const syncProductSuppliers = async (productId: number, body: Record<string, unknown>) => {
+  const supplierIds = parseSupplierIds(body.supplierIds);
+  const rawPrimarySupplierId = body.primarySupplierId;
+  let primarySupplierId: number | null = null;
 
-  return records.map((sp) => sp.supplier);
+  if (rawPrimarySupplierId !== undefined && rawPrimarySupplierId !== null && String(rawPrimarySupplierId).trim() !== "") {
+    primarySupplierId = parsePositiveInteger(rawPrimarySupplierId);
+    if (primarySupplierId === null) {
+      throw new AppError("primarySupplierId debe ser un id numerico valido o null.", 400);
+    }
+  }
+
+  if (supplierIds.length > 0 && primarySupplierId === null) {
+    throw new AppError("Selecciona el proveedor principal del producto.", 400);
+  }
+
+  if (primarySupplierId !== null && !supplierIds.includes(primarySupplierId)) {
+    throw new AppError("El proveedor principal debe estar dentro de los proveedores asignados.", 400);
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const product = await tx.product.findUnique({ where: { id: productId }, select: { id: true } });
+    if (!product) throw new AppError("Producto no encontrado.", 404);
+
+    const suppliers = supplierIds.length > 0
+      ? await tx.supplier.findMany({ where: { id: { in: supplierIds } }, select: { id: true } })
+      : [];
+    if (suppliers.length !== supplierIds.length) {
+      throw new AppError("Uno o mas proveedores no existen.", 404);
+    }
+
+    const currentRows = await tx.supplierProduct.findMany({
+      where: { productId },
+      select: { supplierId: true },
+    });
+    const currentIds = new Set(currentRows.map((row) => row.supplierId));
+    const nextIds = new Set(supplierIds);
+    const toRemove = [...currentIds].filter((supplierId) => !nextIds.has(supplierId));
+    const toAdd = supplierIds.filter((supplierId) => !currentIds.has(supplierId));
+
+    if (toRemove.length > 0) {
+      await tx.supplierProduct.deleteMany({
+        where: { productId, supplierId: { in: toRemove } },
+      });
+    }
+
+    if (toAdd.length > 0) {
+      await tx.supplierProduct.createMany({
+        data: toAdd.map((supplierId) => ({ productId, supplierId, isPrimary: false })),
+      });
+    }
+
+    await tx.supplierProduct.updateMany({
+      where: { productId },
+      data: { isPrimary: false },
+    });
+
+    if (primarySupplierId !== null) {
+      await tx.supplierProduct.update({
+        where: { supplierId_productId: { supplierId: primarySupplierId, productId } },
+        data: { isPrimary: true },
+      });
+    }
+
+    const records = await tx.supplierProduct.findMany({
+      where: { productId },
+      include: { supplier: { select: supplierSummarySelect } },
+    });
+
+    return sortProductSuppliers(records.map((sp) => ({
+      ...sp.supplier,
+      isPrimary: sp.isPrimary,
+    })));
+  });
+};
+
+export const getProductSuppliers = async (productId: number) => {
+  try {
+    const records = await prisma.supplierProduct.findMany({
+      where: { productId },
+      include: { supplier: { select: supplierSummarySelect } },
+    });
+
+    return sortProductSuppliers(records.map((sp) => ({
+      ...sp.supplier,
+      isPrimary: sp.isPrimary,
+    })));
+  } catch (error: unknown) {
+    if (!isMissingSupplierProductPrimaryColumnError(error)) throw error;
+
+    const suppliers = await prisma.supplier.findMany({
+      where: { products: { some: { productId } } },
+      select: supplierSummarySelect,
+      orderBy: { name: "asc" },
+    });
+
+    return suppliers.map((supplier) => ({
+      ...supplier,
+      isPrimary: false,
+    }));
+  }
 };

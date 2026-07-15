@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { AlertTriangle, ArrowLeftRight, Check, Settings, Printer, X, Plus, Eye, ChevronDown, ChevronUp, Search, Tags, FolderTree, Power, Loader2, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Check, ClipboardCheck, PackagePlus, Settings, Printer, X, Plus, Eye, ChevronDown, ChevronUp, Search, Tags, FolderTree, Power, Loader2, Trash2 } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAuth } from "../../auth";
 import {
@@ -11,6 +11,8 @@ import { validateInteger } from "../../shared/utils/formValidation";
 import { useToast } from "../../shared/context/ToastContext";
 import { useBodyScrollLock } from "../../shared/hooks";
 import { ConfirmModal } from "../../shared/ui";
+import { getApiErrorMessage, priceAdjustmentsApi, type ApplyPriceAdjustmentPayload } from "../utils/priceAdjustmentsApi";
+import type { PreviewResult } from "../types/priceAdjustments.types";
 import KardexView from "./KardexView";
 import { CategoryManagementView } from "../components/categories/CategoryManagementView";
 import { getCategoryDisplayColor } from "../components/categories/categoryColors";
@@ -76,6 +78,8 @@ interface ProductRow {
 }
 
 type ProductStatusFilter = "all" | "active" | "inactive";
+type InventoryAdjustmentMode = "stock" | "inventory";
+type InventoryAdjustmentType = "" | "RECOUNT" | "ENTRADA" | "SALIDA" | "MERMA";
 
 const PRODUCT_STATUS_OPTIONS: { value: ProductStatusFilter; label: string }[] = [
   { value: "all", label: "Todos" },
@@ -156,6 +160,12 @@ const getProductTotalStock = (product: ProductRow | ProductDetail): number => {
 interface SupplierOption {
   id: number;
   name: string;
+}
+
+interface ProductSupplierLink extends SupplierOption {
+  rfc?: string | null;
+  email?: string | null;
+  isPrimary: boolean;
 }
 
 interface PromotionTypeSummary {
@@ -602,6 +612,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
   const [deleteTarget, setDeleteTarget] = useState<DeactivationTarget | null>(null);
   const [deletingProductId, setDeletingProductId] = useState<number | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isPrintingProductSheet, setIsPrintingProductSheet] = useState(false);
+  const isPrintingProductSheetRef = useRef(false);
+  const productSheetPrintTimeoutRef = useRef<number | null>(null);
   const productActionInProgress = deactivatingProductId !== null || deletingProductId !== null;
 
   // Feature 1: edit prices
@@ -611,11 +624,17 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
   const [priceFieldErrors, setPriceFieldErrors] = useState<Partial<Record<"cost" | "price", string>>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
   const [priceSaving, setPriceSaving] = useState(false);
+  const [pricePreview, setPricePreview] = useState<PreviewResult | null>(null);
+  const [pricePreviewLoading, setPricePreviewLoading] = useState(false);
+  const [priceNotes, setPriceNotes] = useState("");
+  const [priceConfirmBelowCost, setPriceConfirmBelowCost] = useState(false);
+  const [priceConfirmOpen, setPriceConfirmOpen] = useState(false);
 
   // Feature 2: adjust stock
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjustMode, setAdjustMode] = useState<InventoryAdjustmentMode>("stock");
   const [adjustBranch, setAdjustBranch] = useState(0);
-  const [adjustType, setAdjustType] = useState("");
+  const [adjustType, setAdjustType] = useState<InventoryAdjustmentType>("");
   const [adjustQuantity, setAdjustQuantity] = useState(0);
   const [adjustReason, setAdjustReason] = useState("");
   const [adjustObservations, setAdjustObservations] = useState("");
@@ -638,9 +657,19 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
 
   const [productSuppliers, setProductSuppliers] = useState<number[]>([]);
+  const [primarySupplierId, setPrimarySupplierId] = useState<number | null>(null);
   const [editingSuppliersMode, setEditingSuppliersMode] = useState(false);
   const [suppliersError, setSuppliersError] = useState<string | null>(null);
   const [suppliersSaving, setSuppliersSaving] = useState(false);
+  const productSupplierDisplayIds = useMemo(() => {
+    return [...productSuppliers].sort((a, b) => {
+      if (a === primarySupplierId) return -1;
+      if (b === primarySupplierId) return 1;
+      const nameA = suppliers.find((supplier) => supplier.id === a)?.name ?? "";
+      const nameB = suppliers.find((supplier) => supplier.id === b)?.name ?? "";
+      return nameA.localeCompare(nameB, "es");
+    });
+  }, [primarySupplierId, productSuppliers, suppliers]);
 
   const [showForm, setShowForm] = useState(false);
   const [categoryAdminOpen, setCategoryAdminOpen] = useState(false);
@@ -853,7 +882,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
     }
     handleDecimalInputChange(rawValue, (nextValue) => {
       if (key === "cost") setEditCost(nextValue);
-      else setEditPrice(nextValue);
+      else {
+        setEditPrice(nextValue);
+        setPricePreview(null);
+        setPriceNotes("");
+        setPriceConfirmBelowCost(false);
+        setPriceConfirmOpen(false);
+      }
       const validation = validateMoneyField(nextValue, key === "cost" ? "costo" : "precio");
       const error = getValidationError(validation);
       setPriceFieldErrors((prev) => {
@@ -896,6 +931,35 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
     setTransferQty(Number(value));
     setTransferFieldErrors((prev) => ({ ...prev, quantity: undefined }));
     setTransferError(null);
+  };
+
+  const openAdjustmentModal = (mode: InventoryAdjustmentMode) => {
+    setAdjustMode(mode);
+    setAdjustOpen(true);
+    setAdjustError(null);
+    setAdjustFieldErrors({});
+    setAdjustBranch(user?.role === "GERENTE" && user.branch?.id ? user.branch.id : 0);
+    setAdjustType(mode === "inventory" ? "RECOUNT" : "");
+    setAdjustQuantity(0);
+    setAdjustReason("");
+    setAdjustObservations("");
+  };
+
+  const closeAdjustmentModal = () => {
+    if (adjustSaving) return;
+    setAdjustOpen(false);
+  };
+
+  const resetAdjustmentForm = () => {
+    setAdjustOpen(false);
+    setAdjustMode("stock");
+    setAdjustBranch(0);
+    setAdjustType("");
+    setAdjustQuantity(0);
+    setAdjustFieldErrors({});
+    setAdjustReason("");
+    setAdjustObservations("");
+    setAdjustError(null);
   };
 
   const closeForm = () => {
@@ -1447,6 +1511,14 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
   }, [load]);
 
   useEffect(() => {
+    return () => {
+      if (productSheetPrintTimeoutRef.current !== null) {
+        window.clearTimeout(productSheetPrintTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     api
       .get<SupplierOption[]>("/api/admin/suppliers")
       .then((r) => setSuppliers(r.data))
@@ -1460,6 +1532,24 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
     setEditPrice(String(res.data.product.sellPrice));
   };
 
+  const applyProductSupplierLinks = (items: ProductSupplierLink[]) => {
+    setProductSuppliers(items.map((supplier) => supplier.id));
+    setPrimarySupplierId(items.find((supplier) => supplier.isPrimary)?.id ?? null);
+  };
+
+  const fetchProductSuppliers = async (id: number) => {
+    const spRes = await api.get<ProductSupplierLink[]>(`/api/admin/products/${id}/suppliers`);
+    applyProductSupplierLinks(spRes.data);
+  };
+
+  const resetProductPriceAdjustmentState = () => {
+    setPricePreview(null);
+    setPricePreviewLoading(false);
+    setPriceNotes("");
+    setPriceConfirmBelowCost(false);
+    setPriceConfirmOpen(false);
+  };
+
   const openProductDetail = useCallback(async (id: number) => {
     setDetailOpen(true);
     setDetailLoading(true);
@@ -1467,131 +1557,585 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
     setSelectedProduct(null);
     setEditMode(false);
     setSaveError(null);
+    resetProductPriceAdjustmentState();
     setEditingSuppliersMode(false);
     setProductSuppliers([]);
+    setPrimarySupplierId(null);
     setSuppliersError(null);
     try {
       await fetchDetail(id);
-      const spRes = await api.get<SupplierOption[]>(`/api/admin/products/${id}/suppliers`);
-      setProductSuppliers(spRes.data.map((s) => s.id));
     } catch (err: unknown) {
       setDetailError(getErrorMessage(err, "No se pudo cargar el detalle del producto."));
+      setDetailLoading(false);
+      return;
+    }
+
+    try {
+      await fetchProductSuppliers(id);
+    } catch (err: unknown) {
+      setSuppliersError(getErrorMessage(err, "Error al obtener proveedores del producto."));
     } finally {
       setDetailLoading(false);
     }
   }, []);
 
   const closeDetail = () => {
-    if (priceSaving || adjustSaving || transferSaving || suppliersSaving || productActionInProgress) return;
+    if (priceSaving || pricePreviewLoading || adjustSaving || transferSaving || suppliersSaving || productActionInProgress) return;
     setDetailOpen(false);
     setEditMode(false);
     setAdjustOpen(false);
     setTransferOpen(false);
+    resetProductPriceAdjustmentState();
     setEditingSuppliersMode(false);
     setProductSuppliers([]);
+    setPrimarySupplierId(null);
     setSuppliersError(null);
   };
 
   const printProduct = useCallback(() => {
     if (!selectedProduct) return;
+    if (isPrintingProductSheetRef.current) return;
+
+    isPrintingProductSheetRef.current = true;
+    setIsPrintingProductSheet(true);
+    if (productSheetPrintTimeoutRef.current !== null) {
+      window.clearTimeout(productSheetPrintTimeoutRef.current);
+    }
+    productSheetPrintTimeoutRef.current = window.setTimeout(() => {
+      isPrintingProductSheetRef.current = false;
+      setIsPrintingProductSheet(false);
+      productSheetPrintTimeoutRef.current = null;
+    }, 2500);
+
     const p = selectedProduct;
+    const escapeHtml = (value: unknown): string =>
+      String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    const stockTotal = p.inventories.reduce((total, inv) => total + inv.quantity, 0);
+    const margin = p.sellPrice > 0
+      ? `${(((p.sellPrice - p.costPrice) / p.sellPrice) * 100).toFixed(1)}%`
+      : "-";
+    const generatedAt = `${fmtDate(new Date())} ${fmtTime(new Date())}`;
+    const categoryNames = p.categories.map((category) => category.name).filter(Boolean).join(", ");
+    const primarySupplier = primarySupplierId !== null
+      ? suppliers.find((supplier) => supplier.id === primarySupplierId)
+      : null;
+    const generalInfo = [
+      p.description ? { label: "Descripcion", value: p.description } : null,
+      categoryNames ? { label: "Categorias", value: categoryNames } : null,
+      p.satProductKey ? { label: "Clave SAT producto", value: p.satProductKey } : null,
+      p.satUnitKey ? { label: "Unidad SAT", value: p.satUnitKey } : null,
+      primarySupplier ? { label: "Proveedor principal", value: primarySupplier.name } : null,
+      { label: "Retornable", value: p.isReturnable ? `Si (${p.returnWindowDays} dias)` : "No" },
+    ].filter((item): item is { label: string; value: string } => Boolean(item));
+    const generalInfoRows = generalInfo
+      .map(
+        (item) => `
+      <div class="info-item">
+        <div class="info-label">${escapeHtml(item.label)}</div>
+        <div class="info-value">${escapeHtml(item.value)}</div>
+      </div>`
+      )
+      .join("");
     const invRows = p.inventories
       .map(
-        (inv) => `
+        (inv) => {
+          const status = inv.quantity <= 0 ? "Sin stock" : inv.quantity <= inv.minStock ? "Stock bajo" : "OK";
+          const statusClass = inv.quantity <= 0 ? "status-empty" : inv.quantity <= inv.minStock ? "status-low" : "status-ok";
+          return `
       <tr>
-        <td>${inv.branch}</td>
-        <td class="c">${inv.quantity}</td>
-        <td class="c">${inv.minStock}</td>
-        <td class="c">${inv.maxStock}</td>
-        <td class="c" style="color:${inv.quantity <= inv.minStock ? "#b45309" : "#15803d"}">${inv.quantity <= inv.minStock ? "Stock bajo" : "OK"}</td>
-      </tr>`
+        <td>${escapeHtml(inv.branch)}</td>
+        <td class="r">${inv.quantity}</td>
+        <td class="r">${inv.minStock}</td>
+        <td class="r">${inv.maxStock}</td>
+        <td class="c"><span class="status-pill ${statusClass}">${status}</span></td>
+      </tr>`;
+        }
       )
       .join("");
     const kardexRows = p.recentKardex
       .map(
-        (k) => `
+        (k) => {
+          const changeClass = k.quantityChange > 0 ? "change-positive" : k.quantityChange < 0 ? "change-negative" : "change-neutral";
+          return `
       <tr>
         <td>${fmtDate(k.date)}</td>
-        <td>${k.branch}</td>
-        <td>${k.movementType.replace(/_/g, " ")}</td>
-        <td class="c" style="color:${k.quantityChange >= 0 ? "#15803d" : "#b91c1c"}">${k.quantityChange >= 0 ? "+" : ""}${k.quantityChange}</td>
-        <td class="c">${k.balanceAfter}</td>
-        <td>${k.reason || "—"}</td>
-      </tr>`
+        <td>${escapeHtml(k.branch)}</td>
+        <td>${escapeHtml(k.movementType.replace(/_/g, " "))}</td>
+        <td class="r ${changeClass}">${k.quantityChange > 0 ? "+" : ""}${k.quantityChange}</td>
+        <td class="r">${k.balanceAfter}</td>
+        <td class="reason-cell">${escapeHtml(k.reason || "-")}</td>
+      </tr>`;
+        }
       )
       .join("");
     printHtml(
       `Producto: ${p.name}`,
       `
-      <div class="doc-header">
-        <div><div class="doc-brand">LYFRGL POS</div><div class="doc-sub">Ficha de Producto</div></div>
-        <div>
-          <div class="doc-title">${p.name}</div>
-          <div class="doc-meta">SKU: ${p.sku}${p.barcode ? ` · Barcode: ${p.barcode}` : ""}</div>
-        </div>
-      </div>
-      <div class="kpis">
-        <div class="kpi"><div class="l">Costo</div><div class="v">${money(p.costPrice)}</div></div>
-        <div class="kpi"><div class="l">Precio venta</div><div class="v">${money(p.sellPrice)}</div></div>
-        <div class="kpi"><div class="l">Estado</div><div class="v">${p.active ? "Activo" : "Inactivo"}</div></div>
-        <div class="kpi"><div class="l">Sucursales</div><div class="v">${p.inventories.length}</div></div>
-      </div>
-      <h3>Stock por sucursal</h3>
-      <table>
-        <thead><tr><th>Sucursal</th><th class="c">Stock</th><th class="c">Mínimo</th><th class="c">Máximo</th><th class="c">Estado</th></tr></thead>
-        <tbody>${invRows || '<tr><td colspan="5" class="c">Sin inventario registrado</td></tr>'}</tbody>
-      </table>
-      <h3>Últimos movimientos Kardex</h3>
-      <table>
-        <thead><tr><th>Fecha</th><th>Sucursal</th><th>Tipo</th><th class="c">Cambio</th><th class="c">Saldo</th><th>Motivo</th></tr></thead>
-        <tbody>${kardexRows || '<tr><td colspan="6" class="c">Sin movimientos registrados</td></tr>'}</tbody>
-      </table>`,
-      showToast
-    );
-  }, [selectedProduct]);
+      <style>
+        @page {
+          size: letter portrait;
+          margin: 12mm;
+        }
+        body {
+          padding: 0 !important;
+          background: #ffffff;
+          color: #172033;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .product-sheet + .foot {
+          display: none;
+        }
+        .product-sheet {
+          min-height: calc(100vh - 24mm);
+          padding-bottom: 18mm;
+          font-size: 11px;
+          line-height: 1.35;
+        }
+        .sheet-header {
+          display: grid;
+          grid-template-columns: 1fr 1.35fr;
+          gap: 18px;
+          align-items: end;
+          padding-bottom: 12px;
+          border-bottom: 2px solid #23395d;
+          margin-bottom: 14px;
+        }
+        .brand-title {
+          font-size: 22px;
+          line-height: 1;
+          font-weight: 850;
+          color: #182f52;
+          letter-spacing: 0;
+        }
+        .doc-kind {
+          margin-top: 5px;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 1.2px;
+          font-weight: 750;
+          color: #6b7280;
+        }
+        .product-title-block {
+          text-align: right;
+        }
+        .product-name {
+          font-size: 20px;
+          font-weight: 850;
+          color: #111827;
+          line-height: 1.12;
+          overflow-wrap: anywhere;
+        }
+        .product-codes {
+          display: flex;
+          justify-content: flex-end;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-top: 8px;
+        }
+        .code-chip {
+          border: 1px solid #d8dee8;
+          background: #f8fafc;
+          border-radius: 6px;
+          padding: 4px 7px;
+          font-size: 10px;
+          color: #465568;
+          font-weight: 700;
+        }
+        .summary-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 9px;
+          margin: 12px 0 13px;
+        }
+        .summary-card {
+          border: 1px solid #dbe1ea;
+          border-radius: 8px;
+          background: #f7f9fc;
+          padding: 9px 10px;
+          min-height: 54px;
+        }
+        .summary-label {
+          font-size: 9.5px;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: .65px;
+          font-weight: 750;
+        }
+        .summary-value {
+          margin-top: 4px;
+          font-size: 17px;
+          line-height: 1.1;
+          font-weight: 850;
+          color: #172033;
+        }
+        .summary-value.small {
+          font-size: 14px;
+        }
+        .section {
+          margin-top: 13px;
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+        .section-title {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+          font-weight: 850;
+          color: #23395d;
+          text-transform: uppercase;
+          letter-spacing: .55px;
+          margin-bottom: 7px;
+        }
+        .section-title::after {
+          content: "";
+          height: 1px;
+          background: #dbe1ea;
+          flex: 1;
+        }
+        .info-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 7px 10px;
+          border: 1px solid #dbe1ea;
+          background: #fbfcfe;
+          border-radius: 8px;
+          padding: 9px 10px;
+        }
+        .info-label {
+          font-size: 9.5px;
+          color: #6b7280;
+          text-transform: uppercase;
+          letter-spacing: .45px;
+          font-weight: 750;
+        }
+        .info-value {
+          margin-top: 2px;
+          color: #1f2937;
+          font-size: 11.5px;
+          font-weight: 650;
+          overflow-wrap: anywhere;
+        }
+        .product-table {
+          width: 100%;
+          border-collapse: separate;
+          border-spacing: 0;
+          border: 1px solid #dbe1ea;
+          border-radius: 8px;
+          overflow: hidden;
+          margin: 0;
+          table-layout: fixed;
+        }
+        .product-table thead {
+          display: table-header-group;
+        }
+        .product-table th {
+          background: #eef2f7;
+          color: #334155;
+          border-bottom: 1px solid #d1d9e6;
+          padding: 7px 8px;
+          font-size: 9.5px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: .45px;
+        }
+        .product-table td {
+          border-bottom: 1px solid #edf1f6;
+          color: #243244;
+          padding: 7px 8px;
+          font-size: 10.8px;
+          vertical-align: top;
+          white-space: normal;
+        }
+        .product-table tr {
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+        .product-table tbody tr:nth-child(even) td {
+          background: #fafbfc;
+        }
+        .product-table tbody tr:last-child td {
+          border-bottom: 0;
+        }
+        .r {
+          text-align: right;
+        }
+        .c {
+          text-align: center;
+        }
+        .status-pill {
+          display: inline-block;
+          min-width: 58px;
+          border: 1px solid #cfd8e3;
+          border-radius: 999px;
+          padding: 2px 7px;
+          font-size: 9.5px;
+          font-weight: 800;
+          color: #334155;
+          background: #f8fafc;
+        }
+        .status-ok {
+          border-color: #b8c7ba;
+          background: #f3f7f3;
+          color: #2f5b37;
+        }
+        .status-low {
+          border-color: #d6c7a8;
+          background: #fbf7ed;
+          color: #755b1f;
+        }
+        .status-empty {
+          border-color: #d1d5db;
+          background: #f3f4f6;
+          color: #4b5563;
+        }
+        .change-positive {
+          color: #25613a;
+          font-weight: 850;
+        }
+        .change-negative {
+          color: #8a2f2f;
+          font-weight: 850;
+        }
+        .change-neutral {
+          color: #475569;
+          font-weight: 800;
+        }
+        .reason-cell {
+          width: 34%;
+        }
+        .empty-row {
+          padding: 16px 10px !important;
+          color: #64748b !important;
+          text-align: center;
+          font-weight: 650;
+        }
+        .sheet-footer {
+          position: fixed;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          border-top: 1px solid #dbe1ea;
+          padding-top: 5px;
+          color: #7b8794;
+          font-size: 9.5px;
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+        }
+        .page-number::after {
+          content: "Pagina " counter(page);
+        }
+        @media screen {
+          .product-sheet {
+            max-width: 816px;
+            margin: 0 auto;
+          }
+        }
+        @media print {
+          .product-sheet {
+            min-height: auto;
+          }
+        }
+      </style>
+      <script>try{window.history.replaceState(null, document.title, "/print/ficha-producto");}catch(e){}</script>
+      <main class="product-sheet">
+        <header class="sheet-header">
+          <div>
+            <div class="brand-title">LYFRGL Solutions POS</div>
+            <div class="doc-kind">Ficha de producto</div>
+          </div>
+          <div class="product-title-block">
+            <div class="product-name">${escapeHtml(p.name)}</div>
+            <div class="product-codes">
+              <span class="code-chip">SKU: ${escapeHtml(p.sku)}</span>
+              ${p.barcode ? `<span class="code-chip">Codigo de barras: ${escapeHtml(p.barcode)}</span>` : ""}
+            </div>
+          </div>
+        </header>
 
-  // Feature 1: save price/cost edits
-  const saveProductChanges = async () => {
-    if (!selectedProduct || priceSaving) return;
+        <section class="summary-grid">
+          <div class="summary-card"><div class="summary-label">Costo</div><div class="summary-value">${money(p.costPrice)}</div></div>
+          <div class="summary-card"><div class="summary-label">Precio venta</div><div class="summary-value">${money(p.sellPrice)}</div></div>
+          <div class="summary-card"><div class="summary-label">Margen</div><div class="summary-value">${margin}</div></div>
+          <div class="summary-card"><div class="summary-label">Estado</div><div class="summary-value small">${p.active ? "Activo" : "Inactivo"}</div></div>
+          <div class="summary-card"><div class="summary-label">Sucursales</div><div class="summary-value">${p.inventories.length}</div></div>
+          <div class="summary-card"><div class="summary-label">Stock total</div><div class="summary-value">${stockTotal}</div></div>
+        </section>
+
+        ${generalInfoRows ? `
+        <section class="section">
+          <div class="section-title">Informacion general</div>
+          <div class="info-grid">${generalInfoRows}</div>
+        </section>` : ""}
+
+        <section class="section">
+          <div class="section-title">Stock por sucursal</div>
+          <table class="product-table stock-table">
+            <thead>
+              <tr>
+                <th style="width: 38%;">Sucursal</th>
+                <th class="r" style="width: 14%;">Stock</th>
+                <th class="r" style="width: 14%;">Minimo</th>
+                <th class="r" style="width: 14%;">Maximo</th>
+                <th class="c" style="width: 20%;">Estado</th>
+              </tr>
+            </thead>
+            <tbody>${invRows || '<tr><td colspan="5" class="empty-row">Sin inventario registrado.</td></tr>'}</tbody>
+          </table>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Ultimos movimientos Kardex</div>
+          <table class="product-table kardex-table">
+            <thead>
+              <tr>
+                <th style="width: 12%;">Fecha</th>
+                <th style="width: 17%;">Sucursal</th>
+                <th style="width: 15%;">Tipo</th>
+                <th class="r" style="width: 10%;">Cambio</th>
+                <th class="r" style="width: 10%;">Saldo</th>
+                <th style="width: 36%;">Motivo</th>
+              </tr>
+            </thead>
+            <tbody>${kardexRows || '<tr><td colspan="6" class="empty-row">No hay movimientos recientes registrados.</td></tr>'}</tbody>
+          </table>
+        </section>
+
+        <footer class="sheet-footer">
+          <span>LYFRGL Solutions POS &middot; Ficha de producto &middot; Generado el ${generatedAt}</span>
+          <span class="page-number"></span>
+        </footer>
+      </main>`
+    );
+  }, [primarySupplierId, selectedProduct, suppliers]);
+
+  const validateEditedSellPrice = (): MoneyField | null => {
+    if (!selectedProduct) return null;
     setSaveError(null);
 
-    const cost = validateMoneyField(editCost, "costo");
-    const costError = getValidationError(cost);
-    if (costError) {
-      setPriceFieldErrors((prev) => ({ ...prev, cost: costError }));
-      setSaveError("Revisa los campos marcados antes de guardar.");
-      return;
+    if (!selectedProduct.active) {
+      setSaveError("No puedes modificar precios de productos inactivos.");
+      return null;
     }
+
     const price = validateMoneyField(editPrice, "precio");
     const priceError = getValidationError(price);
     if (priceError) {
       setPriceFieldErrors((prev) => ({ ...prev, price: priceError }));
       setSaveError("Revisa los campos marcados antes de guardar.");
+      return null;
+    }
+    const priceValue = getValidationValue(price);
+    if (!priceValue) return null;
+
+    if (priceValue.value <= 0) {
+      setPriceFieldErrors((prev) => ({ ...prev, price: "El precio debe ser mayor a 0." }));
+      setSaveError("Revisa los campos marcados antes de guardar.");
+      return null;
+    }
+
+    if (priceValue.value === Number(selectedProduct.sellPrice.toFixed(2))) {
+      setPriceFieldErrors((prev) => ({ ...prev, price: "El nuevo precio debe ser diferente al precio actual." }));
+      setSaveError("No hay cambios de precio para aplicar.");
+      return null;
+    }
+
+    setPriceFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next.price;
+      return next;
+    });
+
+    return priceValue;
+  };
+
+  const generateProductPricePreview = async () => {
+    if (!selectedProduct || priceSaving || pricePreviewLoading) return;
+
+    const priceValue = validateEditedSellPrice();
+    if (!priceValue) return;
+
+    if (priceValue.roundedMessage) {
+      showToast(priceValue.roundedMessage, "warning");
+    }
+
+    setPricePreviewLoading(true);
+    setSaveError(null);
+    try {
+      const preview = await priceAdjustmentsApi.preview({
+        operation: "SET_EXACT",
+        value: priceValue.value,
+        productIds: [selectedProduct.id],
+      });
+      setPricePreview(preview);
+      setPriceNotes("");
+      setPriceConfirmBelowCost(false);
+      setPriceConfirmOpen(false);
+    } catch (err: unknown) {
+      setPricePreview(null);
+      setSaveError(getApiErrorMessage(err, "No se pudo generar la vista previa del ajuste."));
+    } finally {
+      setPricePreviewLoading(false);
+    }
+  };
+
+  const openProductPriceConfirm = () => {
+    if (!pricePreview) {
+      setSaveError("Genera la vista previa antes de aplicar el ajuste.");
       return;
     }
-    const costValue = getValidationValue(cost);
-    const priceValue = getValidationValue(price);
-    if (!costValue || !priceValue) return;
+    if (pricePreview.requiresReason && !priceNotes.trim()) {
+      setSaveError("El motivo es obligatorio para este ajuste.");
+      return;
+    }
+    if (pricePreview.requiresBelowCostConfirmation && !priceConfirmBelowCost) {
+      setSaveError("Confirma el ajuste por debajo del costo antes de continuar.");
+      return;
+    }
+    setSaveError(null);
+    setPriceConfirmOpen(true);
+  };
 
-    const roundingMessages = [costValue.roundedMessage, priceValue.roundedMessage].filter((message): message is string => Boolean(message));
+  // Feature 1: apply individual sell price adjustment with history
+  const applyProductPriceAdjustment = async () => {
+    if (!selectedProduct || !pricePreview || priceSaving) return;
+
+    const priceValue = validateEditedSellPrice();
+    if (!priceValue) {
+      setPriceConfirmOpen(false);
+      return;
+    }
+
+    const payload: ApplyPriceAdjustmentPayload = {
+      scope: "SELECTED_PRODUCTS",
+      operation: "SET_EXACT",
+      value: priceValue.value,
+      productIds: [selectedProduct.id],
+      notes: priceNotes.trim() || undefined,
+      confirmBelowCost: priceConfirmBelowCost,
+    };
+
     setPriceSaving(true);
     try {
-      if (roundingMessages.length > 0) {
-        showToast(roundingMessages.join(" | "), "warning");
-      }
-
-      await api.put(`/api/admin/products/${selectedProduct.id}`, {
-        costPrice: costValue.value,
-        sellPrice: priceValue.value,
-      });
+      const result = await priceAdjustmentsApi.apply(payload);
+      showToast(`Precio actualizado correctamente. Ajuste #${result.id} registrado.`, "success");
       await fetchDetail(selectedProduct.id);
       setEditMode(false);
       setPriceFieldErrors({});
+      resetProductPriceAdjustmentState();
       await load();
     } catch (err: unknown) {
-      setSaveError(getErrorMessage(err, "Error al guardar."));
+      setSaveError(getApiErrorMessage(err, "No se pudo aplicar el ajuste de precio."));
     } finally {
       setPriceSaving(false);
+      setPriceConfirmOpen(false);
     }
   };
 
@@ -1599,8 +2143,17 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
   const submitAdjustment = async () => {
     if (!selectedProduct || adjustSaving) return;
     setAdjustError(null);
-    if (!adjustBranch || !adjustType || !adjustReason.trim()) {
+    const activeAdjustType: InventoryAdjustmentType = adjustMode === "inventory" ? "RECOUNT" : adjustType;
+
+    if (!adjustBranch || !activeAdjustType || !adjustReason.trim()) {
       setAdjustError("Completa todos los campos obligatorios.");
+      return;
+    }
+    if (
+      (adjustMode === "inventory" && activeAdjustType !== "RECOUNT") ||
+      (adjustMode === "stock" && !["ENTRADA", "SALIDA", "MERMA"].includes(activeAdjustType))
+    ) {
+      setAdjustError("Selecciona un tipo de ajuste valido para esta accion.");
       return;
     }
     const adjustQuantityError = validateInteger(adjustQuantity ? String(adjustQuantity) : "", "La cantidad", { min: 1 });
@@ -1611,29 +2164,37 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
     }
     setAdjustFieldErrors({});
 
-    const currentStock = selectedProduct.inventories.find((inv) => inv.branchId === adjustBranch)?.quantity ?? 0;
+    const selectedInventory = selectedProduct.inventories.find((inv) => inv.branchId === adjustBranch);
+    if (!selectedInventory) {
+      setAdjustError("Selecciona una sucursal valida para este producto.");
+      return;
+    }
+    const currentStock = selectedInventory.quantity;
 
     let quantityChange = 0;
     let movementType = "";
-    if (adjustType === "RECOUNT") {
+    if (activeAdjustType === "RECOUNT") {
       quantityChange = adjustQuantity - currentStock;
       movementType = "AJUSTE_INVENTARIO";
-    } else if (adjustType === "ENTRADA") {
+    } else if (activeAdjustType === "ENTRADA") {
       quantityChange = adjustQuantity;
       movementType = "AJUSTE_INVENTARIO";
-    } else if (adjustType === "SALIDA") {
+    } else if (activeAdjustType === "SALIDA") {
       quantityChange = -adjustQuantity;
       movementType = "AJUSTE_INVENTARIO";
-    } else if (adjustType === "MERMA") {
+    } else if (activeAdjustType === "MERMA") {
       quantityChange = -adjustQuantity;
       movementType = "AJUSTE_MERMA";
     }
 
-    if (quantityChange === 0 && adjustType !== "RECOUNT") {
-      setAdjustError("La cantidad no puede ser 0.");
+    if (quantityChange === 0) {
+      setAdjustError(activeAdjustType === "RECOUNT"
+        ? "La existencia fisica coincide con el stock actual. No hay diferencia por registrar."
+        : "La cantidad no puede ser 0.");
       return;
     }
     if (currentStock + quantityChange < 0) {
+      setAdjustFieldErrors((prev) => ({ ...prev, quantity: "La cantidad supera el stock disponible." }));
       setAdjustError("El ajuste resultaría en stock negativo.");
       return;
     }
@@ -1658,13 +2219,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
       });
       await fetchDetail(selectedProduct.id);
       await load();
-      setAdjustOpen(false);
-      setAdjustBranch(0);
-      setAdjustType("");
-      setAdjustQuantity(0);
-      setAdjustFieldErrors({});
-      setAdjustReason("");
-      setAdjustObservations("");
+      resetAdjustmentForm();
     } catch (err: unknown) {
       setAdjustError(getErrorMessage(err, "Error al aplicar ajuste."));
     } finally {
@@ -1717,24 +2272,44 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
     }
   };
 
+  const updateProductSupplierSelection = (supplierId: number, checked: boolean) => {
+    const nextSupplierIds = checked
+      ? productSuppliers.includes(supplierId)
+        ? productSuppliers
+        : [...productSuppliers, supplierId]
+      : productSuppliers.filter((id) => id !== supplierId);
+
+    setProductSuppliers(nextSupplierIds);
+    setPrimarySupplierId((currentPrimaryId) => {
+      if (nextSupplierIds.length === 0) return null;
+      if (currentPrimaryId !== null && nextSupplierIds.includes(currentPrimaryId)) return currentPrimaryId;
+      return checked ? supplierId : nextSupplierIds[0] ?? null;
+    });
+    setSuppliersError(null);
+  };
+
+  const cancelSuppliersChanges = () => {
+    if (selectedProduct) {
+      void fetchProductSuppliers(selectedProduct.id).catch(() => { });
+    }
+    setEditingSuppliersMode(false);
+    setSuppliersError(null);
+  };
+
   const saveSuppliersChanges = async () => {
     if (!selectedProduct || suppliersSaving) return;
     setSuppliersError(null);
     setSuppliersSaving(true);
     try {
-      const res = await api.get<SupplierOption[]>(`/api/admin/products/${selectedProduct.id}/suppliers`);
-      const oldIds = res.data.map((s) => s.id);
+      if (productSuppliers.length > 0 && (primarySupplierId === null || !productSuppliers.includes(primarySupplierId))) {
+        throw new Error("Selecciona el proveedor principal del producto.");
+      }
 
-      for (const supplierId of oldIds) {
-        if (!productSuppliers.includes(supplierId)) {
-          await api.post("/api/admin/suppliers/products/remove", { supplierId, productId: selectedProduct.id });
-        }
-      }
-      for (const supplierId of productSuppliers) {
-        if (!oldIds.includes(supplierId)) {
-          await api.post("/api/admin/suppliers/products/assign", { supplierId, productId: selectedProduct.id });
-        }
-      }
+      const res = await api.put<{ suppliers: ProductSupplierLink[] }>(`/api/admin/products/${selectedProduct.id}/suppliers`, {
+        supplierIds: productSuppliers,
+        primarySupplierId,
+      });
+      applyProductSupplierLinks(res.data.suppliers);
       setEditingSuppliersMode(false);
     } catch (err: unknown) {
       setSuppliersError(getErrorMessage(err, "Error al guardar proveedores."));
@@ -1791,6 +2366,30 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
     hasValidEditPrices
       ? (((editPriceNumber - editCostNumber) / editPriceNumber) * 100).toFixed(1)
       : "—";
+  const pricePreviewProduct = pricePreview?.products[0] ?? null;
+  const pricePreviewDifference = pricePreviewProduct
+    ? pricePreviewProduct.newSellPrice - pricePreviewProduct.currentSellPrice
+    : 0;
+  const pricePreviewRequiresReason = pricePreview?.requiresReason ?? false;
+  const pricePreviewRequiresBelowCostConfirmation = pricePreview?.requiresBelowCostConfirmation ?? false;
+  const priceNotesError = pricePreviewRequiresReason && !priceNotes.trim()
+    ? "El motivo es obligatorio para este ajuste."
+    : null;
+  const canApplyPricePreview =
+    Boolean(pricePreviewProduct) &&
+    !priceSaving &&
+    !priceNotesError &&
+    (!pricePreviewRequiresBelowCostConfirmation || priceConfirmBelowCost);
+  const priceConfirmMessage = pricePreviewProduct && selectedProduct
+    ? [
+      `Producto: ${selectedProduct.sku} - ${selectedProduct.name}`,
+      `Precio actual: ${money(pricePreviewProduct.currentSellPrice)}`,
+      `Precio nuevo: ${money(pricePreviewProduct.newSellPrice)}`,
+      `Diferencia: ${pricePreviewDifference >= 0 ? "+" : "-"}${money(Math.abs(pricePreviewDifference))}`,
+      pricePreviewProduct.isBelowCost ? "El precio nuevo queda por debajo del costo." : "",
+      priceNotes.trim() ? `Motivo: ${priceNotes.trim()}` : "",
+    ].filter(Boolean).join("\n")
+    : "";
 
   return (
     <div>
@@ -2305,7 +2904,15 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
       {/* =================== MODAL DETALLE =================== */}
       {detailOpen && (
         <div style={ui.overlay} onClick={closeDetail}>
-          <div style={{ ...ui.modal, maxWidth: isMobile ? "100%" : 680, display: "flex", flexDirection: "column", overflowY: "hidden", ...(isMobile ? { width: "100%", height: "100%", borderRadius: 0, margin: 0 } : {}) }} onClick={(e) => e.stopPropagation()}>
+          <div style={{
+            ...ui.modal,
+            maxWidth: isMobile ? "calc(100% - 24px)" : 680,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            borderRadius: 24,
+            ...(isMobile ? { width: "calc(100% - 24px)", height: "auto", maxHeight: "90vh", margin: "auto" } : {})
+          }} onClick={(e) => e.stopPropagation()}>
             <div style={ui.modalHeader}>
               <div>
                 <div style={{ ...ui.modalTitle, wordBreak: "break-word", overflowWrap: "anywhere" }}>
@@ -2357,12 +2964,15 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
                         </div>
                         {user?.role !== "GERENTE" && (
                           <button
-                            onClick={() => { setEditMode(true); setSaveError(null); setPriceFieldErrors({}); }}
+                            onClick={() => { setEditMode(true); setSaveError(null); setPriceFieldErrors({}); resetProductPriceAdjustmentState(); }}
+                            disabled={!selectedProduct.active}
                             style={{
                               ...ui.ghostBtn,
                               fontSize: 12,
                               color: "var(--accent)",
                               borderColor: "#93c5fd",
+                              opacity: selectedProduct.active ? 1 : 0.55,
+                              cursor: selectedProduct.active ? "pointer" : "not-allowed",
                             }}
                           >
                             Editar precios
@@ -2371,20 +2981,16 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
                       </>
                     ) : (
                       <>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                          <div>
-                            <label style={ui.fieldLabel}>Costo</label>
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={editCost}
-                              onChange={(e) => setEditMoney("cost")(e.target.value)}
-                              placeholder="0.00"
-                              style={ui.input}
-                            />
-                            {priceFieldErrors.cost && <p style={styles.fieldError}>{priceFieldErrors.cost}</p>}
+                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: 12, marginBottom: 12 }}>
+                          <div style={styles.adjustReadOnlyBox}>
+                            <span style={styles.adjustSummaryLabel}>Costo actual</span>
+                            <strong style={styles.adjustCurrentValue}>{money(selectedProduct.costPrice)}</strong>
                           </div>
-                          <div>
+                          <div style={styles.adjustReadOnlyBox}>
+                            <span style={styles.adjustSummaryLabel}>Precio actual</span>
+                            <strong style={styles.adjustCurrentValue}>{money(selectedProduct.sellPrice)}</strong>
+                          </div>
+                          <div style={{ minWidth: 0 }}>
                             <label style={ui.fieldLabel}>Precio venta</label>
                             <input
                               type="text"
@@ -2393,6 +2999,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
                               onChange={(e) => setEditMoney("price")(e.target.value)}
                               placeholder="0.00"
                               style={ui.input}
+                              disabled={priceSaving || pricePreviewLoading}
                             />
                             {priceFieldErrors.price && <p style={styles.fieldError}>{priceFieldErrors.price}</p>}
                           </div>
@@ -2400,12 +3007,92 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
                         <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>
                           Margen calculado: <strong style={{ color: "var(--text)" }}>{liveMargem}%</strong>
                         </div>
+                        {pricePreviewProduct && (
+                          <div style={styles.adjustPreviewBox}>
+                            <div style={styles.adjustPreviewTitle}>Vista previa del ajuste</div>
+                            <div style={styles.adjustPreviewGrid}>
+                              <span>Precio anterior</span>
+                              <strong>{money(pricePreviewProduct.currentSellPrice)}</strong>
+                              <span>Precio nuevo</span>
+                              <strong>{money(pricePreviewProduct.newSellPrice)}</strong>
+                              <span>Diferencia</span>
+                              <strong style={{ color: pricePreviewDifference > 0 ? "#15803d" : pricePreviewDifference < 0 ? "#b91c1c" : "var(--text-muted)" }}>
+                                {pricePreviewDifference >= 0 ? "+" : "-"}{money(Math.abs(pricePreviewDifference))}
+                              </strong>
+                              <span>Descuento</span>
+                              <strong>{pricePreviewProduct.discountPercentage.toLocaleString("es-MX", { maximumFractionDigits: 2 })}%</strong>
+                              <span>Estado</span>
+                              <span>
+                                {pricePreviewProduct.isBelowCost ? (
+                                  <Badge tone="red">Debajo del costo</Badge>
+                                ) : (
+                                  <Badge tone={pricePreviewDifference >= 0 ? "green" : "blue"}>
+                                    {pricePreviewDifference >= 0 ? "Aumento" : "Descuento"}
+                                  </Badge>
+                                )}
+                              </span>
+                            </div>
+                            {pricePreviewRequiresReason && (
+                              <div style={{ marginTop: 12 }}>
+                                <label style={ui.fieldLabel}>Motivo del ajuste *</label>
+                                <textarea
+                                  style={{ ...ui.input, minHeight: 72, resize: "vertical" }}
+                                  value={priceNotes}
+                                  onChange={(event) => {
+                                    setPriceNotes(event.target.value);
+                                    setSaveError(null);
+                                  }}
+                                  maxLength={500}
+                                  placeholder="Describe el motivo del ajuste"
+                                  disabled={priceSaving}
+                                />
+                                {priceNotesError && <p style={styles.fieldError}>{priceNotesError}</p>}
+                              </div>
+                            )}
+                            {pricePreviewRequiresBelowCostConfirmation && (
+                              <label style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 12, color: "var(--text-secondary)", fontSize: 12, fontWeight: 700 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={priceConfirmBelowCost}
+                                  onChange={(event) => {
+                                    setPriceConfirmBelowCost(event.target.checked);
+                                    setSaveError(null);
+                                  }}
+                                  disabled={priceSaving}
+                                  style={{ width: 15, height: 15, marginTop: 1, accentColor: "var(--accent)", flexShrink: 0 }}
+                                />
+                                <span>Confirmo que el nuevo precio quedara por debajo del costo.</span>
+                              </label>
+                            )}
+                          </div>
+                        )}
                         {saveError && (
                           <p style={{ fontSize: 12, color: "var(--color-danger)", marginBottom: 10 }}>{saveError}</p>
                         )}
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={saveProductChanges} style={{ ...ui.primaryBtn, display: "inline-flex", alignItems: "center", gap: 5 }}><Check size={13} /> Guardar</button>
-                          <button onClick={() => { setEditMode(false); setSaveError(null); setPriceFieldErrors({}); }} style={{ ...ui.ghostBtn, display: "inline-flex", alignItems: "center", gap: 5 }}><X size={13} /> Cancelar</button>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <button
+                            onClick={generateProductPricePreview}
+                            disabled={pricePreviewLoading || priceSaving}
+                            style={{ ...ui.primaryBtn, opacity: pricePreviewLoading || priceSaving ? 0.65 : 1 }}
+                          >
+                            {pricePreviewLoading ? "Generando..." : "Generar vista previa"}
+                          </button>
+                          {pricePreviewProduct && (
+                            <button
+                              onClick={openProductPriceConfirm}
+                              disabled={!canApplyPricePreview}
+                              style={{ ...ui.primaryBtn, opacity: canApplyPricePreview ? 1 : 0.55, cursor: canApplyPricePreview ? "pointer" : "not-allowed" }}
+                            >
+                              {priceSaving ? "Aplicando..." : "Aplicar ajuste"}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => { setEditMode(false); setSaveError(null); setPriceFieldErrors({}); resetProductPriceAdjustmentState(); }}
+                            disabled={priceSaving || pricePreviewLoading}
+                            style={ui.ghostBtn}
+                          >
+                            Cancelar
+                          </button>
                         </div>
                       </>
                     )}
@@ -2518,28 +3205,44 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
 
                     {/* Action buttons under stock table */}
                     {selectedProduct.inventories.length > 0 && (
-                      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: isMobile ? "wrap" : undefined }}>
+                      <div style={{
+                        display: "grid",
+                        gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(3, max-content)",
+                        gap: 8,
+                        marginTop: 12,
+                        alignItems: "center",
+                      }}>
                         <button
-                          onClick={() => {
-                            setAdjustError(null);
-                            setAdjustOpen(true);
-                            if (user?.role === "GERENTE" && user.branch?.id) {
-                              setAdjustBranch(user.branch.id);
-                            } else {
-                              setAdjustBranch(0);
-                            }
-                          }}
+                          onClick={() => openAdjustmentModal("stock")}
                           disabled={user?.role === "GERENTE" && !selectedProduct.inventories.some((inv) => inv.branchId === user.branch?.id)}
                           style={{
                             ...ui.ghostBtn,
+                            ...styles.inventoryActionButton,
                             color: "#b45309",
                             borderColor: "#fcd34d",
                             backgroundColor: "#fffbeb",
                             opacity: (user?.role === "GERENTE" && !selectedProduct.inventories.some((inv) => inv.branchId === user.branch?.id)) ? 0.5 : 1,
-                            ...(isMobile ? { flex: 1, justifyContent: "center" } : {}),
+                            ...(isMobile ? styles.inventoryActionButtonMobile : {}),
                           }}
                         >
+                          <PackagePlus size={15} />
                           Ajustar stock
+                        </button>
+                        <button
+                          onClick={() => openAdjustmentModal("inventory")}
+                          disabled={user?.role === "GERENTE" && !selectedProduct.inventories.some((inv) => inv.branchId === user.branch?.id)}
+                          style={{
+                            ...ui.ghostBtn,
+                            ...styles.inventoryActionButton,
+                            color: "var(--accent-strong)",
+                            borderColor: "#93c5fd",
+                            backgroundColor: "var(--accent-soft)",
+                            opacity: (user?.role === "GERENTE" && !selectedProduct.inventories.some((inv) => inv.branchId === user.branch?.id)) ? 0.5 : 1,
+                            ...(isMobile ? styles.inventoryActionButtonMobile : {}),
+                          }}
+                        >
+                          <ClipboardCheck size={15} />
+                          Ajustar inventario
                         </button>
                         {selectedProduct.inventories.length > 1 &&
                           (user?.role !== "GERENTE" ||
@@ -2548,9 +3251,11 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
                               onClick={() => { setTransferError(null); setTransferOpen(true); }}
                               style={{
                                 ...ui.ghostBtn,
+                                ...styles.inventoryActionButton,
                                 color: "#7c3aed",
                                 borderColor: "#c4b5fd",
                                 backgroundColor: "#f5f3ff",
+                                ...(isMobile ? { ...styles.inventoryActionButtonMobile, gridColumn: "1 / -1" } : {}),
                               }}
                             >
                               Trasladar stock
@@ -2579,11 +3284,13 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
                         {productSuppliers.length === 0 ? (
                           <span style={{ fontSize: 12, color: "var(--text-faint)" }}>Sin proveedores asignados</span>
                         ) : (
-                          productSuppliers.map((sid) => {
+                          productSupplierDisplayIds.map((sid) => {
                             const s = suppliers.find((x) => x.id === sid);
+                            const isPrimary = sid === primarySupplierId;
+                            const supplierName = s?.name ?? `Proveedor ${sid}`;
                             return (
-                              <Badge key={sid} tone="blue">
-                                {s?.name ?? `Proveedor ${sid}`}
+                              <Badge key={sid} tone={isPrimary ? "green" : "blue"}>
+                                {isPrimary ? `Principal: ${supplierName}` : supplierName}
                               </Badge>
                             );
                           })
@@ -2595,30 +3302,51 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
                           {suppliers.length === 0 && (
                             <p style={{ fontSize: 12, color: "var(--text-faint)", margin: 0 }}>No hay proveedores disponibles</p>
                           )}
-                          {suppliers.map((s) => (
-                            <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "4px 0", fontSize: 13, color: "var(--text-secondary)" }}>
-                              <input
-                                type="checkbox"
-                                checked={productSuppliers.includes(s.id)}
-                                onChange={(e) =>
-                                  setProductSuppliers(
-                                    e.target.checked
-                                      ? [...productSuppliers, s.id]
-                                      : productSuppliers.filter((id) => id !== s.id)
-                                  )
-                                }
-                                style={{ width: 15, height: 15, cursor: "pointer", flexShrink: 0 }}
-                              />
-                              {s.name}
-                            </label>
-                          ))}
+                          {suppliers.map((s) => {
+                            const isSelected = productSuppliers.includes(s.id);
+                            const isPrimary = primarySupplierId === s.id;
+                            return (
+                              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "5px 0", fontSize: 13, color: "var(--text-secondary)" }}>
+                                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", flex: 1, minWidth: 0 }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(e) => updateProductSupplierSelection(s.id, e.target.checked)}
+                                    style={{ width: 15, height: 15, cursor: "pointer", flexShrink: 0 }}
+                                  />
+                                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</span>
+                                </label>
+                                {isSelected && (
+                                  <label style={{ display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer", color: isPrimary ? "#15803d" : "var(--text-muted)", fontSize: 12, fontWeight: 700 }}>
+                                    <input
+                                      type="radio"
+                                      name={`primary-supplier-${selectedProduct.id}`}
+                                      checked={isPrimary}
+                                      onChange={() => { setPrimarySupplierId(s.id); setSuppliersError(null); }}
+                                      style={{ width: 14, height: 14, cursor: "pointer" }}
+                                    />
+                                    Principal
+                                  </label>
+                                )}
+                                {isSelected && !isPrimary && (
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", minWidth: 64, textAlign: "right" }}>
+                                    Alternativo
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                         {suppliersError && (
                           <p style={{ fontSize: 12, color: "#b91c1c", marginBottom: 10 }}>{suppliersError}</p>
                         )}
                         <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={saveSuppliersChanges} style={{ ...ui.primaryBtn, display: "inline-flex", alignItems: "center", gap: 5 }}><Check size={13} /> Guardar</button>
-                          <button onClick={() => { setEditingSuppliersMode(false); setSuppliersError(null); }} style={{ ...ui.ghostBtn, display: "inline-flex", alignItems: "center", gap: 5 }}><X size={13} /> Cancelar</button>
+                          <button onClick={saveSuppliersChanges} disabled={suppliersSaving} style={{ ...ui.primaryBtn, display: "inline-flex", alignItems: "center", gap: 5, opacity: suppliersSaving ? 0.7 : 1, cursor: suppliersSaving ? "not-allowed" : "pointer" }}>
+                            {suppliersSaving ? "Guardando..." : <><Check size={13} /> Guardar</>}
+                          </button>
+                          <button onClick={cancelSuppliersChanges} disabled={suppliersSaving} style={{ ...ui.ghostBtn, display: "inline-flex", alignItems: "center", gap: 5, opacity: suppliersSaving ? 0.7 : 1, cursor: suppliersSaving ? "not-allowed" : "pointer" }}>
+                            <X size={13} /> Cancelar
+                          </button>
                         </div>
                       </div>
                     )}
@@ -2860,10 +3588,14 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
                     )}
                     <button
                       onClick={printProduct}
+                      disabled={isPrintingProductSheet}
+                      aria-busy={isPrintingProductSheet}
                       style={{
                         ...ui.primaryBtn,
                         ...(user?.role === "GERENTE" ? { marginLeft: "auto" } : {}),
                         whiteSpace: "nowrap",
+                        opacity: isPrintingProductSheet ? 0.72 : 1,
+                        cursor: isPrintingProductSheet ? "not-allowed" : "pointer",
                         ...(isMobile
                           ? {
                             width: "100%",
@@ -2873,9 +3605,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
                             order: 2,
                           }
                           : {}),
-                      }}
-                    >
-                      <Printer size={15} /> Imprimir ficha
+                        }}
+                      >
+                      <Printer size={15} /> {isPrintingProductSheet ? "Preparando..." : "Imprimir ficha"}
                     </button>
                   </>
                 )}
@@ -2905,30 +3637,83 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
 
       {/* =================== SUB-MODAL: AJUSTAR STOCK =================== */}
       {adjustOpen && selectedProduct && (() => {
-        const currentStock = selectedProduct.inventories.find((inv) => inv.branchId === adjustBranch)?.quantity ?? 0;
-        const expectedStock = adjustType === "RECOUNT"
-          ? adjustQuantity
-          : adjustType === "ENTRADA"
-            ? currentStock + adjustQuantity
-            : currentStock - adjustQuantity;
-        const diff = adjustType === "RECOUNT" ? adjustQuantity - currentStock : null;
+        const selectedInventory = selectedProduct.inventories.find((inv) => inv.branchId === adjustBranch);
+        const currentStock = selectedInventory?.quantity ?? 0;
+        const activeAdjustType: InventoryAdjustmentType = adjustMode === "inventory" ? "RECOUNT" : adjustType;
+        const hasQuantity = adjustQuantity > 0;
+        const expectedStock = !hasQuantity
+          ? currentStock
+          : activeAdjustType === "RECOUNT"
+            ? adjustQuantity
+            : activeAdjustType === "ENTRADA"
+              ? currentStock + adjustQuantity
+              : currentStock - adjustQuantity;
+        const quantityChangePreview = hasQuantity ? expectedStock - currentStock : 0;
+        const isInventoryCount = adjustMode === "inventory";
+        const isNegativeResult = hasQuantity && expectedStock < 0;
+        const quantityLabel = isInventoryCount
+          ? "Existencia fisica contada *"
+          : `Cantidad a ${activeAdjustType === "ENTRADA" ? "agregar" : activeAdjustType === "MERMA" ? "reportar como merma" : "retirar"} *`;
+        const movementLabel = isInventoryCount
+          ? "Conteo fisico"
+          : activeAdjustType === "ENTRADA"
+            ? "Entrada"
+            : activeAdjustType === "SALIDA"
+              ? "Salida"
+              : activeAdjustType === "MERMA"
+                ? "Merma"
+                : "Sin seleccionar";
+        const resultTone = quantityChangePreview > 0
+          ? "var(--color-success)"
+          : quantityChangePreview < 0
+            ? "var(--color-danger)"
+            : "var(--text-muted)";
+        const canSubmitAdjustment = Boolean(
+          adjustBranch &&
+          activeAdjustType &&
+          adjustReason.trim() &&
+          hasQuantity &&
+          quantityChangePreview !== 0 &&
+          !adjustFieldErrors.quantity &&
+          !isNegativeResult &&
+          !adjustSaving
+        );
 
         return (
-          <div style={subModalStyle} onClick={() => { if (!adjustSaving) setAdjustOpen(false); }}>
-            <div style={{ ...ui.modal, maxWidth: 500 }} onClick={(e) => e.stopPropagation()}>
-              <div style={ui.modalHeader}>
-                <div style={{ ...ui.modalTitle, display: "flex", alignItems: "center", gap: 8 }}><Settings size={16} /> Ajustar stock — {selectedProduct.name}</div>
-                <button onClick={() => setAdjustOpen(false)} style={{ ...ui.ghostBtn, padding: "6px 10px" }} disabled={adjustSaving}>
+          <div style={{ ...subModalStyle, ...(isMobile ? styles.subModalOverlayMobile : {}) }} onClick={closeAdjustmentModal}>
+            <div style={{ ...ui.modal, ...styles.adjustModal, ...(isMobile ? styles.adjustModalMobile : {}) }} onClick={(e) => e.stopPropagation()}>
+              <div style={{ ...ui.modalHeader, ...(isMobile ? styles.adjustModalHeaderMobile : {}) }}>
+                <div style={styles.adjustTitleBlock}>
+                  <div style={{ ...ui.modalTitle, display: "flex", alignItems: "center", gap: 8 }}><Settings size={16} /> {isInventoryCount ? "Ajustar inventario" : "Ajustar stock"}</div>
+                  <div style={styles.adjustProductMeta}>
+                    {selectedProduct.sku} - {selectedProduct.name}
+                  </div>
+                </div>
+                <button onClick={closeAdjustmentModal} style={{ ...ui.ghostBtn, padding: "6px 10px" }} disabled={adjustSaving} aria-label="Cerrar ajuste de inventario">
                   <X size={16} />
                 </button>
               </div>
-              <div style={ui.modalBody}>
+              <div style={{ ...ui.modalBody, ...(isMobile ? styles.adjustModalBodyMobile : {}) }}>
+                <div style={styles.adjustModeHint}>
+                  {isInventoryCount
+                    ? "Captura la existencia fisica contada. El sistema calculara la diferencia contra el stock registrado."
+                    : "Registra una entrada, salida o merma. La cantidad se suma o resta al stock actual."}
+                </div>
+
                 {/* Sucursal */}
                 <div style={{ marginBottom: 16 }}>
                   <label style={ui.fieldLabel}>Sucursal *</label>
                   <select
                     value={adjustBranch || ""}
-                    onChange={(e) => { setAdjustBranch(Number(e.target.value)); setAdjustType(""); setAdjustQuantity(0); setAdjustReason(""); }}
+                    onChange={(e) => {
+                      const nextBranch = Number(e.target.value);
+                      setAdjustBranch(nextBranch);
+                      setAdjustType(isInventoryCount && nextBranch > 0 ? "RECOUNT" : "");
+                      setAdjustQuantity(0);
+                      setAdjustReason("");
+                      setAdjustFieldErrors({});
+                      setAdjustError(null);
+                    }}
                     disabled={user?.role === "GERENTE"}
                     style={{ ...ui.input, cursor: user?.role === "GERENTE" ? "default" : "pointer" }}
                   >
@@ -2946,31 +3731,44 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
                 {adjustBranch > 0 && (
                   <>
                     {/* Stock actual destacado */}
-                    <div style={{ background: "var(--accent-soft)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "var(--accent)" }}>
-                      Stock actual: <strong>{currentStock} unidades</strong>
+                    <div style={styles.adjustCurrentBox}>
+                      <span style={styles.adjustSummaryLabel}>Existencia registrada</span>
+                      <strong style={styles.adjustCurrentValue}>{currentStock} unidades</strong>
                     </div>
 
                     {/* Tipo de movimiento */}
-                    <div style={{ marginBottom: 16 }}>
-                      <label style={ui.fieldLabel}>Tipo de movimiento *</label>
-                      <select
-                        value={adjustType}
-                        onChange={(e) => { setAdjustType(e.target.value); setAdjustQuantity(0); setAdjustReason(""); }}
-                        style={{ ...ui.input, cursor: "pointer" }}
-                      >
-                        <option value="">Selecciona tipo...</option>
-                        <option value="RECOUNT">RECONTEO — Declarar stock final real</option>
-                        <option value="ENTRADA">ENTRADA — Agregar unidades</option>
-                        <option value="SALIDA">SALIDA — Quitar unidades</option>
-                        <option value="MERMA">MERMA — Rotura, expiración, pérdida</option>
-                      </select>
-                    </div>
+                    {isInventoryCount ? (
+                      <div style={styles.adjustReadOnlyBox}>
+                        <span style={styles.adjustSummaryLabel}>Tipo de operacion</span>
+                        <strong>Reconteo - declarar existencia final</strong>
+                      </div>
+                    ) : (
+                      <div style={{ marginBottom: 16 }}>
+                        <label style={ui.fieldLabel}>Tipo de movimiento *</label>
+                        <select
+                          value={adjustType}
+                          onChange={(e) => {
+                            setAdjustType(e.target.value as InventoryAdjustmentType);
+                            setAdjustQuantity(0);
+                            setAdjustReason("");
+                            setAdjustFieldErrors({});
+                            setAdjustError(null);
+                          }}
+                          style={{ ...ui.input, cursor: "pointer" }}
+                        >
+                          <option value="">Selecciona tipo...</option>
+                          <option value="ENTRADA">ENTRADA - Agregar unidades</option>
+                          <option value="SALIDA">SALIDA - Quitar unidades</option>
+                          <option value="MERMA">MERMA - Rotura, expiracion, perdida</option>
+                        </select>
+                      </div>
+                    )}
 
                     {/* Cantidad con preview */}
                     {adjustType && (
                       <div style={{ marginBottom: 16 }}>
                         <label style={ui.fieldLabel}>
-                          {adjustType === "RECOUNT" ? "Stock final declarado (reconteo) *" : `Cantidad a ${adjustType === "ENTRADA" ? "agregar" : "retirar"} *`}
+                          {quantityLabel}
                         </label>
                         <input
                           type="text"
@@ -2982,18 +3780,6 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
                           autoFocus
                         />
                         {adjustFieldErrors.quantity && <p style={styles.fieldError}>{adjustFieldErrors.quantity}</p>}
-                        {adjustQuantity > 0 && (
-                          adjustType === "RECOUNT" ? (
-                            <p style={{ fontSize: 12, color: diff === 0 ? "var(--text-muted)" : diff! > 0 ? "var(--color-success)" : "var(--color-danger)", marginTop: 4 }}>
-                              Diferencia: {diff! > 0 ? "+" : ""}{diff} uds. → Stock quedará en <strong>{expectedStock}</strong>
-                            </p>
-                          ) : (
-                            <p style={{ fontSize: 12, color: "var(--accent-strong)", marginTop: 4 }}>
-                              Stock esperado: <strong>{expectedStock}</strong> uds.
-                              {expectedStock < 0 && <span style={{ color: "#b91c1c" }}> (stock negativo — no permitido)</span>}
-                            </p>
-                          )
-                        )}
                       </div>
                     )}
 
@@ -3003,7 +3789,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
                         <label style={ui.fieldLabel}>Motivo *</label>
                         <select
                           value={adjustReason}
-                          onChange={(e) => setAdjustReason(e.target.value)}
+                          onChange={(e) => { setAdjustReason(e.target.value); setAdjustError(null); }}
                           style={{ ...ui.input, cursor: "pointer" }}
                         >
                           <option value="">Selecciona motivo...</option>
@@ -3057,14 +3843,42 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
                   </>
                 )}
 
+                {adjustBranch > 0 && adjustType && (
+                  <div style={styles.adjustPreviewBox}>
+                    <div style={styles.adjustPreviewTitle}>Resumen antes de confirmar</div>
+                    <div style={styles.adjustPreviewGrid}>
+                      <span>Existencia actual</span>
+                      <strong>{currentStock}</strong>
+                      <span>Operacion</span>
+                      <strong>{movementLabel}</strong>
+                      <span>{isInventoryCount ? "Existencia fisica" : "Cantidad"}</span>
+                      <strong>{hasQuantity ? adjustQuantity : "-"}</strong>
+                      <span>Diferencia</span>
+                      <strong style={{ color: resultTone }}>
+                        {hasQuantity ? `${quantityChangePreview > 0 ? "+" : ""}${quantityChangePreview}` : "-"}
+                      </strong>
+                      <span>Existencia resultante</span>
+                      <strong style={{ color: isNegativeResult ? "var(--color-danger)" : "var(--text)" }}>
+                        {hasQuantity ? expectedStock : "-"}
+                      </strong>
+                    </div>
+                    {isNegativeResult && (
+                      <div style={styles.adjustPreviewError}>El resultado no puede ser negativo.</div>
+                    )}
+                    {hasQuantity && quantityChangePreview === 0 && (
+                      <div style={styles.adjustPreviewError}>No hay diferencia por registrar.</div>
+                    )}
+                  </div>
+                )}
+
                 {adjustError && (
-                  <p style={{ fontSize: 13, color: "var(--color-danger)", marginBottom: 12 }}>{adjustError}</p>
+                  <p style={styles.adjustErrorText}>{adjustError}</p>
                 )}
               </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid var(--border)" }}>
-                <button onClick={() => setAdjustOpen(false)} style={ui.ghostBtn}>Cancelar</button>
-                <button onClick={submitAdjustment} style={ui.primaryBtn} disabled={!adjustBranch || !adjustType || !adjustReason}>
-                  {transferSaving ? "Aplicando..." : <><Check size={13} /> Aplicar ajuste</>}
+              <div style={{ ...styles.adjustFooter, ...(isMobile ? styles.adjustFooterMobile : {}) }}>
+                <button onClick={closeAdjustmentModal} style={{ ...ui.ghostBtn, justifyContent: "center" }} disabled={adjustSaving}>Cancelar</button>
+                <button onClick={submitAdjustment} style={{ ...ui.primaryBtn, justifyContent: "center" }} disabled={!canSubmitAdjustment}>
+                  {adjustSaving ? "Aplicando..." : isInventoryCount ? "Confirmar conteo" : <><Check size={13} /> Aplicar ajuste</>}
                 </button>
               </div>
             </div>
@@ -3659,6 +4473,21 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
       )}
 
       <ConfirmModal
+        isOpen={priceConfirmOpen}
+        onClose={() => setPriceConfirmOpen(false)}
+        onConfirm={applyProductPriceAdjustment}
+        variant="info"
+        title="Aplicar ajuste de precio"
+        message={priceConfirmMessage}
+        confirmLabel="Aplicar ajuste"
+        cancelLabel="Cancelar"
+        isConfirming={priceSaving}
+        confirmDisabled={!canApplyPricePreview}
+        closeDisabled={priceSaving}
+        confirmingLabel="Aplicando..."
+      />
+
+      <ConfirmModal
         isOpen={deactivationTarget !== null}
         onClose={closeDeactivateProductModal}
         onConfirm={confirmDeactivateProduct}
@@ -3726,6 +4555,149 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     gap: 8,
     flexWrap: "wrap",
+  },
+  inventoryActionButton: {
+    minHeight: 38,
+    justifyContent: "center",
+    gap: 6,
+    whiteSpace: "normal",
+    textAlign: "center",
+  },
+  inventoryActionButtonMobile: {
+    width: "100%",
+    minWidth: 0,
+    padding: "8px 9px",
+    fontSize: 12,
+    lineHeight: 1.2,
+  },
+  subModalOverlayMobile: {
+    padding: 12,
+    alignItems: "center",
+  },
+  adjustModal: {
+    maxWidth: 540,
+    width: "min(540px, calc(100vw - 32px))",
+    maxHeight: "calc(100vh - 40px)",
+  },
+  adjustModalMobile: {
+    width: "calc(100vw - 24px)",
+    maxHeight: "calc(100dvh - 24px)",
+    borderRadius: 10,
+  },
+  adjustModalHeaderMobile: {
+    padding: "14px 16px",
+    gap: 12,
+  },
+  adjustModalBodyMobile: {
+    padding: 16,
+  },
+  adjustTitleBlock: {
+    minWidth: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: 3,
+  },
+  adjustProductMeta: {
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 700,
+    overflowWrap: "anywhere",
+  },
+  adjustModeHint: {
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    backgroundColor: "var(--surface-2)",
+    color: "var(--text-muted)",
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 700,
+    lineHeight: 1.45,
+    marginBottom: 14,
+  },
+  adjustFormGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: 14,
+  },
+  adjustCurrentBox: {
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    backgroundColor: "var(--accent-soft)",
+    padding: "10px 14px",
+    marginBottom: 16,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+  },
+  adjustReadOnlyBox: {
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    backgroundColor: "var(--surface-2)",
+    padding: "10px 12px",
+    marginBottom: 16,
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  adjustSummaryLabel: {
+    color: "var(--text-muted)",
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.3px",
+  },
+  adjustCurrentValue: {
+    color: "var(--accent-strong)",
+    fontSize: 14,
+  },
+  adjustPreviewBox: {
+    border: "1px solid var(--border)",
+    borderRadius: 10,
+    backgroundColor: "var(--surface-2)",
+    padding: 12,
+    marginTop: 2,
+    marginBottom: 12,
+  },
+  adjustPreviewTitle: {
+    color: "var(--accent-strong)",
+    fontSize: 12,
+    fontWeight: 900,
+    marginBottom: 8,
+  },
+  adjustPreviewGrid: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) auto",
+    gap: "7px 12px",
+    alignItems: "center",
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  adjustPreviewError: {
+    color: "var(--color-danger)",
+    fontSize: 12,
+    fontWeight: 800,
+    marginTop: 8,
+  },
+  adjustErrorText: {
+    fontSize: 13,
+    color: "var(--color-danger)",
+    fontWeight: 700,
+    margin: "0 0 12px",
+  },
+  adjustFooter: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: 10,
+    padding: "14px 22px",
+    borderTop: "1px solid var(--border)",
+    flexShrink: 0,
+  },
+  adjustFooterMobile: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    padding: "12px 16px",
   },
   fieldError: {
     color: "var(--color-danger)",

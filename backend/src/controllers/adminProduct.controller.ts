@@ -14,6 +14,7 @@ import {
   getSupplierProducts as getSupplierProductsService,
   assignProductToSupplier as assignProductToSupplierService,
   removeProductFromSupplier as removeProductFromSupplierService,
+  syncProductSuppliers as syncProductSuppliersService,
   getProductSuppliers as getProductSuppliersService,
 } from "../services/adminProduct.service";
 
@@ -224,7 +225,7 @@ export const assignProductToSupplier = async (req: Request, res: Response): Prom
     const productId = Number(req.body.productId);
     if (!supplierId || !productId) { res.status(400).json({ message: "supplierId y productId son requeridos." }); return; }
 
-    const record = await assignProductToSupplierService(supplierId, productId);
+    const record = await assignProductToSupplierService(supplierId, productId, req.body.isPrimary === true);
     res.status(201).json({ message: "Producto asignado al proveedor exitosamente.", record });
   } catch (error: any) {
     if (error instanceof AppError) { res.status(error.statusCode).json({ message: error.message }); return; }
@@ -244,6 +245,20 @@ export const removeProductFromSupplier = async (req: Request, res: Response): Pr
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ message: "Error al remover producto del proveedor." });
+  }
+};
+
+export const syncProductSuppliers = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const productId = Number(req.params.productId);
+    if (isNaN(productId)) { res.status(400).json({ message: "Identificador de producto invalido." }); return; }
+
+    const suppliers = await syncProductSuppliersService(productId, req.body as Record<string, unknown>);
+    res.status(200).json({ message: "Proveedores del producto actualizados correctamente.", suppliers });
+  } catch (error: any) {
+    if (error instanceof AppError) { res.status(error.statusCode).json({ message: error.message }); return; }
+    console.error(error);
+    res.status(500).json({ message: "Error al actualizar proveedores del producto." });
   }
 };
 

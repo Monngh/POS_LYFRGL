@@ -445,11 +445,13 @@ model SupplierProduct {
   id         Int      @id @default(autoincrement())
   supplierId Int
   productId  Int
+  isPrimary  Boolean  @default(false)
   supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([supplierId, productId])
   @@index([productId])
+  @@index([productId, isPrimary])
 }
 
 model PurchaseOrder {
