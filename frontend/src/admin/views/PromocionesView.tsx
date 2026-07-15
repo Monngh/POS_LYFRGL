@@ -766,7 +766,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
     const start = new Date(`${form.startDate}T00:00:00`);
     const end = new Date(`${form.endDate}T23:59:59`);
-    if (form.startDate && form.endDate && end <= start) errors.endDate = "La fecha final debe ser mayor que la fecha inicial.";
+    if (form.startDate && form.endDate && end <= start) errors.endDate = "La fecha final no puede ser anterior a la fecha inicial.";
     if (typeof form.isActive !== "boolean") errors.isActive = "El estado de la promocion es invalido.";
     if (form.productIds.length === 0) errors.productIds = "Seleccione al menos un producto activo.";
 
@@ -1432,7 +1432,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
                 <div>
                   <label style={ui.fieldLabel}>Fin *</label>
-                  <input type="date" style={ui.input} value={form.endDate} onChange={setField("endDate")} />
+                  <input type="date" style={ui.input} value={form.endDate} onChange={setField("endDate")} min={form.startDate || undefined} />
                   {fieldErrors.endDate && <p style={styles.fieldError}>{fieldErrors.endDate}</p>}
                 </div>
 

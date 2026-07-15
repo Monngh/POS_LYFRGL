@@ -242,7 +242,7 @@ export const buildPromotionPayload = async (
   const startDate = parseDate(body.startDate);
   const endDate = parseDate(body.endDate, true);
   if (!startDate || !endDate) return "La fecha inicial y final son obligatorias.";
-  if (endDate < startDate) return "La fecha inicial no puede ser posterior a la fecha final.";
+  if (endDate < startDate) return "La fecha final no puede ser anterior a la fecha inicial.";
 
   const parsedIsActive = parseOptionalBoolean(
     body.isActive,
