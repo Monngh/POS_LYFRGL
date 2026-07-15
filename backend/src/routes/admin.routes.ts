@@ -77,6 +77,8 @@ import {
   getAdminSessionClosures,
   getAdminActionLog,
   recordNavigationAction,
+  getCashierActiveSessions,
+  getCashierSessionClosures,
 } from "../controllers/securityAudit.controller";
 import { authenticateJWT, authenticateJWTDecodeOnly, authenticateSSE, authorizeRoles } from "../middlewares/auth.middleware";
 
@@ -189,6 +191,8 @@ router.post("/security/revoke-session/:userId", authorizeRoles(["ADMIN"]), revok
 router.get("/security/admin-session-closures", authorizeRoles(["ADMIN"]), getAdminSessionClosures);
 router.get("/security/action-log", authorizeRoles(["ADMIN"]), getAdminActionLog);
 router.post("/security/action-log", authorizeRoles(["ADMIN", "GERENTE"]), recordNavigationAction);
+router.get("/security/cashier-active-sessions", authorizeRoles(["ADMIN", "GERENTE"]), getCashierActiveSessions);
+router.get("/security/cashier-session-closures", authorizeRoles(["ADMIN", "GERENTE"]), getCashierSessionClosures);
 
 // Devoluciones (admin)
 router.get("/returns", authorizeRoles(["ADMIN", "GERENTE"]), getAdminReturns);
