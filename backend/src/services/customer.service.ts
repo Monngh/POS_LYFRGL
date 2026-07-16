@@ -230,7 +230,18 @@ export const getCustomerInvoices = async (customerId: number) => {
   });
 
   return sales.map((s) => {
-    const cleanUuid = s.cfdiUuid ? s.cfdiUuid.split(":")[0] : null;
+    const isGlobal = s.cfdiUuid?.startsWith("GLOBAL:") ?? false;
+    let cleanUuid: string | null = null;
+    if (s.cfdiUuid) {
+      if (isGlobal) {
+        // Format: "GLOBAL:{uuid}:{id}" → extract uuid at index 1
+        cleanUuid = s.cfdiUuid.split(":")[1] || null;
+      } else {
+        // Format: "{uuid}:{id}" → extract uuid at index 0
+        cleanUuid = s.cfdiUuid.split(":")[0];
+      }
+    }
+
     const returnUuidStr = s.returns?.[0]?.cfdiUuid;
     const cleanReturnUuid = returnUuidStr ? returnUuidStr.split(":")[0] : null;
 
@@ -243,6 +254,7 @@ export const getCustomerInvoices = async (customerId: number) => {
       status: s.status,
       branchName: s.branch.name,
       cfdiUuid: cleanUuid,
+      isGlobal,
       pdfUrl: cleanUuid ? `/api/public/sales/invoice/${cleanUuid}/pdf` : null,
       xmlUrl: cleanUuid ? `/api/public/sales/invoice/${cleanUuid}/xml` : null,
       returnCfdiUuid: cleanReturnUuid,

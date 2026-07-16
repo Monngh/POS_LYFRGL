@@ -135,9 +135,14 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                       letterSpacing: "0.2px",
                     }}>
                       <span style={{ fontFamily: "monospace", color: "var(--text-muted)" }}>{displayUuid}</span>
-                      <Badge tone={item.type === "Global" ? "blue" : "slate"}>
-                        {item.type}
-                      </Badge>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        {item.status === "CANCELADA" && (
+                          <Badge tone="red">Cancelado</Badge>
+                        )}
+                        <Badge tone={item.type === "Global" ? "blue" : item.type === "Nota de Crédito" ? "yellow" : "slate"}>
+                          {item.type}
+                        </Badge>
+                      </div>
                     </div>
 
                     {/* Fila principal */}
@@ -213,6 +218,18 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                             <span style={hisDetailValue}>{item.type}</span>
                           </div>
                           <div style={hisDetailRow}>
+                            <span style={hisDetailLabel}>Estado:</span>
+                            <span style={hisDetailValue}>
+                              {item.status === "CANCELADA" ? (
+                                <Badge tone="red">Cancelado</Badge>
+                              ) : item.type === "Nota de Crédito" ? (
+                                <Badge tone="yellow">Nota de Crédito</Badge>
+                              ) : (
+                                <Badge tone="green">Vigente</Badge>
+                              )}
+                            </span>
+                          </div>
+                          <div style={hisDetailRow}>
                             <span style={hisDetailLabel}>Cliente:</span>
                             <span style={hisDetailValue}>{item.customer || "Público General"}</span>
                           </div>
@@ -225,7 +242,14 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                             <span style={hisDetailLabel}>Detalle:</span>
                             <span style={hisDetailValue}>
                               {item.type === "Global" ? (
-                                <span style={{ fontWeight: 600 }}>{item.ticketsCount} tickets</span>
+                                <>
+                                  <span style={{ fontWeight: 600 }}>{item.ticketsCount} tickets</span>
+                                  {item.cancelledSaleNumbers?.length > 0 && (
+                                    <span style={{ display: "block", fontSize: 11, color: "var(--error, #dc2626)", marginTop: 2 }}>
+                                      {item.cancelledSaleNumbers.length} cancelado(s): {item.cancelledSaleNumbers.join(", ")}
+                                    </span>
+                                  )}
+                                </>
                               ) : (
                                 <span style={{ fontWeight: 600 }}>{item.ticketsInvolved[0] || "—"}</span>
                               )}
@@ -289,16 +313,28 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                     <td style={ui.td}>{formatDate(item.date)}</td>
                     <td style={{ ...ui.td, fontFamily: "monospace", color: "var(--accent-strong)", fontWeight: 600 }}>{item.uuid}</td>
                     <td style={ui.td}>
-                      <Badge tone={item.type === "Global" ? "blue" : "slate"}>
-                        {item.type}
-                      </Badge>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        {item.status === "CANCELADA" && (
+                          <Badge tone="red">Cancelado</Badge>
+                        )}
+                        <Badge tone={item.type === "Global" ? "blue" : item.type === "Nota de Crédito" ? "yellow" : "slate"}>
+                          {item.type}
+                        </Badge>
+                      </div>
                     </td>
                     <td style={ui.td}>{item.customer}</td>
                     <td style={ui.td}>
                       {item.type === "Global" ? (
-                        <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
-                          {item.ticketsCount} tickets
-                        </span>
+                        <>
+                          <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
+                            {item.ticketsCount} tickets
+                          </span>
+                          {item.cancelledSaleNumbers?.length > 0 && (
+                            <span style={{ display: "block", fontSize: 11, color: "var(--error, #dc2626)", marginTop: 2 }}>
+                              {item.cancelledSaleNumbers.length} cancelado(s)
+                            </span>
+                          )}
+                        </>
                       ) : (
                         <span style={{ fontSize: 12 }}>{item.ticketsInvolved[0]}</span>
                       )}

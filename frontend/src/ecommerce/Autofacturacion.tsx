@@ -1348,7 +1348,18 @@ const Autofacturacion: React.FC = () => {
                           </span>
                         </td>
                         <td style={{ ...styles.td, fontFamily: "monospace", fontSize: "12px", color: "#64748b" }}>
-                          {inv.cfdiUuid ? `${inv.cfdiUuid.substring(0, 8)}...` : (inv.status === "CANCELADA" ? "No facturable" : "No facturado")}
+                          {inv.cfdiUuid ? (
+                            inv.isGlobal ? (
+                              <span title={inv.cfdiUuid}>
+                                <span style={{ fontSize: "10px", fontWeight: "700", color: "#1d4ed8", backgroundColor: "#dbeafe", padding: "2px 6px", borderRadius: "4px", marginRight: "4px" }}>Global</span>
+                                {`${inv.cfdiUuid.substring(0, 8)}...`}
+                              </span>
+                            ) : (
+                              `${inv.cfdiUuid.substring(0, 8)}...`
+                            )
+                          ) : (
+                            inv.status === "CANCELADA" ? "No facturable" : "No facturado"
+                          )}
                         </td>
                         <td style={{ ...styles.td }}>
                           {inv.cfdiUuid ? (
@@ -1377,6 +1388,8 @@ const Autofacturacion: React.FC = () => {
                               </a>
                               {inv.returnCfdiUuid && (
                                 <>
+                                  <div style={{ width: "1px", height: "20px", backgroundColor: "#e2e8f0", margin: "0 2px" }} />
+                                  <span style={{ fontSize: "10px", fontWeight: "700", color: "#b91c1c", whiteSpace: "nowrap" }}>NC</span>
                                   <a
                                     href={`${API_BASE_URL}/api/public/sales/invoice/${inv.returnCfdiUuid}/pdf`}
                                     target="_blank"

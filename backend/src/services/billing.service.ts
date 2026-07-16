@@ -431,7 +431,9 @@ export class BillingService {
       const rfc = sale.customer?.taxId?.toUpperCase() || "XAXX010101000";
       const isGeneric = rfc === "XAXX010101000";
 
-      const requestBody = {
+      const cleanUuid = sale.cfdiUuid ? (sale.cfdiUuid.startsWith("GLOBAL:") ? sale.cfdiUuid.split(":")[1] : sale.cfdiUuid.split(":")[0]) : null;
+
+      const requestBody: any = {
         type: "E",
         customer: {
           legal_name: isGeneric ? "PÚBLICO GENERAL" : (sale.customer?.name.toUpperCase() || "PÚBLICO GENERAL"),
@@ -446,6 +448,13 @@ export class BillingService {
         payment_form: paymentFormMap[sale.paymentMethod] || "01",
         use: isGeneric ? "S01" : (sale.customer?.cfdiUse || "G02")
       };
+
+      if (cleanUuid) {
+        requestBody.relation = {
+          type: "01",
+          invoices: [cleanUuid]
+        };
+      }
 
       const authHeader = "Bearer " + apiKey;
 
@@ -493,6 +502,187 @@ export class BillingService {
     } catch (err: any) {
       console.error("Facturapi Credit Note Error:", err);
       throw new Error(`Error de Timbrado SAT (Nota de Crédito): ${err.message}`);
+    }
+  }
+
+  /**
+   * Generar nota de crédito (CFDI de Egreso) para una venta cancelada que formaba parte de una factura global.
+   */
+  static async createCreditNoteForSale(saleId: number) {
+    const sale = await prisma.sale.findUnique({
+      where: { id: saleId },
+      include: {
+        customer: true,
+        branch: true,
+        saleDetails: {
+          include: {
+            product: {
+              include: {
+                productTaxes: {
+                  include: {
+                    taxType: true
+                  }
+                }
+              }
+            },
+            saleDetailTaxes: true
+          }
+        }
+      }
+    });
+
+    if (!sale) {
+      throw new Error("La venta especificada no existe.");
+    }
+
+    if (!sale.cfdiUuid) {
+      throw new Error("La venta original no cuenta con una factura timbrada.");
+    }
+
+    const rawApiKey = process.env.FACTURAPI_API_KEY;
+    const apiKey = rawApiKey ? rawApiKey.replace(/['"]/g, "").trim() : "";
+
+    if (!apiKey || apiKey === "") {
+      throw new Error("API Key de Facturapi no configurada en las variables de entorno (.env).");
+    }
+
+    try {
+      const paymentFormMap: Record<string, string> = {
+        "EFECTIVO": "01",
+        "TARJETA": "04",
+        "CREDITO": "99",
+        "MIXTO": "01"
+      };
+
+      const facturapiItems = sale.saleDetails.map((detail) => {
+        const unitPrice = Number(detail.unitPrice);
+        const quantity = detail.quantity;
+        const discountPerUnit = Number(detail.discountAmount) / quantity;
+        const netUnitPrice = unitPrice - discountPerUnit;
+
+        const applicableTaxes = detail.product.productTaxes.filter((pt) => pt.taxType.active);
+
+        let ivaRate = 0;
+        let iepsRate = 0;
+        for (const pt of applicableTaxes) {
+          const nameUpper = pt.taxType.name.toUpperCase();
+          if (nameUpper.includes("IVA") && !nameUpper.includes("EXENTO")) ivaRate += Number(pt.taxType.rate);
+          if (nameUpper.includes("IEPS") && !nameUpper.includes("EXENTO")) iepsRate += Number(pt.taxType.rate);
+        }
+
+        const basePrice = netUnitPrice / ((1 + iepsRate) * (1 + ivaRate));
+
+        const mappedTaxes = applicableTaxes.map((pt) => {
+          const rateVal = Number(pt.taxType.rate);
+          const nameUpper = pt.taxType.name.toUpperCase();
+
+          if (nameUpper.includes("EXENTO")) {
+            return {
+              rate: 0,
+              type: "IVA",
+              exento: true,
+              withholding: false
+            };
+          }
+
+          let taxType = "IVA";
+          if (nameUpper.includes("IEPS")) {
+            taxType = "IEPS";
+          } else if (nameUpper.includes("ISR")) {
+            taxType = "ISR";
+          }
+
+          return {
+            rate: rateVal,
+            type: taxType,
+            withholding: false
+          };
+        });
+
+        if (mappedTaxes.length === 0) {
+          mappedTaxes.push({
+            rate: 0.16,
+            type: "IVA",
+            withholding: false
+          });
+        }
+
+        return {
+          quantity,
+          product: {
+            description: `Devolución/Cancelación de: ${detail.product.name}`,
+            price: Number(basePrice.toFixed(2)),
+            product_key: detail.product.satProductKey || "01010101",
+            unit_key: detail.product.satUnitKey || "H87",
+            taxes: mappedTaxes
+          }
+        };
+      });
+
+      const defaultZip = (process.env.CORPORATE_ZIP || "42080").trim();
+      const rfc = sale.customer?.taxId?.toUpperCase() || "XAXX010101000";
+      const isGeneric = rfc === "XAXX010101000";
+      const cleanUuid = sale.cfdiUuid.startsWith("GLOBAL:") ? sale.cfdiUuid.split(":")[1] : sale.cfdiUuid.split(":")[0];
+
+      const requestBody: any = {
+        type: "E",
+        customer: {
+          legal_name: isGeneric ? "PÚBLICO GENERAL" : (sale.customer?.name.toUpperCase() || "PÚBLICO GENERAL"),
+          tax_id: rfc,
+          tax_system: isGeneric ? "616" : (sale.customer?.taxRegime || "616"),
+          email: sale.cfdiEmail || sale.customer?.email || "clientes@fmb.com",
+          address: {
+            zip: isGeneric ? defaultZip : (sale.customer?.zipCode || defaultZip)
+          }
+        },
+        items: facturapiItems,
+        payment_form: paymentFormMap[sale.paymentMethod] || "01",
+        use: isGeneric ? "S01" : (sale.customer?.cfdiUse || "G02"),
+        relation: {
+          type: "01",
+          invoices: [cleanUuid]
+        }
+      };
+
+      const authHeader = "Bearer " + apiKey;
+
+      const response = await fetch("https://www.facturapi.io/v2/invoices", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      const resData = await response.json() as any;
+
+      if (!response.ok) {
+        throw new Error(resData.message || "Error al comunicarse con Facturapi para Nota de Crédito.");
+      }
+
+      try {
+        await fetch(`https://www.facturapi.io/v2/invoices/${resData.id}/email`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": authHeader
+          },
+          body: JSON.stringify({ email: requestBody.customer.email })
+        });
+      } catch (emailErr) {
+        console.error("Error al enviar correo de Nota de Crédito por Facturapi:", emailErr);
+      }
+
+      return {
+        success: true,
+        uuid: resData.uuid,
+        pdfUrl: `https://www.facturapi.io/v2/invoices/${resData.uuid}/pdf`,
+        xmlUrl: `https://www.facturapi.io/v2/invoices/${resData.uuid}/xml`
+      };
+    } catch (err: any) {
+      console.error("Facturapi Credit Note Error:", err);
+      throw new Error(`Error de Timbrado SAT (Nota de Crédito por cancelación de venta global): ${err.message}`);
     }
   }
 
