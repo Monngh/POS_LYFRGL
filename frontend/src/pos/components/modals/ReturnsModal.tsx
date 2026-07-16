@@ -76,7 +76,7 @@ export default function ReturnsModal({
   const [returnPaymentMethod, setReturnPaymentMethod] = useState("VALE_DEVOLUCION");
   const [returnProcessing, setReturnProcessing] = useState(false);
   const [returnReceipt, setReturnReceipt] = useState<any>(null);
-  
+  const [_returnItemNavIdx, setReturnItemNavIdx] = useState(0);
   const returnItemsListRef = useRef<HTMLDivElement | null>(null);
   const returnReasonInputRef = useRef<HTMLInputElement | null>(null);
 

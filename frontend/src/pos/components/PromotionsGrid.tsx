@@ -56,7 +56,7 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
     } finally {
       setLoading(false);
     }
-  }, [onToast]);
+  }, []);
 
   useEffect(() => {
     fetchAllPromotions();
@@ -125,18 +125,12 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
     onToast(`Promoción ${promo.name} agregada`, "success");
   };
 
-  // Add global keyboard shortcuts Alt+1 to Alt+9, and Alt+P for focusing the grid
+  // Add global keyboard shortcut Alt+P for focusing the grid
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && !e.ctrlKey && !e.shiftKey) {
         const key = e.key.toLowerCase();
-        if (key >= "1" && key <= "9") {
-          const index = parseInt(key) - 1;
-          if (index < availablePromotions.length && !isCollapsed) {
-            e.preventDefault();
-            handlePromoClick(availablePromotions[index]);
-          }
-        } else if (key === "p") {
+        if (key === "p") {
           e.preventDefault();
           setIsCollapsed((prev) => {
             const next = !prev;
@@ -275,9 +269,8 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
               onKeyDown={handleListKeyDown}
               style={{ display: "flex", overflowX: "auto", gap: "10px", paddingBottom: "8px", paddingTop: "10px", paddingRight: "12px" }}
             >
-              {availablePromotions.map((promo, idx) => {
+              {availablePromotions.map((promo) => {
                 const badge = getDiscountBadge(promo);
-                const shortcutNum = idx < 9 ? idx + 1 : null;
                 
                 const formatDate = (dateStr?: string) => {
                   if (!dateStr) return "N/A";
@@ -306,7 +299,7 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
                       outline: "none", 
                       alignItems: "flex-start", 
                       padding: "10px", 
-                      paddingBottom: shortcutNum ? "32px" : "10px", 
+                      paddingBottom: "10px", 
                       height: "auto", 
                       minWidth: "220px", 
                       flexShrink: 0 
@@ -359,11 +352,7 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
                       </div>
                     </div>
 
-                    {shortcutNum && (
-                      <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "8px", right: "8px" }}>
-                        Alt+{shortcutNum}
-                      </span>
-                    )}
+
                     <span className="pos-action-shortcut-pill">R</span>
                   </button>
                 );

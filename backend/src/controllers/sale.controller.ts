@@ -509,15 +509,27 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
       refundInfo = refundResult;
     }
 
-    if (sale.cfdiUuid && !sale.cfdiUuid.startsWith("GLOBAL")) {
-      try {
-        const parts = sale.cfdiUuid.split(":");
-        const facturapiId = parts[1] || parts[0];
-        if (facturapiId) await BillingService.cancelInvoice(facturapiId, "02");
-      } catch (billingErr: any) {
-        console.error("Fallo al cancelar factura en Facturapi:", billingErr);
-        res.status(500).json({ message: "No se pudo cancelar la factura en el SAT. La venta no ha sido cancelada.", error: billingErr.message });
-        return;
+    let creditNoteUuid = undefined;
+    if (sale.cfdiUuid) {
+      if (sale.cfdiUuid.startsWith("GLOBAL")) {
+        try {
+          const creditNoteResult = await BillingService.createCreditNoteForSale(sale.id);
+          creditNoteUuid = creditNoteResult.uuid;
+        } catch (billingErr: any) {
+          console.error("Fallo al generar nota de crédito para venta global cancelada:", billingErr);
+          res.status(500).json({ message: "No se pudo generar la Nota de Crédito para la factura global. La venta no ha sido cancelada.", error: billingErr.message });
+          return;
+        }
+      } else {
+        try {
+          const parts = sale.cfdiUuid.split(":");
+          const facturapiId = parts[1] || parts[0];
+          if (facturapiId) await BillingService.cancelInvoice(facturapiId, "02");
+        } catch (billingErr: any) {
+          console.error("Fallo al cancelar factura en Facturapi:", billingErr);
+          res.status(500).json({ message: "No se pudo cancelar la factura en el SAT. La venta no ha sido cancelada.", error: billingErr.message });
+          return;
+        }
       }
     }
 
@@ -529,6 +541,8 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
       reason,
       invoiceNumber,
       refundInfo,
+      creditNoteUuid,
+      approverId: approver.id,
     });
 
     res.status(200).json({

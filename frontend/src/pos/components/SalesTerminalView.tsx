@@ -64,7 +64,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   inputPrefix: { padding: "8px 12px", backgroundColor: "var(--surface-3)", borderRight: "1px solid var(--border-strong)", color: "var(--text-muted)", fontSize: "14px", fontWeight: "700" },
   input: { border: "none", outline: "none", padding: "8px 12px", fontSize: "14px", color: "var(--text)", flex: 1, backgroundColor: "transparent" },
   paymentMethodsGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" },
-  paymentMethodBtn: { padding: "12px 6px", border: "1px solid var(--border-strong)", borderRadius: "6px", cursor: "pointer", fontSize: "11px", fontWeight: "700", display: "flex", flexDirection: "column" as const, alignItems: "center", gap: "6px", backgroundColor: "var(--surface)", color: "var(--text-muted)", transition: "all 0.15s ease" },
+  paymentMethodBtn: { padding: "12px 6px", border: "1px solid var(--border-strong)", borderRadius: "6px", cursor: "pointer", fontSize: "11px", fontWeight: "700", display: "flex", flexDirection: "column" as const, alignItems: "center", gap: "6px", backgroundColor: "var(--surface)", color: "var(--text-muted)", transition: "all 0.15s ease", position: "relative" as const },
   paymentMethodBtnActive: { border: "1px solid var(--accent)", backgroundColor: "var(--accent-soft)", color: "var(--accent)" },
   cardTypesGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" },
   cardTypeBtn: { padding: "8px", border: "1px solid var(--border-strong)", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "700", textAlign: "center" as const, backgroundColor: "var(--surface)", color: "var(--text-muted)", transition: "all 0.15s ease" },
@@ -203,14 +203,29 @@ export function SalesTerminalView({
       return;
     }
 
-    if (e.key >= "1" && e.key <= "5" && checkoutPhase === "select-method") {
+    if (e.altKey && e.key >= "1" && e.key <= "5") {
       e.preventDefault();
       const methods = ["EFECTIVO", "TARJETA", "STORE_CREDIT", "MIXTO", "QR_MERCADOPAGO"];
       const index = parseInt(e.key) - 1;
-      setPaymentMethod(methods[index] as any);
+      const selectedMethod = methods[index] as any;
+      setPaymentMethod(selectedMethod);
+      setCheckoutPhase("fill-fields");
+
       setTimeout(() => {
-        const btn = checkoutModalRef.current?.querySelector<HTMLElement>(`[data-method-btn="${methods[index]}"]`);
-        if (btn) btn.focus();
+        const modal = checkoutModalRef.current;
+        if (modal) {
+          const firstInput = modal.querySelector<HTMLElement>(
+            'input:not([readonly]):not([disabled]), select:not([disabled])'
+          );
+          if (firstInput) {
+            firstInput.focus();
+            if (firstInput instanceof HTMLInputElement) {
+              firstInput.select();
+            }
+          } else if (selectedMethod === "MIXTO") {
+            setMixedModalOpen(true);
+          }
+        }
       }, 50);
       return;
     }
@@ -222,8 +237,6 @@ export function SalesTerminalView({
     }
 
     if (e.key === "Enter") {
-      const active = document.activeElement;
-      const isTyping = active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || (active as HTMLElement).isContentEditable);
       e.preventDefault();
       e.stopPropagation();
 
@@ -251,6 +264,9 @@ export function SalesTerminalView({
         return;
       }
 
+      const active = document.activeElement;
+      const isTyping = active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || (active as HTMLElement).isContentEditable);
+
       // Si es la fase fill-fields
       if (isTyping) {
         if (paymentMethod === "EFECTIVO" && active instanceof HTMLInputElement) {
@@ -276,7 +292,6 @@ export function SalesTerminalView({
           }
         }
       }
-
       if (paymentMethod === "MIXTO") {
         setMixedModalOpen(true);
       } else {
@@ -480,6 +495,7 @@ export function SalesTerminalView({
               >
                 <Banknote size={20} />
                 <span>EFECTIVO</span>
+                <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px" }}>Alt+1</span>
               </button>
               <button
                 type="button"
@@ -489,6 +505,7 @@ export function SalesTerminalView({
               >
                 <CreditCard size={20} />
                 <span>TARJETA</span>
+                <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px" }}>Alt+2</span>
               </button>
               <button
                 type="button"
@@ -498,6 +515,7 @@ export function SalesTerminalView({
               >
                 <Ticket size={20} />
                 <span>VALE</span>
+                <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px" }}>Alt+3</span>
               </button>
               <button
                 type="button"
@@ -507,6 +525,7 @@ export function SalesTerminalView({
               >
                 <ArrowLeftRight size={20} />
                 <span>MIXTO</span>
+                <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px" }}>Alt+4</span>
               </button>
               <button
                 type="button"
@@ -516,6 +535,7 @@ export function SalesTerminalView({
               >
                 <QrCode size={20} />
                 <span>QR MP</span>
+                <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px" }}>Alt+5</span>
               </button>
             </div>
 

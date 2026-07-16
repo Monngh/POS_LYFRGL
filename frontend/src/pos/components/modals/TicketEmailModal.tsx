@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Mail } from "lucide-react";
 import { PosModal } from "./shared";
 
@@ -49,6 +49,19 @@ export function TicketEmailModal({
   onSend,
   onCancel,
 }: TicketEmailModalProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          inputRef.current.select();
+        }
+      }, 100);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
 
@@ -94,13 +107,17 @@ export function TicketEmailModal({
       <div style={styles.inputGroup}>
         <label style={styles.label}>Correo electrónico *</label>
         <input
+          ref={inputRef}
           type="email"
           className="input-corporate"
           placeholder="cliente@correo.com"
           value={emailInput}
           onChange={(e) => onEmailChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !emailLoading && emailInput) onSend();
+            if (e.key === "Enter" && !emailLoading && emailInput) {
+              e.preventDefault();
+              onSend();
+            }
           }}
           autoFocus
         />

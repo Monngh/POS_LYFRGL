@@ -152,6 +152,7 @@ export default function KeyboardShortcutsManager({ onToast }: { onToast?: (msg: 
         if (letter === "S" && scope) {
           const sendBtn = findActionInScope(scope, "send-email");
           if (sendBtn) {
+            e.stopPropagation();
             if (onToast) onToast(`Atajo Alt+S: Enviar Ticket`, "info");
             sendBtn.click();
             return;

@@ -94,12 +94,16 @@ export const getBillingHistoryController = async (req: Request, res: Response): 
         historyMap.set(uuidStr, {
           uuid: actualUuid,
           type: invoiceType,
+          // For individual invoices, forward the sale status directly.
+          // For global invoices, start as COMPLETADA and track if any included sale is cancelled.
+          status: invoiceType === "Individual" ? sale.status : "COMPLETADA",
           date: sale.updatedAt, // Fecha en que se timbró (aprox)
           customer: invoiceType === "Global" ? "Público General" : (sale.customer?.name || "Público General"),
           totalAmount: Number(sale.totalAmount),
           taxAmount: Number(sale.taxAmount),
           ticketsCount: 1,
-          ticketsInvolved: [sale.invoiceNumber]
+          ticketsInvolved: [sale.invoiceNumber],
+          cancelledSaleNumbers: sale.status === "CANCELADA" ? [sale.invoiceNumber] : []
         });
       } else {
         const existing = historyMap.get(uuidStr);
@@ -107,6 +111,10 @@ export const getBillingHistoryController = async (req: Request, res: Response): 
         existing.taxAmount += Number(sale.taxAmount);
         existing.ticketsCount += 1;
         existing.ticketsInvolved.push(sale.invoiceNumber);
+        // Track which sales within a global invoice were cancelled
+        if (sale.status === "CANCELADA") {
+          existing.cancelledSaleNumbers.push(sale.invoiceNumber);
+        }
         // Usar la fecha más reciente
         if (sale.updatedAt > existing.date) {
           existing.date = sale.updatedAt;
@@ -142,12 +150,14 @@ export const getBillingHistoryController = async (req: Request, res: Response): 
         historyMap.set(uuidStr, {
           uuid: actualUuid,
           type: "Nota de Crédito",
+          status: "EMITIDA",
           date: ret.updatedAt,
           customer: ret.sale.customer?.name || "Público General",
           totalAmount: Number(ret.totalRefunded),
           taxAmount: 0, // No guardamos taxRefunded a nivel cabecera, lo dejamos en 0 para UI
           ticketsCount: 1,
-          ticketsInvolved: [ret.sale.invoiceNumber]
+          ticketsInvolved: [ret.sale.invoiceNumber],
+          cancelledSaleNumbers: []
         });
       }
     }
