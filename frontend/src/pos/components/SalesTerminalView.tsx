@@ -1,5 +1,5 @@
 import React from "react";
-import { Menu, MapPin, Clock, AlertTriangle, Banknote, CreditCard, ArrowLeftRight, QrCode, ExternalLink, Ticket, XCircle } from "lucide-react";
+import { Menu, MapPin, Clock, AlertTriangle, Banknote, CreditCard, ArrowLeftRight, QrCode, ExternalLink, Ticket, XCircle, Store } from "lucide-react";
 import { HeaderCashInfo } from "./HeaderCashInfo";
 import { TICKET_PRINT_MEDIA_STYLES } from "../../shared/utils/ticketEmailDocument.util";
 import { DECIMAL_INPUT_REGEX, handleDecimalInputChange } from "../../shared/utils/decimalInput";
