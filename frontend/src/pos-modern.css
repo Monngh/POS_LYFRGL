@@ -442,6 +442,46 @@
   overflow: hidden;
 }
 
+.pos-sales-main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.pos-main-layout-container {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+  overflow-y: visible;
+  min-width: 0;
+}
+
+.pos-cart-col {
+  flex: 1 1 300px;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  gap: 16px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.pos-checkout-col {
+  flex: 0 1 320px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-y: visible;
+  position: relative;
+  padding: 14px;
+  gap: 10px;
+}
+
 /* ============================================================
    Sidebar — más compacto, información más densa
    ============================================================ */
@@ -452,11 +492,15 @@
   border-right: 1px solid var(--pos-border);
   display: flex;
   flex-direction: column;
-  position: relative;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 10;
+  position: absolute; /* Modificado para ser flotante */
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 50;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   padding: 14px;
   overflow: hidden;
+  box-shadow: 4px 0 15px rgba(0,0,0,0.05); /* Sombra para resaltar que flota */
 }
 
 .pos-sidebar-inner-content {
@@ -495,13 +539,9 @@
   border-color: var(--pos-border-strong);
 }
 
-/* Collapsed state */
+/* Collapsed state (oculto fuera de pantalla) */
 .pos-sales-layout.sidebar-collapsed .pos-sales-sidebar {
-  width: 0;
-  min-width: 0;
-  padding: 0;
-  border-right: none;
-  overflow: hidden;
+  transform: translateX(-100%);
 }
 
 .pos-sales-layout.sidebar-collapsed .pos-sidebar-inner-content {
@@ -1121,16 +1161,14 @@
 
 /* Botones de acción en checkout */
 .pos-action-btns {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-top: 8px;
-  flex-wrap: wrap;
 }
 
 .pos-btn-cancel {
-  flex: 1;
-  min-width: 100px;
-  padding: 9px 12px;
+  padding: 8px 12px;
   border-radius: 6px;
   border: 1px solid var(--pos-red);
   background: transparent;
@@ -1148,9 +1186,7 @@
 }
 
 .pos-btn-park {
-  flex: 1;
-  min-width: 100px;
-  padding: 9px 12px;
+  padding: 8px 12px;
   border-radius: 6px;
   border: 1px solid var(--pos-blue-mid);
   background: transparent;
@@ -1175,14 +1211,13 @@
 }
 
 .pos-btn-checkout {
-  flex: 1.5;
-  min-width: 120px;
-  padding: 9px 16px;
+  grid-column: 1 / -1;
+  padding: 12px 16px;
   border-radius: 6px;
   border: none;
   background: #059669;
   color: white;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 900;
   cursor: pointer;
   transition: all 0.15s;
@@ -1462,16 +1497,66 @@
    Responsive Overrides
    ============================================================ */
 @media (max-width: 1024px) {
+  .pos-main-layout-container {
+    flex-direction: column;
+  }
+  .pos-cart-col {
+    flex: 1;
+    min-height: 0;
+  }
+  .pos-checkout-col {
+    flex: 0 0 auto;
+  }
+
+  .pos-terminal-navbar > div {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+  }
+  .pos-terminal-navbar-left {
+    justify-content: flex-start;
+  }
+  .pos-terminal-navbar-center {
+    justify-content: center;
+  }
+  .pos-terminal-navbar-right {
+    justify-content: flex-end;
+  }
+
   .pos-terminal-navbar {
-    height: auto;
-    min-height: 48px;
-    flex-wrap: wrap;
-    padding: 8px 12px;
-    gap: 6px;
+    height: 56px;
+    flex-wrap: nowrap;
+    padding: 8px 4px;
+    gap: 2px;
+    overflow: hidden;
+  }
+  
+  .pos-terminal-navbar-right {
+    gap: 2px;
+  }
+
+  .pos-terminal-navbar .pos-terminal-chip {
+    font-size: 9px;
+    padding: 2px 4px;
+  }
+  
+  .pos-terminal-navbar .pos-terminal-session-badge {
+    font-size: 8px;
+    padding: 2px 4px;
+  }
+
+  .pos-terminal-navbar .pos-terminal-user-name {
+    font-size: 10px;
+  }
+
+  .pos-terminal-navbar .lucide {
+    width: 14px;
+    height: 14px;
   }
 
   .pos-terminal-navbar-right {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 4px;
   }
 
@@ -1479,48 +1564,12 @@
     font-size: 11px;
     padding: 3px 8px;
   }
-
-  .pos-sales-layout {
-    flex-direction: column;
+  
+  .hide-on-mobile {
+    display: none !important;
   }
 
-  .pos-sales-sidebar {
-    width: 72px;
-    min-width: 72px;
-    border-right: none;
-    border-bottom: 1px solid var(--pos-border);
-    padding: 12px;
-  }
-
-  .pos-sales-layout.sidebar-collapsed .pos-sales-sidebar {
-    width: 100%;
-    min-width: 100%;
-    padding: 12px;
-  }
-
-  .pos-sales-layout.sidebar-collapsed .pos-sidebar-inner-content {
-    opacity: 1;
-    pointer-events: auto;
-    position: relative;
-  }
-
-  .pos-sidebar-inner-content {
-    width: 100%;
-    flex-direction: row;
-    align-items: stretch;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .pos-quick-actions-container { flex: 1.2; }
-
-  .pos-cash-info-container {
-    flex: 1;
-    border-top: none;
-    padding-top: 0;
-    border-left: 1px solid var(--pos-border);
-    padding-left: 12px;
-  }
+  /* .pos-sales-layout { flex-direction: column; } eliminado para soportar split-screen horizontal */
 
   .pos-sidebar-lock-wrapper {
     border-top: none;
@@ -1530,56 +1579,41 @@
     min-width: 110px;
   }
 
-  /* Cart responsive */
-  .pos-cashier-cart-card table,
-  .pos-cashier-cart-card thead,
-  .pos-cashier-cart-card tbody,
-  .pos-cashier-cart-card th,
-  .pos-cashier-cart-card td,
-  .pos-cashier-cart-card tr { display: block; width: 100%; }
-
-  .pos-cashier-cart-card thead tr {
-    position: absolute;
-    top: -9999px;
-    left: -9999px;
+  .checkout-container-responsive {
+    flex: 1 1 100% !important;
+    max-width: 100% !important;
   }
 
-  .pos-cashier-cart-card tr {
-    border: 1px solid var(--pos-border);
-    border-radius: 8px;
-    margin-bottom: 10px;
-    padding: 8px;
-    background-color: var(--pos-surface);
+  .pos-checkout-panel {
+    flex-direction: row !important;
+    gap: 20px;
+    align-items: stretch;
   }
 
-  .pos-cashier-cart-card td {
-    border: none;
-    position: relative;
-    padding-left: 45% !important;
-    text-align: right;
-    min-height: 28px;
+  .pos-checkout-left-col {
+    flex: 1;
     display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    border-bottom: 1px dashed var(--pos-border);
+    flex-direction: row;
+    gap: 16px;
+    min-width: 0;
   }
 
-  .pos-cashier-cart-card td:last-child { border-bottom: none; }
-
-  .pos-cashier-cart-card td:before {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    left: 10px;
-    width: 40%;
-    padding-right: 10px;
-    white-space: nowrap;
-    text-align: left;
-    font-weight: 700;
-    color: var(--pos-text-muted);
-    font-size: 10px;
-    content: attr(data-label);
+  .pos-totals-col {
+    flex: 0 0 210px; /* Ancho fijo más delgado para totales en modo apaisado */
+    margin-top: 0; /* Quitar alineación al fondo para que suba */
   }
+
+  .pos-action-btns {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .pos-btn-checkout {
+    padding: 10px 16px; /* Botón de cobrar más delgado en altura */
+  }
+
+
 }
 
 @media (max-width: 768px) {

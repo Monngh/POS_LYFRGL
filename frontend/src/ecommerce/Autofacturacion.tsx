@@ -1331,9 +1331,15 @@ const Autofacturacion: React.FC = () => {
                   <tbody>
                     {invoicesList.map((inv) => (
                       <tr key={inv.id} style={styles.tr}>
-                        <td style={{ ...styles.td, fontWeight: "700" }}>{inv.invoiceNumber}</td>
-                        <td style={styles.td}>{inv.branchName}</td>
-                        <td style={styles.td}>{new Date(inv.createdAt).toLocaleDateString()}</td>
+                        <td style={{ ...styles.td, fontWeight: "700", fontSize: "11px", whiteSpace: "nowrap" }}>
+                          {inv.invoiceNumber.replace(/^V-/, '')}
+                        </td>
+                        <td style={{ ...styles.td, fontSize: "11px", whiteSpace: "nowrap", maxWidth: "90px", overflow: "hidden", textOverflow: "ellipsis" }} title={inv.branchName}>
+                          {inv.branchName.replace(/Sucursal\s+/i, '')}
+                        </td>
+                        <td style={{ ...styles.td, fontSize: "11px", whiteSpace: "nowrap" }}>
+                          {new Date(inv.createdAt).toLocaleDateString(undefined, { year: '2-digit', month: '2-digit', day: '2-digit' })}
+                        </td>
                         <td style={{ ...styles.td, fontWeight: "600" }}>${inv.totalAmount.toFixed(2)}</td>
                         <td style={styles.td}>
                           <span style={{
@@ -1342,7 +1348,9 @@ const Autofacturacion: React.FC = () => {
                             fontSize: "11px",
                             fontWeight: "700",
                             backgroundColor: inv.status === "CANCELADA" ? "#fee2e2" : inv.hasReturns ? "#fef3c7" : "#d1fae5",
-                            color: inv.status === "CANCELADA" ? "#991b1b" : inv.hasReturns ? "#92400e" : "#065f46"
+                            color: inv.status === "CANCELADA" ? "#991b1b" : inv.hasReturns ? "#92400e" : "#065f46",
+                            whiteSpace: "nowrap",
+                            display: "inline-block"
                           }}>
                             {inv.status === "CANCELADA" ? "CANCELADA" : inv.hasReturns ? "DEVOLUCIÓN" : "COMPLETADA"}
                           </span>
@@ -1367,7 +1375,7 @@ const Autofacturacion: React.FC = () => {
                               {/* Factura Original */}
                               <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                                 {inv.status === "CANCELADA" && (
-                                  <span style={{ fontSize: "10px", color: "#ef4444", fontWeight: "700", backgroundColor: "#fef2f2", padding: "2px 6px", borderRadius: "4px", border: "1px solid #fecaca" }}>
+                                  <span style={{ fontSize: "10px", color: "#ef4444", fontWeight: "700", backgroundColor: "#fef2f2", padding: "2px 6px", borderRadius: "4px", border: "1px solid #fecaca", whiteSpace: "nowrap" }}>
                                     Cancelada
                                   </span>
                                 )}
@@ -1418,7 +1426,7 @@ const Autofacturacion: React.FC = () => {
                             </div>
                           ) : inv.status === "CANCELADA" ? (
                             <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
-                              <span style={{ fontSize: "12px", color: "#ef4444", fontWeight: "700", fontStyle: "italic" }}>
+                              <span style={{ fontSize: "12px", color: "#ef4444", fontWeight: "700", fontStyle: "italic", whiteSpace: "nowrap" }}>
                                 Cancelada
                               </span>
                             </div>

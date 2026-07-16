@@ -280,7 +280,7 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
                             ${Number(item.product.sellPrice).toFixed(2)}
                           </span>
                           <br />
-                          <span style={{ color: "var(--pos-blue)", fontWeight: "700" }}>
+                          <span style={{ color: "#1e40af", fontWeight: "700" }}>
                             ${promoDetails.finalPrice.toFixed(2)}
                           </span>
                         </div>

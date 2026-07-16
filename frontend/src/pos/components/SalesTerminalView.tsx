@@ -1,7 +1,6 @@
 import React from "react";
-import { Menu, MapPin, Clock, AlertTriangle, Banknote, CreditCard, ArrowLeftRight, QrCode, ExternalLink, Ticket, Sun, Moon } from "lucide-react";
+import { Menu, MapPin, Clock, AlertTriangle, Banknote, CreditCard, ArrowLeftRight, QrCode, ExternalLink, Ticket, XCircle, Store } from "lucide-react";
 import { HeaderCashInfo } from "./HeaderCashInfo";
-import { usePosTheme, togglePosTheme } from "../../shared/hooks/usePosTheme";
 import { TICKET_PRINT_MEDIA_STYLES } from "../../shared/utils/ticketEmailDocument.util";
 import { DECIMAL_INPUT_REGEX, handleDecimalInputChange } from "../../shared/utils/decimalInput";
 import { useCashSession } from "../hooks/useCashSession";
@@ -97,7 +96,6 @@ export function SalesTerminalView({
   onReprintTicket,
   onStartReturn,
 }: SalesTerminalViewProps) {
-  const theme = usePosTheme();
   const { session, sessionStats, recentSales } = sessionData;
   const {
     checkoutModalOpen, setCheckoutModalOpen,
@@ -124,7 +122,9 @@ export function SalesTerminalView({
     handleRegisterCustomerSubmit, setNewCustomerFieldErrors,
   } = customerData;
 
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(true);
+  const [isPromotionsModalOpen, setIsPromotionsModalOpen] = React.useState(false);
+  const [isMobileHeaderModalOpen, setIsMobileHeaderModalOpen] = React.useState(false);
 
   const { parkedSales, fetchParkedSales, parkSale, deleteParkedSale } = useParkedSales(user?.branch?.id);
   const [mixedModalOpen, setMixedModalOpen] = React.useState(false);
@@ -340,10 +340,69 @@ export function SalesTerminalView({
             <MapPin size={12} />
             <span>{user?.branch?.name || "Sucursal"}</span>
           </div>
+
+          {/* Modal Detalles Header Móvil */}
+          {isMobileHeaderModalOpen && (
+            <div className="pos-modal-overlay active-tap" onClick={() => setIsMobileHeaderModalOpen(false)}>
+              <div className="pos-modal-content card-premium" onClick={(e) => e.stopPropagation()} style={{ width: "320px", padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--pos-border)", paddingBottom: "12px" }}>
+                  <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "var(--pos-text)" }}>Detalles de Sesión</h3>
+                  <button onClick={() => setIsMobileHeaderModalOpen(false)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--pos-text-muted)" }}>
+                    <XCircle size={20} />
+                  </button>
+                </div>
+                
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div className="pos-terminal-avatar">{(user?.name || "C").charAt(0).toUpperCase()}</div>
+                    <span style={{ fontWeight: "600", color: "var(--pos-text)" }}>{user?.name || "Cajero"}</span>
+                  </div>
+                  
+                  <div 
+                    className={`pos-terminal-session-badge active-tap ${session?.status === "ABIERTA" || session?.status === "active" ? "open" : "closed"}`}
+                    style={{ cursor: "pointer", userSelect: "none", alignSelf: "flex-start", fontSize: "12px", padding: "4px 8px" }}
+                    onClick={() => { setIsMobileHeaderModalOpen(false); onOpenModal("shift-summary"); }}
+                  >
+                    {session?.status === "ABIERTA" || session?.status === "active" ? "CAJA ABIERTA" : "CAJA CERRADA"}
+                  </div>
+                  
+                  <HeaderCashInfo sessionStats={sessionStats} onOpenSummary={() => { setIsMobileHeaderModalOpen(false); onOpenModal("shift-summary"); }} />
+                  
+                  {sessionStats && sessionStats.salesCount > 0 && (
+                    <div className="pos-terminal-chip sales-count" style={{ alignSelf: "flex-start" }}>
+                      {sessionStats.salesCount} {sessionStats.salesCount === 1 ? "venta" : "ventas"}
+                    </div>
+                  )}
+                </div>
+                
+                <div style={{ marginTop: "8px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <button className="pos-fkey-btn" onClick={() => handleGlobalQuickAction("F8")} style={{ flex: 1, minHeight: "44px" }}>
+                    <Store size={16} style={{ marginRight: "6px" }} />
+                    <span>Cobro/Devol. (F8)</span>
+                  </button>
+                  <button className="pos-fkey-btn" onClick={() => handleGlobalQuickAction("autofacturacion")} style={{ flex: 1, minHeight: "44px" }}>
+                    <QrCode size={16} style={{ marginRight: "6px" }} />
+                    <span>Facturación</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Botón de detalles solo móvil */}
+          <button
+            type="button"
+            className="pos-terminal-menu-btn active-tap show-on-mobile"
+            onClick={() => setIsMobileHeaderModalOpen(true)}
+            style={{ marginLeft: "auto" }}
+            aria-label="Ver detalles de caja"
+          >
+            <Clock size={16} />
+          </button>
         </div>
 
         {/* Centro: cajero + estado */}
-        <div className="pos-terminal-navbar-center">
+        <div className="pos-terminal-navbar-center hide-on-mobile">
           <div className="pos-terminal-user-btn">
             <div className="pos-terminal-avatar">
               {(user?.name || "C").charAt(0).toUpperCase()}
@@ -376,18 +435,7 @@ export function SalesTerminalView({
           </div>
         </div>
 
-        <div className="pos-terminal-navbar-right">
-          {/* Toggle modo claro/oscuro */}
-          <button
-            type="button"
-            onClick={togglePosTheme}
-            className="pos-terminal-menu-btn active-tap"
-            title={theme === "dark" ? "Modo claro" : "Modo oscuro"}
-            aria-label={theme === "dark" ? "Activar modo claro" : "Activar modo oscuro"}
-          >
-            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-
+        <div className="pos-terminal-navbar-right hide-on-mobile">
           {/* Reloj */}
           <div className="pos-terminal-chip clock">
             <Clock size={12} />
@@ -399,7 +447,13 @@ export function SalesTerminalView({
       {/* Cuerpo Terminal */}
       <SalesLayoutView
         recentSales={recentSales}
-        onOpenModal={onOpenModal}
+        onOpenModal={(modal) => {
+          if (modal === "promotions") {
+            setIsPromotionsModalOpen(true);
+          } else {
+            onOpenModal(modal);
+          }
+        }}
         onLock={onLock || (() => {})}
         onReprintTicket={onReprintTicket}
         onStartReturn={onStartReturn}
@@ -408,18 +462,18 @@ export function SalesTerminalView({
         cartData={cartData}
         onToast={onToast}
       >
-        <div style={{ flex: 1, display: "flex", flexDirection: "row", overflow: "hidden", gap: "20px" }}>
+        <div className="pos-main-layout-container">
           
-          <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", overflow: "hidden", gap: "16px" }}>
-            <div className="card-premium" style={{ display: "flex", gap: "24px", flexShrink: 0, alignItems: "center", padding: "8px 16px", minHeight: "44px" }}>
-              <div style={{ flex: "2 1 0", minWidth: 0 }}>
+          <div className="pos-cart-col">
+            <div className="card-premium" style={{ display: "flex", flexWrap: "wrap", gap: "16px", flexShrink: 0, alignItems: "center", padding: "12px 16px", minHeight: "44px" }}>
+              <div style={{ flex: "1 1 200px", minWidth: "200px" }}>
                 <ProductSearchPanel
                   searchData={searchData}
                   cartData={cartData}
                 />
               </div>
-              <div style={{ width: "1px", backgroundColor: "var(--border-strong)", height: "28px" }} />
-              <div style={{ width: "360px", flexShrink: 0 }}>
+              <div style={{ width: "1px", backgroundColor: "var(--border-strong)", height: "28px" }} className="hide-on-mobile" />
+              <div style={{ flex: "1 1 250px", minWidth: "250px" }}>
                 <div style={{ width: "100%" }}>
                   <CustomerCheckoutBar customerData={customerData} cartData={cartData} onToast={onToast} />
                 </div>
@@ -428,11 +482,10 @@ export function SalesTerminalView({
 
             <div className="card-premium pos-cashier-cart-card" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "14px", gap: "10px" }}>
               <CartPanel cartData={cartData} onToast={onToast} />
-              <PromotionsGrid cart={cartData.cart} onAddProduct={cartData.addProductToCart} onToast={onToast} cartDiscount={cartData.cartDiscount} />
             </div>
           </div>
 
-          <div className="card-premium" style={{ width: "340px", flexShrink: 0, display: "flex", flexDirection: "column", overflowY: "auto", position: "relative", padding: "14px", paddingRight: "14px" }}>
+          <div className="card-premium pos-checkout-col">
             <CheckoutPanel
               cartData={cartData}
               searchData={searchData}
@@ -843,6 +896,29 @@ export function SalesTerminalView({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL: PROMOCIONES ACTIVAS */}
+      {isPromotionsModalOpen && (
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center" data-pos-modal onClick={() => setIsPromotionsModalOpen(false)}>
+          <div style={{ ...styles.checkoutModal, width: "650px", maxWidth: "90vw" }} className="pos-cashier-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "var(--text-secondary)", fontWeight: "700", display: "flex", justifyContent: "space-between", alignItems: "center", margin: "0 0 16px 0" }}>
+              PROMOCIONES ACTIVAS
+              <button title="Cerrar (X)" type="button" onClick={() => setIsPromotionsModalOpen(false)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: "4px" }}>
+                <XCircle size={20} />
+              </button>
+            </h3>
+            
+            <div style={{ maxHeight: "60vh", overflowY: "auto", margin: "-10px -10px", padding: "10px" }}>
+              <PromotionsGrid cart={cartData.cart} onAddProduct={cartData.addProductToCart} onToast={onToast} cartDiscount={cartData.cartDiscount} />
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", marginTop: "16px" }} className="pos-cashier-modal-actions">
+              <button title="Cerrar (X)" data-shortcut="cancel" data-shortcut-letter="X" type="button" onClick={() => setIsPromotionsModalOpen(false)} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
+                CERRAR
+              </button>
+            </div>
           </div>
         </div>
       )}
