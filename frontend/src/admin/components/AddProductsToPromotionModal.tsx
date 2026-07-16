@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, PackageMinus, PackagePlus, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, PackageMinus, PackagePlus, X } from "lucide-react";
 import {
   adminCategoryService,
   type AdminCategoryFlatItem,
@@ -12,10 +12,11 @@ import {
 } from "../utils/promotionsApi";
 import type {
   AvailablePromotionProduct,
+  InvalidPromotionProduct,
   PromotionAssociatedProduct,
   PromotionProductScope,
 } from "../types/promotions.types";
-import { Badge, SearchInput, ui, moneyExact } from "../views/shared";
+import { Badge, SearchInput, ui, moneyExact, useMediaQuery } from "../views/shared";
 import { useToast } from "../../shared/context/ToastContext";
 
 // ---------------------------------------------------------------------------
@@ -25,6 +26,13 @@ const mxnFmt = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MX
 const fmt = (n: number) => mxnFmt.format(Number(n));
 
 const LIMIT = 10;
+
+const getInvalidProductsFromError = (err: unknown): InvalidPromotionProduct[] => {
+  if (typeof err !== "object" || err === null || !("response" in err)) return [];
+  const apiError = err as { response?: { data?: { invalidProducts?: InvalidPromotionProduct[] } } };
+  const invalidProducts = apiError.response?.data?.invalidProducts;
+  return Array.isArray(invalidProducts) ? invalidProducts : [];
+};
 
 // ---------------------------------------------------------------------------
 // Props
@@ -36,6 +44,9 @@ interface AddProductsToPromotionModalProps {
   associatedProducts: PromotionAssociatedProduct[];
   onClose: () => void;
   onSuccess: () => void | Promise<void>;
+  selectionMode?: boolean;
+  selectedProductIds?: number[];
+  onApplySelection?: (productIds: number[]) => void | Promise<void>;
 }
 
 type ModalTab = "associated" | "available";
@@ -50,9 +61,13 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
   associatedProducts,
   onClose,
   onSuccess,
+  selectionMode = false,
+  selectedProductIds = [],
+  onApplySelection,
 }) => {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<ModalTab>(associatedProducts.length > 0 ? "associated" : "available");
+  const isMobile = useMediaQuery("(max-width: 640px)");
 
   // ── Filters state ──────────────────────────────────────────────────────────
   const [selectedDivisionId, setSelectedDivisionId] = useState<number | undefined>(undefined);
@@ -61,6 +76,7 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // ── Categories state ───────────────────────────────────────────────────────
   const [allCategories, setAllCategories] = useState<AdminCategoryFlatItem[]>([]);
@@ -71,9 +87,11 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
   const [pagination, setPagination] = useState({ page: 1, limit: LIMIT, total: 0, totalPages: 1 });
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState<string | null>(null);
+  const [invalidProducts, setInvalidProducts] = useState<InvalidPromotionProduct[]>([]);
 
   // ── Selection state ────────────────────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectingAll, setSelectingAll] = useState(false);
 
   // ── Submit state ───────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false);
@@ -88,6 +106,10 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
   useEffect(() => {
     setActiveTab(associatedProducts.length > 0 ? "associated" : "available");
   }, [promotionId, associatedProducts.length]);
+
+  useEffect(() => {
+    setSelectedIds(selectionMode ? new Set(selectedProductIds) : new Set());
+  }, [promotionId, selectionMode, selectedProductIds.join(",")]);
 
   // ── Debounce search ────────────────────────────────────────────────────────
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -142,6 +164,23 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
     );
   }, [allCategories, selectedDepartmentId]);
 
+  const activeFilterLabels = useMemo(() => {
+    const labels: string[] = [];
+    const division = selectedDivisionId ? allCategories.find((cat) => cat.id === selectedDivisionId) : null;
+    const department = selectedDepartmentId ? allCategories.find((cat) => cat.id === selectedDepartmentId) : null;
+    const category = selectedCategoryId ? allCategories.find((cat) => cat.id === selectedCategoryId) : null;
+    if (division) labels.push(`Division ${division.name}`);
+    if (department) labels.push(`Departamento ${department.name}`);
+    if (category) labels.push(`Categoria ${category.name}`);
+    if (searchInput.trim()) labels.push(`Busqueda "${searchInput.trim()}"`);
+    return labels;
+  }, [allCategories, searchInput, selectedCategoryId, selectedDepartmentId, selectedDivisionId]);
+
+  const activeFilterCount = activeFilterLabels.length;
+  const activeFilterSummary = activeFilterLabels.length > 0
+    ? activeFilterLabels.join(", ")
+    : "Sin filtros activos";
+
   // ── Derived scope + categoryId for the API call ───────────────────────────
   const apiScope: PromotionProductScope = selectedCategoryId
     ? "CATEGORY"
@@ -168,6 +207,7 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
         includeAssociated: true,
       });
       setProducts(result.products);
+      setInvalidProducts(result.invalidProducts ?? []);
       setPagination(
         result.pagination ?? { page, limit: LIMIT, total: result.products.length, totalPages: 1 }
       );
@@ -175,6 +215,7 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
       const backendMessage = getPromotionApiError(err, "Error desconocido");
       setProductsError(`No se pudieron cargar los productos: ${backendMessage}`);
       setProducts([]);
+      setInvalidProducts([]);
     } finally {
       setProductsLoading(false);
     }
@@ -190,26 +231,32 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
     setSelectedDivisionId(id);
     setSelectedDepartmentId(undefined);
     setSelectedCategoryId(undefined);
-    setSelectedIds(new Set());
     setPage(1);
   };
 
   const handleDepartmentChange = (id: number | undefined) => {
     setSelectedDepartmentId(id);
     setSelectedCategoryId(undefined);
-    setSelectedIds(new Set());
     setPage(1);
   };
 
   const handleCategoryChange = (id: number | undefined) => {
     setSelectedCategoryId(id);
-    setSelectedIds(new Set());
+    setPage(1);
+  };
+
+  const clearFilters = () => {
+    setSelectedDivisionId(undefined);
+    setSelectedDepartmentId(undefined);
+    setSelectedCategoryId(undefined);
+    setSearchInput("");
+    setDebouncedSearch("");
     setPage(1);
   };
 
   // ── Selection helpers ──────────────────────────────────────────────────────
   const toggleProduct = (id: number, alreadyAssociated: boolean) => {
-    if (alreadyAssociated) return;
+    if (!selectionMode && alreadyAssociated) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -218,24 +265,86 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
     });
   };
 
-  const selectVisible = () => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      products.forEach((p) => {
-        if (!p.alreadyAssociated) next.add(p.id);
-      });
-      return next;
+  const fetchFilteredProducts = async () => {
+    const first = await getAvailablePromotionProducts(promotionId, {
+      search: debouncedSearch.trim() || undefined,
+      scope: apiScope,
+      categoryId: apiCategoryId,
+      page: 1,
+      limit: 100,
+      includeAssociated: true,
     });
+    const allProducts = [...first.products];
+    const totalPages = first.pagination?.totalPages ?? 1;
+    if (totalPages > 1) {
+      const rest = await Promise.all(
+        Array.from({ length: totalPages - 1 }, (_, index) =>
+          getAvailablePromotionProducts(promotionId, {
+            search: debouncedSearch.trim() || undefined,
+            scope: apiScope,
+            categoryId: apiCategoryId,
+            page: index + 2,
+            limit: 100,
+            includeAssociated: true,
+          })
+        )
+      );
+      rest.forEach((pageResult) => allProducts.push(...pageResult.products));
+    }
+    return allProducts;
+  };
+
+  const selectFiltered = async () => {
+    setSelectingAll(true);
+    setSubmitError(null);
+    try {
+      const filteredProducts = await fetchFilteredProducts();
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filteredProducts.forEach((product) => {
+          if (selectionMode || !product.alreadyAssociated) next.add(product.id);
+        });
+        return next;
+      });
+    } catch (err: unknown) {
+      setSubmitError(getPromotionApiError(err, "No se pudieron seleccionar los productos filtrados."));
+    } finally {
+      setSelectingAll(false);
+    }
+  };
+
+  const deselectFiltered = async () => {
+    setSelectingAll(true);
+    setSubmitError(null);
+    try {
+      const filteredProducts = await fetchFilteredProducts();
+      const filteredIds = new Set(filteredProducts.map((product) => product.id));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filteredIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } catch (err: unknown) {
+      setSubmitError(getPromotionApiError(err, "No se pudieron quitar los productos filtrados."));
+    } finally {
+      setSelectingAll(false);
+    }
   };
 
   const clearSelection = () => setSelectedIds(new Set());
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (selectedIds.size === 0) return;
+    if (!selectionMode && selectedIds.size === 0) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
+      if (selectionMode) {
+        await onApplySelection?.(Array.from(selectedIds));
+        onClose();
+        return;
+      }
+
       await addProductsToPromotion(promotionId, Array.from(selectedIds));
       showToast(
         `${selectedIds.size} producto${selectedIds.size === 1 ? "" : "s"} agregado${selectedIds.size === 1 ? "" : "s"} a la promoción.`,
@@ -246,7 +355,13 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
       await loadProducts();
       setActiveTab("associated");
     } catch (err: unknown) {
-      setSubmitError(getPromotionApiError(err, "No se pudieron agregar los productos."));
+      const rejectedProducts = getInvalidProductsFromError(err);
+      if (rejectedProducts.length > 0) {
+        setInvalidProducts(rejectedProducts);
+        setSubmitError(null);
+      } else {
+        setSubmitError(getPromotionApiError(err, "No se pudieron agregar los productos."));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -254,8 +369,9 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
 
   // ── Selectable products on current page ────────────────────────────────────
   const selectableCount = products.filter((p) => !p.alreadyAssociated).length;
+  const selectableFilteredCount = selectionMode ? products.length : selectableCount;
   const visibleSelectedCount = products.filter((p) => selectedIds.has(p.id)).length;
-  const allVisibleSelected = selectableCount > 0 && visibleSelectedCount === selectableCount;
+  const allVisibleSelected = selectableFilteredCount > 0 && visibleSelectedCount === selectableFilteredCount;
 
 
   const categoryText = (categories: AvailablePromotionProduct["categories"] | undefined) =>
@@ -265,6 +381,15 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
 
   const handleRemoveProduct = async (productId: number) => {
     if (!canRemoveAssociated || removingId !== null) return;
+
+    if (selectionMode) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(productId);
+        return next;
+      });
+      return;
+    }
 
     setRemovingId(productId);
     setRemoveError(null);
@@ -281,7 +406,12 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
     }
   };
 
-  const renderAssociatedProducts = () => (
+  const renderAssociatedProducts = () => {
+    const visibleAssociatedProducts = selectionMode
+      ? associatedProducts.filter((row) => selectedIds.has(row.productId))
+      : associatedProducts;
+
+    return (
     <div>
       {associatedProducts.length > 0 && !canRemoveAssociated && (
         <div style={s.infoBox}>Esta promocion ya inicio. Los productos asociados se muestran, pero no se pueden quitar.</div>
@@ -298,10 +428,10 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
           <div style={{ ...s.cell, ...s.colAssociatedAction }}>Accion</div>
         </div>
         <div style={s.tableBody}>
-          {associatedProducts.length === 0 ? (
+          {visibleAssociatedProducts.length === 0 ? (
             <div style={s.stateRow}>Esta promocion todavia no tiene productos asociados.</div>
           ) : (
-            associatedProducts.map((row) => {
+            visibleAssociatedProducts.map((row) => {
               const product = row.product;
               const productId = product?.id ?? row.productId;
               const isRemoving = removingId === productId;
@@ -357,26 +487,134 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
       {removeError && <div style={s.errorBox}>{removeError}</div>}
 
       <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
-        <button type="button" style={{ ...ui.ghostBtn, justifyContent: "center" }} onClick={onClose} disabled={removingId !== null}>
-          Cerrar
+        <button type="button" style={{ ...ui.ghostBtn, justifyContent: "center" }} onClick={onClose} disabled={removingId !== null || submitting}>
+          {selectionMode ? "Cancelar" : "Cerrar"}
+        </button>
+        {selectionMode && (
+          <button
+            type="button"
+            style={{ ...ui.primaryBtn, justifyContent: "center" }}
+            onClick={() => void handleSubmit()}
+            disabled={submitting}
+          >
+            {submitting ? "Aplicando..." : "Aplicar seleccion"}
+          </button>
+        )}
+      </div>
+    </div>
+    );
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  const filtersPanelId = `promotion-product-filters-${promotionId}`;
+  const filterControls = (
+    <div id={filtersPanelId} style={isMobile ? s.filtersPanel : s.filtersRow}>
+      <div style={{ ...s.filterGroup, ...(isMobile ? s.mobileFilterGroup : {}) }}>
+        <label style={ui.fieldLabel}>Division</label>
+        {categoriesLoading ? (
+          <div style={s.selectPlaceholder}>Cargando...</div>
+        ) : (
+          <select
+            style={{ ...ui.input, ...s.select }}
+            value={selectedDivisionId ?? ""}
+            onChange={(e) =>
+              handleDivisionChange(e.target.value ? Number(e.target.value) : undefined)
+            }
+          >
+            <option value="">Todas las divisiones</option>
+            {divisionOptions.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      <div style={{ ...s.filterGroup, ...(isMobile ? s.mobileFilterGroup : {}) }}>
+        <label style={ui.fieldLabel}>Departamento</label>
+        {categoriesLoading ? (
+          <div style={s.selectPlaceholder}>Cargando...</div>
+        ) : (
+          <select
+            style={{
+              ...ui.input,
+              ...s.select,
+              opacity: !selectedDivisionId ? 0.5 : 1,
+            }}
+            value={selectedDepartmentId ?? ""}
+            disabled={!selectedDivisionId}
+            onChange={(e) =>
+              handleDepartmentChange(e.target.value ? Number(e.target.value) : undefined)
+            }
+          >
+            <option value="">
+              {selectedDivisionId ? "Todos los departamentos" : "Selecciona una division"}
+            </option>
+            {departmentOptions.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      <div style={{ ...s.filterGroup, ...(isMobile ? s.mobileFilterGroup : {}) }}>
+        <label style={ui.fieldLabel}>Categoria</label>
+        {categoriesLoading ? (
+          <div style={s.selectPlaceholder}>Cargando...</div>
+        ) : (
+          <select
+            style={{
+              ...ui.input,
+              ...s.select,
+              opacity: !selectedDepartmentId ? 0.5 : 1,
+            }}
+            value={selectedCategoryId ?? ""}
+            disabled={!selectedDepartmentId}
+            onChange={(e) =>
+              handleCategoryChange(e.target.value ? Number(e.target.value) : undefined)
+            }
+          >
+            <option value="">
+              {selectedDepartmentId ? "Todas las categorias" : "Selecciona un departamento"}
+            </option>
+            {categoryOptions.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      <div style={{ ...s.filterGroup, ...(isMobile ? s.mobileFilterGroup : {}) }}>
+        <label style={ui.fieldLabel}>Busqueda</label>
+        <SearchInput
+          value={searchInput}
+          onChange={(v) => { setSearchInput(v); setPage(1); }}
+          placeholder="Buscar por SKU, codigo, nombre o descripcion"
+        />
+      </div>
+
+      <div style={{ ...s.filterActions, ...(isMobile ? s.mobileFilterGroup : {}) }}>
+        <button
+          type="button"
+          style={{ ...ui.ghostBtn, justifyContent: "center", width: isMobile ? "100%" : undefined }}
+          onClick={clearFilters}
+          disabled={activeFilterCount === 0}
+        >
+          Limpiar filtros
         </button>
       </div>
     </div>
   );
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-  return (
-    <div style={s.overlay} onClick={!submitting ? onClose : undefined}>
-      <div
-        style={s.modal}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="promotion-products-title"
-        aria-label="Gestionar productos de la promocion"
-      >
-        {/* Header */}
-        <div style={ui.modalHeader}>
+  const content = (
+    <>
+      {/* Header */}
+      <div style={ui.modalHeader}>
           <span style={{ ...ui.modalTitle, display: "flex", alignItems: "center", gap: 8, fontSize: 0 }}>
             <PackagePlus size={18} />
             <span id="promotion-products-title" style={{ fontSize: 16 }}>Gestionar productos de la promocion</span>
@@ -404,7 +642,7 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
               onClick={() => setActiveTab("associated")}
             >
               Productos asociados
-              <span style={s.tabCount}>{associatedProducts.length}</span>
+              <span style={s.tabCount}>{selectionMode ? selectedIds.size : associatedProducts.length}</span>
             </button>
             <button
               type="button"
@@ -417,6 +655,34 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
 
           {activeTab === "associated" ? renderAssociatedProducts() : (
             <>
+              {isMobile && (
+                <div style={s.mobileFiltersBlock}>
+                  <button
+                    type="button"
+                    style={s.filtersToggle}
+                    aria-expanded={filtersOpen}
+                    aria-controls={filtersPanelId}
+                    onClick={() => setFiltersOpen((current) => !current)}
+                  >
+                    <span style={s.filtersToggleText}>
+                      Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+                    </span>
+                    {filtersOpen ? (
+                      <ChevronUp size={16} style={s.filtersChevron} aria-hidden="true" />
+                    ) : (
+                      <ChevronDown size={16} style={s.filtersChevron} aria-hidden="true" />
+                    )}
+                  </button>
+                  {!filtersOpen && activeFilterCount > 0 && (
+                    <div style={s.filtersSummary} title={activeFilterSummary}>
+                      {activeFilterSummary}
+                    </div>
+                  )}
+                  {filtersOpen && filterControls}
+                </div>
+              )}
+              {!isMobile && (
+                <>
 
               {/* ── Filters row — Jerarquía División → Departamento → Categoría ── */}
               <div style={s.filtersRow}>
@@ -514,23 +780,36 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
               </div>
 
               {/* ── Selection controls ── */}
+                </>
+              )}
+
               <div style={s.selectionBar}>
                 <button
                   type="button"
                   style={{ ...ui.ghostBtn, fontSize: 12, padding: "5px 10px", height: 30 }}
-                  onClick={selectVisible}
-                  disabled={selectableCount === 0 || productsLoading}
+                  onClick={() => void selectFiltered()}
+                  disabled={selectableFilteredCount === 0 || productsLoading || selectingAll}
                   title="Seleccionar todos los productos visibles en esta página"
                 >
                   {allVisibleSelected ? "✓ " : ""}Seleccionar todos
                 </button>
+                {selectionMode && (
+                  <button
+                    type="button"
+                    style={{ ...ui.ghostBtn, fontSize: 12, padding: "5px 10px", height: 30 }}
+                    onClick={() => void deselectFiltered()}
+                    disabled={selectedIds.size === 0 || productsLoading || selectingAll}
+                  >
+                    Deseleccionar filtrados
+                  </button>
+                )}
                 <button
                   type="button"
                   style={{ ...ui.ghostBtn, fontSize: 12, padding: "5px 10px", height: 30 }}
                   onClick={clearSelection}
                   disabled={selectedIds.size === 0}
                 >
-                  Quitar todos
+                  Limpiar seleccion
                 </button>
                 <span style={s.counter}>
                   {selectedIds.size} producto{selectedIds.size === 1 ? "" : "s"} seleccionado{selectedIds.size === 1 ? "" : "s"}
@@ -538,6 +817,20 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
               </div>
 
               {/* ── Products table ── */}
+              {invalidProducts.length > 0 && (
+                <div style={s.invalidPreviewBox}>
+                  <div style={{ fontWeight: 800, marginBottom: 6 }}>
+                    La promocion no puede aplicarse a {invalidProducts.length} producto{invalidProducts.length === 1 ? "" : "s"}.
+                  </div>
+                  {invalidProducts.map((product, index) => (
+                    <div key={`${product.productId}-${index}`} style={s.invalidPreviewItem}>
+                      <strong>{index + 1}. {product.name}</strong>
+                      <span>SKU: {product.sku || "Sin SKU"}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div style={s.tableWrap}>
                 {/* Table header */}
                 <div style={{ ...s.tableRow, ...s.tableHead }}>
@@ -581,7 +874,7 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
                     !productsError &&
                     products.map((product) => {
                       const isSelected = selectedIds.has(product.id);
-                      const disabled = product.alreadyAssociated;
+                      const disabled = !selectionMode && product.alreadyAssociated;
                       return (
                         <div
                           key={product.id}
@@ -713,33 +1006,41 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
               <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
                 <button
                   type="button"
-                  style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center" }}
-                  onClick={onClose}
-                  disabled={submitting}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
                   style={{
                     ...ui.primaryBtn,
                     flex: 2,
                     justifyContent: "center",
-                    opacity: selectedIds.size === 0 || submitting ? 0.55 : 1,
-                    cursor: selectedIds.size === 0 || submitting ? "not-allowed" : "pointer",
+                    opacity: (!selectionMode && selectedIds.size === 0) || submitting ? 0.55 : 1,
+                    cursor: (!selectionMode && selectedIds.size === 0) || submitting ? "not-allowed" : "pointer",
                   }}
-                  disabled={selectedIds.size === 0 || submitting}
+                  disabled={(!selectionMode && selectedIds.size === 0) || submitting}
                   onClick={handleSubmit}
                 >
                   <PackagePlus size={15} />
-                  {submitting
-                    ? "Agregando..."
-                    : `Agregar ${selectedIds.size > 0 ? selectedIds.size : ""} producto${selectedIds.size === 1 ? "" : "s"} seleccionado${selectedIds.size === 1 ? "" : "s"}`}
+                  {selectionMode
+                    ? submitting ? "Aplicando..." : "Aplicar seleccion"
+                    : submitting
+                      ? "Agregando..."
+                      : `Agregar ${selectedIds.size > 0 ? selectedIds.size : ""} producto${selectedIds.size === 1 ? "" : "s"} seleccionado${selectedIds.size === 1 ? "" : "s"}`}
                 </button>
               </div>
             </>
           )}
         </div>
+    </>
+  );
+
+  return (
+    <div style={s.overlay} onClick={!submitting ? onClose : undefined}>
+      <div
+        style={s.modal}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="promotion-products-title"
+        aria-label="Gestionar productos de la promocion"
+      >
+        {content}
       </div>
     </div>
   );
@@ -834,12 +1135,70 @@ const s: Record<string, React.CSSProperties> = {
     marginBottom: 12,
     alignItems: "flex-end",
   },
+  mobileFiltersBlock: {
+    marginBottom: 8,
+  },
+  filtersToggle: {
+    alignItems: "center",
+    backgroundColor: "var(--surface-2)",
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    color: "var(--text)",
+    cursor: "pointer",
+    display: "flex",
+    justifyContent: "space-between",
+    minHeight: 36,
+    padding: "7px 10px",
+    width: "100%",
+  },
+  filtersToggleText: {
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  filtersChevron: {
+    color: "var(--text-secondary)",
+    flexShrink: 0,
+    transition: "transform 160ms ease",
+  },
+  filtersSummary: {
+    color: "var(--text-secondary)",
+    fontSize: 12,
+    fontWeight: 600,
+    lineHeight: 1.35,
+    marginTop: 5,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  filtersPanel: {
+    border: "1px solid var(--border-soft)",
+    borderRadius: 8,
+    display: "grid",
+    gap: 8,
+    alignItems: "start",
+    height: "auto",
+    marginTop: 8,
+    minHeight: 0,
+    padding: 10,
+  },
   filterGroup: {
     display: "flex",
     flexDirection: "column",
     gap: 4,
     flex: "1 1 200px",
     minWidth: 160,
+  },
+  mobileFilterGroup: {
+    display: "grid",
+    flex: "0 0 auto",
+    gap: 4,
+    minWidth: 0,
+    width: "100%",
+  },
+  filterActions: {
+    alignItems: "flex-end",
+    display: "flex",
+    flex: "0 0 auto",
   },
   select: {
     height: 38,
@@ -1016,6 +1375,24 @@ const s: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     marginTop: 12,
     padding: "10px 12px",
+    whiteSpace: "pre-line" as const,
+  },
+  invalidPreviewBox: {
+    backgroundColor: "#fff7ed",
+    border: "1px solid #fed7aa",
+    borderRadius: 8,
+    color: "#9a3412",
+    fontSize: 12,
+    lineHeight: 1.45,
+    marginBottom: 12,
+    padding: "10px 12px",
+  },
+  invalidPreviewItem: {
+    display: "grid",
+    gap: 2,
+    borderTop: "1px solid #fed7aa",
+    marginTop: 6,
+    paddingTop: 6,
   },
   check: {
     width: 16,

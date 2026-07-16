@@ -1,6 +1,7 @@
 import React from "react";
 import { Receipt } from "lucide-react";
 import { PosModal } from "./shared";
+import { calculateItemPromotion } from "../../utils/promotionPricing";
 
 interface TicketViewModalProps {
   isOpen: boolean;
@@ -9,59 +10,6 @@ interface TicketViewModalProps {
   onClose: () => void;
   actionButtons: React.ReactNode;
 }
-
-const calculateItemPromotion = (item: { product: any; quantity: number }) => {
-  const promo = item.product.activePromotion;
-  const originalPrice = item.product.sellPrice;
-  const quantity = item.quantity;
-  const subtotalOriginal = originalPrice * quantity;
-
-  if (!promo) {
-    return { finalPrice: originalPrice, discountAmount: 0, label: "" };
-  }
-
-  let discountAmount = 0;
-  let finalPrice = originalPrice;
-
-  const minQty = promo.minQuantity || 1;
-
-  if (promo.type === "Percentage") {
-    if (quantity >= minQty) {
-      const val = promo.value || 0;
-      const discountPerUnit = originalPrice * (val / 100);
-      discountAmount = discountPerUnit * quantity;
-      finalPrice = originalPrice - discountPerUnit;
-    }
-  } else if (promo.type === "FixedAmount") {
-    if (quantity >= minQty) {
-      const val = promo.value || 0;
-      discountAmount = val * quantity;
-      finalPrice = Math.max(0, originalPrice - val);
-    }
-  } else if (promo.type === "BuyXPayY") {
-    const x = promo.minQuantity || 1;
-    const y = promo.payQuantity || 1;
-    if (quantity >= x) {
-      const groups = Math.floor(quantity / x);
-      const remainder = quantity % x;
-      const paidUnits = (groups * y) + remainder;
-      const lineCost = paidUnits * originalPrice;
-      discountAmount = subtotalOriginal - lineCost;
-      finalPrice = lineCost / quantity;
-    }
-  } else if (promo.type === "SpecialPrice") {
-    const special = promo.specialPrice || originalPrice;
-    if (quantity >= minQty) {
-      finalPrice = special;
-      discountAmount = (originalPrice - special) * quantity;
-    }
-  }
-
-  const promoApplied = discountAmount > 0;
-  return { finalPrice, discountAmount, label: promoApplied ? promo.name : "", promoApplied };
-};
-
-
 
 const ticketContainer: React.CSSProperties = {
   boxSizing: "border-box",

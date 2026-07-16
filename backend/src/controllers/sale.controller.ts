@@ -38,7 +38,7 @@ const normalizeSaleItems = (items: unknown): { items: NormalizedSaleItem[]; erro
     return { items: [], error: "El carrito de ventas no puede estar vacío." };
   }
 
-  const normalized: NormalizedSaleItem[] = [];
+  const normalizedByProduct = new Map<number, NormalizedSaleItem>();
 
   for (const [index, rawItem] of items.entries()) {
     const item = rawItem as Record<string, unknown>;
@@ -53,14 +53,19 @@ const normalizeSaleItems = (items: unknown): { items: NormalizedSaleItem[]; erro
       return { items: [], error: `La cantidad del producto ${item.name || productId} debe ser mayor a cero.` };
     }
 
-    normalized.push({
-      productId,
-      quantity,
-      name: typeof item.name === "string" ? item.name : undefined,
-    });
+    const existing = normalizedByProduct.get(productId);
+    if (existing) {
+      existing.quantity += quantity;
+    } else {
+      normalizedByProduct.set(productId, {
+        productId,
+        quantity,
+        name: typeof item.name === "string" ? item.name : undefined,
+      });
+    }
   }
 
-  return { items: normalized };
+  return { items: Array.from(normalizedByProduct.values()) };
 };
 
 const numberOrZero = (value: unknown): number => {
@@ -212,6 +217,10 @@ export const simulateSale = async (req: Request, res: Response): Promise<void> =
 
     res.json(simulation);
   } catch (err: any) {
+    if (err.statusCode) {
+      res.status(err.statusCode).json({ message: err.message });
+      return;
+    }
     res.status(500).json({ error: err.message });
   }
 };

@@ -6,10 +6,9 @@ import {
   adminCategoryService,
   type AdminCategoryFlatItem,
 } from "../services/categoryAdmin.service";
-import type { PromotionAssociatedProductDetail } from "../types/promotions.types";
+import type { InvalidPromotionProduct, PromotionAssociatedProductDetail } from "../types/promotions.types";
 import {
   collectRoundedDecimalMessages,
-  DECIMAL_INPUT_REGEX,
   handleDecimalInputChange,
   validateDecimalField,
 } from "../../shared/utils/decimalInput";
@@ -87,6 +86,23 @@ interface FormState {
 type FieldErrors = Partial<Record<keyof FormState, string>>;
 
 type RuleKey = "percentage" | "fixedAmount" | "buyXPayY" | "specialPrice";
+const PROMOTION_DECIMAL_INPUT_REGEX = /^\d*(?:\.\d{0,2})?$/;
+
+interface PromotionInvalidProductSummary {
+  productId: number;
+  name: string;
+  sku: string | null;
+}
+
+interface ProductCompatibilityValidationResult {
+  message: string;
+  products: PromotionInvalidProductSummary[];
+}
+
+interface FormValidationResult {
+  errors: FieldErrors;
+  invalidProducts: PromotionInvalidProductSummary[];
+}
 
 interface PromotionDecimalValues {
   value: number | null;
@@ -128,6 +144,22 @@ const getErrorMessage = (err: unknown, fallback: string) => {
   }
 
   return fallback;
+};
+
+const invalidProductsHeading = (count: number) =>
+  `La promocion no puede aplicarse a ${count} producto${count === 1 ? "" : "s"}.`;
+
+const toInvalidProductSummary = (product: ProductOption | InvalidPromotionProduct): PromotionInvalidProductSummary => ({
+  productId: "productId" in product ? product.productId : product.id,
+  name: product.name,
+  sku: product.sku || null,
+});
+
+const getInvalidProductsFromError = (err: unknown): PromotionInvalidProductSummary[] => {
+  if (typeof err !== "object" || err === null || !("response" in err)) return [];
+  const apiError = err as { response?: { data?: { invalidProducts?: InvalidPromotionProduct[] } } };
+  const invalidProducts = apiError.response?.data?.invalidProducts;
+  return Array.isArray(invalidProducts) ? invalidProducts.map(toInvalidProductSummary) : [];
 };
 
 const getRule = (typeName: string): RuleKey | null => {
@@ -205,6 +237,106 @@ const productSummary = (promotion: PromotionRow) => {
   if (promotion.products.length === 0) return "Sin productos";
   const names = promotion.products.map((row) => row.product?.name ?? `Producto #${row.productId}`);
   return names.length <= 2 ? names.join(", ") : `${names.slice(0, 2).join(", ")} +${names.length - 2}`;
+};
+
+const hasMaxTwoDecimals = (value: string) => {
+  const [, decimalPart = ""] = value.trim().split(".");
+  return decimalPart.length <= 2;
+};
+
+const validateSelectedProductsForPromotion = (
+  selectedRule: RuleKey | null,
+  selectedProductIds: number[],
+  products: ProductOption[],
+  decimalValues: PromotionDecimalValues,
+): ProductCompatibilityValidationResult | string | undefined => {
+  const selectedProducts = selectedProductIds
+    .map((productId) => products.find((product) => product.id === productId))
+    .filter((product): product is ProductOption => Boolean(product));
+
+  if (selectedProducts.length !== selectedProductIds.length) {
+    return "Uno o mas productos seleccionados ya no estan disponibles.";
+  }
+
+  const formatProductConflicts = (conflicts: ProductOption[]): ProductCompatibilityValidationResult => ({
+    message: invalidProductsHeading(conflicts.length),
+    products: conflicts.map(toInvalidProductSummary),
+  });
+
+  if (selectedRule === "percentage" && decimalValues.value !== null) {
+    const conflicts = selectedProducts.flatMap((product) => {
+      const finalPrice = Math.round((product.sellPrice * (1 - decimalValues.value! / 100) + Number.EPSILON) * 100) / 100;
+      return finalPrice <= 0 || finalPrice >= product.sellPrice
+        ? [product]
+        : [];
+    });
+    if (conflicts.length > 0) return formatProductConflicts(conflicts);
+  }
+
+  if (selectedRule === "fixedAmount" && decimalValues.value !== null) {
+    const conflicts = selectedProducts.filter((product) => decimalValues.value! >= product.sellPrice);
+    if (conflicts.length > 0) return formatProductConflicts(conflicts);
+  }
+
+  if (selectedRule === "specialPrice" && decimalValues.specialPrice !== null) {
+    const conflicts = selectedProducts.filter((product) => decimalValues.specialPrice! >= product.sellPrice);
+    if (conflicts.length > 0) return formatProductConflicts(conflicts);
+  }
+
+  return undefined;
+};
+
+const InvalidPromotionProductsNotice: React.FC<{ products: PromotionInvalidProductSummary[] }> = ({ products }) => (
+  <div style={styles.invalidProductsBox} role="alert">
+    <div style={styles.invalidProductsTitle}>{invalidProductsHeading(products.length)}</div>
+    <div style={styles.invalidProductsList}>
+      {products.map((product, index) => (
+        <div key={`${product.productId}-${index}`} style={styles.invalidProductRow}>
+          <span style={styles.invalidProductName}>{index + 1}. {product.name}</span>
+          <span style={styles.invalidProductSku}>SKU: {product.sku || "Sin SKU"}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const PromotionProductsSummary: React.FC<{
+  count: number;
+  products: PromotionProduct[];
+  selectedProductIds: number[];
+  disabled?: boolean;
+  onManage: () => void;
+}> = ({ count, products, selectedProductIds, disabled, onManage }) => {
+  const selectedIds = new Set(selectedProductIds);
+  const preview = products
+    .filter((row) => selectedIds.has(row.productId))
+    .slice(0, 3)
+    .map((row) => row.product?.name ?? `Producto #${row.productId}`);
+
+  return (
+    <div style={styles.productsSummaryBox}>
+      <div style={styles.productsSummaryText}>
+        <span style={styles.productsSummaryLabel}>Productos asociados</span>
+        <strong style={styles.productsSummaryCount}>
+          {count} producto{count === 1 ? "" : "s"} seleccionado{count === 1 ? "" : "s"}
+        </strong>
+        {preview.length > 0 && (
+          <span style={styles.productsSummaryPreview}>
+            {preview.join(", ")}
+            {count > preview.length ? ` +${count - preview.length}` : ""}
+          </span>
+        )}
+      </div>
+      <button
+        type="button"
+        style={{ ...ui.ghostBtn, justifyContent: "center", whiteSpace: "nowrap" }}
+        onClick={onManage}
+        disabled={disabled}
+      >
+        <PackagePlus size={15} /> Gestionar productos
+      </button>
+    </div>
+  );
 };
 
 const ProductSelector: React.FC<{
@@ -501,12 +633,15 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [formInvalidProducts, setFormInvalidProducts] = useState<PromotionInvalidProductSummary[]>([]);
+  const [pageInvalidProducts, setPageInvalidProducts] = useState<PromotionInvalidProductSummary[]>([]);
   const [saving, setSaving] = useState(false);
   const [loadingActionId, setLoadingActionId] = useState<number | null>(null);
 
   const [detail, setDetail] = useState<PromotionRow | null>(null);
-  // State for the products manager modal (associated + available products)
+  // State for the standalone products manager opened from the promotions list.
   const [addProductsTarget, setAddProductsTarget] = useState<PromotionRow | null>(null);
+  const [productsManagerMode, setProductsManagerMode] = useState<"immediate" | "selection">("immediate");
 
   const [expandedPromotions, setExpandedPromotions] = useState<Record<number, boolean>>({});
   const [allCategories, setAllCategories] = useState<AdminCategoryFlatItem[]>([]);
@@ -529,6 +664,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     void refreshToken;
     setLoading(true);
     setError(null);
+    setPageInvalidProducts([]);
 
     try {
       const [promotionsRes, typesRes, productsRes] = await Promise.all([
@@ -586,6 +722,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
             : event.target.value;
         setForm((current) => ({ ...current, [key]: value }));
         setFormError(null);
+        setFormInvalidProducts([]);
         setFieldErrors((prev) => {
           const next = { ...prev };
           const error = validateField(key, value);
@@ -599,47 +736,50 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     (key: "value" | "specialPrice") =>
       (event: React.ChangeEvent<HTMLInputElement>) => {
         const rawValue = event.target.value.trim();
-        if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
+        if (rawValue && !PROMOTION_DECIMAL_INPUT_REGEX.test(rawValue)) {
           setFieldErrors((prev) => ({
             ...prev,
             [key]: key === "value"
-              ? "El valor debe ser un numero valido con maximo 3 decimales."
-              : "El precio especial debe ser un numero valido con maximo 3 decimales.",
+              ? "El valor debe ser un numero valido con maximo 2 decimales."
+              : "El precio especial debe ser un numero valido con maximo 2 decimales.",
           }));
           return;
         }
         handleDecimalInputChange(rawValue, (nextValue) => {
           setForm((current) => ({ ...current, [key]: nextValue }));
           setFormError(null);
+          setFormInvalidProducts([]);
           const validation =
             key === "value" && selectedRule === "percentage"
               ? validateDecimalField(nextValue, "El porcentaje", {
                 min: 0,
                 max: 100,
                 minExclusive: true,
-                invalidMessage: "El porcentaje debe ser un numero valido con maximo 3 decimales.",
+                invalidMessage: "El porcentaje debe ser un numero valido con maximo 2 decimales.",
                 minMessage: "El porcentaje debe ser mayor a 0.",
-                maxMessage: "El porcentaje debe ser menor o igual a 100.",
+                maxMessage: "El porcentaje debe ser menor a 100.",
               })
               : key === "value" && selectedRule === "fixedAmount"
                 ? validateDecimalField(nextValue, "El monto fijo", {
                   min: 0,
                   minExclusive: true,
-                  invalidMessage: "El monto fijo debe ser un numero valido con maximo 3 decimales.",
+                  invalidMessage: "El monto fijo debe ser un numero valido con maximo 2 decimales.",
                   minMessage: "El monto fijo debe ser mayor a 0.",
                 })
                 : key === "specialPrice" && selectedRule === "specialPrice"
                   ? validateDecimalField(nextValue, "El precio especial", {
                     min: 0,
                     minExclusive: true,
-                    invalidMessage: "El precio especial debe ser un numero valido con maximo 3 decimales.",
+                    invalidMessage: "El precio especial debe ser un numero valido con maximo 2 decimales.",
                     minMessage: "El precio especial debe ser mayor a 0.",
                   })
                   : { ok: true as const };
           setFieldErrors((prev) => {
             const next = { ...prev };
             if (!validation.ok) next[key] = validation.error;
-            else delete next[key];
+            else if (key === "value" && selectedRule === "percentage" && Number(nextValue) >= 100) {
+              next[key] = "El porcentaje debe ser menor a 100.";
+            } else delete next[key];
             return next;
           });
         });
@@ -649,16 +789,20 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     const emptyValues: PromotionDecimalValues = { value: null, specialPrice: null, roundingMessages: [] };
 
     if (selectedRule === "percentage") {
+      if (!hasMaxTwoDecimals(form.value)) {
+        return { ok: false, error: "El porcentaje no puede tener mas de dos decimales." };
+      }
       const value = validateDecimalField(form.value, "El porcentaje", {
         min: 0,
         max: 100,
         minExclusive: true,
-        invalidMessage: "El porcentaje debe ser un numero valido con maximo 3 decimales.",
+        invalidMessage: "El porcentaje debe ser un numero valido con maximo 2 decimales.",
         minMessage: "El porcentaje debe ser mayor a 0.",
-        maxMessage: "El porcentaje debe ser menor o igual a 100.",
+        maxMessage: "El porcentaje debe ser menor a 100.",
       });
       if (!value.ok) return { ok: false, error: value.error };
       const decimalValue = value.value;
+      if (decimalValue.value >= 100) return { ok: false, error: "El porcentaje debe ser menor a 100." };
       return {
         ok: true,
         value: {
@@ -670,10 +814,13 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     }
 
     if (selectedRule === "fixedAmount") {
+      if (!hasMaxTwoDecimals(form.value)) {
+        return { ok: false, error: "El monto fijo no puede tener mas de dos decimales." };
+      }
       const value = validateDecimalField(form.value, "El monto fijo", {
         min: 0,
         minExclusive: true,
-        invalidMessage: "El monto fijo debe ser un numero valido con maximo 3 decimales.",
+        invalidMessage: "El monto fijo debe ser un numero valido con maximo 2 decimales.",
         minMessage: "El monto fijo debe ser mayor a 0.",
       });
       if (!value.ok) return { ok: false, error: value.error };
@@ -689,10 +836,13 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     }
 
     if (selectedRule === "specialPrice") {
+      if (!hasMaxTwoDecimals(form.specialPrice)) {
+        return { ok: false, error: "El precio especial no puede tener mas de dos decimales." };
+      }
       const specialPrice = validateDecimalField(form.specialPrice, "El precio especial", {
         min: 0,
         minExclusive: true,
-        invalidMessage: "El precio especial debe ser un numero valido con maximo 3 decimales.",
+        invalidMessage: "El precio especial debe ser un numero valido con maximo 2 decimales.",
         minMessage: "El precio especial debe ser mayor a 0.",
       });
       if (!specialPrice.ok) return { ok: false, error: specialPrice.error };
@@ -722,6 +872,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
       specialPrice: rule === "specialPrice" ? current.specialPrice : "",
     }));
     setFormError(null);
+    setFormInvalidProducts([]);
     setFieldErrors((prev) => {
       const next = { ...prev };
       delete next.promotionTypeId;
@@ -744,10 +895,13 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
       return next;
     });
     setFormError(null);
+    setFormInvalidProducts([]);
   };
 
-  const validateForm = () => {
+  const validateForm = (): FormValidationResult => {
     const errors: FieldErrors = {};
+    let invalidProducts: PromotionInvalidProductSummary[] = [];
+    const isCreating = editing === "create";
 
     const nameError = validateField("name", form.name);
     if (nameError) errors.name = nameError;
@@ -768,7 +922,8 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     const end = new Date(`${form.endDate}T23:59:59`);
     if (form.startDate && form.endDate && end <= start) errors.endDate = "La fecha final no puede ser anterior a la fecha inicial.";
     if (typeof form.isActive !== "boolean") errors.isActive = "El estado de la promocion es invalido.";
-    if (form.productIds.length === 0) errors.productIds = "Seleccione al menos un producto activo.";
+    if (isCreating && form.productIds.length === 0) errors.productIds = "Seleccione al menos un producto activo.";
+    if (!isCreating && form.productIds.length === 0) errors.productIds = "Agregue al menos un producto asociado antes de guardar.";
 
     if (selectedRule === "percentage") {
       const decimalValidation = validatePromotionDecimals();
@@ -798,8 +953,23 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     }
 
     if (!selectedRule) errors.promotionTypeId = "El tipo de promocion seleccionado no esta soportado.";
+    const decimalValidation = validatePromotionDecimals();
+    if (isCreating && decimalValidation.ok) {
+      const productValidationError = validateSelectedProductsForPromotion(
+        selectedRule,
+        form.productIds,
+        products,
+        decimalValidation.value,
+      );
+      if (typeof productValidationError === "string") {
+        errors.productIds = productValidationError;
+      } else if (productValidationError) {
+        errors.productIds = productValidationError.message;
+        invalidProducts = productValidationError.products;
+      }
+    }
 
-    return errors;
+    return { errors, invalidProducts };
   };
 
   const buildPayload = (decimalValues: PromotionDecimalValues) => ({
@@ -821,6 +991,8 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     setForm(emptyForm());
     setFieldErrors({});
     setFormError(null);
+    setFormInvalidProducts([]);
+    setPageInvalidProducts([]);
     setNotice(null);
   };
 
@@ -834,6 +1006,8 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     setNotice(null);
     setFieldErrors({});
     setFormError(null);
+    setFormInvalidProducts([]);
+    setPageInvalidProducts([]);
     try {
       const fresh = await loadPromotionDetail(promotion.id);
       if (!fresh) throw new Error("PROMOTION_NOT_FOUND");
@@ -860,25 +1034,27 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
   };
 
   /** Abre el modal de agregar productos con filtro por categoría */
-  const openAddProducts = async (promotion: PromotionRow) => {
-    setLoadingActionId(promotion.id);
-    try {
-      const fresh = await loadPromotionDetail(promotion.id);
-      if (!fresh) throw new Error("PROMOTION_NOT_FOUND");
-      setAddProductsTarget(fresh);
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, "No se pudo abrir el selector de productos."));
-    } finally {
-      setLoadingActionId(null);
-    }
-  };
-
   /** Llamada cuando el modal de agregar productos asocia productos con éxito */
   const handleAddProductsSuccess = async () => {
-    if (addProductsTarget) {
+    if (addProductsTarget && productsManagerMode === "immediate") {
       try {
         const fresh = await loadPromotionDetail(addProductsTarget.id);
-        if (fresh) setAddProductsTarget(fresh);
+        if (fresh) {
+          setAddProductsTarget(fresh);
+          setEditing((current) => (
+            current && current !== "create" && current.id === fresh.id ? fresh : current
+          ));
+          setForm((current) => ({
+            ...current,
+            productIds: fresh.products.map((row) => row.productId),
+          }));
+          setFieldErrors((prev) => {
+            const next = { ...prev };
+            delete next.productIds;
+            return next;
+          });
+          setFormInvalidProducts([]);
+        }
       } catch {
         // silently ignore refresh error
       }
@@ -886,20 +1062,38 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
     await load();
   };
 
+  const openProductsManagerFromForm = () => {
+    if (!editing || editing === "create") return;
+    setProductsManagerMode("selection");
+    setAddProductsTarget(editing);
+  };
+
+  const applyProductSelection = (productIds: number[]) => {
+    setFormProductIds(productIds);
+    setAddProductsTarget(null);
+    setProductsManagerMode("immediate");
+  };
+
   const closeForm = () => {
     if (saving) return;
     setEditing(null);
     setFieldErrors({});
     setFormError(null);
+    setFormInvalidProducts([]);
+    if (productsManagerMode === "selection") {
+      setAddProductsTarget(null);
+      setProductsManagerMode("immediate");
+    }
   };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
 
     const validation = validateForm();
-    if (Object.keys(validation).length > 0) {
-      setFieldErrors(validation);
-      setFormError("Revisa los campos marcados antes de guardar.");
+    if (Object.keys(validation.errors).length > 0) {
+      setFieldErrors(validation.errors);
+      setFormInvalidProducts(validation.invalidProducts);
+      setFormError(validation.invalidProducts.length > 0 ? null : "Revisa los campos marcados antes de guardar.");
       return;
     }
     const decimalValidation = validatePromotionDecimals();
@@ -908,12 +1102,14 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
         ...prev,
         [selectedRule === "specialPrice" ? "specialPrice" : "value"]: decimalValidation.error,
       }));
+      setFormInvalidProducts([]);
       setFormError("Revisa los campos marcados antes de guardar.");
       return;
     }
 
     setSaving(true);
     setFormError(null);
+    setFormInvalidProducts([]);
     setFieldErrors({});
     try {
       if (decimalValidation.value.roundingMessages.length > 0) {
@@ -931,9 +1127,14 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
       setEditing(null);
       setForm(emptyForm());
       setFieldErrors({});
+      setFormInvalidProducts([]);
+      setAddProductsTarget(null);
+      setProductsManagerMode("immediate");
       await load();
     } catch (err: unknown) {
-      setFormError(getErrorMessage(err, "No se pudo guardar la promocion."));
+      const invalidProducts = getInvalidProductsFromError(err);
+      setFormInvalidProducts(invalidProducts);
+      setFormError(invalidProducts.length > 0 ? null : getErrorMessage(err, "No se pudo guardar la promocion."));
     } finally {
       setSaving(false);
     }
@@ -951,17 +1152,22 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
 
     setLoadingActionId(promotion.id);
     setError(null);
+    setPageInvalidProducts([]);
     setNotice(null);
     try {
       await api.patch(`/api/admin-promotions/promotions/${promotion.id}/status`, { isActive: next });
       setNotice(`Promocion ${next ? "activada" : "desactivada"} correctamente.`);
       await load();
     } catch (err: unknown) {
-      setError(getErrorMessage(err, "No se pudo cambiar el estado de la promocion."));
+      const invalidProducts = getInvalidProductsFromError(err);
+      setPageInvalidProducts(invalidProducts);
+      setError(invalidProducts.length > 0 ? null : getErrorMessage(err, "No se pudo cambiar el estado de la promocion."));
     } finally {
       setLoadingActionId(null);
     }
   };
+
+  const editingPromotion = editing && editing !== "create" ? editing : null;
 
   return (
     <div>
@@ -989,6 +1195,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
           {notice}
         </div>
       )}
+      {pageInvalidProducts.length > 0 && <InvalidPromotionProductsNotice products={pageInvalidProducts} />}
 
       {isMobile ? (
         /* ── Mobile / Tablet: Card-based layout ── */
@@ -1218,28 +1425,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                         </button>
 
                         {/* Gestionar productos con filtro de categoria */}
-                        <button
-                          onClick={() => openAddProducts(promotion)}
-                          disabled={busy}
-                          style={{
-                            ...ui.linkBtn,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 6,
-                            backgroundColor: "#f5f3ff",
-                            border: "1px solid #ddd6fe",
-                            borderRadius: 8,
-                            padding: "8px 14px",
-                            fontSize: 12,
-                            fontWeight: 700,
-                            color: "#6d28d9",
-                            cursor: "pointer",
-                            opacity: busy ? 0.55 : 1,
-                          }}
-                          className="active-tap"
-                        >
-                          <PackagePlus size={13} /> Gestionar productos
-                        </button>
+
 
                         {/* Activar/Desactivar */}
                         <button
@@ -1326,9 +1512,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
                           <button style={ui.linkBtn} className="active-tap" disabled={busy} onClick={() => openEdit(promotion)}>
                             <Pencil size={14} style={styles.iconInline} /> Editar
                           </button>
-                          <button style={ui.linkBtn} className="active-tap" disabled={busy} onClick={() => openAddProducts(promotion)}>
-                            <PackagePlus size={14} style={styles.iconInline} /> Gestionar productos
-                          </button>
+
                           <button
                             style={{ ...ui.linkBtn, color: promotion.isActive ? "#b91c1c" : "#15803d", opacity: busy ? 0.55 : 1 }}
                             className="active-tap"
@@ -1479,9 +1663,27 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
               </div>
 
               <div style={{ marginTop: 18 }}>
-                <label style={ui.fieldLabel}>Productos *</label>
-                <ProductSelector products={products} selectedIds={form.productIds} onChangeSelected={setFormProductIds} disabled={saving} allCategories={allCategories} />
-                {fieldErrors.productIds && <p style={styles.fieldError}>{fieldErrors.productIds}</p>}
+                {editing === "create" ? (
+                  <>
+                    <label style={ui.fieldLabel}>Productos *</label>
+                    <ProductSelector products={products} selectedIds={form.productIds} onChangeSelected={setFormProductIds} disabled={saving} allCategories={allCategories} />
+                  </>
+                ) : (
+                  editingPromotion && (
+                    <PromotionProductsSummary
+                      count={form.productIds.length}
+                      products={editingPromotion.products}
+                      selectedProductIds={form.productIds}
+                      disabled={saving}
+                      onManage={openProductsManagerFromForm}
+                    />
+                  )
+                )}
+                {formInvalidProducts.length > 0 ? (
+                  <InvalidPromotionProductsNotice products={formInvalidProducts} />
+                ) : (
+                  fieldErrors.productIds && <p style={styles.fieldError}>{fieldErrors.productIds}</p>
+                )}
               </div>
 
               {formError && <p style={styles.formError}>{formError}</p>}
@@ -1654,7 +1856,13 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken }) => {
           promotionName={addProductsTarget.name}
           promotionStartDate={addProductsTarget.startDate}
           associatedProducts={addProductsTarget.products}
-          onClose={() => setAddProductsTarget(null)}
+          selectionMode={productsManagerMode === "selection"}
+          selectedProductIds={productsManagerMode === "selection" ? form.productIds : undefined}
+          onApplySelection={applyProductSelection}
+          onClose={() => {
+            setAddProductsTarget(null);
+            setProductsManagerMode("immediate");
+          }}
           onSuccess={handleAddProductsSuccess}
         />
       )}
@@ -1825,6 +2033,84 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: 700,
     marginTop: 14,
     padding: "10px 12px",
+    whiteSpace: "pre-line",
+  },
+  productsSummaryBox: {
+    alignItems: "center",
+    backgroundColor: "var(--surface-2)",
+    border: "1px solid var(--border-soft)",
+    borderRadius: 8,
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 12,
+    justifyContent: "space-between",
+    padding: "12px",
+  },
+  productsSummaryText: {
+    display: "grid",
+    gap: 3,
+    minWidth: 0,
+  },
+  productsSummaryLabel: {
+    color: "var(--text-muted)",
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: "0.4px",
+    textTransform: "uppercase",
+  },
+  productsSummaryCount: {
+    color: "var(--text)",
+    fontSize: 14,
+    fontWeight: 800,
+  },
+  productsSummaryPreview: {
+    color: "var(--text-secondary)",
+    fontSize: 12,
+    fontWeight: 600,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  invalidProductsBox: {
+    backgroundColor: "#fff7ed",
+    border: "1px solid #fed7aa",
+    borderRadius: 8,
+    color: "#9a3412",
+    fontSize: 13,
+    lineHeight: 1.45,
+    marginTop: 10,
+    padding: "10px 12px",
+  },
+  invalidProductsTitle: {
+    fontWeight: 800,
+    marginBottom: 8,
+  },
+  invalidProductsList: {
+    display: "grid",
+    gap: 6,
+  },
+  invalidProductRow: {
+    display: "grid",
+    gap: 2,
+    borderTop: "1px solid #fed7aa",
+    paddingTop: 6,
+  },
+  invalidProductName: {
+    color: "#7c2d12",
+    fontWeight: 800,
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  invalidProductSku: {
+    color: "#9a3412",
+    fontSize: 12,
+    fontWeight: 700,
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
   fieldError: {
     color: "#b91c1c",

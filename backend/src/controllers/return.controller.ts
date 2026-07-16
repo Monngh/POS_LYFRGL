@@ -453,7 +453,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
         calcSubtotal += Number(dbProduct!.sellPrice) * item.quantity;
 
         // Calculate taxes for exchange item
-        const exchangeLineNet = (Number(dbProduct!.sellPrice) * item.quantity) - calcLine.discountAmount;
+        const exchangeLineNet = calcLine.finalLineTotal;
         const applicableTaxes = dbProduct!.productTaxes
           ? dbProduct!.productTaxes.map((pt) => pt.taxType).filter((t) => t.active)
           : [];

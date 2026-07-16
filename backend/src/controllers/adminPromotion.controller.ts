@@ -10,6 +10,7 @@ import {
   getPromotionById,
   getPromotions,
   getPromotionTypes,
+  PromotionProductsValidationError,
   syncPromotionProducts,
   updatePromotion,
   updatePromotionStatus,
@@ -109,14 +110,19 @@ const parseProductIds = (value: unknown): ProductIdsParseResult => {
 
 // ─── Response helpers ─────────────────────────────────────────────────────────
 
-const sendError = (res: Response, status: number, message: string, error?: string) => {
-  res.status(status).json({ success: false, message, ...(error ? { error } : {}) });
+const sendError = (res: Response, status: number, message: string, error?: string, extra?: Record<string, unknown>) => {
+  res.status(status).json({ success: false, message, ...(error ? { error } : {}), ...(extra ?? {}) });
 };
 
 const badRequest = (res: Response, message: string) => sendError(res, 400, message);
 
 const handlePromotionError = (res: Response, error: unknown, fallback: string) => {
   const err = error as { message?: string; code?: string; statusCode?: number };
+
+  if (err instanceof PromotionProductsValidationError) {
+    sendError(res, err.statusCode, err.message, undefined, { invalidProducts: err.invalidProducts });
+    return;
+  }
 
   if (err instanceof AppError || (err.statusCode && err.statusCode >= 400 && err.statusCode < 500)) {
     sendError(res, err.statusCode || 400, err.message || fallback);
@@ -236,10 +242,9 @@ export const getAvailablePromotionProducts = async (req: Request, res: Response)
 
 export const postPromotion = async (req: Request, res: Response): Promise<void> => {
   try {
-    const promotion = await createPromotion(req.body, { defaultIsActive: false, requireProductIds: false });
+    const promotion = await createPromotion(req.body, { defaultIsActive: false, requireProductIds: true });
     res.status(201).json({ message: "Promocion creada exitosamente.", promotion });
   } catch (error: unknown) {
-    if (error instanceof AppError) { badRequest(res, error.message); return; }
     handlePromotionError(res, error, "Error al crear la promocion.");
   }
 };
@@ -264,10 +269,9 @@ export const putPromotion = async (req: Request, res: Response): Promise<void> =
     const id = parsePositiveInt(req.params.id);
     if (id === null) { badRequest(res, "Identificador de promocion invalido."); return; }
 
-    const promotion = await updatePromotion(id, req.body, { requireIsActive: true });
+    const promotion = await updatePromotion(id, req.body, { requireIsActive: true, requireProductIds: false });
     res.status(200).json({ message: "Promocion actualizada exitosamente.", promotion });
   } catch (error: unknown) {
-    if (error instanceof AppError) { badRequest(res, error.message); return; }
     handlePromotionError(res, error, "Error al actualizar la promocion.");
   }
 };

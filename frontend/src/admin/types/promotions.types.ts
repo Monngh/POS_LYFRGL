@@ -58,10 +58,22 @@ export interface PromotionProductPagination {
   totalPages: number;
 }
 
+export interface InvalidPromotionProduct {
+  productId: number;
+  sku: string | null;
+  name: string;
+  currentPrice: number | null;
+  requestedValue: number | null;
+  resultingPrice: number | null;
+  reason: string;
+  code: string;
+}
+
 /** Respuesta de GET /api/admin-promotions/promotions/:id/available-products */
 export interface AvailableProductsResponse {
   products: AvailablePromotionProduct[];
   pagination: PromotionProductPagination;
+  invalidProducts?: InvalidPromotionProduct[];
   categories?: AvailableProductCategory[];
 }
 
@@ -75,6 +87,7 @@ export interface AvailableProductsApiEnvelope {
     total: number;
     totalPages: number;
     products: AvailablePromotionProduct[];
+    invalidProducts?: InvalidPromotionProduct[];
     categories?: AvailableProductCategory[];
   };
 }
