@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowDown,
@@ -80,6 +80,8 @@ const operationOptions: Array<{ value: PriceAdjustmentOperation; label: string }
   { value: "FIXED_DECREASE", label: "Disminuir monto fijo" },
   { value: "SET_EXACT", label: "Establecer precio exacto" },
 ];
+
+type ResolveProductsPayload = Parameters<typeof priceAdjustmentsApi.resolveProducts>[0];
 
 const scopeLabel = (scope: PriceAdjustmentScope) =>
   scopeOptions.find((option) => option.value === scope)?.label ?? scope;
@@ -230,6 +232,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [applyError, setApplyError] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
   const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
+  const resolveRequestIdRef = useRef(0);
 
   const [historySearch, setHistorySearch] = useState("");
   const [debouncedHistorySearch, setDebouncedHistorySearch] = useState("");
@@ -317,6 +320,37 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     !notesError &&
     (!previewRequiresBelowCostConfirmation || confirmBelowCost);
 
+  const resolvedEmptyState = useMemo(() => {
+    if (scope === "DIVISION" && !scopeDivisionId) {
+      return {
+        title: "Selecciona una division para cargar productos.",
+        text: "La lista se actualizara automaticamente cuando el valor sea valido.",
+      };
+    }
+    if (scope === "DEPARTMENT" && !scopeDepartmentId) {
+      return {
+        title: scopeDivisionId ? "Selecciona un departamento para cargar productos." : "Selecciona una division para continuar.",
+        text: "La lista se actualizara automaticamente al completar el alcance.",
+      };
+    }
+    if (scope === "CATEGORY" && !categoryId) {
+      return {
+        title: scopeDepartmentId ? "Selecciona una categoria para cargar productos." : "Completa division y departamento para continuar.",
+        text: "La lista se actualizara automaticamente al elegir la categoria.",
+      };
+    }
+    return {
+      title:
+        resolvedProducts.length === 0
+          ? "Aun no hay productos agregados al ajuste."
+          : "No hay productos cargados con esa busqueda.",
+      text:
+        resolvedProducts.length === 0
+          ? "Selecciona productos en la seccion superior para comenzar."
+          : "Ajusta la busqueda para ver productos seleccionados.",
+    };
+  }, [categoryId, resolvedProducts.length, scope, scopeDepartmentId, scopeDivisionId]);
+
   const resetPreviewState = () => {
     setPreview(null);
     setPreviewError(null);
@@ -326,7 +360,13 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     setConfirmApplyOpen(false);
   };
 
+  const cancelPendingResolve = () => {
+    resolveRequestIdRef.current += 1;
+    setResolveLoading(false);
+  };
+
   const resetResolvedProducts = () => {
+    cancelPendingResolve();
     setResolvedProducts([]);
     setSelectedProductIds(new Set());
     setProductSearch("");
@@ -509,10 +549,18 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     setScopeDivisionId("");
     setScopeDepartmentId("");
     setCategoryId("");
-    resetResolvedProducts();
     if (nextScope !== "SELECTED_PRODUCTS") {
       setManualSelectedIds(new Set());
       setAvailableSearch("");
+      resetResolvedProducts();
+    } else {
+      cancelPendingResolve();
+      setResolveError(null);
+      resetPreviewState();
+    }
+
+    if (nextScope === "UNCATEGORIZED") {
+      void resolveProductsWithPayload({ scope: "UNCATEGORIZED" });
     }
   };
 
@@ -520,18 +568,33 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     setScopeDivisionId(nextDivisionId);
     setScopeDepartmentId("");
     setCategoryId(scope === "DIVISION" ? nextDivisionId : "");
+    if (!nextDivisionId || scope !== "DIVISION") {
+      resetResolvedProducts();
+      return;
+    }
     resetResolvedProducts();
+    void resolveProductsWithPayload({ scope: "DIVISION", categoryId: Number(nextDivisionId) });
   };
 
   const changeScopeDepartment = (nextDepartmentId: string) => {
     setScopeDepartmentId(nextDepartmentId);
     setCategoryId(scope === "DEPARTMENT" ? nextDepartmentId : "");
+    if (!nextDepartmentId || scope !== "DEPARTMENT") {
+      resetResolvedProducts();
+      return;
+    }
     resetResolvedProducts();
+    void resolveProductsWithPayload({ scope: "DEPARTMENT", categoryId: Number(nextDepartmentId) });
   };
 
   const changeScopeCategory = (nextCategoryId: string) => {
     setCategoryId(nextCategoryId);
+    if (!nextCategoryId) {
+      resetResolvedProducts();
+      return;
+    }
     resetResolvedProducts();
+    void resolveProductsWithPayload({ scope: "CATEGORY", categoryId: Number(nextCategoryId) });
   };
 
   const toggleManualProduct = (productId: number) => {
@@ -600,67 +663,47 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     resetPreviewState();
   };
 
-  const resolveProducts = async () => {
-    if (scope === "SELECTED_PRODUCTS" && manualSelectedArray.length === 0) {
-      setResolveError("Selecciona al menos un producto activo.");
-      return;
-    }
-
-    if (isCategoryScope(scope) && !categoryId) {
-      setResolveError("Selecciona una categoria para buscar productos.");
-      return;
-    }
-
+  const resolveProductsWithPayload = async (
+    payload: ResolveProductsPayload,
+    options: { successMessage?: string } = {}
+  ) => {
+    const requestId = resolveRequestIdRef.current + 1;
+    resolveRequestIdRef.current = requestId;
     setResolveLoading(true);
     setResolveError(null);
     resetPreviewState();
     try {
-      const result = await priceAdjustmentsApi.resolveProducts({
-        scope,
-        categoryId: isCategoryScope(scope) ? Number(categoryId) : undefined,
-        productIds: scope === "SELECTED_PRODUCTS" ? manualSelectedArray : undefined,
-      });
+      const result = await priceAdjustmentsApi.resolveProducts(payload);
+      if (requestId !== resolveRequestIdRef.current) return;
       setResolvedProducts(result.products);
       setSelectedProductIds(new Set(result.products.map((product) => product.id)));
       setProductSearch("");
       if (result.products.length === 0) {
         setResolveError("No se encontraron productos activos para el alcance seleccionado.");
+      } else if (options.successMessage) {
+        showToast(options.successMessage, "success");
       }
     } catch (error: unknown) {
+      if (requestId !== resolveRequestIdRef.current) return;
       setResolvedProducts([]);
       setSelectedProductIds(new Set());
       setResolveError(getApiErrorMessage(error, "No se pudieron resolver los productos."));
     } finally {
-      setResolveLoading(false);
+      if (requestId === resolveRequestIdRef.current) {
+        setResolveLoading(false);
+      }
     }
   };
 
   const addSelectedToAdjustment = async () => {
     if (manualSelectedArray.length === 0) return;
-
-    setResolveLoading(true);
-    setResolveError(null);
-    resetPreviewState();
-    try {
-      const result = await priceAdjustmentsApi.resolveProducts({
+    await resolveProductsWithPayload(
+      {
         scope: "SELECTED_PRODUCTS",
         productIds: manualSelectedArray,
-      });
-      setResolvedProducts(result.products);
-      setSelectedProductIds(new Set(result.products.map((product) => product.id)));
-      setProductSearch("");
-      if (result.products.length === 0) {
-        setResolveError("No se encontraron productos activos para el alcance seleccionado.");
-      } else {
-        showToast("Productos agregados al ajuste correctamente.", "success");
-      }
-    } catch (error: unknown) {
-      setResolvedProducts([]);
-      setSelectedProductIds(new Set());
-      setResolveError(getApiErrorMessage(error, "No se pudieron resolver los productos."));
-    } finally {
-      setResolveLoading(false);
-    }
+      },
+      { successMessage: "Productos agregados al ajuste correctamente." }
+    );
   };
 
   const changeAdjustmentValue = (value: string) => {
@@ -941,24 +984,8 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
           </div>
         )}
 
-        <div style={{ ...styles.scopeActionCell, ...(filtersStacked ? styles.scopeActionCellFull : {}) }}>
-          <button
-            type="button"
-            style={{
-              ...ui.primaryBtn,
-              ...styles.filterSearchButton,
-              ...(filtersStacked ? styles.filterSearchButtonFull : {}),
-              opacity: resolveLoading ? 0.7 : 1,
-            }}
-            onClick={resolveProducts}
-            disabled={resolveLoading}
-          >
-            {resolveLoading ? <Loader2 size={16} /> : <Search size={16} />}
-            Buscar productos
-          </button>
-        </div>
-
         {selectedScopeCategory && <p style={styles.scopeSelectionHint}>Codigo: {selectedScopeCategory.code}</p>}
+        {resolveLoading && <p style={styles.scopeLoadingText}>Cargando productos...</p>}
         {categoryError && <p style={{ ...styles.scopeSelectionHint, ...styles.fieldError }}>{categoryError}</p>}
       </div>
     );
@@ -971,20 +998,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
       {scope === "UNCATEGORIZED" && (
         <div style={styles.scopeUncategorizedOptions}>
           <InlineAlert tone="info">Se buscaran productos activos sin registros en categorias.</InlineAlert>
-          <button
-            type="button"
-            style={{
-              ...ui.primaryBtn,
-              ...styles.filterSearchButton,
-              ...(filtersStacked ? styles.filterSearchButtonFull : {}),
-              opacity: resolveLoading ? 0.7 : 1,
-            }}
-            onClick={resolveProducts}
-            disabled={resolveLoading}
-          >
-            {resolveLoading ? <Loader2 size={16} /> : <Search size={16} />}
-            Buscar productos
-          </button>
+          {resolveLoading && <p style={styles.scopeLoadingText}>Cargando productos...</p>}
         </div>
       )}
     </div>
@@ -1058,16 +1072,8 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
             {!resolveLoading && !resolveError && filteredResolvedProducts.length === 0 && (
               <tr>
                 <td colSpan={9} style={styles.compactEmptyCell}>
-                  <strong style={styles.compactEmptyTitle}>
-                    {resolvedProducts.length === 0
-                      ? "Aun no hay productos agregados al ajuste."
-                      : "No hay productos cargados con esa busqueda."}
-                  </strong>
-                  <div style={styles.compactEmptyText}>
-                    {resolvedProducts.length === 0
-                      ? "Selecciona productos en la seccion superior para comenzar."
-                      : "Ajusta la busqueda para ver productos seleccionados."}
-                  </div>
+                  <strong style={styles.compactEmptyTitle}>{resolvedEmptyState.title}</strong>
+                  <div style={styles.compactEmptyText}>{resolvedEmptyState.text}</div>
                 </td>
               </tr>
             )}
@@ -1716,14 +1722,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     flexBasis: "100%",
     maxWidth: "100%",
   },
-  scopeActionCell: {
-    display: "flex",
-    alignItems: "flex-end",
-    minWidth: 0,
-  },
-  scopeActionCellFull: {
-    width: "100%",
-  },
   scopeSelectionHint: {
     flexBasis: "100%",
     margin: "0",
@@ -1737,13 +1735,11 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: 12,
     flexWrap: "wrap",
   },
-  filterSearchButton: {
-    justifyContent: "center",
-    minWidth: 190,
-    whiteSpace: "nowrap",
-  },
-  filterSearchButtonFull: {
-    width: "100%",
+  scopeLoadingText: {
+    margin: 0,
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 800,
   },
   formActionCell: {
     display: "flex",
