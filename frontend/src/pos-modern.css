@@ -482,66 +482,6 @@
   gap: 10px;
 }
 
-/* Forzar tabla de carrito a siempre comportarse como tabla (nunca como cards) */
-.pos-cart-col .pos-cashier-cart-table,
-.pos-cart-col .pos-cashier-cart-table tbody {
-  display: table !important;
-  width: 100% !important;
-}
-
-.pos-cart-col .pos-cashier-cart-table thead {
-  display: table-header-group !important;
-}
-
-.pos-cart-col .pos-cashier-cart-table tbody tr {
-  display: table-row !important;
-  grid-template-areas: unset !important;
-  border: none !important;
-  border-radius: 0 !important;
-  padding: 0 !important;
-  margin-bottom: 0 !important;
-  box-shadow: none !important;
-}
-
-.pos-cart-col .pos-cashier-cart-table tbody tr > td {
-  display: table-cell !important;
-  white-space: nowrap !important;
-}
-
-.pos-cart-col .pos-cashier-cart-table tbody tr > td:nth-child(4)::before,
-.pos-cart-col .pos-cashier-cart-table tbody tr > td:nth-child(5)::before {
-  content: "" !important;
-}
-
-.pos-cart-col .pos-cashier-cart-table tbody tr > td:nth-child(6) {
-  position: static !important;
-}
-
-/* Dentro del panel de carrito estrecho: ocultar SKU, condensar texto */
-.pos-cart-col .pos-cashier-cart-table th:nth-child(1),
-.pos-cart-col .pos-cashier-cart-table td:nth-child(1) {
-  display: none !important;
-}
-
-.pos-cart-col .pos-cashier-cart-table th {
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-}
-
-.pos-cart-col .pos-cashier-cart-table td:nth-child(2) {
-  max-width: 130px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.pos-cart-col .pos-cashier-cart-table td:nth-child(2) > div:first-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-
 /* ============================================================
    Sidebar — más compacto, información más densa
    ============================================================ */
