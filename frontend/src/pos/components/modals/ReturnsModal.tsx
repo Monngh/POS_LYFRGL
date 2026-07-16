@@ -68,7 +68,6 @@ export default function ReturnsModal({
   const [returnLoading, setReturnLoading] = useState(false);
   const [returnSaleData, setReturnSaleData] = useState<any>(null);
   const [returnItems, setReturnItems] = useState<any[]>([]);
-  const [, setReturnItemNavIdx] = useState(0);
   const [returnReason, setReturnReason] = useState("");
   const [returnPin, setReturnPin] = useState("");
   const [returnFieldErrors, setReturnFieldErrors] = useState<Partial<Record<"folio" | "reason" | "pin", string>>>({});

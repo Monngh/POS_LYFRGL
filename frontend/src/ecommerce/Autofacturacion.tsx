@@ -1341,10 +1341,10 @@ const Autofacturacion: React.FC = () => {
                             borderRadius: "100px",
                             fontSize: "11px",
                             fontWeight: "700",
-                            backgroundColor: inv.status === "COMPLETADA" ? "#d1fae5" : "#fee2e2",
-                            color: inv.status === "COMPLETADA" ? "#065f46" : "#991b1b"
+                            backgroundColor: inv.status === "CANCELADA" ? "#fee2e2" : inv.hasReturns ? "#fef3c7" : "#d1fae5",
+                            color: inv.status === "CANCELADA" ? "#991b1b" : inv.hasReturns ? "#92400e" : "#065f46"
                           }}>
-                            {inv.status}
+                            {inv.status === "CANCELADA" ? "CANCELADA" : inv.hasReturns ? "DEVOLUCIÓN" : "COMPLETADA"}
                           </span>
                         </td>
                         <td style={{ ...styles.td, fontFamily: "monospace", fontSize: "12px", color: "#64748b" }}>
@@ -1361,63 +1361,72 @@ const Autofacturacion: React.FC = () => {
                             inv.status === "CANCELADA" ? "No facturable" : "No facturado"
                           )}
                         </td>
-                        <td style={{ ...styles.td }}>
+                        <td style={{ ...styles.td, textAlign: "center" }}>
                           {inv.cfdiUuid ? (
-                            <div style={{ display: "flex", gap: "6px", justifyContent: "center", alignItems: "center" }}>
-                              {inv.status === "CANCELADA" && (
-                                <span style={{ fontSize: "10px", color: "#ef4444", fontWeight: "700", fontStyle: "italic", marginRight: "4px" }}>
-                                  Cancelado
-                                </span>
-                              )}
-                              <a
-                                href={`${API_BASE_URL}/api/public/sales/invoice/${inv.cfdiUuid}/pdf`}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={styles.actionIconBtn}
-                                title="Ver Factura (PDF)"
-                              >
-                                <FileText size={14} color="#1e3a8a" />
-                              </a>
-                              <a
-                                href={`${API_BASE_URL}/api/public/sales/invoice/${inv.cfdiUuid}/xml`}
-                                download={`factura-${inv.cfdiUuid}.xml`}
-                                style={styles.actionIconBtn}
-                                title="Descargar Factura (XML)"
-                              >
-                                <FileCode size={14} color="#475569" />
-                              </a>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", justifyContent: "center" }}>
+                              {/* Factura Original */}
+                              <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                {inv.status === "CANCELADA" && (
+                                  <span style={{ fontSize: "10px", color: "#ef4444", fontWeight: "700", backgroundColor: "#fef2f2", padding: "2px 6px", borderRadius: "4px", border: "1px solid #fecaca" }}>
+                                    Cancelada
+                                  </span>
+                                )}
+                                <a
+                                  href={`${API_BASE_URL}/api/public/sales/invoice/${inv.cfdiUuid}/pdf`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  style={styles.actionIconBtn}
+                                  title="Ver Factura (PDF)"
+                                >
+                                  <FileText size={14} color="#1e3a8a" />
+                                </a>
+                                <a
+                                  href={`${API_BASE_URL}/api/public/sales/invoice/${inv.cfdiUuid}/xml`}
+                                  download={`factura-${inv.cfdiUuid}.xml`}
+                                  style={styles.actionIconBtn}
+                                  title="Descargar Factura (XML)"
+                                >
+                                  <FileCode size={14} color="#475569" />
+                                </a>
+                              </div>
+
+                              {/* Nota de Crédito */}
                               {inv.returnCfdiUuid && (
-                                <>
-                                  <div style={{ width: "1px", height: "20px", backgroundColor: "#e2e8f0", margin: "0 2px" }} />
-                                  <span style={{ fontSize: "10px", fontWeight: "700", color: "#b91c1c", whiteSpace: "nowrap" }}>NC</span>
+                                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                  <span style={{ fontSize: "10px", fontWeight: "700", color: "#b91c1c", backgroundColor: "#fee2e2", padding: "2px 6px", borderRadius: "4px", border: "1px solid #fecaca" }}>
+                                    NC
+                                  </span>
                                   <a
                                     href={`${API_BASE_URL}/api/public/sales/invoice/${inv.returnCfdiUuid}/pdf`}
                                     target="_blank"
                                     rel="noreferrer"
-                                    style={{ ...styles.actionIconBtn, backgroundColor: "#fee2e2" }}
+                                    style={{ ...styles.actionIconBtn, backgroundColor: "#fff1f2", borderColor: "#fecdd3" }}
                                     title="Ver Nota de Crédito (PDF)"
                                   >
-                                    <FileText size={14} color="#b91c1c" />
+                                    <FileText size={14} color="#be123c" />
                                   </a>
                                   <a
                                     href={`${API_BASE_URL}/api/public/sales/invoice/${inv.returnCfdiUuid}/xml`}
                                     download={`nota-${inv.returnCfdiUuid}.xml`}
-                                    style={{ ...styles.actionIconBtn, backgroundColor: "#fee2e2" }}
+                                    style={{ ...styles.actionIconBtn, backgroundColor: "#fff1f2", borderColor: "#fecdd3" }}
                                     title="Descargar Nota de Crédito (XML)"
                                   >
-                                    <FileCode size={14} color="#b91c1c" />
+                                    <FileCode size={14} color="#be123c" />
                                   </a>
-                                </>
+                                </div>
                               )}
                             </div>
                           ) : inv.status === "CANCELADA" ? (
-                            <span style={{ fontSize: "12px", color: "#ef4444", fontWeight: "700", fontStyle: "italic" }}>
-                              Cancelado
-                            </span>
+                            <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+                              <span style={{ fontSize: "12px", color: "#ef4444", fontWeight: "700", fontStyle: "italic" }}>
+                                Cancelada
+                              </span>
+                            </div>
                           ) : (
-                            <button
-                              onClick={() => {
-                                setInvoiceNumber(inv.invoiceNumber);
+                            <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+                              <button
+                                onClick={() => {
+                                  setInvoiceNumber(inv.invoiceNumber);
                                 setTicket({
                                   id: inv.id,
                                   invoiceNumber: inv.invoiceNumber,
@@ -1444,6 +1453,7 @@ const Autofacturacion: React.FC = () => {
                             >
                               Facturar ahora
                             </button>
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -2250,7 +2260,8 @@ const styles = {
     textAlign: "left" as const,
     padding: "8px 6px",
     color: "#475569",
-    fontWeight: "700"
+    fontWeight: "700",
+    whiteSpace: "nowrap"
   },
   tr: {
     borderBottom: "1px solid #f1f5f9"
@@ -2258,7 +2269,8 @@ const styles = {
   td: {
     padding: "10px 6px",
     color: "#334155",
-    verticalAlign: "middle"
+    verticalAlign: "middle",
+    whiteSpace: "nowrap"
   },
   promoLabel: {
     display: "inline-block",
