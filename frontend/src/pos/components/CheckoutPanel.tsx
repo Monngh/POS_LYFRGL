@@ -329,7 +329,7 @@ export function CheckoutPanel({
                         ${Number(sale.amount).toFixed(2)}
                       </span>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ display: "flex", justifyContent: "flex-start", gap: "16px", alignItems: "center" }}>
                       <span style={{
                         display: "inline-flex",
                         alignItems: "center",

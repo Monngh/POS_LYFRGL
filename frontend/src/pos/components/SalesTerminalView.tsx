@@ -432,7 +432,7 @@ export function SalesTerminalView({
             </div>
           </div>
 
-          <div className="card-premium" style={{ flex: "1 1 340px", maxWidth: "100%", display: "flex", flexDirection: "column", overflowY: "visible", position: "relative", padding: "14px", gap: "10px" }}>
+          <div className="card-premium" style={{ flex: "0 1 300px", maxWidth: "100%", display: "flex", flexDirection: "column", overflowY: "visible", position: "relative", padding: "14px", gap: "10px" }}>
             <CheckoutPanel
               cartData={cartData}
               searchData={searchData}

@@ -1121,16 +1121,14 @@
 
 /* Botones de acción en checkout */
 .pos-action-btns {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-top: 8px;
-  flex-wrap: wrap;
 }
 
 .pos-btn-cancel {
-  flex: 1;
-  min-width: 100px;
-  padding: 9px 12px;
+  padding: 8px 12px;
   border-radius: 6px;
   border: 1px solid var(--pos-red);
   background: transparent;
@@ -1148,9 +1146,7 @@
 }
 
 .pos-btn-park {
-  flex: 1;
-  min-width: 100px;
-  padding: 9px 12px;
+  padding: 8px 12px;
   border-radius: 6px;
   border: 1px solid var(--pos-blue-mid);
   background: transparent;
@@ -1175,14 +1171,13 @@
 }
 
 .pos-btn-checkout {
-  flex: 1.5;
-  min-width: 120px;
-  padding: 9px 16px;
+  grid-column: 1 / -1;
+  padding: 12px 16px;
   border-radius: 6px;
   border: none;
   background: #059669;
   color: white;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 900;
   cursor: pointer;
   transition: all 0.15s;
@@ -1465,13 +1460,14 @@
   .pos-terminal-navbar {
     height: 56px;
     flex-wrap: nowrap;
-    padding: 8px 12px;
-    gap: 12px;
+    padding: 8px 6px;
+    gap: 4px;
+    overflow: hidden;
   }
 
   .pos-terminal-navbar-right {
     flex-wrap: nowrap;
-    gap: 8px;
+    gap: 4px;
   }
 
   .pos-terminal-chip {
