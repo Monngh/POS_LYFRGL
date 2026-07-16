@@ -9,6 +9,11 @@ interface ActionModalProps {
   size?: "sm" | "md" | "lg";
   footer?: React.ReactNode;
   contentStyle?: React.CSSProperties;
+  // Known issue: en scroll táctil (emulador DevTools / posiblemente dispositivos táctiles
+  // reales) el header sticky puede no comportarse como se espera. Verificado que funciona
+  // correctamente con scroll de mouse/rueda y con eventos touch simulados vía Playwright.
+  // Causa raíz no identificada — descartado: build viejo, falta de hard-refresh, CSS de
+  // padding/z-index obvio. Pendiente de investigación si se reporta de nuevo.
   stickyHeader?: boolean;
 }
 
