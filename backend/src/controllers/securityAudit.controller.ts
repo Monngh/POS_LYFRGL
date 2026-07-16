@@ -373,10 +373,18 @@ export const getAdminSessionClosures = async (req: Request, res: Response): Prom
  */
 export const getAdminActionLog = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { from, to } = req.query;
+    const { from, to, userId } = req.query;
     const where: any = {};
     const dateWhere = buildDateWhere(from, to);
     if (dateWhere) where.createdAt = dateWhere;
+    if (userId) {
+      const parsedUserId = Number(userId);
+      if (!Number.isInteger(parsedUserId) || parsedUserId <= 0) {
+        res.status(400).json({ message: "ID de usuario inválido." });
+        return;
+      }
+      where.userId = parsedUserId;
+    }
 
     const logs = await prisma.adminActionLog.findMany({
       where,
