@@ -449,7 +449,7 @@
   height: 100%;
   width: 100%;
   padding: 16px;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .pos-main-layout-container {
@@ -1501,10 +1501,27 @@
     flex-direction: column;
   }
   .pos-cart-col {
-    flex: 1 1 auto;
+    flex: 1;
+    min-height: 0;
   }
   .pos-checkout-col {
     flex: 0 0 auto;
+  }
+
+  .pos-terminal-navbar > div {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+  }
+  .pos-terminal-navbar-left {
+    justify-content: flex-start;
+  }
+  .pos-terminal-navbar-center {
+    justify-content: center;
+  }
+  .pos-terminal-navbar-right {
+    justify-content: flex-end;
   }
 
   .pos-terminal-navbar {
