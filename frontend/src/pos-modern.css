@@ -442,6 +442,16 @@
   overflow: hidden;
 }
 
+.pos-sales-main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  padding: 16px;
+  overflow-y: auto;
+}
+
 /* ============================================================
    Sidebar — más compacto, información más densa
    ============================================================ */
@@ -1462,7 +1472,13 @@
     flex-wrap: nowrap;
     padding: 8px 6px;
     gap: 4px;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .pos-terminal-navbar::-webkit-scrollbar {
+    display: none;
   }
 
   .pos-terminal-navbar-right {
