@@ -236,6 +236,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [applying, setApplying] = useState(false);
   const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
   const resolveRequestIdRef = useRef(0);
+  const removedProductToastGuardRef = useRef<Set<number>>(new Set());
 
   const [historySearch, setHistorySearch] = useState("");
   const [debouncedHistorySearch, setDebouncedHistorySearch] = useState("");
@@ -547,6 +548,14 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
       .finally(() => setDetailProductsLoading(false));
   }, [debouncedDetailSearch, detailId, detailOpen, detailOnlyBelowCost, detailPage]);
 
+  useEffect(() => {
+    removedProductToastGuardRef.current.forEach((productId) => {
+      if (resolvedProducts.some((product) => product.id === productId)) {
+        removedProductToastGuardRef.current.delete(productId);
+      }
+    });
+  }, [resolvedProducts]);
+
   const changeScope = (nextScope: PriceAdjustmentScope) => {
     setScope(nextScope);
     setScopeDivisionId("");
@@ -619,14 +628,19 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     resetPreviewState();
   };
 
-  const removeResolvedProduct = (productId: number) => {
-    setResolvedProducts((current) => current.filter((product) => product.id !== productId));
+  const removeResolvedProduct = (productToRemove: PriceAdjustmentProduct) => {
+    if (removedProductToastGuardRef.current.has(productToRemove.id)) return;
+    if (!resolvedProducts.some((product) => product.id === productToRemove.id)) return;
+
+    removedProductToastGuardRef.current.add(productToRemove.id);
+    setResolvedProducts((current) => current.filter((product) => product.id !== productToRemove.id));
     setSelectedProductIds((current) => {
       const next = new Set(current);
-      next.delete(productId);
+      next.delete(productToRemove.id);
       return next;
     });
     resetPreviewState();
+    showToast(`"${productToRemove.name}" fue eliminado del ajuste.`, "success");
   };
 
   const toggleAllVisibleManual = () => {
@@ -1118,7 +1132,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                     <button
                       type="button"
                       style={ui.linkBtn}
-                      onClick={() => removeResolvedProduct(product.id)}
+                      onClick={() => removeResolvedProduct(product)}
                     >
                       <X size={14} style={{ verticalAlign: "-2px", color: "#b91c1c" }} />
                       <span style={{ color: "#b91c1c", marginLeft: 4 }}>Quitar</span>
