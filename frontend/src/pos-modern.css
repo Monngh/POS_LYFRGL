@@ -450,7 +450,6 @@
   width: 100%;
   padding: 16px;
   overflow: hidden;
-  min-height: 0;
 }
 
 .pos-main-layout-container {
@@ -460,32 +459,62 @@
   gap: 20px;
   overflow-y: visible;
   min-width: 0;
-  min-height: 0;
 }
 
 .pos-cart-col {
   flex: 1 1 300px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  gap: 0;
+  overflow: visible;
+  gap: 16px;
   min-width: 0;
   max-width: 100%;
-  min-height: 0;
-  border-radius: 8px;
-  border: 1px solid var(--pos-border);
-  background: var(--pos-surface);
 }
 
 .pos-checkout-col {
-  flex: 0 0 300px;
-  max-width: 320px;
+  flex: 0 1 320px;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  overflow-y: visible;
   position: relative;
   padding: 14px;
   gap: 10px;
+}
+
+/* Forzar tabla de carrito a siempre comportarse como tabla (nunca como cards) */
+.pos-cart-col .pos-cashier-cart-table,
+.pos-cart-col .pos-cashier-cart-table tbody {
+  display: table !important;
+  width: 100% !important;
+}
+
+.pos-cart-col .pos-cashier-cart-table thead {
+  display: table-header-group !important;
+}
+
+.pos-cart-col .pos-cashier-cart-table tbody tr {
+  display: table-row !important;
+  grid-template-areas: unset !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin-bottom: 0 !important;
+  box-shadow: none !important;
+}
+
+.pos-cart-col .pos-cashier-cart-table tbody tr > td {
+  display: table-cell !important;
+  white-space: nowrap !important;
+}
+
+.pos-cart-col .pos-cashier-cart-table tbody tr > td:nth-child(4)::before,
+.pos-cart-col .pos-cashier-cart-table tbody tr > td:nth-child(5)::before {
+  content: "" !important;
+}
+
+.pos-cart-col .pos-cashier-cart-table tbody tr > td:nth-child(6) {
+  position: static !important;
 }
 
 /* ============================================================
@@ -874,18 +903,9 @@
 }
 
 .pos-cart-table-wrapper {
+  border: 1px solid var(--pos-blue-light);
   border-radius: 0 0 6px 6px;
   overflow: hidden;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.pos-cart-table-wrapper .pos-cashier-cart-scroll {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
 }
 
 /* Tabla de carrito de alta densidad */
@@ -1509,35 +1529,11 @@
 }
 
 /* ============================================================
-   Modal Overlay base (utilidad)
-   ============================================================ */
-.pos-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.5);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.pos-modal-content {
-  background: var(--pos-bg, #f8fafc);
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25);
-  width: 90vw;
-  max-width: 400px;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-/* ============================================================
    Responsive Overrides
    ============================================================ */
 @media (max-width: 1024px) {
-  /* Mantener layout en fila para no romper el cajero */
   .pos-main-layout-container {
-    flex-direction: row;
+    flex-direction: column;
   }
   .pos-cart-col {
     flex: 1;
