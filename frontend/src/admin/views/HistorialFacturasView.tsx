@@ -139,7 +139,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                         {item.status === "CANCELADA" && (
                           <Badge tone="red">Cancelado</Badge>
                         )}
-                        <Badge tone={item.type === "Global" ? "blue" : item.type === "Nota de Crédito" ? "yellow" : "slate"}>
+                        <Badge tone={item.type === "Global" ? "blue" : item.type === "Nota de Crédito" ? "amber" : "slate"}>
                           {item.type}
                         </Badge>
                       </div>
@@ -223,7 +223,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                               {item.status === "CANCELADA" ? (
                                 <Badge tone="red">Cancelado</Badge>
                               ) : item.type === "Nota de Crédito" ? (
-                                <Badge tone="yellow">Nota de Crédito</Badge>
+                                <Badge tone="amber">Nota de Crédito</Badge>
                               ) : (
                                 <Badge tone="green">Vigente</Badge>
                               )}
@@ -317,7 +317,7 @@ const HistorialFacturasView: React.FC<ViewProps> = ({ refreshToken }) => {
                         {item.status === "CANCELADA" && (
                           <Badge tone="red">Cancelado</Badge>
                         )}
-                        <Badge tone={item.type === "Global" ? "blue" : item.type === "Nota de Crédito" ? "yellow" : "slate"}>
+                        <Badge tone={item.type === "Global" ? "blue" : item.type === "Nota de Crédito" ? "amber" : "slate"}>
                           {item.type}
                         </Badge>
                       </div>
