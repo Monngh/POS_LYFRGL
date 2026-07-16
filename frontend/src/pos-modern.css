@@ -450,6 +450,7 @@
   width: 100%;
   padding: 16px;
   overflow: hidden;
+  min-height: 0;
 }
 
 .pos-main-layout-container {
@@ -459,6 +460,7 @@
   gap: 20px;
   overflow-y: visible;
   min-width: 0;
+  min-height: 0;
 }
 
 .pos-cart-col {
@@ -469,6 +471,7 @@
   gap: 16px;
   min-width: 0;
   max-width: 100%;
+  min-height: 0;
 }
 
 .pos-checkout-col {

@@ -274,14 +274,14 @@
     white-space: normal !important;
   }
 
-  .pos-cashier-cart-table tbody tr > td:nth-child(1) {
+  .pos-cashier-cart-table tbody tr > td.pos-cart-td-sku {
     grid-area: sku;
     color: var(--text-muted) !important;
     font-size: 13px !important;
     font-weight: 600;
   }
 
-  .pos-cashier-cart-table tbody tr > td:nth-child(2) {
+  .pos-cashier-cart-table tbody tr > td.pos-cart-td-product {
     grid-area: product;
     padding-right: 4px !important;
     color: var(--text) !important;
@@ -290,39 +290,43 @@
     line-height: 1.25;
   }
 
-  .pos-cashier-cart-table tbody tr > td:nth-child(3) {
+  .pos-cashier-cart-table tbody tr > td.pos-cart-td-qty {
     grid-area: qty;
     align-self: center;
     justify-self: end;
   }
 
-  .pos-cashier-cart-table tbody tr > td:nth-child(3) > div {
+  .pos-cashier-cart-table tbody tr > td.pos-cart-td-qty > div {
     height: 38px;
     border-radius: 6px !important;
   }
 
-  .pos-cashier-cart-table tbody tr > td:nth-child(3) button {
+  .pos-cashier-cart-table tbody tr > td.pos-cart-td-qty button {
     width: 36px !important;
     height: 36px !important;
   }
 
-  .pos-cashier-cart-table tbody tr > td:nth-child(3) input {
+  .pos-cashier-cart-table tbody tr > td.pos-cart-td-qty input {
     width: 42px !important;
     height: 36px !important;
     font-size: 15px !important;
   }
 
-  .pos-cashier-cart-table tbody tr > td:nth-child(4) {
+  .pos-cashier-cart-table tbody tr > td.pos-cart-td-price {
     grid-area: price;
     color: var(--text-secondary) !important;
     font-size: 13px !important;
   }
 
-  .pos-cashier-cart-table tbody tr > td:nth-child(4)::before {
+  .pos-cashier-cart-table tbody tr > td.pos-cart-td-price::before {
     content: "Unitario: ";
   }
 
-  .pos-cashier-cart-table tbody tr > td:nth-child(5) {
+  .pos-cashier-cart-table tbody tr > td.pos-cart-td-discount {
+    display: none !important;
+  }
+
+  .pos-cashier-cart-table tbody tr > td.pos-cart-td-amount {
     grid-area: amount;
     align-self: end;
     justify-self: end;
@@ -331,19 +335,19 @@
     font-weight: 800 !important;
   }
 
-  .pos-cashier-cart-table tbody tr > td:nth-child(5)::before {
+  .pos-cashier-cart-table tbody tr > td.pos-cart-td-amount::before {
     content: "Importe: ";
     color: var(--text);
     font-weight: 500;
   }
 
-  .pos-cashier-cart-table tbody tr > td:nth-child(6) {
+  .pos-cashier-cart-table tbody tr > td.pos-cart-td-actions {
     position: absolute;
     top: -9px;
     right: -7px;
   }
 
-  .pos-cashier-cart-table tbody tr > td:nth-child(6) button {
+  .pos-cashier-cart-table tbody tr > td.pos-cart-td-actions button {
     width: 30px;
     height: 30px;
     border-radius: 999px !important;
@@ -356,7 +360,7 @@
     padding: 0;
   }
 
-  .pos-cashier-cart-table tbody tr > td:nth-child(6) svg {
+  .pos-cashier-cart-table tbody tr > td.pos-cart-td-actions svg {
     width: 22px;
     height: 22px;
     color: #ffffff;
