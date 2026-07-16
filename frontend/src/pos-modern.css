@@ -51,11 +51,52 @@
 }
 
 /* ============================================================
+   Modo noche — re-mapea los tokens del terminal a la paleta
+   navy-slate del panel admin. Un solo bloque vuelve TODO el
+   terminal de ventas theme-aware (superficies, tablas, textos,
+   chips) sin tener que tocar cada regla. Se activa cuando el
+   POS está envuelto por .theme-dark (ver PosPage).
+   ============================================================ */
+.theme-dark [data-pos-view="sales-terminal"] {
+  --pos-bg:            #0d1830;
+  --pos-surface:       #141d31;
+  --pos-surface-2:     #1b2740;
+  --pos-surface-3:     #23314f;
+
+  --pos-border:        #2c3b5c;
+  --pos-border-strong: #3b4f78;
+
+  --pos-text:          #eef2f9;
+  --pos-text-2:        #c6d2e6;
+  --pos-text-muted:    #93a3c2;
+
+  --pos-blue:          #60a5fa;
+  --pos-blue-mid:      #3b82f6;
+  --pos-blue-light:    rgba(96, 165, 250, 0.22);
+  --pos-blue-soft:     rgba(96, 165, 250, 0.12);
+
+  --pos-green:         #34d399;
+  --pos-green-light:   rgba(52, 211, 153, 0.22);
+  --pos-green-soft:    rgba(52, 211, 153, 0.12);
+
+  --pos-red:           #f87171;
+  --pos-red-light:     rgba(248, 113, 113, 0.22);
+  --pos-red-soft:      rgba(248, 113, 113, 0.12);
+
+  --pos-amber:         #fbbf24;
+  --pos-amber-light:   rgba(251, 191, 36, 0.22);
+  --pos-amber-soft:    rgba(251, 191, 36, 0.12);
+
+  --pos-slate:         #c6d2e6;
+  --pos-slate-light:   #1b2740;
+}
+
+/* ============================================================
    Terminal Header — Light mode corporativo con borde azul
    ============================================================ */
 .pos-terminal-navbar {
   height: var(--pos-header-h);
-  background: #ffffff;
+  background: var(--pos-surface);
   border-bottom: 3px solid var(--pos-blue);
   display: flex;
   align-items: center;
@@ -800,7 +841,7 @@
 }
 
 .pos-cashier-cart-table thead tr {
-  background: #f1f5f9;
+  background: var(--pos-surface-3);
   border-bottom: 2px solid var(--pos-border-strong);
 }
 
@@ -1259,8 +1300,8 @@
   width: 72px;
   height: 72px;
   border-radius: 50%;
-  background-color: #eff6ff;
-  color: #2563eb;
+  background-color: var(--pos-blue-soft);
+  color: var(--pos-blue-mid);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2109,7 +2150,7 @@
 
 /* QR Modal Outline Buttons */
 .btn-qr-outline-blue {
-  background-color: #ffffff !important;
+  background-color: var(--pos-surface) !important;
   border: 2px solid #3b82f6 !important;
   color: #3b82f6 !important;
   transition: all 0.2s ease-in-out;
@@ -2123,7 +2164,7 @@
 }
 
 .btn-qr-outline-red {
-  background-color: #ffffff !important;
+  background-color: var(--pos-surface) !important;
   border: 2px solid #dc2626 !important;
   color: #dc2626 !important;
   transition: all 0.2s ease-in-out;
@@ -2137,7 +2178,7 @@
 }
 
 .btn-qr-outline-gray {
-  background-color: #ffffff !important;
+  background-color: var(--pos-surface) !important;
   border: 2px solid #64748b !important;
   color: #64748b !important;
   transition: all 0.2s ease-in-out;
@@ -2151,7 +2192,7 @@
 }
 
 .btn-qr-outline-green {
-  background-color: #ffffff !important;
+  background-color: var(--pos-surface) !important;
   border: 2px solid #059669 !important;
   color: #059669 !important;
   transition: all 0.2s ease-in-out;

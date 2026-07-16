@@ -1,6 +1,7 @@
 import React from "react";
-import { Menu, MapPin, Clock, AlertTriangle, Banknote, CreditCard, ArrowLeftRight, QrCode, ExternalLink, Ticket } from "lucide-react";
+import { Menu, MapPin, Clock, AlertTriangle, Banknote, CreditCard, ArrowLeftRight, QrCode, ExternalLink, Ticket, Sun, Moon } from "lucide-react";
 import { HeaderCashInfo } from "./HeaderCashInfo";
+import { usePosTheme, togglePosTheme } from "../../shared/hooks/usePosTheme";
 import { TICKET_PRINT_MEDIA_STYLES } from "../../shared/utils/ticketEmailDocument.util";
 import { DECIMAL_INPUT_REGEX, handleDecimalInputChange } from "../../shared/utils/decimalInput";
 import { useCashSession } from "../hooks/useCashSession";
@@ -96,6 +97,7 @@ export function SalesTerminalView({
   onReprintTicket,
   onStartReturn,
 }: SalesTerminalViewProps) {
+  const theme = usePosTheme();
   const { session, sessionStats, recentSales } = sessionData;
   const {
     checkoutModalOpen, setCheckoutModalOpen,
@@ -375,6 +377,17 @@ export function SalesTerminalView({
         </div>
 
         <div className="pos-terminal-navbar-right">
+          {/* Toggle modo claro/oscuro */}
+          <button
+            type="button"
+            onClick={togglePosTheme}
+            className="pos-terminal-menu-btn active-tap"
+            title={theme === "dark" ? "Modo claro" : "Modo oscuro"}
+            aria-label={theme === "dark" ? "Activar modo claro" : "Activar modo oscuro"}
+          >
+            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+
           {/* Reloj */}
           <div className="pos-terminal-chip clock">
             <Clock size={12} />
