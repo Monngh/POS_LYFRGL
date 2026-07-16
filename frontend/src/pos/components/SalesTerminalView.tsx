@@ -124,6 +124,7 @@ export function SalesTerminalView({
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(true);
   const [isPromotionsModalOpen, setIsPromotionsModalOpen] = React.useState(false);
+  const [isMobileHeaderModalOpen, setIsMobileHeaderModalOpen] = React.useState(false);
 
   const { parkedSales, fetchParkedSales, parkSale, deleteParkedSale } = useParkedSales(user?.branch?.id);
   const [mixedModalOpen, setMixedModalOpen] = React.useState(false);
@@ -339,10 +340,69 @@ export function SalesTerminalView({
             <MapPin size={12} />
             <span>{user?.branch?.name || "Sucursal"}</span>
           </div>
+
+          {/* Modal Detalles Header Móvil */}
+          {isMobileHeaderModalOpen && (
+            <div className="pos-modal-overlay active-tap" onClick={() => setIsMobileHeaderModalOpen(false)}>
+              <div className="pos-modal-content card-premium" onClick={(e) => e.stopPropagation()} style={{ width: "320px", padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--pos-border)", paddingBottom: "12px" }}>
+                  <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "var(--pos-text)" }}>Detalles de Sesión</h3>
+                  <button onClick={() => setIsMobileHeaderModalOpen(false)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--pos-text-muted)" }}>
+                    <XCircle size={20} />
+                  </button>
+                </div>
+                
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div className="pos-terminal-avatar">{(user?.name || "C").charAt(0).toUpperCase()}</div>
+                    <span style={{ fontWeight: "600", color: "var(--pos-text)" }}>{user?.name || "Cajero"}</span>
+                  </div>
+                  
+                  <div 
+                    className={`pos-terminal-session-badge active-tap ${session?.status === "ABIERTA" || session?.status === "active" ? "open" : "closed"}`}
+                    style={{ cursor: "pointer", userSelect: "none", alignSelf: "flex-start", fontSize: "12px", padding: "4px 8px" }}
+                    onClick={() => { setIsMobileHeaderModalOpen(false); onOpenModal("shift-summary"); }}
+                  >
+                    {session?.status === "ABIERTA" || session?.status === "active" ? "CAJA ABIERTA" : "CAJA CERRADA"}
+                  </div>
+                  
+                  <HeaderCashInfo sessionStats={sessionStats} onOpenSummary={() => { setIsMobileHeaderModalOpen(false); onOpenModal("shift-summary"); }} />
+                  
+                  {sessionStats && sessionStats.salesCount > 0 && (
+                    <div className="pos-terminal-chip sales-count" style={{ alignSelf: "flex-start" }}>
+                      {sessionStats.salesCount} {sessionStats.salesCount === 1 ? "venta" : "ventas"}
+                    </div>
+                  )}
+                </div>
+                
+                <div style={{ marginTop: "8px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <button className="pos-fkey-btn" onClick={() => handleGlobalQuickAction("F8")} style={{ flex: 1, minHeight: "44px" }}>
+                    <Store size={16} style={{ marginRight: "6px" }} />
+                    <span>Cobro/Devol. (F8)</span>
+                  </button>
+                  <button className="pos-fkey-btn" onClick={() => handleGlobalQuickAction("autofacturacion")} style={{ flex: 1, minHeight: "44px" }}>
+                    <QrCode size={16} style={{ marginRight: "6px" }} />
+                    <span>Facturación</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Botón de detalles solo móvil */}
+          <button
+            type="button"
+            className="pos-terminal-menu-btn active-tap show-on-mobile"
+            onClick={() => setIsMobileHeaderModalOpen(true)}
+            style={{ marginLeft: "auto" }}
+            aria-label="Ver detalles de caja"
+          >
+            <Clock size={16} />
+          </button>
         </div>
 
         {/* Centro: cajero + estado */}
-        <div className="pos-terminal-navbar-center">
+        <div className="pos-terminal-navbar-center hide-on-mobile">
           <div className="pos-terminal-user-btn">
             <div className="pos-terminal-avatar">
               {(user?.name || "C").charAt(0).toUpperCase()}
@@ -375,7 +435,7 @@ export function SalesTerminalView({
           </div>
         </div>
 
-        <div className="pos-terminal-navbar-right">
+        <div className="pos-terminal-navbar-right hide-on-mobile">
           {/* Reloj */}
           <div className="pos-terminal-chip clock">
             <Clock size={12} />
