@@ -342,6 +342,7 @@ export function CheckoutPanel({
                           fontWeight: "800",
                           backgroundColor: isApproved ? "#dcfce7" : isRejected ? "#fee2e2" : "#ffedd5",
                           color: isApproved ? "#15803d" : isRejected ? "#b91c1c" : "#c2410c",
+                          whiteSpace: "nowrap"
                         }}>
                           <span style={{ width: "5px", height: "5px", borderRadius: "50%", backgroundColor: isApproved ? "#22c55e" : isRejected ? "#ef4444" : "#f97316" }} />
                           {isApproved ? "Aprobado" : isRejected ? "Rechazado" : "Pendiente"}
@@ -363,7 +364,8 @@ export function CheckoutPanel({
                               position: "relative", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "700",
                               backgroundColor: isChecking ? "#e2e8f0" : "#1e40af",
                               color: isChecking ? "#94a3b8" : "white",
-                              border: "none", cursor: isChecking ? "not-allowed" : "pointer"
+                              border: "none", cursor: isChecking ? "not-allowed" : "pointer",
+                              whiteSpace: "nowrap"
                             }}
                           >
                             <span className="pos-action-shortcut-pill">R</span>

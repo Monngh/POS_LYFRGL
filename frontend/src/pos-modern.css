@@ -1509,7 +1509,18 @@
   }
 
   .pos-totals-col {
-    flex: 0 0 280px; /* Ancho fijo para totales en modo apaisado */
+    flex: 0 0 210px; /* Ancho fijo más delgado para totales en modo apaisado */
+    margin-top: 0; /* Quitar alineación al fondo para que suba */
+  }
+
+  .pos-action-btns {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .pos-btn-checkout {
+    padding: 10px 16px; /* Botón de cobrar más delgado en altura */
   }
 
   .pos-cashier-cart-card table,
