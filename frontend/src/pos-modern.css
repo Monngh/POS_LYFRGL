@@ -1463,21 +1463,24 @@
    ============================================================ */
 @media (max-width: 1024px) {
   .pos-terminal-navbar {
-    height: auto;
-    min-height: 48px;
-    flex-wrap: wrap;
+    height: 56px;
+    flex-wrap: nowrap;
     padding: 8px 12px;
-    gap: 6px;
+    gap: 12px;
   }
 
   .pos-terminal-navbar-right {
-    flex-wrap: wrap;
-    gap: 4px;
+    flex-wrap: nowrap;
+    gap: 8px;
   }
 
   .pos-terminal-chip {
     font-size: 11px;
     padding: 3px 8px;
+  }
+  
+  .hide-on-mobile {
+    display: none !important;
   }
 
   /* .pos-sales-layout { flex-direction: column; } eliminado para soportar split-screen horizontal */

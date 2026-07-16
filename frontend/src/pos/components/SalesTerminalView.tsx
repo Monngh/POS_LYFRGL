@@ -408,18 +408,18 @@ export function SalesTerminalView({
         cartData={cartData}
         onToast={onToast}
       >
-        <div style={{ flex: 1, display: "flex", flexDirection: "row", overflowX: "auto", overflowY: "hidden", gap: "20px", minWidth: 0 }}>
+        <div style={{ flex: 1, display: "flex", flexWrap: "wrap", overflowY: "visible", gap: "20px", minWidth: 0 }}>
           
-          <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", overflow: "hidden", gap: "16px", minWidth: 0 }}>
-            <div className="card-premium" style={{ display: "flex", gap: "24px", flexShrink: 0, alignItems: "center", padding: "8px 16px", minHeight: "44px", overflowX: "auto" }}>
-              <div style={{ flex: "2 1 0", minWidth: 0 }}>
+          <div style={{ flex: "1 1 300px", display: "flex", flexDirection: "column", overflow: "visible", gap: "16px", minWidth: 0, maxWidth: "100%" }}>
+            <div className="card-premium" style={{ display: "flex", flexWrap: "wrap", gap: "16px", flexShrink: 0, alignItems: "center", padding: "12px 16px", minHeight: "44px" }}>
+              <div style={{ flex: "1 1 200px", minWidth: "200px" }}>
                 <ProductSearchPanel
                   searchData={searchData}
                   cartData={cartData}
                 />
               </div>
-              <div style={{ width: "1px", backgroundColor: "var(--border-strong)", height: "28px" }} />
-              <div style={{ width: "360px", flexShrink: 0 }}>
+              <div style={{ width: "1px", backgroundColor: "var(--border-strong)", height: "28px" }} className="hide-on-mobile" />
+              <div style={{ flex: "1 1 250px", minWidth: "250px" }}>
                 <div style={{ width: "100%" }}>
                   <CustomerCheckoutBar customerData={customerData} cartData={cartData} onToast={onToast} />
                 </div>
@@ -432,7 +432,7 @@ export function SalesTerminalView({
             </div>
           </div>
 
-          <div className="card-premium" style={{ width: "340px", flexShrink: 0, display: "flex", flexDirection: "column", overflowY: "auto", position: "relative", padding: "14px", paddingRight: "14px" }}>
+          <div className="card-premium" style={{ flex: "1 1 340px", maxWidth: "100%", display: "flex", flexDirection: "column", overflowY: "visible", position: "relative", padding: "14px", gap: "10px" }}>
             <CheckoutPanel
               cartData={cartData}
               searchData={searchData}
