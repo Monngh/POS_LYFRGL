@@ -213,11 +213,11 @@ export function CheckoutPanel({
                       onKeyDown={(e) => handleItemKeyDown(e, sale, "parked")}
                       style={{ 
                       border: "1px solid var(--pos-border, #e2e8f0)", borderRadius: "4px", padding: "8px", 
-                      backgroundColor: "white", display: "flex", flexDirection: "column", gap: "8px",
+                      backgroundColor: "white", display: "flex", flexDirection: "column", gap: "4px",
                       outline: "none"
                     }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                        <div style={{ display: "flex", flexDirection: "column" }}>
+                      <div style={{ display: "flex", justifyContent: "flex-start", gap: "12px", alignItems: "flex-start" }}>
+                        <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
                           <span style={{ fontSize: "12px", fontWeight: "700", color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "160px" }}>
                             {sale.customer ? sale.customer.name : "Venta Anónima"}
                           </span>
@@ -230,7 +230,7 @@ export function CheckoutPanel({
                         </span>
                       </div>
                       
-                      <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                      <div style={{ display: "flex", gap: "4px", justifyContent: "flex-start" }}>
                         <button 
                           onClick={() => onDeleteParkedSale && onDeleteParkedSale(sale.id)}
                           title="Eliminar venta en espera"
@@ -323,8 +323,8 @@ export function CheckoutPanel({
                         outline: "none"
                       }}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontWeight: "600", color: "var(--pos-text-2, #475569)" }} title={sale.invoiceNumber}>
+                      <div style={{ display: "flex", justifyContent: "flex-start", gap: "12px", alignItems: "center" }}>
+                        <span style={{ fontWeight: "600", color: "var(--pos-text-2, #475569)", flex: 1 }} title={sale.invoiceNumber}>
                           ...{sale.invoiceNumber.slice(-6)}
                         </span>
                         <span style={{ fontWeight: "700", color: "var(--pos-text, #0f172a)" }}>
