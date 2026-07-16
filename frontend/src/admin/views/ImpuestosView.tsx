@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BadgePercent, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Package, Pencil, Plus, Power, X } from "lucide-react";
+import { BadgePercent, ChevronDown, ChevronUp, Package, Pencil, Plus, Power, X } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
 import { DataTable, ActionModal } from "../../shared/ui";
@@ -22,11 +22,14 @@ import {
   type ViewProps,
   Toolbar,
   SearchInput,
+  FilterSelect,
+  MobileFilterDisclosure,
   Badge,
   SectionHeader,
   fmtDate,
   money,
   useMediaQuery,
+  Pagination,
 } from "./shared";
 
 // ---------------------------------------------------------------------------
@@ -100,6 +103,14 @@ interface TaxProductsResponse {
 }
 
 type FieldErrors = Partial<Record<keyof FormState, string>>;
+
+type TaxStatusFilter = "all" | "active" | "inactive";
+
+const TAX_STATUS_OPTIONS: { value: TaxStatusFilter; label: string }[] = [
+  { value: "all", label: "Todos" },
+  { value: "active", label: "Activos" },
+  { value: "inactive", label: "Inactivos" },
+];
 
 const emptyForm: FormState = {
   name: "",
@@ -198,6 +209,8 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<TaxStatusFilter>("all");
+  const [taxFiltersOpen, setTaxFiltersOpen] = useState(false);
 
   const [editing, setEditing] = useState<"create" | TaxRow | null>(null);
   const [form, setForm] = useState<FormState>({ ...emptyForm });
@@ -253,6 +266,14 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const activeCount = useMemo(() => rows.filter((r) => r.active).length, [rows]);
   const inactiveCount = rows.length - activeCount;
+
+  const filteredRows = useMemo(
+    () =>
+      rows.filter((tax) =>
+        statusFilter === "all" ? true : statusFilter === "active" ? tax.active : !tax.active
+      ),
+    [rows, statusFilter]
+  );
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -317,6 +338,8 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
     const rate = validateDecimalField(form.rate, "La tasa del impuesto", {
       invalidMessage: "La tasa debe ser un numero valido con maximo 3 decimales.",
       minMessage: "La tasa no puede ser negativa.",
+      max: 1,
+      maxMessage: "La tasa no puede ser mayor a 100%.",
     });
     if (!rate.ok) {
       errors.rate = rate.error;
@@ -341,6 +364,8 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
     const rate = validateDecimalField(form.rate, "La tasa del impuesto", {
       invalidMessage: "La tasa debe ser un numero valido con maximo 3 decimales.",
       minMessage: "La tasa no puede ser negativa.",
+      max: 1,
+      maxMessage: "La tasa no puede ser mayor a 100%.",
     });
     const rateValue = getDecimalValidationValue(rate);
     if (!rateValue) return;
@@ -405,7 +430,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
     setNotice(null);
     try {
       await syncStatus(tax.id, next);
-      setNotice(`Impuesto ${next ? "activado" : "desactivado"} correctamente.`);
+      showToast(`Impuesto ${next ? "activado" : "desactivado"} correctamente.`, "error");
       await refetch();
     } catch (err: unknown) {
       setMutationError(getErrorMessage(err, "No se pudo actualizar el estado del impuesto."));
@@ -624,6 +649,8 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
       const rate = validateDecimalField(nextValue, "La tasa del impuesto", {
         invalidMessage: "La tasa debe ser un numero valido con maximo 3 decimales.",
         minMessage: "La tasa no puede ser negativa.",
+        max: 1,
+        maxMessage: "La tasa no puede ser mayor a 100%.",
       });
       setFieldErrors((prev) => {
         const next = { ...prev };
@@ -639,11 +666,13 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
     {
       key: "id",
       header: "ID",
+      width: "70px",
       render: (tax) => <span style={{ fontWeight: 800, color: "var(--accent-strong)" }}>{tax.id}</span>,
     },
     {
       key: "name",
       header: "Nombre",
+      width: "200px",
       render: (tax) => (
         <span style={{ fontWeight: 800, color: "var(--text)", whiteSpace: "normal" }}>{tax.name}</span>
       ),
@@ -659,6 +688,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
       key: "rate",
       header: "Tasa",
       align: "right",
+      width: "140px",
       render: (tax) => (
         <div>
           <div style={{ fontWeight: 800, color: "var(--text)" }}>{formatPercent(tax.rate)}</div>
@@ -670,6 +700,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
       key: "active",
       header: "Estado",
       align: "center",
+      width: "110px",
       render: (tax) => (
         <Badge tone={tax.active ? "green" : "red"}>{tax.active ? "Activo" : "Inactivo"}</Badge>
       ),
@@ -677,12 +708,14 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
     {
       key: "createdAt",
       header: "Fecha de creacion",
+      width: "160px",
       render: (tax) => <span style={{ color: "var(--text-muted)" }}>{fmtDate(tax.createdAt)}</span>,
     },
     {
       key: "actions",
       header: "Acciones",
       align: "center",
+      width: "260px",
       render: (tax) => (
         <div style={styles.actions}>
           <button
@@ -726,20 +759,58 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
         }
       />
 
-      <Toolbar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre o ID" />
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#15803d", fontSize: 13, fontWeight: 700 }}>
-          <BadgePercent size={16} /> {activeCount} activo{activeCount === 1 ? "" : "s"}
-        </span>
-        {inactiveCount > 0 && (
-          <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 700 }}>
-            {inactiveCount} inactivo{inactiveCount === 1 ? "" : "s"}
+      {isMobile ? (
+        <div style={styles.mobileFilterStack}>
+          <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre o ID" />
+          <MobileFilterDisclosure
+            id="impuestos-mobile-filters"
+            title="Filtros"
+            activeCount={statusFilter !== "all" ? 1 : 0}
+            isOpen={taxFiltersOpen}
+            onToggle={() => setTaxFiltersOpen((current) => !current)}
+          >
+            <FilterSelect
+              value={statusFilter}
+              onChange={(value) => setStatusFilter(value as TaxStatusFilter)}
+              options={TAX_STATUS_OPTIONS}
+              style={{ width: "100%" }}
+            />
+          </MobileFilterDisclosure>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#15803d", fontSize: 13, fontWeight: 700 }}>
+              <BadgePercent size={16} /> {activeCount} activo{activeCount === 1 ? "" : "s"}
+            </span>
+            {inactiveCount > 0 && (
+              <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 700 }}>
+                {inactiveCount} inactivo{inactiveCount === 1 ? "" : "s"}
+              </span>
+            )}
+            <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
+              {filteredRows.length} impuesto{filteredRows.length === 1 ? "" : "s"}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <Toolbar>
+          <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre o ID" />
+          <FilterSelect
+            value={statusFilter}
+            onChange={(value) => setStatusFilter(value as TaxStatusFilter)}
+            options={TAX_STATUS_OPTIONS}
+          />
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#15803d", fontSize: 13, fontWeight: 700 }}>
+            <BadgePercent size={16} /> {activeCount} activo{activeCount === 1 ? "" : "s"}
           </span>
-        )}
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
-          {rows.length} impuesto{rows.length === 1 ? "" : "s"}
-        </span>
-      </Toolbar>
+          {inactiveCount > 0 && (
+            <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 700 }}>
+              {inactiveCount} inactivo{inactiveCount === 1 ? "" : "s"}
+            </span>
+          )}
+          <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
+            {filteredRows.length} impuesto{filteredRows.length === 1 ? "" : "s"}
+          </span>
+        </Toolbar>
+      )}
 
       {notice && (
         <div style={styles.notice} role="status">
@@ -754,9 +825,9 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
           <div style={{
             display: "grid",
             gridTemplateColumns: "1.4fr 0.8fr 0.8fr 1fr",
-            padding: "12px 16px",
+            padding: isPhone ? "8px 10px" : "12px 16px",
             fontWeight: 700,
-            fontSize: 11,
+            fontSize: isPhone ? 9 : 11,
             color: "var(--text-muted)",
             textTransform: "uppercase" as const,
             letterSpacing: "0.4px",
@@ -777,15 +848,15 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
               {loadError}
             </div>
           )}
-          {!loading && !loadError && rows.length === 0 && (
+          {!loading && !loadError && filteredRows.length === 0 && (
             <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
-              {search.trim() ? "No hay impuestos que coincidan con la búsqueda." : "No hay impuestos registrados."}
+              {search.trim() || statusFilter !== "all" ? "No hay impuestos que coincidan con la búsqueda." : "No hay impuestos registrados."}
             </div>
           )}
 
           {!loading &&
             !loadError &&
-            rows.map((tax) => {
+            filteredRows.map((tax) => {
               const isExpanded = expandedTaxes[tax.id];
               return (
                 <div
@@ -963,10 +1034,14 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
           `}</style>
           <DataTable
             columns={columns}
-            data={rows}
+            data={filteredRows}
             loading={loading}
             error={loadError || mutationError}
-            emptyMessage={debouncedSearch.trim() ? "No hay impuestos que coincidan con la busqueda." : "No hay impuestos registrados."}
+            emptyMessage={
+              debouncedSearch.trim() || statusFilter !== "all"
+                ? "No hay impuestos que coincidan con la busqueda."
+                : "No hay impuestos registrados."
+            }
             keyExtractor={(tax) => tax.id}
             height="calc(100vh - 275px)"
           />
@@ -983,7 +1058,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
         <form onSubmit={submit}>
           <div style={{ marginBottom: 14 }}>
             <label style={ui.fieldLabel}>Nombre *</label>
-            <input style={ui.input} value={form.name} onChange={set("name")} placeholder="IVA" autoFocus />
+            <input style={ui.input} value={form.name} onChange={set("name")} placeholder="IVA" maxLength={80} autoFocus />
             {fieldErrors.name && <p style={styles.fieldError}>{fieldErrors.name}</p>}
           </div>
 
@@ -994,6 +1069,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
               value={form.description}
               onChange={set("description")}
               placeholder="Impuesto al valor agregado"
+              maxLength={180}
             />
             {fieldErrors.description && <p style={styles.fieldError}>{fieldErrors.description}</p>}
           </div>
@@ -1054,7 +1130,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                   Gestionar productos
                 </h2>
                 <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "4px 0 0", fontWeight: 600 }}>
-                  {managingTax.name} · {formatPercent(managingTax.rate)}
+                  {managingTax.name}
                   {!managingTax.active && (
                     <span style={{ marginLeft: 8, color: "#b91c1c" }}>· Inactivo</span>
                   )}
@@ -1293,7 +1369,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                 ) : (
                   /* ── Desktop: tabla ── */
                   <div style={styles.manageTableScroll}>
-                    <table style={{ ...ui.table, width: "100%", minWidth: 980, marginTop: 0 }}>
+                    <table style={{ ...ui.table, width: "100%", minWidth: 900, marginTop: 0 }}>
                       <thead>
                         <tr style={ui.theadRow}>
                           <th style={{ ...ui.th, width: 44, textAlign: "center" }}>
@@ -1306,13 +1382,12 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                               title="Seleccionar / deseleccionar productos visibles"
                             />
                           </th>
-                          <th style={{ ...ui.th, width: 110 }}>SKU</th>
-                          <th style={{ ...ui.th, width: 140 }}>Codigo barras</th>
-                          <th style={ui.th}>Producto</th>
-                          <th style={{ ...ui.th, textAlign: "right", width: 100 }}>Costo</th>
-                          <th style={{ ...ui.th, textAlign: "right", width: 120 }}>Precio venta</th>
-                          <th style={{ ...ui.th, width: 190 }}>Categorias</th>
-                          <th style={{ ...ui.th, textAlign: "center", width: 115 }}>Estado</th>
+                          <th style={{ ...ui.th, width: 100 }}>SKU</th>
+                          <th style={{ ...ui.th, minWidth: 260 }}>Producto</th>
+                          <th style={{ ...ui.th, textAlign: "right", width: 90 }}>Costo</th>
+                          <th style={{ ...ui.th, textAlign: "right", width: 100 }}>Precio venta</th>
+                          <th style={{ ...ui.th, width: 170 }}>Categorias</th>
+                          <th style={{ ...ui.th, textAlign: "center", width: 100 }}>Estado</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1341,9 +1416,6 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                               </td>
                               <td style={{ ...ui.td, fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
                                 {p.sku}
-                              </td>
-                              <td style={{ ...ui.td, fontFamily: "monospace", fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-                                {p.barcode || "Sin codigo"}
                               </td>
                               <td style={{ ...ui.td, color: "var(--text)", whiteSpace: "normal" }}>
                                 <div style={{ fontWeight: 700 }}>{p.name}</div>
@@ -1388,30 +1460,18 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
                 )
               )}
 
-              {!manageLoading && managePagination.totalPages > 1 && (
-                <div style={styles.managePagination}>
-                  <button
-                    type="button"
-                    style={{ ...ui.ghostBtn, fontSize: 12 }}
-                    disabled={managePage <= 1 || manageSaving}
-                    onClick={() => setManagePage((page) => Math.max(1, page - 1))}
-                    className="active-tap"
-                  >
-                    <ChevronLeft size={14} /> Anterior
-                  </button>
-                  <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 700 }}>
-                    Pagina {managePagination.page} de {managePagination.totalPages}
-                  </span>
-                  <button
-                    type="button"
-                    style={{ ...ui.ghostBtn, fontSize: 12 }}
-                    disabled={managePage >= managePagination.totalPages || manageSaving}
-                    onClick={() => setManagePage((page) => Math.min(managePagination.totalPages, page + 1))}
-                    className="active-tap"
-                  >
-                    Siguiente <ChevronRight size={14} />
-                  </button>
-                </div>
+              {!manageLoading && (
+                <Pagination
+                  page={managePagination.page}
+                  pageCount={Math.max(managePagination.totalPages, 1)}
+                  total={managePagination.total}
+                  from={managePagination.total === 0 ? 0 : (managePagination.page - 1) * TAX_PRODUCT_LIMIT + 1}
+                  to={Math.min(managePagination.total, managePagination.page * TAX_PRODUCT_LIMIT)}
+                  onPage={(p) => {
+                    if (!manageSaving) setManagePage(p);
+                  }}
+                  itemLabel="productos"
+                />
               )}
             </div>
 
@@ -1468,6 +1528,11 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
 // ---------------------------------------------------------------------------
 
 const styles: { [key: string]: React.CSSProperties } = {
+  mobileFilterStack: {
+    display: "grid",
+    gap: 10,
+    marginBottom: 16,
+  },
   notice: {
     backgroundColor: "#ecfdf5",
     border: "1px solid #bbf7d0",
@@ -1619,14 +1684,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 11,
     fontStyle: "italic",
     fontWeight: 700,
-  },
-  managePagination: {
-    alignItems: "center",
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 10,
-    justifyContent: "center",
-    marginTop: 12,
   },
   manageFooter: {
     alignItems: "center",
