@@ -1369,7 +1369,7 @@ const Autofacturacion: React.FC = () => {
                               {/* Factura Original */}
                               <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                                 {inv.status === "CANCELADA" && (
-                                  <span style={{ fontSize: "10px", color: "#ef4444", fontWeight: "700", backgroundColor: "#fef2f2", padding: "2px 6px", borderRadius: "4px", border: "1px solid #fecaca" }}>
+                                  <span style={{ fontSize: "10px", color: "#ef4444", fontWeight: "700", backgroundColor: "#fef2f2", padding: "2px 6px", borderRadius: "4px", border: "1px solid #fecaca", whiteSpace: "nowrap" }}>
                                     Cancelada
                                   </span>
                                 )}

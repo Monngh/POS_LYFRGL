@@ -1480,47 +1480,7 @@
     padding: 3px 8px;
   }
 
-  .pos-sales-layout {
-    flex-direction: column;
-  }
-
-  .pos-sales-sidebar {
-    width: 72px;
-    min-width: 72px;
-    border-right: none;
-    border-bottom: 1px solid var(--pos-border);
-    padding: 12px;
-  }
-
-  .pos-sales-layout.sidebar-collapsed .pos-sales-sidebar {
-    width: 100%;
-    min-width: 100%;
-    padding: 12px;
-  }
-
-  .pos-sales-layout.sidebar-collapsed .pos-sidebar-inner-content {
-    opacity: 1;
-    pointer-events: auto;
-    position: relative;
-  }
-
-  .pos-sidebar-inner-content {
-    width: 100%;
-    flex-direction: row;
-    align-items: stretch;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .pos-quick-actions-container { flex: 1.2; }
-
-  .pos-cash-info-container {
-    flex: 1;
-    border-top: none;
-    padding-top: 0;
-    border-left: 1px solid var(--pos-border);
-    padding-left: 12px;
-  }
+  /* .pos-sales-layout { flex-direction: column; } eliminado para soportar split-screen horizontal */
 
   .pos-sidebar-lock-wrapper {
     border-top: none;
