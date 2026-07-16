@@ -1361,7 +1361,7 @@ const Autofacturacion: React.FC = () => {
                             inv.status === "CANCELADA" ? "No facturable" : "No facturado"
                           )}
                         </td>
-                        <td style={{ ...styles.td }}>
+                        <td style={{ ...styles.td, textAlign: "center" }}>
                           {inv.cfdiUuid ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", justifyContent: "center" }}>
                               {/* Factura Original */}
@@ -1417,13 +1417,16 @@ const Autofacturacion: React.FC = () => {
                               )}
                             </div>
                           ) : inv.status === "CANCELADA" ? (
-                            <span style={{ fontSize: "12px", color: "#ef4444", fontWeight: "700", fontStyle: "italic" }}>
-                              Cancelada
-                            </span>
+                            <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+                              <span style={{ fontSize: "12px", color: "#ef4444", fontWeight: "700", fontStyle: "italic" }}>
+                                Cancelada
+                              </span>
+                            </div>
                           ) : (
-                            <button
-                              onClick={() => {
-                                setInvoiceNumber(inv.invoiceNumber);
+                            <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+                              <button
+                                onClick={() => {
+                                  setInvoiceNumber(inv.invoiceNumber);
                                 setTicket({
                                   id: inv.id,
                                   invoiceNumber: inv.invoiceNumber,
@@ -1450,6 +1453,7 @@ const Autofacturacion: React.FC = () => {
                             >
                               Facturar ahora
                             </button>
+                            </div>
                           )}
                         </td>
                       </tr>
