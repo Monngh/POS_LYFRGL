@@ -223,10 +223,17 @@
 
   .pos-cashier-cart-scroll {
     overflow-x: hidden !important;
-    overflow-y: visible !important;
+    overflow-y: auto !important;
+    max-height: 380px;
     -webkit-overflow-scrolling: touch;
     width: 100%;
     margin-bottom: 20px !important;
+    padding-top: 12px !important;
+  }
+
+  .pos-cart-count-badge {
+    font-size: 9px !important;
+    padding: 1px 6px !important;
   }
 
   .pos-cashier-cart-mobile-title {
@@ -795,8 +802,15 @@
   .pos-cashier-cart-scroll {
     width: 100%;
     overflow-x: hidden !important;
-    overflow-y: visible !important;
+    overflow-y: auto !important;
+    max-height: 420px;
     margin-bottom: 20px !important;
+    padding-top: 12px !important;
+  }
+
+  .pos-cart-count-badge {
+    font-size: 9px !important;
+    padding: 1px 6px !important;
   }
 
   .pos-cashier-cart-mobile-title {
