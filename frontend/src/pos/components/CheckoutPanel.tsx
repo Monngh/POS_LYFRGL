@@ -197,15 +197,15 @@ export function CheckoutPanel({
                     onKeyDown={(e) => handleItemKeyDown(e, sale, "parked")}
                     style={{ 
                     border: "1px solid var(--pos-border, #e2e8f0)", borderRadius: "4px", padding: "8px", 
-                    backgroundColor: "white", display: "flex", flexDirection: "column", gap: "8px",
+                    backgroundColor: "var(--pos-surface-2)", display: "flex", flexDirection: "column", gap: "8px",
                     outline: "none"
                   }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                       <div style={{ display: "flex", flexDirection: "column" }}>
-                        <span style={{ fontSize: "12px", fontWeight: "700", color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "160px" }}>
+                        <span style={{ fontSize: "12px", fontWeight: "700", color: "var(--pos-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "160px" }}>
                           {sale.customer ? sale.customer.name : "Venta Anónima"}
                         </span>
-                        <span style={{ fontSize: "10px", color: "#64748b" }}>
+                        <span style={{ fontSize: "10px", color: "var(--pos-text-muted)" }}>
                           {new Date(sale.createdAt).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
                         </span>
                       </div>
@@ -334,7 +334,7 @@ export function CheckoutPanel({
                         <button
                           onClick={(e) => { e.stopPropagation(); setPendingCancelFieldErrors({}); setViewingPendingQrSale(sale); }}
                           title="Ver QR"
-                          style={{ position: "relative", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "700", backgroundColor: "#dbeafe", color: "#1e40af", border: "1px solid #93c5fd", cursor: "pointer" }}
+                          style={{ position: "relative", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "700", backgroundColor: "var(--pos-blue-light)", color: "var(--pos-blue)", border: "1px solid var(--pos-blue-light)", cursor: "pointer" }}
                         >
                           <span className="pos-action-shortcut-pill">E</span>
                           QR
@@ -345,8 +345,8 @@ export function CheckoutPanel({
                           title="Verificar"
                           style={{
                             position: "relative", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "700",
-                            backgroundColor: isChecking ? "#e2e8f0" : "#1e40af",
-                            color: isChecking ? "#94a3b8" : "white",
+                            backgroundColor: isChecking ? "var(--pos-surface-3)" : "var(--pos-blue-mid)",
+                            color: isChecking ? "var(--pos-text-muted)" : "white",
                             border: "none", cursor: isChecking ? "not-allowed" : "pointer"
                           }}
                         >
@@ -421,11 +421,11 @@ export function CheckoutPanel({
 
         {/* Payment Method Indicator & Action Buttons */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-          <span style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>
+          <span style={{ fontSize: "11px", fontWeight: "700", color: "var(--pos-text-muted)", textTransform: "uppercase" }}>
             Método de Pago
           </span>
           <span style={{
-            fontSize: "11px", fontWeight: "700", color: "#0f172a", backgroundColor: "#f1f5f9",
+            fontSize: "11px", fontWeight: "700", color: "var(--pos-text)", backgroundColor: "var(--pos-surface-3)",
             padding: "4px 8px", borderRadius: "6px"
           }}>
             {paymentMethod.replace("_", " ")}
