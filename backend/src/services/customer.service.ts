@@ -260,6 +260,7 @@ export const getCustomerInvoices = async (customerId: number) => {
       returnCfdiUuid: cleanReturnUuid,
       returnPdfUrl: cleanReturnUuid ? `/api/public/sales/invoice/${cleanReturnUuid}/pdf` : null,
       returnXmlUrl: cleanReturnUuid ? `/api/public/sales/invoice/${cleanReturnUuid}/xml` : null,
+      hasReturns: s.returns && s.returns.length > 0,
     };
   });
 };

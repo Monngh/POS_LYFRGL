@@ -49,6 +49,7 @@ export interface InvoiceHistoryItem {
   returnCfdiUuid?: string | null;
   returnPdfUrl?: string | null;
   returnXmlUrl?: string | null;
+  hasReturns?: boolean;
 }
 
 export interface CustomerProfile {
