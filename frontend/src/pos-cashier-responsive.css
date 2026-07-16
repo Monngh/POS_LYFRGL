@@ -340,15 +340,25 @@
     color: var(--text-secondary) !important;
     font-size: 13px !important;
     align-self: center;
-    text-align: left !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: baseline !important;
+    flex-wrap: nowrap !important;
+    gap: 0 4px;
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-price::before {
     content: "Unitario: ";
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-price > div {
-    display: inline !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: baseline !important;
+    flex-wrap: nowrap !important;
+    gap: 4px;
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-price br {
@@ -356,7 +366,7 @@
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-price span {
-    margin-left: 4px !important;
+    white-space: nowrap !important;
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-discount {
@@ -455,6 +465,17 @@
 
   .pos-cashier-terminal-summary .pos-cashier-modal-actions .active-tap {
     width: 100%;
+  }
+
+  /* Ocultar todos los atajos de teclado en móvil */
+  .pos-fkey-badge,
+  .pos-action-shortcut-pill,
+  .pos-quick-action-shortcut,
+  .pos-lock-shortcut-label,
+  .pos-shortcuts-panel,
+  .pos-shortcuts-toggle,
+  .pos-cart-remove-shortcut {
+    display: none !important;
   }
 
   /* Tablas del dashboard - scroll horizontal siempre disponible */
@@ -930,15 +951,25 @@
     color: var(--text-secondary) !important;
     font-size: 13px !important;
     align-self: center;
-    text-align: left !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: baseline !important;
+    flex-wrap: nowrap !important;
+    gap: 0 4px;
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-price::before {
     content: "Unitario: ";
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-price > div {
-    display: inline !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: baseline !important;
+    flex-wrap: nowrap !important;
+    gap: 4px;
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-price br {
@@ -946,7 +977,7 @@
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-price span {
-    margin-left: 4px !important;
+    white-space: nowrap !important;
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-discount {
