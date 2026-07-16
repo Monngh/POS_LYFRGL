@@ -1489,7 +1489,28 @@
     min-width: 110px;
   }
 
-  /* Cart responsive */
+  .checkout-container-responsive {
+    flex: 1 1 100% !important;
+    max-width: 100% !important;
+  }
+
+  .pos-checkout-panel {
+    flex-direction: row !important;
+    gap: 20px;
+    align-items: stretch;
+  }
+
+  .pos-checkout-left-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .pos-totals-col {
+    flex: 0 0 280px; /* Ancho fijo para totales en modo apaisado */
+  }
+
   .pos-cashier-cart-card table,
   .pos-cashier-cart-card thead,
   .pos-cashier-cart-card tbody,
