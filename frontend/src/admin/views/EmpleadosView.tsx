@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   ChevronDown,
@@ -55,6 +55,7 @@ import {
   Toolbar,
   SearchInput,
   FilterSelect,
+  MobileFilterDisclosure,
   Badge,
   TableState,
   SectionHeader,
@@ -116,6 +117,23 @@ interface Operations {
     status: string;
   }[];
 }
+
+interface AdminActionLogRow {
+  id: number;
+  actionType: string;
+  target: string | null;
+  details: string | null;
+  createdAt: string;
+}
+
+const ACTION_TYPE_LABELS: Record<string, { label: string; tone: "blue" | "red" | "amber" | "slate" }> = {
+  NAVIGATION: { label: "Navegación", tone: "blue" },
+  REVOKE_SESSION: { label: "Revocar sesión", tone: "red" },
+  EMPLOYEE_STATUS_CHANGE: { label: "Cambio de estado", tone: "amber" },
+};
+
+const actionTypeTone = (type: string) => ACTION_TYPE_LABELS[type]?.tone ?? "slate";
+const actionTypeLabel = (type: string) => ACTION_TYPE_LABELS[type]?.label ?? type.replace(/_/g, " ");
 // CONSTANTES Y VALIDACIONES
 const PASSWORD_LENGTH = 14;
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-zñÑ\d@$!%*?&]{14}$/;
@@ -148,6 +166,14 @@ const emptyForm = {
 };
 
 const needsPassword = (role: string) => role === "ADMIN" || role === "GERENTE";
+
+type EmployeeStatusFilter = "all" | "active" | "inactive";
+
+const EMPLOYEE_STATUS_OPTIONS: { value: EmployeeStatusFilter; label: string }[] = [
+  { value: "all", label: "Todos" },
+  { value: "active", label: "Activos" },
+  { value: "inactive", label: "Inactivos" },
+];
 // ESTILOS REUTILIZABLES
 const empDetailRow: React.CSSProperties = {
   display: "flex",
@@ -177,7 +203,7 @@ const empDetailValue: React.CSSProperties = {
   wordBreak: "break-word",
 };
 // COMPONENTE PRINCIPAL
-const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
+const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken, navigateTo }) => {
   const { showToast } = useToast();
   // isMobile para la vista de tarjetas de la lista
   const isMobile = useMediaQuery("(max-width: 1024px)");
@@ -188,6 +214,8 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<EmployeeStatusFilter>("all");
+  const [employeeFiltersOpen, setEmployeeFiltersOpen] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -210,6 +238,9 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const [ops, setOps] = useState<Operations | null>(null);
   const [opsLoading, setOpsLoading] = useState(false);
   const [showOps, setShowOps] = useState(false);
+  const [actionLog, setActionLog] = useState<AdminActionLogRow[] | null>(null);
+  const [actionLogLoading, setActionLogLoading] = useState(false);
+  const [actionLogError, setActionLogError] = useState<string | null>(null);
   const [modalTab, setModalTab] = useState<"sales" | "sessions">("sales");
   const [viewSaleId, setViewSaleId] = useState<number | null>(null);
   const [viewSessionId, setViewSessionId] = useState<number | null>(null);
@@ -226,6 +257,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const employeeParams: Record<string, unknown> = {};
   if (branchId !== "all") employeeParams.branchId = branchId;
   if (roleFilter !== "all") employeeParams.role = roleFilter;
+  if (statusFilter !== "all") employeeParams.active = statusFilter === "active";
   if (debouncedSearch.trim()) employeeParams.search = debouncedSearch.trim();
 
   const { data, loading, error, refetch } = useAdminData<{ employees: EmployeeRow[] }>(
@@ -233,7 +265,14 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     { params: employeeParams }
   );
   const rows = data?.employees ?? [];
-  const paged = usePagination(rows, { resetKey: `${branchId}|${roleFilter}|${debouncedSearch}` });
+  const filteredRows = useMemo(
+    () =>
+      rows.filter((u) =>
+        statusFilter === "all" ? true : statusFilter === "active" ? u.active : !u.active
+      ),
+    [rows, statusFilter]
+  );
+  const paged = usePagination(filteredRows, { resetKey: `${branchId}|${roleFilter}|${statusFilter}|${debouncedSearch}` });
 
   const { data: branchesData } = useAdminData<{ branches: BranchOption[] }>("/api/auth/branches");
   const branches = branchesData?.branches ?? [];
@@ -493,9 +532,13 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setSelectedEmployee(employee);
     setOps(null);
     setOpsLoading(true);
+    setActionLog(null);
+    setActionLogError(null);
+    setActionLogLoading(true);
     setShowOps(true);
 
     if (employee.role === "CAJERO") {
+      setActionLogLoading(false);
       try {
         const res = await api.get<Operations>(`/api/admin/employees/${employee.id}/operations`);
         setOps(res.data);
@@ -506,6 +549,17 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
       }
     } else {
       setOpsLoading(false);
+      try {
+        const res = await api.get<{ logs: AdminActionLogRow[] }>("/api/admin/security/action-log", {
+          params: { userId: employee.id },
+        });
+        setActionLog(res.data.logs);
+      } catch (err: any) {
+        setActionLog(null);
+        setActionLogError(err.response?.data?.message || "No se pudo cargar la actividad del empleado.");
+      } finally {
+        setActionLogLoading(false);
+      }
     }
   };
 
@@ -514,6 +568,9 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     setSelectedEmployee(null);
     setOps(null);
     setOpsLoading(false);
+    setActionLog(null);
+    setActionLogLoading(false);
+    setActionLogError(null);
   };
   // HANDLERS DE INPUT
   const handleInputChange =
@@ -894,7 +951,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
     <div style={{ overflowY: "auto", maxHeight: "62vh", padding: isMobile ? "12px 8px" : "8px 4px" }}>
       {loading && <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>Cargando...</div>}
       {!loading && error && <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--color-danger)", fontSize: 13, fontWeight: 500 }}>{error}</div>}
-      {!loading && !error && rows.length === 0 && <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>No hay empleados registrados.</div>}
+      {!loading && !error && filteredRows.length === 0 && <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>No hay empleados registrados.</div>}
 
       {!loading &&
         !error &&
@@ -1086,22 +1143,61 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         }
       />
 
-      <Toolbar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre o correo" />
-        <FilterSelect
-          value={roleFilter}
-          onChange={setRoleFilter}
-          options={[
-            { value: "all", label: "Todos los roles" },
-            { value: "ADMIN", label: "Administradores" },
-            { value: "GERENTE", label: "Gerentes" },
-            { value: "CAJERO", label: "Cajeros" },
-          ]}
-        />
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
-          {rows.length} empleado{rows.length === 1 ? "" : "s"}
-        </span>
-      </Toolbar>
+      {isMobile ? (
+        <div style={styles.mobileFilterStack}>
+          <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre o correo" />
+          <MobileFilterDisclosure
+            id="empleados-mobile-filters"
+            title="Filtros"
+            activeCount={(roleFilter !== "all" ? 1 : 0) + (statusFilter !== "all" ? 1 : 0)}
+            isOpen={employeeFiltersOpen}
+            onToggle={() => setEmployeeFiltersOpen((current) => !current)}
+          >
+            <FilterSelect
+              value={roleFilter}
+              onChange={setRoleFilter}
+              options={[
+                { value: "all", label: "Todos los roles" },
+                { value: "ADMIN", label: "Administradores" },
+                { value: "GERENTE", label: "Gerentes" },
+                { value: "CAJERO", label: "Cajeros" },
+              ]}
+              style={{ width: "100%" }}
+            />
+            <FilterSelect
+              value={statusFilter}
+              onChange={(value) => setStatusFilter(value as EmployeeStatusFilter)}
+              options={EMPLOYEE_STATUS_OPTIONS}
+              style={{ width: "100%" }}
+            />
+          </MobileFilterDisclosure>
+          <div style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
+            {filteredRows.length} empleado{filteredRows.length === 1 ? "" : "s"}
+          </div>
+        </div>
+      ) : (
+        <Toolbar>
+          <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre o correo" />
+          <FilterSelect
+            value={roleFilter}
+            onChange={setRoleFilter}
+            options={[
+              { value: "all", label: "Todos los roles" },
+              { value: "ADMIN", label: "Administradores" },
+              { value: "GERENTE", label: "Gerentes" },
+              { value: "CAJERO", label: "Cajeros" },
+            ]}
+          />
+          <FilterSelect
+            value={statusFilter}
+            onChange={(value) => setStatusFilter(value as EmployeeStatusFilter)}
+            options={EMPLOYEE_STATUS_OPTIONS}
+          />
+          <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
+            {filteredRows.length} empleado{filteredRows.length === 1 ? "" : "s"}
+          </span>
+        </Toolbar>
+      )}
 
       {isMobile ? renderMobileView() : (
         <div className="table-sticky-head">
@@ -1114,7 +1210,7 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             .table-sticky-head > div::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
             .table-sticky-head > div::-webkit-scrollbar-thumb:hover { background: var(--accent); }
           `}</style>
-          <DataTable columns={columns} data={paged.pageItems} loading={loading} error={error} keyExtractor={(u) => u.id} height="calc(100vh - 275px)" />
+          <DataTable columns={columns} data={paged.pageItems} loading={loading} error={error} keyExtractor={(u) => u.id} maxHeight="calc(100vh - 275px)" />
         </div>
       )}
 
@@ -1340,34 +1436,35 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
         title={selectedEmployee ? `Detalles de ${selectedEmployee.name}` : "Información del empleado"}
         size="lg"
         contentStyle={{ maxWidth: 700 }}
+        stickyHeader
       >
         {selectedEmployee && (
           <div style={{ padding: "4px 0" }}>
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: isSmallScreen ? "1fr" : "repeat(2, 1fr)",
-                gap: "16px 24px",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: isSmallScreen ? "16px 12px" : "16px 24px",
                 backgroundColor: "var(--surface-2)",
-                padding: "20px 24px",
+                padding: isSmallScreen ? "14px 16px" : "20px 24px",
                 borderRadius: 12,
                 border: "1px solid var(--border)",
                 marginBottom: 24,
               }}
             >
               {[
-                { icon: User, label: "Nombre", value: selectedEmployee.name },
-                { icon: Briefcase, label: "Rol", value: <Badge tone={roleTone(selectedEmployee.role)}>{selectedEmployee.role}</Badge> },
-                { icon: Mail, label: "Correo", value: selectedEmployee.email },
-                { icon: Phone, label: "Teléfono", value: selectedEmployee.phone || "—" },
-                { icon: Building, label: "Sucursal", value: selectedEmployee.branch },
-                { icon: Calendar, label: "Fecha alta", value: fmtDate(selectedEmployee.createdAt) },
-                { icon: Activity, label: "Estado", value: <Badge tone={selectedEmployee.active ? "green" : "red"}>{selectedEmployee.active ? "Activo" : "Inactivo"}</Badge> },
-                { icon: DollarSign, label: "Sueldo / Comisión", value: `${selectedEmployee.baseSalary != null ? money(selectedEmployee.baseSalary) : "—"}${selectedEmployee.commissionRate != null ? ` · ${selectedEmployee.commissionRate}%` : ""}` },
+                { icon: User, label: "Nombre", value: selectedEmployee.name, nowrap: false },
+                { icon: Briefcase, label: "Rol", value: <Badge tone={roleTone(selectedEmployee.role)}>{selectedEmployee.role}</Badge>, nowrap: false },
+                { icon: Mail, label: "Correo", value: selectedEmployee.email, nowrap: false },
+                { icon: Phone, label: "Teléfono", value: selectedEmployee.phone || "—", nowrap: false },
+                { icon: Building, label: "Sucursal", value: selectedEmployee.branch, nowrap: false },
+                { icon: Calendar, label: "Fecha alta", value: fmtDate(selectedEmployee.createdAt), nowrap: true },
+                { icon: Activity, label: "Estado", value: <Badge tone={selectedEmployee.active ? "green" : "red"}>{selectedEmployee.active ? "Activo" : "Inactivo"}</Badge>, nowrap: false },
+                { icon: DollarSign, label: "Sueldo / Comisión", value: `${selectedEmployee.baseSalary != null ? money(selectedEmployee.baseSalary) : "—"}${selectedEmployee.commissionRate != null ? ` · ${selectedEmployee.commissionRate}%` : ""}`, nowrap: false },
               ].map((item, idx) => (
                 <div
                   key={idx}
-                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 0" }}
+                  style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "6px 8px" }}
                 >
                   <div
                     style={{
@@ -1378,11 +1475,12 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
+                      flexShrink: 0,
                     }}
                   >
                     <item.icon size={18} />
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
                     <div
                       style={{
                         fontSize: 10,
@@ -1394,7 +1492,16 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                     >
                       {item.label}
                     </div>
-                    <div style={{ fontWeight: 500, color: "var(--text)", wordBreak: "break-word", fontSize: 14 }}>
+                    <div
+                      style={{
+                        fontWeight: 500,
+                        color: "var(--text)",
+                        wordBreak: item.nowrap ? "normal" : "break-word",
+                        whiteSpace: item.nowrap ? "nowrap" : "normal",
+                        fontSize: 14,
+                        lineHeight: 1.4,
+                      }}
+                    >
                       {item.value}
                     </div>
                   </div>
@@ -1416,12 +1523,36 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         marginBottom: 20,
                       }}
                     >
-                      <Mini label="Ventas" value={String(ops.summary.salesCount)} icon={CreditCard} />
-                      <Mini label="Total vendido" value={money(ops.summary.salesTotal)} icon={DollarSign} accent="blue" />
+                      <Mini
+                        label="Ventas"
+                        value={String(ops.summary.salesCount)}
+                        icon={CreditCard}
+                        onClick={
+                          navigateTo
+                            ? () => {
+                                closeOps();
+                                navigateTo("ventas", { userId: selectedEmployee.id });
+                              }
+                            : undefined
+                        }
+                      />
+                      <Mini
+                        label="Total vendido"
+                        value={money(ops.summary.salesTotal)}
+                        icon={DollarSign}
+                        accent="blue"
+                        onClick={
+                          navigateTo
+                            ? () => {
+                                closeOps();
+                                navigateTo("ventas", { userId: selectedEmployee.id });
+                              }
+                            : undefined
+                        }
+                      />
                       <Mini label="Canceladas" value={String(ops.summary.cancelledCount)} icon={XCircle} accent="red" />
                       <Mini label="Turnos" value={String(ops.summary.sessionsCount)} icon={Clock} />
                       <Mini label="Depósitos" value={String(ops.summary.depositsCount)} icon={Building} />
-                      <Mini label="Monto depósitos" value={money(ops.summary.depositsTotal)} icon={DollarSign} />
                       {ops.summary.avgPerTicket !== undefined && (
                         <Mini label="Promedio por ticket" value={money(ops.summary.avgPerTicket)} icon={Activity} accent="blue" />
                       )}
@@ -1479,10 +1610,10 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                           <thead style={{ position: "sticky", top: 0, zIndex: 1, backgroundColor: "var(--surface-2)" }}>
                             <tr style={ui.theadRow}>
-                              <th style={{ ...ui.th, textAlign: "left" }}>Folio</th>
-                              <th style={{ ...ui.th, textAlign: "left" }}>Fecha</th>
-                              <th style={{ ...ui.th, textAlign: "right" }}>Total</th>
-                              <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                              <th style={{ ...ui.th, textAlign: "left", width: 140 }}>Folio</th>
+                              <th style={{ ...ui.th, textAlign: "left", width: 170 }}>Fecha</th>
+                              <th style={{ ...ui.th, textAlign: "right", width: 120 }}>Total</th>
+                              <th style={{ ...ui.th, textAlign: "center", width: 110 }}>Estado</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1529,10 +1660,10 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
                         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                           <thead style={{ position: "sticky", top: 0, zIndex: 1, backgroundColor: "var(--surface-2)" }}>
                             <tr style={ui.theadRow}>
-                              <th style={{ ...ui.th, textAlign: "left" }}>#</th>
-                              <th style={{ ...ui.th, textAlign: "left" }}>Apertura</th>
-                              <th style={{ ...ui.th, textAlign: "right" }}>Diferencia</th>
-                              <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                              <th style={{ ...ui.th, textAlign: "left", width: 70 }}>#</th>
+                              <th style={{ ...ui.th, textAlign: "left", width: 170 }}>Apertura</th>
+                              <th style={{ ...ui.th, textAlign: "right", width: 130 }}>Diferencia</th>
+                              <th style={{ ...ui.th, textAlign: "center", width: 110 }}>Estado</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1563,10 +1694,65 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
             )}
 
             {selectedEmployee.role !== "CAJERO" && (
-              <div style={{ textAlign: "center", padding: "24px", color: "var(--text-muted)", fontSize: 14, backgroundColor: "var(--surface-2)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                <AlertCircle size={20} style={{ verticalAlign: "middle", marginRight: 8 }} />
-                Este empleado no tiene operaciones de venta.
-              </div>
+              <>
+                <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--text)", marginBottom: 12 }}>
+                  Actividad reciente
+                </h3>
+                {actionLogLoading ? (
+                  <div style={{ textAlign: "center", padding: "30px", color: "var(--text-faint)" }}>Cargando actividad...</div>
+                ) : actionLogError ? (
+                  <div style={{ textAlign: "center", padding: "24px", color: "var(--color-danger)", fontSize: 14, backgroundColor: "var(--icon-bg-red)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                    <AlertCircle size={20} style={{ verticalAlign: "middle", marginRight: 8 }} />
+                    {actionLogError}
+                  </div>
+                ) : !actionLog || actionLog.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "24px", color: "var(--text-muted)", fontSize: 14, backgroundColor: "var(--surface-2)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                    <AlertCircle size={20} style={{ verticalAlign: "middle", marginRight: 8 }} />
+                    Sin actividad registrada para este empleado.
+                  </div>
+                ) : isSmallScreen ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 260, overflowY: "auto" }}>
+                    {actionLog.map((log) => (
+                      <div key={log.id} style={{ padding: 12, backgroundColor: "var(--surface)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, gap: 8 }}>
+                          <Badge tone={actionTypeTone(log.actionType)}>{actionTypeLabel(log.actionType)}</Badge>
+                          <span style={{ fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>{fmtDate(log.createdAt)} {fmtTime(log.createdAt)}</span>
+                        </div>
+                        <div style={{ fontSize: 13, color: "var(--text-secondary)", wordBreak: "break-word" }}>
+                          {log.target ?? "—"}
+                          {log.details && <span style={{ color: "var(--text-muted)" }}> — {log.details}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ overflowX: "auto", maxHeight: 280, overflowY: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                      <thead style={{ position: "sticky", top: 0, zIndex: 1, backgroundColor: "var(--surface-2)" }}>
+                        <tr style={ui.theadRow}>
+                          <th style={{ ...ui.th, textAlign: "left", width: 160 }}>Fecha</th>
+                          <th style={{ ...ui.th, textAlign: "center", width: 160 }}>Tipo de acción</th>
+                          <th style={{ ...ui.th, textAlign: "left" }}>Detalle</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {actionLog.map((log) => (
+                          <tr key={log.id}>
+                            <td style={ui.td}>{fmtDate(log.createdAt)} {fmtTime(log.createdAt)}</td>
+                            <td style={{ ...ui.td, textAlign: "center" }}>
+                              <Badge tone={actionTypeTone(log.actionType)}>{actionTypeLabel(log.actionType)}</Badge>
+                            </td>
+                            <td style={{ ...ui.td, wordBreak: "break-word" }}>
+                              {log.target ?? "—"}
+                              {log.details && <span style={{ color: "var(--text-muted)" }}> — {log.details}</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -1579,6 +1765,11 @@ const EmpleadosView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
 };
 
 const styles: { [key: string]: React.CSSProperties } = {
+  mobileFilterStack: {
+    display: "grid",
+    gap: 10,
+    marginBottom: 16,
+  },
   fieldError: {
     color: "var(--color-danger)",
     fontSize: 12,
@@ -1592,8 +1783,10 @@ const Mini: React.FC<{
   value: string;
   accent?: "blue" | "green" | "red";
   icon?: React.ElementType;
-}> = ({ label, value, accent, icon: Icon }) => {
+  onClick?: () => void;
+}> = ({ label, value, accent, icon: Icon, onClick }) => {
   const isMobile = useMediaQuery("(max-width: 1024px)");
+  const [isHovered, setIsHovered] = useState(false);
   const accentStyles = {
     blue: { background: "var(--icon-bg-blue)", borderLeft: "4px solid var(--accent)", valueColor: "var(--accent)" },
     green: { background: "var(--icon-bg-green)", borderLeft: "4px solid var(--color-success)", valueColor: "var(--color-success)" },
@@ -1604,12 +1797,32 @@ const Mini: React.FC<{
 
   return (
     <div
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      onMouseEnter={onClick ? () => setIsHovered(true) : undefined}
+      onMouseLeave={onClick ? () => setIsHovered(false) : undefined}
+      className={onClick ? "active-tap" : undefined}
       style={{
         border: "1px solid var(--border)",
         borderRadius: 8,
         padding: "10px 14px",
         background: style.background,
         borderLeft: style.borderLeft,
+        cursor: onClick ? "pointer" : "default",
+        boxShadow: onClick && isHovered ? "0 2px 8px rgba(0,0,0,0.1)" : "none",
+        transform: onClick && isHovered ? "translateY(-1px)" : "none",
+        transition: "box-shadow 0.15s ease, transform 0.15s ease",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
