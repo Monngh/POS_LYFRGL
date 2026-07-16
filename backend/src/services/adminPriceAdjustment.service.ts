@@ -17,6 +17,8 @@ const validPriceAdjustmentScopes: PriceAdjustmentScope[] = [
     "UNCATEGORIZED",
 ];
 
+const PRICE_ADJUSTMENT_NOTES_MAX_LENGTH = 500;
+
 const isPriceAdjustmentScope = (
     scope: string
 ): scope is PriceAdjustmentScope =>
@@ -482,15 +484,11 @@ export const previewPriceAdjustment = async (
         (product) => product.isBelowCost
     ).length;
 
-    const hasHighDiscount = previewProducts.some(
-        (product) => product.discountPercentage >= 50
-    );
-
     return {
         affectedCount: previewProducts.length,
         belowCostCount,
         requiresBelowCostConfirmation: belowCostCount > 0,
-        requiresReason: belowCostCount > 0 || hasHighDiscount,
+        requiresReason: true,
         products: previewProducts,
     };
 };
@@ -506,7 +504,7 @@ type ApplyPriceAdjustmentInput = {
     operation: PriceAdjustmentOperation;
     value: number;
     productIds: number[];
-    notes?: string;
+    notes?: unknown;
     confirmBelowCost?: boolean;
     appliedById: number;
 };
@@ -646,6 +644,27 @@ const validateAdjustmentData = (
     return uniqueIds;
 };
 
+const validateAdjustmentNotes = (notes: unknown) => {
+    if (typeof notes !== "string") {
+        throw new AppError("El motivo del ajuste es obligatorio.", 400);
+    }
+
+    const cleanNotes = notes.trim();
+
+    if (!cleanNotes) {
+        throw new AppError("El motivo del ajuste es obligatorio.", 400);
+    }
+
+    if (cleanNotes.length > PRICE_ADJUSTMENT_NOTES_MAX_LENGTH) {
+        throw new AppError(
+            `El motivo del ajuste no puede exceder ${PRICE_ADJUSTMENT_NOTES_MAX_LENGTH} caracteres.`,
+            400
+        );
+    }
+
+    return cleanNotes;
+};
+
 export const applyMassPriceAdjustment = async (
     input: ApplyPriceAdjustmentInput
 ) => {
@@ -670,6 +689,7 @@ export const applyMassPriceAdjustment = async (
         numericValue,
         productIds
     );
+    const cleanNotes = validateAdjustmentNotes(notes);
 
     const selectedCategory = await validateScopeForAdjustment(
         scope,
@@ -703,7 +723,6 @@ export const applyMassPriceAdjustment = async (
         }
     }
 
-    const cleanNotes = notes?.trim() || null;
     const adjustmentValue = new Prisma.Decimal(numericValue);
     const metadata = getAdjustmentMetadata(operation);
 
@@ -799,29 +818,9 @@ export const applyMassPriceAdjustment = async (
 
         const belowCostRows = detailRows.filter((detail) => detail.isBelowCost);
 
-        const hasHighDiscount = detailRows.some(
-            (detail) => detail.discountPercentage.greaterThanOrEqualTo(50)
-        );
-
-        const requiresReason = belowCostRows.length > 0 || hasHighDiscount;
-
         if (belowCostRows.length > 0 && !confirmBelowCost) {
             throw new AppError(
                 "Algunos productos quedarán por debajo de su costo. Confirma el ajuste para continuar.",
-                400
-            );
-        }
-
-        if (requiresReason && !cleanNotes) {
-            if (belowCostRows.length > 0) {
-                throw new AppError(
-                    "Indica el motivo del ajuste por debajo del costo.",
-                    400
-                );
-            }
-
-            throw new AppError(
-                "Indica el motivo de este descuento mayor o igual al 50%.",
                 400
             );
         }

@@ -315,13 +315,12 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     [categories, scopeDepartmentId]
   );
 
-  const previewRequiresNotes = preview?.requiresReason ?? false;
   const previewRequiresBelowCostConfirmation = preview?.requiresBelowCostConfirmation ?? false;
   const valueError = useMemo(() => {
     if (!adjustmentValue.trim() && !valueTouched) return null;
     return getValueError(operation, adjustmentValue);
   }, [adjustmentValue, operation, valueTouched]);
-  const notesError = previewRequiresNotes && !notes.trim() ? "El motivo es obligatorio para este ajuste." : null;
+  const notesError = preview && !notes.trim() ? "El motivo del ajuste es obligatorio." : null;
   const canApplyPreview =
     Boolean(preview) &&
     !applying &&
@@ -818,7 +817,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
       operation,
       value: Number(adjustmentValue),
       productIds: selectedProductIdArray,
-      notes: notes.trim() || undefined,
+      notes: notes.trim(),
       confirmBelowCost,
     };
 
@@ -1188,7 +1187,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
         <div style={ui.kpiGrid}>
           <Kpi label="Productos afectados" value={preview.affectedCount} icon={<PackageSearch size={17} />} />
           <Kpi label="Debajo del costo" value={preview.belowCostCount} icon={<AlertTriangle size={17} />} />
-          <Kpi label="Requiere motivo" value={preview.requiresReason ? "Si" : "No"} icon={<Tags size={17} />} />
+          <Kpi label="Motivo obligatorio" value="Si" icon={<Tags size={17} />} />
           <Kpi
             label="Confirmacion bajo costo"
             value={preview.requiresBelowCostConfirmation ? "Si" : "No"}
@@ -1199,10 +1198,6 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
         {preview.requiresBelowCostConfirmation && (
           <InlineAlert tone="error">Hay productos que quedaran por debajo de su costo. Se requiere confirmacion explicita.</InlineAlert>
         )}
-        {preview.requiresReason && (
-          <InlineAlert tone="warning">Este ajuste requiere un motivo antes de aplicarse.</InlineAlert>
-        )}
-
         <div style={{ ...ui.tableWrap, maxHeight: 390, overflowY: "auto", marginTop: 16 }}>
           <table style={{ ...ui.table, minWidth: 980 }}>
             <thead>
@@ -1266,22 +1261,23 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
         </div>
 
         <div style={styles.confirmationGrid}>
-          {preview.requiresReason && (
-            <div>
-              <label style={ui.fieldLabel}>Motivo del ajuste *</label>
-              <textarea
-                style={{ ...ui.input, minHeight: 84, resize: "vertical" }}
-                value={notes}
-                onChange={(event) => {
-                  setNotes(event.target.value);
-                  setApplyError(null);
-                }}
-                maxLength={500}
-                placeholder="Describe el motivo del ajuste"
-              />
-              {notesError && <p style={styles.fieldError}>{notesError}</p>}
+          <div>
+            <label style={ui.fieldLabel}>Motivo del ajuste *</label>
+            <textarea
+              style={{ ...ui.input, minHeight: 84, resize: "vertical" }}
+              value={notes}
+              onChange={(event) => {
+                setNotes(event.target.value);
+                setApplyError(null);
+              }}
+              maxLength={500}
+              placeholder="Describe el motivo del ajuste"
+            />
+            <div style={styles.fieldFooter}>
+              {notesError ? <p style={styles.fieldErrorInline}>{notesError}</p> : <span />}
+              <span>{notes.length} / 500 caracteres</span>
             </div>
-          )}
+          </div>
 
           {preview.requiresBelowCostConfirmation && (
             <label style={styles.checkRow}>
@@ -1474,7 +1470,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                   <td style={{ ...ui.td, textAlign: "right" }}>
                     <Badge tone={adjustment.belowCostCount > 0 ? "red" : "green"}>{adjustment.belowCostCount}</Badge>
                   </td>
-                  <td style={{ ...ui.td, whiteSpace: "normal", maxWidth: 230 }}>{adjustment.notes || "-"}</td>
+                  <td style={{ ...ui.td, whiteSpace: "normal", maxWidth: 230 }}>{adjustment.notes || "Sin motivo registrado"}</td>
                   <td style={{ ...ui.td, textAlign: "center" }}>
                     <button type="button" style={ui.linkBtn} onClick={() => openDetail(adjustment.id)}>
                       <Eye size={14} style={{ verticalAlign: "-2px" }} /> Ver detalle
@@ -1564,9 +1560,8 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <div><strong>Tipo de ajuste:</strong> {operationLabel(operation)}</div>
                 <div><strong>Valor aplicado:</strong> {formatAdjustmentValue(operation, Number(adjustmentValue))}</div>
                 <div><strong>Debajo de costo:</strong> {preview.belowCostCount}</div>
-                <div><strong>Motivo:</strong> {notes.trim() || "Sin motivo capturado"}</div>
+                <div><strong>Motivo:</strong> {notes.trim()}</div>
               </div>
-              <InlineAlert tone="warning">Esta accion actualizara Product.sellPrice y guardara historial. No modifica costos.</InlineAlert>
               <div style={styles.footerActions}>
                 <button type="button" style={ui.ghostBtn} onClick={() => setConfirmApplyOpen(false)} disabled={applying}>
                   Cancelar
@@ -1608,7 +1603,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                       <div><strong>Direccion:</strong> {detail.direction}</div>
                       <div><strong>Valor:</strong> {formatStoredAdjustmentValue(detail.type, detail.value)}</div>
                       <div><strong>Productos afectados:</strong> {detail.affectedRows}</div>
-                      <div><strong>Motivo:</strong> {detail.notes || "-"}</div>
+                      <div><strong>Motivo:</strong> {detail.notes || "Sin motivo registrado"}</div>
                     </div>
                   </div>
                 </div>
@@ -2124,6 +2119,22 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 12,
     fontWeight: 700,
     marginTop: 5,
+  },
+  fieldErrorInline: {
+    color: "#b91c1c",
+    fontSize: 12,
+    fontWeight: 700,
+    margin: 0,
+  },
+  fieldFooter: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginTop: 5,
+    color: "var(--text-faint)",
+    fontSize: 12,
+    fontWeight: 700,
   },
   inlineAlert: {
     border: "1px solid",
