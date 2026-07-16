@@ -167,9 +167,9 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
 
       {/* Tabla de alta densidad */}
       <div
-        className="pos-cart-table-wrapper pos-cashier-cart-scroll"
-        style={{ flex: 1, overflowY: "scroll" }}
+        className="pos-cart-table-wrapper"
       >
+        <div className="pos-cashier-cart-scroll" style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
         <table className="pos-cashier-cart-table">
           <thead>
             <tr>
@@ -337,6 +337,7 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
             )}
             </tbody>
           </table>
+        </div>
       </div>
     </div>
   );
