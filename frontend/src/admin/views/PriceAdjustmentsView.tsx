@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import api from "../../shared/services/api";
 import { useToast } from "../../shared/context/ToastContext";
-import { adminCategoryService, type AdminCategoryFlatItem, type CategoryLevel } from "../services/categoryAdmin.service";
+import { adminCategoryService, type AdminCategoryFlatItem } from "../services/categoryAdmin.service";
 import {
   getApiErrorMessage,
   priceAdjustmentsApi,
@@ -105,9 +105,6 @@ const scopeFilterOptions = [
   { value: "", label: "Todos los alcances" },
   ...scopeOptions,
 ];
-
-const toCategoryLevel = (scope: PriceAdjustmentScope): CategoryLevel =>
-  scope === "DIVISION" || scope === "DEPARTMENT" || scope === "CATEGORY" ? scope : "CATEGORY";
 
 const isCategoryScope = (scope: PriceAdjustmentScope) => CATEGORY_SCOPES.includes(scope);
 
@@ -203,6 +200,8 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [activeTab, setActiveTab] = useState<TabKey>("adjust");
 
   const [scope, setScope] = useState<PriceAdjustmentScope>("SELECTED_PRODUCTS");
+  const [scopeDivisionId, setScopeDivisionId] = useState("");
+  const [scopeDepartmentId, setScopeDepartmentId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [categories, setCategories] = useState<AdminCategoryFlatItem[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
@@ -290,6 +289,24 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     () => categories.find((category) => String(category.id) === categoryId) ?? null,
     [categories, categoryId]
   );
+  const scopeDivisionOptions = useMemo(
+    () => categories.filter((category) => category.level === "DIVISION"),
+    [categories]
+  );
+  const scopeDepartmentOptions = useMemo(
+    () =>
+      categories.filter(
+        (category) => category.level === "DEPARTMENT" && (!scopeDivisionId || String(category.parentId) === scopeDivisionId)
+      ),
+    [categories, scopeDivisionId]
+  );
+  const scopeCategoryOptions = useMemo(
+    () =>
+      categories.filter(
+        (category) => category.level === "CATEGORY" && (!scopeDepartmentId || String(category.parentId) === scopeDepartmentId)
+      ),
+    [categories, scopeDepartmentId]
+  );
 
   const previewRequiresNotes = preview?.requiresReason ?? false;
   const previewRequiresBelowCostConfirmation = preview?.requiresBelowCostConfirmation ?? false;
@@ -318,6 +335,8 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   };
 
   const resetAdjustmentForm = () => {
+    setScopeDivisionId("");
+    setScopeDepartmentId("");
     setCategoryId("");
     setManualSelectedIds(new Set());
     setAvailableSearch("");
@@ -355,7 +374,6 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     setCategoryError(null);
     try {
       const rows = await adminCategoryService.listFlat({
-        level: toCategoryLevel(nextScope),
         active: true,
       });
       setCategories(rows);
@@ -488,12 +506,32 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const changeScope = (nextScope: PriceAdjustmentScope) => {
     setScope(nextScope);
+    setScopeDivisionId("");
+    setScopeDepartmentId("");
     setCategoryId("");
     resetResolvedProducts();
     if (nextScope !== "SELECTED_PRODUCTS") {
       setManualSelectedIds(new Set());
       setAvailableSearch("");
     }
+  };
+
+  const changeScopeDivision = (nextDivisionId: string) => {
+    setScopeDivisionId(nextDivisionId);
+    setScopeDepartmentId("");
+    setCategoryId(scope === "DIVISION" ? nextDivisionId : "");
+    resetResolvedProducts();
+  };
+
+  const changeScopeDepartment = (nextDepartmentId: string) => {
+    setScopeDepartmentId(nextDepartmentId);
+    setCategoryId(scope === "DEPARTMENT" ? nextDepartmentId : "");
+    resetResolvedProducts();
+  };
+
+  const changeScopeCategory = (nextCategoryId: string) => {
+    setCategoryId(nextCategoryId);
+    resetResolvedProducts();
   };
 
   const toggleManualProduct = (productId: number) => {
@@ -831,6 +869,127 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     );
   };
 
+  const renderCategoryScopeOptions = () => {
+    if (!isCategoryScope(scope)) return null;
+
+    return (
+      <div style={styles.scopeOptionControls}>
+        <div style={{ ...styles.scopeOptionField, ...(filtersStacked ? styles.scopeOptionFieldFull : {}) }}>
+          <label style={ui.fieldLabel}>Division</label>
+          <select
+            style={ui.input}
+            value={scopeDivisionId}
+            onChange={(event) => changeScopeDivision(event.target.value)}
+            disabled={categoriesLoading}
+          >
+            <option value="">{categoriesLoading ? "Cargando divisiones..." : "Selecciona una division"}</option>
+            {scopeDivisionOptions.map((division) => (
+              <option key={division.id} value={division.id}>
+                {division.code} {division.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {(scope === "DEPARTMENT" || scope === "CATEGORY") && (
+          <div style={{ ...styles.scopeOptionField, ...(filtersStacked ? styles.scopeOptionFieldFull : {}) }}>
+            <label style={ui.fieldLabel}>Departamento</label>
+            <select
+              style={ui.input}
+              value={scopeDepartmentId}
+              onChange={(event) => changeScopeDepartment(event.target.value)}
+              disabled={categoriesLoading || !scopeDivisionId}
+            >
+              <option value="">
+                {!scopeDivisionId
+                  ? "Selecciona una division primero"
+                  : categoriesLoading
+                    ? "Cargando departamentos..."
+                    : "Selecciona un departamento"}
+              </option>
+              {scopeDepartmentOptions.map((department) => (
+                <option key={department.id} value={department.id}>
+                  {department.code} {department.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {scope === "CATEGORY" && (
+          <div style={{ ...styles.scopeOptionField, ...(filtersStacked ? styles.scopeOptionFieldFull : {}) }}>
+            <label style={ui.fieldLabel}>Categoria</label>
+            <select
+              style={ui.input}
+              value={categoryId}
+              onChange={(event) => changeScopeCategory(event.target.value)}
+              disabled={categoriesLoading || !scopeDepartmentId}
+            >
+              <option value="">
+                {!scopeDepartmentId
+                  ? "Selecciona un departamento primero"
+                  : categoriesLoading
+                    ? "Cargando categorias..."
+                    : "Selecciona una categoria"}
+              </option>
+              {scopeCategoryOptions.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.code} {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div style={{ ...styles.scopeActionCell, ...(filtersStacked ? styles.scopeActionCellFull : {}) }}>
+          <button
+            type="button"
+            style={{
+              ...ui.primaryBtn,
+              ...styles.filterSearchButton,
+              ...(filtersStacked ? styles.filterSearchButtonFull : {}),
+              opacity: resolveLoading ? 0.7 : 1,
+            }}
+            onClick={resolveProducts}
+            disabled={resolveLoading}
+          >
+            {resolveLoading ? <Loader2 size={16} /> : <Search size={16} />}
+            Buscar productos
+          </button>
+        </div>
+
+        {selectedScopeCategory && <p style={styles.scopeSelectionHint}>Codigo: {selectedScopeCategory.code}</p>}
+        {categoryError && <p style={{ ...styles.scopeSelectionHint, ...styles.fieldError }}>{categoryError}</p>}
+      </div>
+    );
+  };
+
+  const renderScopeOptions = () => (
+    <div style={styles.scopeOptions}>
+      {scope === "SELECTED_PRODUCTS" && renderManualProductPicker()}
+      {renderCategoryScopeOptions()}
+      {scope === "UNCATEGORIZED" && (
+        <div style={styles.scopeUncategorizedOptions}>
+          <InlineAlert tone="info">Se buscaran productos activos sin registros en categorias.</InlineAlert>
+          <button
+            type="button"
+            style={{
+              ...ui.primaryBtn,
+              ...styles.filterSearchButton,
+              ...(filtersStacked ? styles.filterSearchButtonFull : {}),
+              opacity: resolveLoading ? 0.7 : 1,
+            }}
+            onClick={resolveProducts}
+            disabled={resolveLoading}
+          >
+            {resolveLoading ? <Loader2 size={16} /> : <Search size={16} />}
+            Buscar productos
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   const renderResolvedProductsTable = () => (
     <div style={styles.panel}>
       <div style={styles.groupedSectionHeader}>
@@ -1096,19 +1255,8 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   const renderAdjustTab = () => (
     <div style={styles.adjustStack}>
       <div style={styles.panel}>
-        <div
-          style={{
-            ...styles.scopeFilterGrid,
-            gridTemplateColumns: filtersStacked
-              ? "1fr"
-              : isCategoryScope(scope)
-                ? filtersTwoColumn
-                  ? "minmax(0, 1fr) minmax(0, 1fr)"
-                  : "minmax(220px, 0.85fr) minmax(320px, 1.15fr) max-content"
-                : "minmax(220px, 320px) max-content",
-          }}
-        >
-          <div style={styles.filterField}>
+        <div style={styles.scopeSection}>
+          <div style={{ ...styles.scopeSelectField, ...(filtersStacked ? styles.scopeSelectFieldFull : {}) }}>
             <label style={ui.fieldLabel}>Alcance</label>
             <select style={ui.input} value={scope} onChange={(event) => changeScope(event.target.value as PriceAdjustmentScope)}>
               {scopeOptions.map((option) => (
@@ -1118,61 +1266,8 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
               ))}
             </select>
           </div>
-
-          {isCategoryScope(scope) && (
-            <div style={styles.filterField}>
-              <label style={ui.fieldLabel}>{scopeLabel(scope)}</label>
-              <select
-                style={ui.input}
-                value={categoryId}
-                onChange={(event) => {
-                  setCategoryId(event.target.value);
-                  resetResolvedProducts();
-                }}
-                disabled={categoriesLoading}
-              >
-                <option value="">{categoriesLoading ? "Cargando categorias..." : "Selecciona una categoria"}</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.pathLabel || `${category.code} ${category.name}`}
-                  </option>
-                ))}
-              </select>
-              {selectedScopeCategory && <p style={styles.helpText}>Codigo: {selectedScopeCategory.code}</p>}
-              {categoryError && <p style={styles.fieldError}>{categoryError}</p>}
-            </div>
-          )}
-
-          {scope !== "SELECTED_PRODUCTS" && (
-            <div
-              style={{
-                ...styles.filterActionCell,
-                ...((isCategoryScope(scope) && filtersTwoColumn && !filtersStacked) ? styles.filterActionCellWide : {}),
-                ...(filtersStacked ? styles.filterActionCellStacked : {}),
-              }}
-            >
-              <button
-                type="button"
-                style={{
-                  ...ui.primaryBtn,
-                  ...styles.filterSearchButton,
-                  ...(filtersStacked ? styles.filterSearchButtonFull : {}),
-                  opacity: resolveLoading ? 0.7 : 1,
-                }}
-                onClick={resolveProducts}
-                disabled={resolveLoading}
-              >
-                {resolveLoading ? <Loader2 size={16} /> : <Search size={16} />}
-                Buscar productos
-              </button>
-            </div>
-          )}
+          {renderScopeOptions()}
         </div>
-
-        {scope === "UNCATEGORIZED" && (
-          <InlineAlert tone="info">Se buscaran productos activos sin registros en categorias.</InlineAlert>
-        )}
-        {renderManualProductPicker()}
       </div>
 
       {renderResolvedProductsTable()}
@@ -1588,28 +1683,59 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: 14,
     alignItems: "end",
   },
-  scopeFilterGrid: {
-    display: "grid",
-    gap: "12px 18px",
-    alignItems: "start",
-  },
-  filterField: {
-    minWidth: 0,
+  scopeSection: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
     width: "100%",
   },
-  filterActionCell: {
+  scopeSelectField: {
+    width: "100%",
+    maxWidth: 340,
+  },
+  scopeSelectFieldFull: {
+    maxWidth: "100%",
+  },
+  scopeOptions: {
+    minHeight: 44,
+    width: "100%",
+  },
+  scopeOptionControls: {
     display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "flex-start",
+    alignItems: "flex-end",
+    gap: 12,
+    flexWrap: "wrap",
+    width: "100%",
+  },
+  scopeOptionField: {
+    flex: "1 1 230px",
     minWidth: 0,
-    paddingTop: 28,
+    maxWidth: 340,
   },
-  filterActionCellWide: {
-    gridColumn: "1 / -1",
-    paddingTop: 0,
+  scopeOptionFieldFull: {
+    flexBasis: "100%",
+    maxWidth: "100%",
   },
-  filterActionCellStacked: {
-    paddingTop: 0,
+  scopeActionCell: {
+    display: "flex",
+    alignItems: "flex-end",
+    minWidth: 0,
+  },
+  scopeActionCellFull: {
+    width: "100%",
+  },
+  scopeSelectionHint: {
+    flexBasis: "100%",
+    margin: "0",
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  scopeUncategorizedOptions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
   },
   filterSearchButton: {
     justifyContent: "center",
