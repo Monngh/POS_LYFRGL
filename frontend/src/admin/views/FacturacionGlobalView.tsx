@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { RefreshCw, CheckCircle, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { RefreshCw, CheckCircle, AlertCircle, ChevronDown, ChevronUp, X } from "lucide-react";
 import api from "../../shared/services/api";
 import {
   ui,
@@ -13,7 +13,6 @@ import {
   fmtTime,
   useMediaQuery,
 } from "./shared";
-import { type FieldErrors, normalizeIntegerInput, validateInteger } from "../../shared/utils/formValidation";
 import { useToast } from "../../shared/context/ToastContext";
 import { ConfirmModal } from "../../shared/ui";
 
@@ -39,11 +38,21 @@ const MESES = [
   { value: "12", label: "Diciembre" },
 ];
 
+// Normaliza el nombre de cliente para poder comparar de forma consistente
+const normalizeCustomerName = (customer: any): string => (customer ? String(customer).trim().toLowerCase() : "");
+
+const isPublicoGeneral = (customer: any): boolean => {
+  const cName = normalizeCustomerName(customer);
+  return cName === "" || cName === "público general";
+};
+
 const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) => {
   const { showToast } = useToast();
   const [confirmStampOpen, setConfirmStampOpen] = useState(false);
   const isMobile = useMediaQuery("(max-width: 1024px)");
+  const isTablet = useMediaQuery("(min-width: 1025px) and (max-width: 1366px)");
   const [expandedTickets, setExpandedTickets] = useState<Record<number, boolean>>({});
+  const [filtersExpanded, setFiltersExpanded] = useState(true);
 
   const toggleExpandTicket = (id: number) => {
     setExpandedTickets((prev) => ({
@@ -51,14 +60,19 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
       [id]: !prev[id],
     }));
   };
+
   // Configuración de la factura global
   const todayStr = new Date().toISOString().substring(0, 10);
+  const defaultMonth = String(new Date().getMonth() + 1).padStart(2, "0");
+  const defaultYear = String(new Date().getFullYear());
+
   const [startDate, setStartDate] = useState(todayStr);
   const [endDate, setEndDate] = useState(todayStr);
   const [periodicity, setPeriodicity] = useState("day");
-  const [month, setMonth] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
-  const [year, setYear] = useState(String(new Date().getFullYear()));
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors<"year">>({});
+
+  // El mes y año se derivan de la fecha de inicio 
+  const derivedMonth = useMemo(() => startDate.substring(5, 7) || defaultMonth, [startDate]);
+  const derivedYear = useMemo(() => startDate.substring(0, 4) || defaultYear, [startDate]);
 
   // Estado de los tickets a facturar
   const [tickets, setTickets] = useState<any[]>([]);
@@ -71,17 +85,11 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
   const [stampResult, setStampResult] = useState<any | null>(null);
   const [stampError, setStampError] = useState<string | null>(null);
 
-  const validateYear = (value: string) => {
-    const error = validateInteger(value, "El anio", { required: true, min: 2000, max: 2100 });
-    if (error) return error;
-    return value.length === 4 ? undefined : "El anio debe tener 4 digitos.";
-  };
-
-  const handleYearChange = (value: string) => {
-    const normalized = normalizeIntegerInput(value).slice(0, 4);
-    const forcedError = value !== normalized ? "El anio solo puede contener numeros enteros." : undefined;
-    setYear(normalized);
-    setFieldErrors((prev) => ({ ...prev, year: forcedError || validateYear(normalized) }));
+  // Restablece todos los filtros a sus valores por defecto (hoy / diario)
+  const handleClearFilters = () => {
+    setStartDate(todayStr);
+    setEndDate(todayStr);
+    setPeriodicity("day");
   };
 
   // Cargar tickets elegibles
@@ -91,8 +99,6 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
     setStampResult(null);
     setStampError(null);
     try {
-      // Usamos el listado de ventas central filtrando por status COMPLETADA
-      // y en el frontend filtramos las que no estén facturadas (cfdiUuid === null)
       const res = await api.get("/api/admin/sales", {
         params: {
           branchId,
@@ -102,26 +108,11 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
         },
       });
 
-      // El endpoint de ventas retorna { sales: [...] }
       const sales = res.data.sales || [];
-
-      // Detectar si el rango incluye ventas con clientes asociados (no Público General),
-      // para avisar en la UI que fueron omitidas automáticamente.
-      const incomingHasCustomers = sales.some((s: any) => {
-        const cName = s.customer ? s.customer.toLowerCase() : "";
-        return cName && cName !== "público general";
-      });
+      const incomingHasCustomers = sales.some((s: any) => !isPublicoGeneral(s.customer));
       setHasAssociatedCustomers(incomingHasCustomers);
 
-      // Filtrar no facturadas Y que sean al Público General (sin cliente o RFC genérico).
-      // Nota: el backend (createGlobalInvoice) vuelve a filtrar con Prisma de forma
-      // estricta (cfdiUuid == null) — este filtro del frontend es solo para la vista previa.
-      const unbilled = sales.filter((s: any) => {
-        if (s.cfdiUuid) return false;
-        const cName = s.customer ? s.customer.toLowerCase() : "";
-        if (cName && cName !== "público general") return false;
-        return true;
-      });
+      const unbilled = sales.filter((s: any) => !s.cfdiUuid && isPublicoGeneral(s.customer));
       setTickets(unbilled);
     } catch (err: any) {
       setError(err.response?.data?.message || "Error al recuperar las ventas elegibles.");
@@ -136,15 +127,10 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
 
   // Ejecutar timbrado de Factura Global
   const handleStampGlobal = () => {
-    const yearError = validateYear(year);
-    setFieldErrors({ year: yearError });
-    if (yearError) return;
-
     if (tickets.length === 0) {
       showToast("No hay tickets disponibles para facturar en este rango.", "warning");
       return;
     }
-
     setConfirmStampOpen(true);
   };
 
@@ -158,13 +144,12 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
         startDate,
         endDate,
         periodicity,
-        month,
-        year,
+        month: derivedMonth,   // ← valor derivado
+        year: derivedYear,     // ← valor derivado
         branchId: branchId === "all" ? undefined : parseInt(branchId),
       });
 
       setStampResult(res.data);
-      // Limpiar tickets cargados ya que se facturaron
       setTickets([]);
     } catch (err: any) {
       setStampError(err.response?.data?.message || "Error al timbrar la Factura Global.");
@@ -174,8 +159,10 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
   };
 
   // Cálculos resumen
-  const totalAmount = tickets.reduce((acc, t) => acc + t.totalAmount, 0);
-  const totalTax = tickets.reduce((acc, t) => acc + t.taxAmount, 0);
+  const totalAmount = useMemo(() => tickets.reduce((acc, t) => acc + t.totalAmount, 0), [tickets]);
+  const totalTax = useMemo(() => tickets.reduce((acc, t) => acc + t.taxAmount, 0), [tickets]);
+
+  const periodicityLabel = PERIODICIDADES.find((p) => p.value === periodicity)?.label || periodicity;
 
   return (
     <div>
@@ -184,90 +171,123 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
         subtitle="Agrupa y timbra los tickets de venta al público en general que no fueron facturados individualmente."
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "280px minmax(0, 1fr)", gap: 24, alignItems: "start" }}>
-        
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : isTablet ? "240px minmax(0, 1fr)" : "280px minmax(0, 1fr)",
+          gap: isMobile ? 16 : isTablet ? 18 : 24,
+          alignItems: "start",
+        }}
+      >
         {/* PANEL DE CONFIGURACIÓN */}
         <Panel style={{ padding: 20 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--accent-strong)", marginBottom: 16 }}>Configurar Factura Global</h3>
-          
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div>
-              <label style={fieldLabel}>Fecha Inicio</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                style={ui.input}
-              />
-            </div>
-
-            <div>
-              <label style={fieldLabel}>Fecha Fin</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                style={ui.input}
-              />
-            </div>
-
-            <div>
-              <label style={fieldLabel}>Periodicidad SAT</label>
-              <select
-                value={periodicity}
-                onChange={(e) => setPeriodicity(e.target.value)}
-                style={{ ...ui.input, cursor: "pointer" }}
-              >
-                {PERIODICIDADES.map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label style={fieldLabel}>Mes correspondiente</label>
-              <select
-                value={month}
-                onChange={(e) => setMonth(e.target.value)}
-                style={{ ...ui.input, cursor: "pointer" }}
-              >
-                {MESES.map((m) => (
-                  <option key={m.value} value={m.value}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label style={fieldLabel}>Año correspondiente</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={4}
-                value={year}
-                onChange={(e) => handleYearChange(e.target.value)}
-                onBlur={() => setFieldErrors({ year: validateYear(year) })}
-                style={{ ...ui.input, ...(fieldErrors.year ? fieldErrorInput : {}) }}
-              />
-              {fieldErrors.year && <p style={ui.fieldError}>{fieldErrors.year}</p>}
-            </div>
-
-            <button
-              onClick={loadEligibleTickets}
-              disabled={loading || stamping}
-              style={{ ...ui.ghostBtn, width: "100%", justifyContent: "center", height: 38 }}
-            >
-              <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Actualizar Listado
-            </button>
+          <div
+            onClick={() => isMobile && setFiltersExpanded((v) => !v)}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              cursor: isMobile ? "pointer" : "default",
+              marginBottom: filtersExpanded ? 16 : 0,
+            }}
+          >
+            <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--accent-strong)" }}>Configurar Factura Global</h3>
+            {isMobile && (filtersExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}
           </div>
+
+          {isMobile && !filtersExpanded && (
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: 0 }}>
+              {startDate === endDate ? fmtDate(startDate) : `${fmtDate(startDate)} – ${fmtDate(endDate)}`} · {periodicityLabel}
+            </p>
+          )}
+
+          {(!isMobile || filtersExpanded) && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 120px" }}>
+                  <label style={fieldLabel}>Fecha Inicio</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    style={ui.input}
+                  />
+                </div>
+
+                <div style={{ flex: "1 1 120px" }}>
+                  <label style={fieldLabel}>Fecha Fin</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    style={ui.input}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={fieldLabel}>Periodicidad SAT</label>
+                <select
+                  value={periodicity}
+                  onChange={(e) => setPeriodicity(e.target.value)}
+                  style={{ ...ui.input, cursor: "pointer" }}
+                >
+                  {PERIODICIDADES.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={fieldLabel}>Mes correspondiente</label>
+                <select
+                  value={derivedMonth}
+                  disabled={true}  // ← no editable
+                  style={{ ...ui.input, cursor: "not-allowed", opacity: 0.7 }}
+                >
+                  {MESES.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={fieldLabel}>Año correspondiente</label>
+                <input
+                  type="text"
+                  value={derivedYear}
+                  disabled={true}  // ← no editable
+                  style={{ ...ui.input, cursor: "not-allowed", opacity: 0.7 }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={loadEligibleTickets}
+                  disabled={loading || stamping}
+                  style={{ ...ui.ghostBtn, flex: 1, justifyContent: "center", height: 38 }}
+                >
+                  <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Actualizar
+                </button>
+                <button
+                  onClick={handleClearFilters}
+                  disabled={loading || stamping}
+                  title="Limpiar filtros"
+                  style={{ ...ui.ghostBtn, justifyContent: "center", height: 38, width: 42, padding: 0 }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+          )}
         </Panel>
 
         {/* DETALLE Y RESULTADOS */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          
           {/* Alertas de Resultado */}
           {stampResult && (
             <div style={successAlert}>
@@ -325,17 +345,17 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
           {/* RESUMEN DE VENTAS */}
           <Panel style={{ padding: 20 }}>
             <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--text)", marginBottom: 14 }}>Resumen de Lote a Facturar</h3>
-            
+
             <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
-              <div style={{ display: "flex", flexDirection: "column", padding: "4px 8px", minWidth: 120, borderRight: isMobile ? "none" : "1px solid var(--border)" }}>
+              <div style={{ display: "flex", flexDirection: "column", padding: "4px 8px", minWidth: isTablet ? 100 : 120, borderRight: isMobile ? "none" : "1px solid var(--border)" }}>
                 <span style={kpiLabel}>Total Tickets</span>
                 <span style={kpiVal}>{tickets.length}</span>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", padding: "4px 8px", minWidth: 120, borderRight: isMobile ? "none" : "1px solid var(--border)" }}>
+              <div style={{ display: "flex", flexDirection: "column", padding: "4px 8px", minWidth: isTablet ? 100 : 120, borderRight: isMobile ? "none" : "1px solid var(--border)" }}>
                 <span style={kpiLabel}>IVA Trasladado</span>
                 <span style={{ ...kpiVal, color: "#b45309" }}>{moneyExact(totalTax)}</span>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", padding: "4px 8px", minWidth: 120 }}>
+              <div style={{ display: "flex", flexDirection: "column", padding: "4px 8px", minWidth: isTablet ? 100 : 120 }}>
                 <span style={kpiLabel}>Importe Total (Neto)</span>
                 <span style={{ ...kpiVal, color: "#15803d" }}>{moneyExact(totalAmount)}</span>
               </div>
@@ -365,8 +385,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
 
             {isMobile ? (
               /* ── Mobile / Tablet: Card-based layout ── */
-              <div style={{ overflowY: "auto", maxHeight: "62vh", padding: "8px 16px" }}>
-
+              <div style={{ overflowY: "auto", maxHeight: "260px", padding: "8px 16px" }}>
                 {loading && (
                   <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>
                     Cargando información...
@@ -415,6 +434,22 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                           <span><Badge tone="slate">Sin Facturar</Badge></span>
                         </div>
 
+                        {/* Método e Impuestos: visibles siempre */}
+                        <div style={{
+                          display: "flex",
+                          gap: 20,
+                          padding: "10px 16px 0 16px",
+                        }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                            <span style={miniLabel}>Método</span>
+                            <Badge tone={payTone(t.paymentMethod)}>{t.paymentMethod}</Badge>
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                            <span style={miniLabel}>Impuestos</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{moneyExact(t.taxAmount)}</span>
+                          </div>
+                        </div>
+
                         {/* Row base: Folio, Fecha, Total, Chevron */}
                         <div style={{
                           display: "flex",
@@ -460,7 +495,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                           </div>
                         </div>
 
-                        {/* Expanded detail card */}
+                        {/* Expanded detail */}
                         {isExpanded && (
                           <div style={{
                             padding: "16px",
@@ -472,7 +507,6 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                             gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
                             gap: "16px",
                           }}>
-                            {/* Datos de la Venta */}
                             <div>
                               <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Datos de la Venta</h4>
                               <div style={facDetailRow}>
@@ -489,28 +523,12 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
                               </div>
                             </div>
 
-                            {/* Detalle Fiscal */}
                             <div>
-                              <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Detalle Fiscal</h4>
-                              <div style={facDetailRow}>
-                                <span style={facDetailLabel}>Método:</span>
-                                <span style={facDetailValue}>
-                                  <Badge tone={payTone(t.paymentMethod)}>{t.paymentMethod}</Badge>
-                                </span>
-                              </div>
-                              <div style={facDetailRow}>
-                                <span style={facDetailLabel}>Impuestos:</span>
-                                <span style={facDetailValue}>{moneyExact(t.taxAmount)}</span>
-                              </div>
+                              <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Resumen</h4>
                               <div style={facDetailRow}>
                                 <span style={facDetailLabel}>Artículos:</span>
                                 <span style={facDetailValue}>{t.items ?? "—"}</span>
                               </div>
-                            </div>
-
-                            {/* Resumen */}
-                            <div>
-                              <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Resumen</h4>
                               <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 8 }}>
                                 <span style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>Total:</span>
                                 <span style={{ fontSize: 20, fontWeight: 800, color: "var(--accent-strong)" }}>{moneyExact(t.totalAmount)}</span>
@@ -524,50 +542,48 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
               </div>
             ) : (
               /* ── Desktop: Standard table ── */
-              <div className="table-sticky-head" style={{ overflowX: "auto", overflowY: "auto", maxHeight: "62vh" }}>
-              <table style={{ ...ui.table, minWidth: 720 }}>
-                <thead>
-                  <tr style={ui.theadRow}>
-                    <th style={ui.th}>Folio Venta</th>
-                    <th style={ui.th}>Fecha</th>
-                    <th style={ui.th}>Cliente</th>
-                    <th style={ui.th}>Método</th>
-                    <th style={{ ...ui.th, textAlign: "right" }}>Impuestos</th>
-                    <th style={{ ...ui.th, textAlign: "right" }}>Total</th>
-                    <th style={{ ...ui.th, textAlign: "center" }}>Estatus</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <TableState
-                    colSpan={7}
-                    loading={loading}
-                    error={error}
-                    empty={!loading && !error && tickets.length === 0}
-                    emptyText="No hay ventas pendientes de facturar en este rango de fechas."
-                  />
-                  {!loading && !error && tickets.map((t) => (
-                    <tr key={t.id}>
-                      <td style={{ ...ui.td, fontWeight: 700, color: "var(--accent-strong)" }}>{t.invoiceNumber}</td>
-                      <td style={ui.td}>{fmtDate(t.createdAt)}</td>
-                      <td style={ui.td}>{t.customer}</td>
-                      <td style={ui.td}>
-                        <Badge tone={payTone(t.paymentMethod)}>{t.paymentMethod}</Badge>
-                      </td>
-                      <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(t.taxAmount)}</td>
-                      <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{moneyExact(t.totalAmount)}</td>
-                      <td style={{ ...ui.td, textAlign: "center" }}>
-                        <Badge tone="slate">Sin Facturar</Badge>
-                      </td>
+              <div className="table-sticky-head" style={{ overflowX: "auto", overflowY: "auto", maxHeight: "260px" }}>
+                <table style={{ ...ui.table, minWidth: 720 }}>
+                  <thead>
+                    <tr style={ui.theadRow}>
+                      <th style={ui.th}>Folio Venta</th>
+                      <th style={ui.th}>Fecha</th>
+                      <th style={ui.th}>Cliente</th>
+                      <th style={ui.th}>Método</th>
+                      <th style={{ ...ui.th, textAlign: "right" }}>Impuestos</th>
+                      <th style={{ ...ui.th, textAlign: "right" }}>Total</th>
+                      <th style={{ ...ui.th, textAlign: "center" }}>Estatus</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    <TableState
+                      colSpan={7}
+                      loading={loading}
+                      error={error}
+                      empty={!loading && !error && tickets.length === 0}
+                      emptyText="No hay ventas pendientes de facturar en este rango de fechas."
+                    />
+                    {!loading && !error && tickets.map((t) => (
+                      <tr key={t.id}>
+                        <td style={{ ...ui.td, fontWeight: 700, color: "var(--accent-strong)" }}>{t.invoiceNumber}</td>
+                        <td style={ui.td}>{fmtDate(t.createdAt)}</td>
+                        <td style={ui.td}>{t.customer}</td>
+                        <td style={ui.td}>
+                          <Badge tone={payTone(t.paymentMethod)}>{t.paymentMethod}</Badge>
+                        </td>
+                        <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(t.taxAmount)}</td>
+                        <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{moneyExact(t.totalAmount)}</td>
+                        <td style={{ ...ui.td, textAlign: "center" }}>
+                          <Badge tone="slate">Sin Facturar</Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
-
         </div>
-
       </div>
 
       <ConfirmModal
@@ -582,6 +598,7 @@ const FacturacionGlobalView: React.FC<ViewProps> = ({ branchId, refreshToken }) 
   );
 };
 
+// ─── Estilos ──────────────────────────────────────────────
 const fieldLabel: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
@@ -592,7 +609,13 @@ const fieldLabel: React.CSSProperties = {
   display: "block",
 };
 
-
+const miniLabel: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 700,
+  color: "var(--text-muted)",
+  textTransform: "uppercase",
+  letterSpacing: "0.3px",
+};
 
 const kpiLabel: React.CSSProperties = {
   fontSize: 11,
@@ -638,11 +661,6 @@ const warningAlert: React.CSSProperties = {
   borderRadius: 12,
 };
 
-const fieldErrorInput: React.CSSProperties = {
-  borderColor: "#ef4444",
-  boxShadow: "0 0 0 2px rgba(239, 68, 68, 0.12)",
-};
-
 const downloadBtn: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
@@ -680,7 +698,6 @@ const facDetailValue: React.CSSProperties = {
   fontWeight: 600,
   color: "var(--text-secondary)",
 };
-
 
 const payTone = (m: string) => {
   if (m === "EFECTIVO") return "green";
