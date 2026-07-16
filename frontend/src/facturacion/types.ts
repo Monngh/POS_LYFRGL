@@ -43,6 +43,7 @@ export interface InvoiceHistoryItem {
   status: string;
   branchName: string;
   cfdiUuid: string | null;
+  isGlobal?: boolean;
   pdfUrl: string | null;
   xmlUrl: string | null;
   returnCfdiUuid?: string | null;

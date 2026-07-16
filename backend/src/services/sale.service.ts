@@ -339,8 +339,10 @@ export const cancelSaleTransaction = async (params: {
   reason: string;
   invoiceNumber: string;
   refundInfo?: any;
+  creditNoteUuid?: string;
+  approverId?: number;
 }) => {
-  const { sale, userId, branchId, approverName, reason, invoiceNumber, refundInfo } = params;
+  const { sale, userId, branchId, approverName, reason, invoiceNumber, refundInfo, creditNoteUuid, approverId } = params;
 
   return prisma.$transaction(async (tx) => {
     // a. Cambiar estatus de la venta
@@ -405,6 +407,47 @@ export const cancelSaleTransaction = async (params: {
       if (customer) {
         const newPoints = Math.max(0, customer.points + sale.pointsRedeemed - sale.pointsEarned);
         await tx.customer.update({ where: { id: sale.customerId }, data: { points: newPoints } });
+      }
+    }
+
+    // e. Crear registro de Devolución para almacenar la Nota de Crédito si aplica
+    if (creditNoteUuid) {
+      const timestamp = Date.now().toString().slice(-6);
+      const randomSuffix = Math.floor(100 + Math.random() * 900);
+      const returnNumber = `DEV-${timestamp}${randomSuffix}`;
+
+      const activeSession = await tx.cashSession.findFirst({
+        where: { userId, branchId, status: "ABIERTA", closedAt: null },
+      });
+
+      const newReturn = await tx.return.create({
+        data: {
+          returnNumber,
+          saleId: sale.id,
+          userId,
+          authorizedById: approverId || userId,
+          reason: `Nota de Crédito por Cancelación de Venta Global: ${reason}`,
+          type: "TOTAL",
+          totalRefunded: sale.totalAmount,
+          paymentMethod: sale.paymentMethod,
+          cashSessionId: activeSession ? activeSession.id : sale.cashSessionId,
+          cfdiUuid: creditNoteUuid
+        }
+      });
+
+      for (const d of sale.saleDetails) {
+        await tx.returnDetail.create({
+          data: {
+            returnId: newReturn.id,
+            productId: d.productId,
+            saleDetailId: d.id,
+            quantity: d.quantity,
+            unitPrice: d.unitPrice,
+            taxAmount: d.taxAmount,
+            discountAmount: d.discountAmount,
+            destination: "INVENTARIO_VENDIBLE"
+          }
+        });
       }
     }
   }, { maxWait: 15000, timeout: 35000 });
