@@ -167,17 +167,15 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
 
       {/* Tabla de alta densidad */}
       <div
-        className="pos-cart-table-wrapper"
+        className="pos-cart-table-wrapper pos-cashier-cart-scroll"
+        style={{ flex: 1, overflowY: "scroll" }}
       >
-        <div className="pos-cashier-cart-scroll" style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
         <table className="pos-cashier-cart-table">
           <thead>
             <tr>
-              <th style={{ position: "sticky", top: 0, zIndex: 5, backgroundColor: "var(--pos-surface)" }}>Código</th>
               <th style={{ position: "sticky", top: 0, zIndex: 5, backgroundColor: "var(--pos-surface)" }}>Producto</th>
               <th style={{ textAlign: "center", position: "sticky", top: 0, zIndex: 5, backgroundColor: "var(--pos-surface)" }}>Cant.</th>
               <th style={{ textAlign: "right", position: "sticky", top: 0, zIndex: 5, backgroundColor: "var(--pos-surface)" }}>Precio</th>
-              {hasDiscounts && <th style={{ textAlign: "right", color: "#d97706", position: "sticky", top: 0, zIndex: 5, backgroundColor: "var(--pos-surface)" }}>Dto.</th>}
               <th style={{ textAlign: "right", position: "sticky", top: 0, zIndex: 5, backgroundColor: "var(--pos-surface)" }}>Importe</th>
               <th style={{ width: "28px", position: "sticky", top: 0, zIndex: 5, backgroundColor: "var(--pos-surface)" }} />
             </tr>
@@ -185,7 +183,7 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
           <tbody>
             {cart.length === 0 ? (
               <tr>
-                <td colSpan={hasDiscounts ? 7 : 6} style={{ textAlign: "center", padding: "16px 0", color: "var(--pos-text-muted, #94a3b8)", background: "var(--pos-surface-2, #f8fafc)" }}>
+                <td colSpan={5} style={{ textAlign: "center", padding: "16px 0", color: "var(--pos-text-muted, #94a3b8)", background: "var(--pos-surface-2, #f8fafc)" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
                     <span style={{ marginBottom: "4px" }}><ShoppingCart size={16} color="#94a3b8" /></span>
                     <span style={{ fontSize: "12px", fontWeight: "500" }}>Sin productos. Escanee o busque.</span>
@@ -212,17 +210,9 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
                       transition: "all 0.15s ease-in-out"
                     }}
                   >
-                    {/* Código */}
-                    <td
-                      className="pos-cart-td-sku"
-                      data-label="Código"
-                      style={{ fontSize: "11px", color: "var(--pos-text-muted, #94a3b8)", fontFamily: "monospace" }}
-                    >
-                      {item.product.sku}
-                    </td>
 
                     {/* Nombre */}
-                    <td className="pos-cart-td-product" data-label="Producto" style={{ fontWeight: "600", color: "var(--pos-text, #0f172a)", maxWidth: "160px" }}>
+                    <td data-label="Producto" style={{ fontWeight: "600", color: "var(--pos-text, #0f172a)", maxWidth: "160px" }}>
                       <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {item.product.name}
                       </div>
@@ -235,7 +225,7 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
                     </td>
 
                     {/* Cantidad */}
-                    <td className="pos-cart-td-qty" data-label="Cant." style={{ textAlign: "center" }}>
+                    <td data-label="Cant." style={{ textAlign: "center" }}>
                       <div className="pos-qty-control">
                         <button
                           type="button"
@@ -274,14 +264,13 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
                     </td>
 
                     {/* Precio unitario */}
-                    <td className="pos-cart-td-price" data-label="Precio" style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                    <td data-label="Precio" style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
                       {hasDiscount ? (
-                        <div>
-                          <span style={{ textDecoration: "line-through", color: "var(--pos-text-muted, #94a3b8)", fontSize: "10px" }}>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "1px" }}>
+                          <span style={{ textDecoration: "line-through", color: "var(--pos-text-muted, #94a3b8)", fontSize: "10px", lineHeight: 1 }}>
                             ${Number(item.product.sellPrice).toFixed(2)}
                           </span>
-                          <br />
-                          <span style={{ color: "var(--pos-blue)", fontWeight: "700" }}>
+                          <span style={{ color: "#1e40af", fontWeight: "700", fontSize: "12px", lineHeight: 1 }}>
                             ${promoDetails.finalPrice.toFixed(2)}
                           </span>
                         </div>
@@ -290,35 +279,22 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
                       )}
                     </td>
 
-                    {/* Descuento (solo si hay alguna promo en el carrito) */}
-                    {hasDiscounts && (
-                      <td className="pos-cart-td-discount" data-label="Dto." style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                        {hasDiscount ? (
-                          <span style={{ color: "#d97706", fontWeight: "700" }}>
-                            -${promoDetails.discountAmount.toFixed(2)}
-                          </span>
-                        ) : (
-                          <span style={{ color: "var(--pos-text-muted, #94a3b8)" }}>—</span>
-                        )}
-                      </td>
-                    )}
-
-                    {/* Importe */}
+                    {/* Importe (con descuento si aplica) */}
                     <td
-                      className="pos-cart-td-amount"
                       data-label="Importe"
                       style={{
                         textAlign: "right",
                         fontWeight: "700",
-                        color: "var(--pos-text, #0f172a)",
+                        color: hasDiscount ? "#d97706" : "var(--pos-text, #0f172a)",
                         fontVariantNumeric: "tabular-nums",
+                        whiteSpace: "nowrap",
                       }}
                     >
                       ${subtotal.toFixed(2)}
                     </td>
 
                     {/* Eliminar */}
-                    <td className="pos-cart-td-actions" style={{ textAlign: "center", padding: "4px", overflow: "visible", position: "relative" }}>
+                    <td style={{ textAlign: "center", padding: "4px", overflow: "visible", position: "relative" }}>
                       <button
                         type="button"
                         className="pos-cart-remove-btn"
@@ -337,7 +313,6 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
             )}
             </tbody>
           </table>
-        </div>
       </div>
     </div>
   );
