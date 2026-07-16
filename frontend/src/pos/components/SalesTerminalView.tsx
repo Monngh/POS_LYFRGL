@@ -402,9 +402,9 @@ export function SalesTerminalView({
         cartData={cartData}
         onToast={onToast}
       >
-        <div style={{ flex: 1, display: "flex", flexWrap: "wrap", overflowY: "visible", gap: "20px", minWidth: 0 }}>
+        <div className="pos-main-layout-container">
           
-          <div style={{ flex: "1 1 300px", display: "flex", flexDirection: "column", overflow: "visible", gap: "16px", minWidth: 0, maxWidth: "100%" }}>
+          <div className="pos-cart-col">
             <div className="card-premium" style={{ display: "flex", flexWrap: "wrap", gap: "16px", flexShrink: 0, alignItems: "center", padding: "12px 16px", minHeight: "44px" }}>
               <div style={{ flex: "1 1 200px", minWidth: "200px" }}>
                 <ProductSearchPanel
@@ -425,7 +425,7 @@ export function SalesTerminalView({
             </div>
           </div>
 
-          <div className="card-premium checkout-container-responsive" style={{ flex: "0 1 300px", maxWidth: "100%", display: "flex", flexDirection: "column", overflowY: "visible", position: "relative", padding: "14px", gap: "10px" }}>
+          <div className="card-premium pos-checkout-col">
             <CheckoutPanel
               cartData={cartData}
               searchData={searchData}

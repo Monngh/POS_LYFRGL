@@ -452,6 +452,36 @@
   overflow-y: auto;
 }
 
+.pos-main-layout-container {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+  overflow-y: visible;
+  min-width: 0;
+}
+
+.pos-cart-col {
+  flex: 1 1 300px;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  gap: 16px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.pos-checkout-col {
+  flex: 0 1 320px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-y: visible;
+  position: relative;
+  padding: 14px;
+  gap: 10px;
+}
+
 /* ============================================================
    Sidebar — más compacto, información más densa
    ============================================================ */
@@ -1467,18 +1497,45 @@
    Responsive Overrides
    ============================================================ */
 @media (max-width: 1024px) {
+  .pos-main-layout-container {
+    flex-direction: column;
+  }
+  .pos-cart-col {
+    flex: 1 1 auto;
+  }
+  .pos-checkout-col {
+    flex: 0 0 auto;
+  }
+
   .pos-terminal-navbar {
     height: 56px;
     flex-wrap: nowrap;
-    padding: 8px 6px;
-    gap: 4px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
+    padding: 8px 4px;
+    gap: 2px;
+    overflow: hidden;
   }
   
-  .pos-terminal-navbar::-webkit-scrollbar {
-    display: none;
+  .pos-terminal-navbar-right {
+    gap: 2px;
+  }
+
+  .pos-terminal-navbar .pos-terminal-chip {
+    font-size: 9px;
+    padding: 2px 4px;
+  }
+  
+  .pos-terminal-navbar .pos-terminal-session-badge {
+    font-size: 8px;
+    padding: 2px 4px;
+  }
+
+  .pos-terminal-navbar .pos-terminal-user-name {
+    font-size: 10px;
+  }
+
+  .pos-terminal-navbar .lucide {
+    width: 14px;
+    height: 14px;
   }
 
   .pos-terminal-navbar-right {
