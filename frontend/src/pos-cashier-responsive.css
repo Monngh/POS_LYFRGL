@@ -347,6 +347,18 @@
     content: "Unitario: ";
   }
 
+  .pos-cashier-cart-table tbody tr > td.pos-cart-col-price > div {
+    display: inline !important;
+  }
+
+  .pos-cashier-cart-table tbody tr > td.pos-cart-col-price br {
+    display: none !important;
+  }
+
+  .pos-cashier-cart-table tbody tr > td.pos-cart-col-price span {
+    margin-left: 4px !important;
+  }
+
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-discount {
     grid-area: discount;
     align-self: center;
@@ -923,6 +935,18 @@
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-price::before {
     content: "Unitario: ";
+  }
+
+  .pos-cashier-cart-table tbody tr > td.pos-cart-col-price > div {
+    display: inline !important;
+  }
+
+  .pos-cashier-cart-table tbody tr > td.pos-cart-col-price br {
+    display: none !important;
+  }
+
+  .pos-cashier-cart-table tbody tr > td.pos-cart-col-price span {
+    margin-left: 4px !important;
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-discount {
