@@ -452,11 +452,15 @@
   border-right: 1px solid var(--pos-border);
   display: flex;
   flex-direction: column;
-  position: relative;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 10;
+  position: absolute; /* Modificado para ser flotante */
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 50;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   padding: 14px;
   overflow: hidden;
+  box-shadow: 4px 0 15px rgba(0,0,0,0.05); /* Sombra para resaltar que flota */
 }
 
 .pos-sidebar-inner-content {
@@ -495,13 +499,9 @@
   border-color: var(--pos-border-strong);
 }
 
-/* Collapsed state */
+/* Collapsed state (oculto fuera de pantalla) */
 .pos-sales-layout.sidebar-collapsed .pos-sales-sidebar {
-  width: 0;
-  min-width: 0;
-  padding: 0;
-  border-right: none;
-  overflow: hidden;
+  transform: translateX(-100%);
 }
 
 .pos-sales-layout.sidebar-collapsed .pos-sidebar-inner-content {

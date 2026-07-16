@@ -1331,9 +1331,15 @@ const Autofacturacion: React.FC = () => {
                   <tbody>
                     {invoicesList.map((inv) => (
                       <tr key={inv.id} style={styles.tr}>
-                        <td style={{ ...styles.td, fontWeight: "700" }}>{inv.invoiceNumber}</td>
-                        <td style={styles.td}>{inv.branchName}</td>
-                        <td style={styles.td}>{new Date(inv.createdAt).toLocaleDateString()}</td>
+                        <td style={{ ...styles.td, fontWeight: "700", fontSize: "11px", whiteSpace: "nowrap" }}>
+                          {inv.invoiceNumber.replace(/^V-/, '')}
+                        </td>
+                        <td style={{ ...styles.td, fontSize: "11px", whiteSpace: "nowrap", maxWidth: "90px", overflow: "hidden", textOverflow: "ellipsis" }} title={inv.branchName}>
+                          {inv.branchName.replace(/Sucursal\s+/i, '')}
+                        </td>
+                        <td style={{ ...styles.td, fontSize: "11px", whiteSpace: "nowrap" }}>
+                          {new Date(inv.createdAt).toLocaleDateString(undefined, { year: '2-digit', month: '2-digit', day: '2-digit' })}
+                        </td>
                         <td style={{ ...styles.td, fontWeight: "600" }}>${inv.totalAmount.toFixed(2)}</td>
                         <td style={styles.td}>
                           <span style={{

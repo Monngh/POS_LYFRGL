@@ -124,7 +124,7 @@ export function SalesTerminalView({
     handleRegisterCustomerSubmit, setNewCustomerFieldErrors,
   } = customerData;
 
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(true);
 
   const { parkedSales, fetchParkedSales, parkSale, deleteParkedSale } = useParkedSales(user?.branch?.id);
   const [mixedModalOpen, setMixedModalOpen] = React.useState(false);
