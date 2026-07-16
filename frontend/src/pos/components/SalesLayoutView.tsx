@@ -24,6 +24,7 @@ export function SalesLayoutView({
   onLock,
   children,
   isSidebarCollapsed,
+  setIsSidebarCollapsed,
 }: SalesLayoutViewProps) {
 
   return (
