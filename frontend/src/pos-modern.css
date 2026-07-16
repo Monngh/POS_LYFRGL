@@ -517,6 +517,31 @@
   position: static !important;
 }
 
+/* Dentro del panel de carrito estrecho: ocultar SKU, condensar texto */
+.pos-cart-col .pos-cashier-cart-table th:nth-child(1),
+.pos-cart-col .pos-cashier-cart-table td:nth-child(1) {
+  display: none !important;
+}
+
+.pos-cart-col .pos-cashier-cart-table th {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.pos-cart-col .pos-cashier-cart-table td:nth-child(2) {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pos-cart-col .pos-cashier-cart-table td:nth-child(2) > div:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
 /* ============================================================
    Sidebar — más compacto, información más densa
    ============================================================ */
