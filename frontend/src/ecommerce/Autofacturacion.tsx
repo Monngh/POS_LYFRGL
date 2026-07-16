@@ -1342,7 +1342,9 @@ const Autofacturacion: React.FC = () => {
                             fontSize: "11px",
                             fontWeight: "700",
                             backgroundColor: inv.status === "CANCELADA" ? "#fee2e2" : inv.hasReturns ? "#fef3c7" : "#d1fae5",
-                            color: inv.status === "CANCELADA" ? "#991b1b" : inv.hasReturns ? "#92400e" : "#065f46"
+                            color: inv.status === "CANCELADA" ? "#991b1b" : inv.hasReturns ? "#92400e" : "#065f46",
+                            whiteSpace: "nowrap",
+                            display: "inline-block"
                           }}>
                             {inv.status === "CANCELADA" ? "CANCELADA" : inv.hasReturns ? "DEVOLUCIÓN" : "COMPLETADA"}
                           </span>
@@ -1418,7 +1420,7 @@ const Autofacturacion: React.FC = () => {
                             </div>
                           ) : inv.status === "CANCELADA" ? (
                             <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
-                              <span style={{ fontSize: "12px", color: "#ef4444", fontWeight: "700", fontStyle: "italic" }}>
+                              <span style={{ fontSize: "12px", color: "#ef4444", fontWeight: "700", fontStyle: "italic", whiteSpace: "nowrap" }}>
                                 Cancelada
                               </span>
                             </div>

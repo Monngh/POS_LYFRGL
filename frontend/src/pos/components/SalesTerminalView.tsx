@@ -408,10 +408,10 @@ export function SalesTerminalView({
         cartData={cartData}
         onToast={onToast}
       >
-        <div style={{ flex: 1, display: "flex", flexDirection: "row", overflow: "hidden", gap: "20px" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "row", overflowX: "auto", overflowY: "hidden", gap: "20px", minWidth: 0 }}>
           
-          <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", overflow: "hidden", gap: "16px" }}>
-            <div className="card-premium" style={{ display: "flex", gap: "24px", flexShrink: 0, alignItems: "center", padding: "8px 16px", minHeight: "44px" }}>
+          <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", overflow: "hidden", gap: "16px", minWidth: 0 }}>
+            <div className="card-premium" style={{ display: "flex", gap: "24px", flexShrink: 0, alignItems: "center", padding: "8px 16px", minHeight: "44px", overflowX: "auto" }}>
               <div style={{ flex: "2 1 0", minWidth: 0 }}>
                 <ProductSearchPanel
                   searchData={searchData}
