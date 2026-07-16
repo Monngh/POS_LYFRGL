@@ -731,17 +731,14 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     if (scope !== "SELECTED_PRODUCTS") return null;
 
     return (
-      <div style={styles.subsection}>
-        <div style={styles.subsectionHeader}>
+      <div style={styles.manualPickerSection}>
+        <div style={styles.manualPickerHeader}>
           <div>
             <h3 style={styles.subsectionTitle}>Productos activos disponibles</h3>
             <p style={styles.helpText}>Busca y selecciona productos para agregarlos al ajuste.</p>
           </div>
-          <span style={styles.counterPill}>
-            {manualSelectedIds.size} seleccionado{manualSelectedIds.size === 1 ? "" : "s"}
-          </span>
         </div>
-        <Toolbar>
+        <div style={styles.manualPickerToolbar}>
           <SearchInput value={availableSearch} onChange={setAvailableSearch} placeholder="Buscar SKU, codigo o producto" />
           <button type="button" style={ui.ghostBtn} onClick={toggleAllVisibleManual} disabled={availableLoading}>
             {allVisibleAvailableSelected ? "Limpiar visibles" : "Seleccionar visibles"}
@@ -762,13 +759,24 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
             {resolveLoading ? <Loader2 size={16} /> : <Search size={16} />}
             Agregar seleccionados al ajuste
           </button>
-        </Toolbar>
+          <span style={styles.manualPickerCounter}>
+            {manualSelectedIds.size} seleccionado{manualSelectedIds.size === 1 ? "" : "s"}
+          </span>
+        </div>
 
-        <div style={{ ...ui.tableWrap, maxHeight: 310, overflowY: "auto" }}>
-          <table style={{ ...ui.table, minWidth: 760 }}>
+        <div style={styles.adjustTableWrap}>
+          <table style={styles.availableProductsTable}>
+            <colgroup>
+              <col style={styles.availableSelectColumn} />
+              <col style={styles.availableSkuColumn} />
+              <col style={styles.availableProductColumn} />
+              <col style={styles.availableCostColumn} />
+              <col style={styles.availablePriceColumn} />
+              <col style={styles.availableCategoryColumn} />
+            </colgroup>
             <thead>
               <tr style={ui.theadRow}>
-                <th style={{ ...ui.th, width: 44, textAlign: "center" }}>
+                <th style={styles.compactCheckboxHeaderCell}>
                   <input
                     type="checkbox"
                     checked={allVisibleAvailableSelected}
@@ -777,11 +785,11 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                     style={styles.checkbox}
                   />
                 </th>
-                <th style={ui.th}>SKU</th>
-                <th style={ui.th}>Producto</th>
-                <th style={{ ...ui.th, textAlign: "right" }}>Costo</th>
-                <th style={{ ...ui.th, textAlign: "right" }}>Precio actual</th>
-                <th style={ui.th}>Categorias</th>
+                <th style={styles.compactTh}>SKU</th>
+                <th style={styles.compactTh}>Producto</th>
+                <th style={{ ...styles.compactTh, textAlign: "right" }}>Costo</th>
+                <th style={{ ...styles.compactTh, textAlign: "right" }}>Precio actual</th>
+                <th style={styles.compactTh}>Categorias</th>
               </tr>
             </thead>
             <tbody>
@@ -795,8 +803,8 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
               {!availableLoading &&
                 !availableError &&
                 filteredAvailableProducts.map((product) => (
-                  <tr key={product.id}>
-                    <td style={{ ...ui.td, textAlign: "center" }}>
+                  <tr key={product.id} style={styles.compactTableRow}>
+                    <td style={styles.compactCheckboxCell}>
                       <input
                         type="checkbox"
                         checked={manualSelectedIds.has(product.id)}
@@ -804,16 +812,16 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                         style={styles.checkbox}
                       />
                     </td>
-                    <td style={styles.codeCell}>{product.sku}</td>
-                    <td style={{ ...ui.td, whiteSpace: "normal", color: "var(--text)", fontWeight: 700 }}>
+                    <td style={styles.compactCodeCell}>{product.sku}</td>
+                    <td style={styles.compactProductCell}>
                       {product.name}
-                      {product.barcode && <div style={styles.mutedSmall}>{product.barcode}</div>}
+                      {product.barcode && <div style={styles.compactProductMeta}>{product.barcode}</div>}
                     </td>
-                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{moneyExact(Number(product.costPrice))}</td>
-                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 800, color: "var(--text)" }}>
+                    <td style={{ ...styles.compactMoneyCell, fontWeight: 700 }}>{moneyExact(Number(product.costPrice))}</td>
+                    <td style={{ ...styles.compactMoneyCell, fontWeight: 800, color: "var(--text)" }}>
                       {moneyExact(Number(product.sellPrice))}
                     </td>
-                    <td style={{ ...ui.td, whiteSpace: "normal" }}>{buildCategoryText(product)}</td>
+                    <td style={styles.compactCategoryCell}>{buildCategoryText(product)}</td>
                   </tr>
                 ))}
             </tbody>
@@ -824,8 +832,8 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   };
 
   const renderResolvedProductsTable = () => (
-    <div style={styles.subsection}>
-      <div style={styles.subsectionHeader}>
+    <div style={styles.panel}>
+      <div style={styles.groupedSectionHeader}>
         <div>
           <h3 style={styles.subsectionTitle}>Productos del ajuste</h3>
           <p style={styles.helpText}>Estos son los productos que recibirán el cambio de precio.</p>
@@ -847,11 +855,22 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
       <Toolbar>
         <SearchInput value={productSearch} onChange={setProductSearch} placeholder="Buscar en productos cargados" />
       </Toolbar>
-      <div style={{ ...ui.tableWrap, maxHeight: 390, overflowY: "auto" }}>
-        <table style={{ ...ui.table, minWidth: 980 }}>
+      <div style={styles.adjustTableWrap}>
+        <table style={styles.selectedProductsTable}>
+          <colgroup>
+            <col style={styles.selectedSelectColumn} />
+            <col style={styles.selectedSkuColumn} />
+            <col style={styles.selectedBarcodeColumn} />
+            <col style={styles.selectedProductColumn} />
+            <col style={styles.selectedCostColumn} />
+            <col style={styles.selectedPriceColumn} />
+            <col style={styles.selectedCategoryColumn} />
+            <col style={styles.selectedStatusColumn} />
+            <col style={styles.selectedActionsColumn} />
+          </colgroup>
           <thead>
             <tr style={ui.theadRow}>
-              <th style={{ ...ui.th, width: 44, textAlign: "center" }}>
+              <th style={styles.compactCheckboxHeaderCell}>
                 <input
                   type="checkbox"
                   checked={allVisibleResolvedSelected}
@@ -860,14 +879,14 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                   style={styles.checkbox}
                 />
               </th>
-              <th style={ui.th}>SKU</th>
-              <th style={ui.th}>Codigo de barras</th>
-              <th style={ui.th}>Producto</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Costo</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Precio actual</th>
-              <th style={ui.th}>Categorias</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Acciones</th>
+              <th style={styles.compactTh}>SKU</th>
+              <th style={styles.compactTh}>Codigo de barras</th>
+              <th style={styles.compactTh}>Producto</th>
+              <th style={{ ...styles.compactTh, textAlign: "right" }}>Costo</th>
+              <th style={{ ...styles.compactTh, textAlign: "right" }}>Precio actual</th>
+              <th style={styles.compactTh}>Categorias</th>
+              <th style={{ ...styles.compactTh, textAlign: "center" }}>Estado</th>
+              <th style={{ ...styles.compactTh, textAlign: "center" }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -875,17 +894,31 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
               colSpan={9}
               loading={resolveLoading}
               error={resolveError}
-              empty={!resolveLoading && filteredResolvedProducts.length === 0}
-              emptyText={
-                resolvedProducts.length === 0
-                  ? "Busca productos para comenzar."
-                  : "No hay productos cargados con esa busqueda."
-              }
+              empty={false}
             />
+            {!resolveLoading && !resolveError && filteredResolvedProducts.length === 0 && (
+              <tr>
+                <td colSpan={9} style={styles.compactEmptyCell}>
+                  <strong style={styles.compactEmptyTitle}>
+                    {resolvedProducts.length === 0
+                      ? "Aun no hay productos agregados al ajuste."
+                      : "No hay productos cargados con esa busqueda."}
+                  </strong>
+                  <div style={styles.compactEmptyText}>
+                    {resolvedProducts.length === 0
+                      ? "Selecciona productos en la seccion superior para comenzar."
+                      : "Ajusta la busqueda para ver productos seleccionados."}
+                  </div>
+                </td>
+              </tr>
+            )}
             {!resolveLoading &&
               filteredResolvedProducts.map((product) => (
-                <tr key={product.id} style={selectedProductIds.has(product.id) ? styles.selectedRow : undefined}>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
+                <tr
+                  key={product.id}
+                  style={selectedProductIds.has(product.id) ? { ...styles.compactTableRow, ...styles.selectedRow } : styles.compactTableRow}
+                >
+                  <td style={styles.compactCheckboxCell}>
                     <input
                       type="checkbox"
                       checked={selectedProductIds.has(product.id)}
@@ -893,18 +926,18 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                       style={styles.checkbox}
                     />
                   </td>
-                  <td style={styles.codeCell}>{product.sku}</td>
-                  <td style={ui.td}>{product.barcode || "-"}</td>
-                  <td style={{ ...ui.td, whiteSpace: "normal", color: "var(--text)", fontWeight: 700 }}>{product.name}</td>
-                  <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{moneyExact(Number(product.costPrice))}</td>
-                  <td style={{ ...ui.td, textAlign: "right", fontWeight: 800, color: "var(--text)" }}>
+                  <td style={styles.compactCodeCell}>{product.sku}</td>
+                  <td style={styles.compactBarcodeCell}>{product.barcode || "-"}</td>
+                  <td style={styles.compactProductCell}>{product.name}</td>
+                  <td style={{ ...styles.compactMoneyCell, fontWeight: 700 }}>{moneyExact(Number(product.costPrice))}</td>
+                  <td style={{ ...styles.compactMoneyCell, fontWeight: 800, color: "var(--text)" }}>
                     {moneyExact(Number(product.sellPrice))}
                   </td>
-                  <td style={{ ...ui.td, whiteSpace: "normal" }}>{buildCategoryText(product)}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
+                  <td style={styles.compactCategoryCell}>{buildCategoryText(product)}</td>
+                  <td style={styles.compactStatusCell}>
                     <Badge tone={product.active ? "green" : "red"}>{product.active ? "Activo" : "Inactivo"}</Badge>
                   </td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
+                  <td style={styles.compactActionCell}>
                     <button
                       type="button"
                       style={ui.linkBtn}
@@ -1061,7 +1094,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   };
 
   const renderAdjustTab = () => (
-    <div style={styles.stack}>
+    <div style={styles.adjustStack}>
       <div style={styles.panel}>
         <div
           style={{
@@ -1145,7 +1178,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
       {renderResolvedProductsTable()}
 
       <div style={styles.panel}>
-        <div style={styles.subsectionHeader}>
+        <div style={styles.groupedSectionHeader}>
           <div>
             <h3 style={styles.subsectionTitle}>Configurar ajuste</h3>
             <p style={styles.helpText}>La vista previa recalcula precios desde el backend antes de aplicar cambios.</p>
@@ -1154,7 +1187,16 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
             {selectedProductIds.size} producto{selectedProductIds.size === 1 ? "" : "s"}
           </span>
         </div>
-        <div style={styles.formGrid}>
+        <div
+          style={{
+            ...styles.adjustFormGrid,
+            gridTemplateColumns: filtersStacked
+              ? "1fr"
+              : filtersTwoColumn
+                ? "minmax(220px, 1fr) minmax(220px, 1fr)"
+                : "minmax(240px, 1fr) minmax(240px, 1fr) max-content",
+          }}
+        >
           <div>
             <label style={ui.fieldLabel}>Operacion</label>
             <select style={ui.input} value={operation} onChange={(event) => changeOperation(event.target.value as PriceAdjustmentOperation)}>
@@ -1530,13 +1572,19 @@ const styles: { [key: string]: React.CSSProperties } = {
     flexDirection: "column",
     gap: 16,
   },
+  adjustStack: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 18,
+    width: "100%",
+    maxWidth: 1280,
+  },
   panel: {
     ...ui.panel,
     padding: 18,
   },
-  formGrid: {
+  adjustFormGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
     gap: 14,
     alignItems: "end",
   },
@@ -1577,16 +1625,24 @@ const styles: { [key: string]: React.CSSProperties } = {
     justifyContent: "flex-start",
     minHeight: 64,
   },
-  subsection: {
-    marginTop: 16,
+  manualPickerSection: {
+    marginTop: 14,
   },
-  subsectionHeader: {
+  groupedSectionHeader: {
     display: "flex",
     alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 14,
+    justifyContent: "flex-start",
+    gap: 12,
     flexWrap: "wrap",
     marginBottom: 12,
+  },
+  manualPickerHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "flex-start",
+    gap: 12,
+    flexWrap: "wrap",
+    marginBottom: 9,
   },
   subsectionTitle: {
     margin: 0,
@@ -1617,6 +1673,197 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: "center",
     gap: 8,
     flexWrap: "wrap",
+  },
+  manualPickerToolbar: {
+    ...ui.toolbar,
+    gap: 8,
+    marginBottom: 10,
+  },
+  manualPickerCounter: {
+    display: "inline-flex",
+    alignItems: "center",
+    height: 30,
+    padding: "0 10px",
+    borderRadius: 999,
+    backgroundColor: "var(--surface-2)",
+    border: "1px solid var(--border)",
+    color: "var(--text-secondary)",
+    fontSize: 12,
+    fontWeight: 800,
+  },
+  adjustTableWrap: {
+    ...ui.tableWrap,
+    width: "100%",
+    maxWidth: "100%",
+    maxHeight: 340,
+    overflowX: "auto",
+    overflowY: "auto",
+  },
+  availableProductsTable: {
+    ...ui.table,
+    width: "100%",
+    minWidth: 920,
+    tableLayout: "fixed",
+  },
+  availableSelectColumn: {
+    width: 44,
+  },
+  availableSkuColumn: {
+    width: 108,
+  },
+  availableProductColumn: {
+    width: "35%",
+  },
+  availableCostColumn: {
+    width: 104,
+  },
+  availablePriceColumn: {
+    width: 120,
+  },
+  availableCategoryColumn: {
+    width: "25%",
+  },
+  selectedProductsTable: {
+    ...ui.table,
+    width: "100%",
+    minWidth: 1120,
+    tableLayout: "fixed",
+  },
+  selectedSelectColumn: {
+    width: 44,
+  },
+  selectedSkuColumn: {
+    width: 92,
+  },
+  selectedBarcodeColumn: {
+    width: 130,
+  },
+  selectedProductColumn: {
+    width: "25%",
+  },
+  selectedCostColumn: {
+    width: 104,
+  },
+  selectedPriceColumn: {
+    width: 120,
+  },
+  selectedCategoryColumn: {
+    width: "19%",
+  },
+  selectedStatusColumn: {
+    width: 86,
+  },
+  selectedActionsColumn: {
+    width: 86,
+  },
+  compactTableRow: {
+    minHeight: 42,
+  },
+  compactTh: {
+    ...ui.th,
+    padding: "8px 12px",
+    verticalAlign: "middle",
+  },
+  compactMoneyCell: {
+    ...ui.td,
+    padding: "8px 12px",
+    textAlign: "right",
+    verticalAlign: "middle",
+    lineHeight: 1.25,
+  },
+  compactCategoryCell: {
+    ...ui.td,
+    padding: "8px 12px",
+    whiteSpace: "normal",
+    verticalAlign: "middle",
+    lineHeight: 1.25,
+    overflowWrap: "break-word",
+  },
+  compactCheckboxHeaderCell: {
+    ...ui.th,
+    width: 44,
+    padding: "8px",
+    textAlign: "center",
+    verticalAlign: "middle",
+  },
+  compactCheckboxCell: {
+    ...ui.td,
+    width: 44,
+    padding: "8px",
+    textAlign: "center",
+    verticalAlign: "middle",
+    lineHeight: 1,
+  },
+  compactCodeCell: {
+    ...ui.td,
+    padding: "8px 12px",
+    verticalAlign: "middle",
+    lineHeight: 1.25,
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    fontSize: 12,
+    color: "var(--text-muted)",
+  },
+  compactBarcodeCell: {
+    ...ui.td,
+    padding: "8px 12px",
+    verticalAlign: "middle",
+    lineHeight: 1.25,
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    fontSize: 12,
+    color: "var(--text-muted)",
+    overflowWrap: "break-word",
+    whiteSpace: "normal",
+  },
+  compactProductCell: {
+    ...ui.td,
+    padding: "8px 12px",
+    whiteSpace: "normal",
+    verticalAlign: "middle",
+    color: "var(--text)",
+    fontWeight: 700,
+    lineHeight: 1.2,
+    overflowWrap: "break-word",
+  },
+  compactProductMeta: {
+    color: "var(--text-faint)",
+    fontSize: 11,
+    fontWeight: 600,
+    marginTop: 1,
+    lineHeight: 1.15,
+  },
+  compactStatusCell: {
+    ...ui.td,
+    padding: "8px 12px",
+    textAlign: "center",
+    verticalAlign: "middle",
+    lineHeight: 1.25,
+  },
+  compactActionCell: {
+    ...ui.td,
+    padding: "8px 12px",
+    textAlign: "center",
+    verticalAlign: "middle",
+    lineHeight: 1.25,
+  },
+  compactEmptyCell: {
+    textAlign: "center",
+    padding: "24px 16px",
+    color: "var(--text-muted)",
+    fontSize: 13,
+    fontWeight: 600,
+    borderBottom: "1px solid var(--border-soft)",
+  },
+  compactEmptyTitle: {
+    display: "block",
+    color: "var(--text-secondary)",
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  compactEmptyText: {
+    marginTop: 4,
+    color: "var(--text-faint)",
+    fontSize: 12,
+    fontWeight: 600,
   },
   checkbox: {
     width: 16,
