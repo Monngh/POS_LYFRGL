@@ -199,7 +199,6 @@ const InlineAlert: React.FC<{ tone: "success" | "warning" | "error" | "info"; ch
 const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   const { showToast } = useToast();
   const isMobile = useMediaQuery("(max-width: 1024px)");
-  const filtersTwoColumn = useMediaQuery("(max-width: 1180px)");
   const filtersStacked = useMediaQuery("(max-width: 640px)");
 
   const [activeTab, setActiveTab] = useState<TabKey>("adjust");
@@ -226,7 +225,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const [operation, setOperation] = useState<PriceAdjustmentOperation>("PERCENT_INCREASE");
   const [adjustmentValue, setAdjustmentValue] = useState("");
-  const [valueError, setValueError] = useState<string | null>(null);
+  const [valueTouched, setValueTouched] = useState(false);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -236,6 +235,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [applying, setApplying] = useState(false);
   const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
   const resolveRequestIdRef = useRef(0);
+  const previewRequestIdRef = useRef(0);
   const removedProductToastGuardRef = useRef<Set<number>>(new Set());
 
   const [historySearch, setHistorySearch] = useState("");
@@ -317,6 +317,10 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const previewRequiresNotes = preview?.requiresReason ?? false;
   const previewRequiresBelowCostConfirmation = preview?.requiresBelowCostConfirmation ?? false;
+  const valueError = useMemo(() => {
+    if (!adjustmentValue.trim() && !valueTouched) return null;
+    return getValueError(operation, adjustmentValue);
+  }, [adjustmentValue, operation, valueTouched]);
   const notesError = previewRequiresNotes && !notes.trim() ? "El motivo es obligatorio para este ajuste." : null;
   const canApplyPreview =
     Boolean(preview) &&
@@ -355,7 +359,22 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     };
   }, [categoryId, resolvedProducts.length, scope, scopeDepartmentId, scopeDivisionId]);
 
+  const previewStatusText = useMemo(() => {
+    if (previewLoading) return "Calculando vista previa...";
+    if (selectedProductIdArray.length === 0) return "Agrega productos para activar la vista previa.";
+    if (!adjustmentValue.trim()) return "Ingresa un valor para calcular la vista previa.";
+    if (valueError) return "Corrige el valor para recalcular la vista previa.";
+    if (preview) return "Vista previa actualizada automaticamente.";
+    return "La vista previa se generara automaticamente.";
+  }, [adjustmentValue, preview, previewLoading, selectedProductIdArray.length, valueError]);
+
+  const cancelPendingPreview = () => {
+    previewRequestIdRef.current += 1;
+    setPreviewLoading(false);
+  };
+
   const resetPreviewState = () => {
+    cancelPendingPreview();
     setPreview(null);
     setPreviewError(null);
     setApplyError(null);
@@ -389,7 +408,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     setProductSearch("");
     setOperation("PERCENT_INCREASE");
     setAdjustmentValue("");
-    setValueError(null);
+    setValueTouched(false);
     resetPreviewState();
   };
 
@@ -724,48 +743,63 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   };
 
   const changeAdjustmentValue = (value: string) => {
-    if (!VALUE_INPUT_REGEX.test(value)) return;
+    setValueTouched(true);
     setAdjustmentValue(value);
-    setValueError(getValueError(operation, value));
     resetPreviewState();
   };
 
   const changeOperation = (nextOperation: PriceAdjustmentOperation) => {
     setOperation(nextOperation);
-    setValueError(getValueError(nextOperation, adjustmentValue));
     resetPreviewState();
   };
 
-  const generatePreview = async () => {
-    const error = getValueError(operation, adjustmentValue);
-    if (error) {
-      setValueError(error);
-      return;
-    }
-    if (selectedProductIdArray.length === 0) {
-      setPreviewError("Selecciona al menos un producto para generar la vista previa.");
+  useEffect(() => {
+    const rawValue = adjustmentValue.trim();
+    if (selectedProductIdArray.length === 0 || !rawValue || valueError) {
+      previewRequestIdRef.current += 1;
+      setPreview(null);
+      setPreviewError(null);
+      setPreviewLoading(false);
+      setApplyError(null);
+      setConfirmApplyOpen(false);
       return;
     }
 
-    setPreviewLoading(true);
+    const requestId = previewRequestIdRef.current + 1;
+    previewRequestIdRef.current = requestId;
+    setPreview(null);
     setPreviewError(null);
     setApplyError(null);
-    try {
-      const result = await priceAdjustmentsApi.preview({
-        operation,
-        value: Number(adjustmentValue),
-        productIds: selectedProductIdArray,
-      });
-      setPreview(result);
-      setConfirmBelowCost(false);
-      setNotes("");
-    } catch (error: unknown) {
-      setPreview(null);
-      setPreviewError(getApiErrorMessage(error, "No se pudo generar la vista previa."));
-    } finally {
-      setPreviewLoading(false);
-    }
-  };
+    setConfirmApplyOpen(false);
+
+    const timer = window.setTimeout(() => {
+      setPreviewLoading(true);
+      priceAdjustmentsApi
+        .preview({
+          operation,
+          value: Number(rawValue),
+          productIds: selectedProductIdArray,
+        })
+        .then((result) => {
+          if (requestId !== previewRequestIdRef.current) return;
+          setPreview(result);
+          setConfirmBelowCost(false);
+          setNotes("");
+        })
+        .catch((error: unknown) => {
+          if (requestId !== previewRequestIdRef.current) return;
+          setPreview(null);
+          setPreviewError(getApiErrorMessage(error, "No se pudo generar la vista previa."));
+        })
+        .finally(() => {
+          if (requestId === previewRequestIdRef.current) {
+            setPreviewLoading(false);
+          }
+        });
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, [adjustmentValue, operation, selectedProductIdArray, valueError]);
 
   const openApplyConfirm = () => {
     if (!canApplyPreview) {
@@ -1319,12 +1353,10 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
             ...styles.adjustFormGrid,
             gridTemplateColumns: filtersStacked
               ? "1fr"
-              : filtersTwoColumn
-                ? "minmax(220px, 1fr) minmax(220px, 1fr)"
-                : "minmax(240px, 1fr) minmax(240px, 1fr) max-content",
+              : "minmax(240px, 1fr) minmax(240px, 1fr)",
           }}
         >
-          <div>
+          <div style={styles.adjustFieldGroup}>
             <label style={ui.fieldLabel}>Operacion</label>
             <select style={ui.input} value={operation} onChange={(event) => changeOperation(event.target.value as PriceAdjustmentOperation)}>
               {operationOptions.map((option) => (
@@ -1333,39 +1365,37 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                 </option>
               ))}
             </select>
+            <div style={styles.adjustFieldMessage} aria-hidden="true" />
           </div>
-          <div>
+          <div style={styles.adjustFieldGroup}>
             <label style={ui.fieldLabel}>Valor</label>
             <div style={styles.valueInputWrap}>
               <span style={styles.valuePrefix}>
                 {operation === "PERCENT_INCREASE" || operation === "PERCENT_DECREASE" ? <Percent size={15} /> : <DollarSign size={15} />}
               </span>
               <input
-                style={{ ...ui.input, paddingLeft: 42 }}
+                id="price-adjustment-value"
+                aria-invalid={Boolean(valueError)}
+                aria-describedby={valueError ? "price-adjustment-value-error" : undefined}
+                style={styles.valueInput}
                 value={adjustmentValue}
                 onChange={(event) => changeAdjustmentValue(event.target.value)}
                 inputMode="decimal"
                 placeholder={operation === "PERCENT_INCREASE" || operation === "PERCENT_DECREASE" ? "10" : "25.00"}
               />
             </div>
-            {valueError && <p style={styles.fieldError}>{valueError}</p>}
+            <div style={styles.adjustFieldMessage}>
+              {valueError && (
+                <p id="price-adjustment-value-error" style={styles.adjustFieldError}>
+                  {valueError}
+                </p>
+              )}
+            </div>
           </div>
-          <div style={styles.formActionCell}>
-            <button
-              type="button"
-              style={{
-                ...ui.primaryBtn,
-                justifyContent: "center",
-                minWidth: 190,
-                opacity: selectedProductIds.size === 0 || previewLoading ? 0.6 : 1,
-              }}
-              onClick={generatePreview}
-              disabled={selectedProductIds.size === 0 || previewLoading}
-            >
-              {previewLoading ? <Loader2 size={16} /> : <Eye size={16} />}
-              Generar vista previa
-            </button>
-          </div>
+        </div>
+        <div style={styles.previewStatusRow} aria-live="polite">
+          {previewLoading && <Loader2 size={14} />}
+          <span>{previewStatusText}</span>
         </div>
         {previewError && <InlineAlert tone="error">{previewError}</InlineAlert>}
         {renderPreviewTable()}
@@ -1713,7 +1743,25 @@ const styles: { [key: string]: React.CSSProperties } = {
   adjustFormGrid: {
     display: "grid",
     gap: 14,
-    alignItems: "end",
+    alignItems: "start",
+  },
+  adjustFieldGroup: {
+    display: "flex",
+    flexDirection: "column",
+    minWidth: 0,
+  },
+  adjustFieldMessage: {
+    minHeight: 19,
+    marginTop: 5,
+    display: "flex",
+    alignItems: "flex-start",
+  },
+  adjustFieldError: {
+    color: "#b91c1c",
+    fontSize: 12,
+    fontWeight: 700,
+    lineHeight: 1.25,
+    margin: 0,
   },
   scopeSection: {
     display: "flex",
@@ -1776,12 +1824,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "var(--text-muted)",
     fontSize: 12,
     fontWeight: 800,
-  },
-  formActionCell: {
-    display: "flex",
-    alignItems: "flex-end",
-    justifyContent: "flex-start",
-    minHeight: 64,
   },
   manualPickerSection: {
     marginTop: 14,
@@ -2052,6 +2094,11 @@ const styles: { [key: string]: React.CSSProperties } = {
   valueInputWrap: {
     position: "relative",
   },
+  valueInput: {
+    ...ui.input,
+    width: "100%",
+    paddingLeft: 38,
+  },
   valuePrefix: {
     position: "absolute",
     left: 12,
@@ -2061,6 +2108,16 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "inline-flex",
     alignItems: "center",
     zIndex: 1,
+  },
+  previewStatusRow: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    width: "100%",
+    marginTop: 4,
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 800,
   },
   fieldError: {
     color: "#b91c1c",
