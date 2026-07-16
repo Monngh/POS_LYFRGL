@@ -65,6 +65,12 @@
   position: relative;
   z-index: 15;
   gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.pos-terminal-navbar::-webkit-scrollbar {
+  display: none;
 }
 
 .pos-terminal-navbar-left {
@@ -78,7 +84,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1;
+  flex: 1 0 auto;
   justify-content: center;
 }
 

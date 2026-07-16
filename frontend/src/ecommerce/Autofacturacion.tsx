@@ -2260,7 +2260,8 @@ const styles = {
     textAlign: "left" as const,
     padding: "8px 6px",
     color: "#475569",
-    fontWeight: "700"
+    fontWeight: "700",
+    whiteSpace: "nowrap"
   },
   tr: {
     borderBottom: "1px solid #f1f5f9"
@@ -2268,7 +2269,8 @@ const styles = {
   td: {
     padding: "10px 6px",
     color: "#334155",
-    verticalAlign: "middle"
+    verticalAlign: "middle",
+    whiteSpace: "nowrap"
   },
   promoLabel: {
     display: "inline-block",
