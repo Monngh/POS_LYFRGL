@@ -125,6 +125,7 @@ export function SalesTerminalView({
   } = customerData;
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(true);
+  const [isPromotionsModalOpen, setIsPromotionsModalOpen] = React.useState(false);
 
   const { parkedSales, fetchParkedSales, parkSale, deleteParkedSale } = useParkedSales(user?.branch?.id);
   const [mixedModalOpen, setMixedModalOpen] = React.useState(false);
@@ -399,7 +400,13 @@ export function SalesTerminalView({
       {/* Cuerpo Terminal */}
       <SalesLayoutView
         recentSales={recentSales}
-        onOpenModal={onOpenModal}
+        onOpenModal={(modal) => {
+          if (modal === "promotions") {
+            setIsPromotionsModalOpen(true);
+          } else {
+            onOpenModal(modal);
+          }
+        }}
         onLock={onLock || (() => {})}
         onReprintTicket={onReprintTicket}
         onStartReturn={onStartReturn}
@@ -428,7 +435,6 @@ export function SalesTerminalView({
 
             <div className="card-premium pos-cashier-cart-card" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "14px", gap: "10px" }}>
               <CartPanel cartData={cartData} onToast={onToast} />
-              <PromotionsGrid cart={cartData.cart} onAddProduct={cartData.addProductToCart} onToast={onToast} cartDiscount={cartData.cartDiscount} />
             </div>
           </div>
 
@@ -843,6 +849,29 @@ export function SalesTerminalView({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL: PROMOCIONES ACTIVAS */}
+      {isPromotionsModalOpen && (
+        <div style={styles.modalOverlay} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center" data-pos-modal onClick={() => setIsPromotionsModalOpen(false)}>
+          <div style={{ ...styles.checkoutModal, width: "650px", maxWidth: "90vw" }} className="pos-cashier-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ textAlign: "center", textTransform: "uppercase", fontSize: "14px", color: "var(--text-secondary)", fontWeight: "700", display: "flex", justifyContent: "space-between", alignItems: "center", margin: "0 0 16px 0" }}>
+              PROMOCIONES ACTIVAS
+              <button title="Cerrar (X)" type="button" onClick={() => setIsPromotionsModalOpen(false)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: "4px" }}>
+                <XCircle size={20} />
+              </button>
+            </h3>
+            
+            <div style={{ maxHeight: "60vh", overflowY: "auto", margin: "-10px -10px", padding: "10px" }}>
+              <PromotionsGrid cart={cartData.cart} onAddProduct={cartData.addProductToCart} onToast={onToast} cartDiscount={cartData.cartDiscount} />
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", marginTop: "16px" }} className="pos-cashier-modal-actions">
+              <button title="Cerrar (X)" data-shortcut="cancel" data-shortcut-letter="X" type="button" onClick={() => setIsPromotionsModalOpen(false)} style={{ ...styles.modalBtn, backgroundColor: "#dc2626", color: "white" }}>
+                CERRAR
+              </button>
+            </div>
           </div>
         </div>
       )}
