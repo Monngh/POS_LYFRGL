@@ -102,7 +102,7 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
         className="pos-cart-table-wrapper pos-cashier-cart-scroll"
         style={{ flex: 1, overflowY: "scroll" }}
       >
-        <table className="pos-cashier-cart-table">
+        <table className={`pos-cashier-cart-table ${hasDiscounts ? "has-discounts" : ""}`}>
           <thead>
             <tr>
               <th style={{ position: "sticky", top: 0, zIndex: 5, backgroundColor: "var(--pos-surface)" }}>Código</th>
@@ -146,6 +146,7 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
                   >
                     {/* Código */}
                     <td
+                      className="pos-cart-col-sku"
                       data-label="Código"
                       style={{ fontSize: "11px", color: "var(--pos-text-muted, #94a3b8)", fontFamily: "monospace" }}
                     >
@@ -153,7 +154,7 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
                     </td>
 
                     {/* Nombre */}
-                    <td data-label="Producto" style={{ fontWeight: "600", color: "var(--pos-text, #0f172a)", maxWidth: "160px" }}>
+                    <td className="pos-cart-col-product" data-label="Producto" style={{ fontWeight: "600", color: "var(--pos-text, #0f172a)", maxWidth: "160px" }}>
                       <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {item.product.name}
                       </div>
@@ -166,7 +167,7 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
                     </td>
 
                     {/* Cantidad */}
-                    <td data-label="Cant." style={{ textAlign: "center" }}>
+                    <td className="pos-cart-col-qty" data-label="Cant." style={{ textAlign: "center" }}>
                       <div className="pos-qty-control">
                         <button
                           type="button"
@@ -205,7 +206,7 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
                     </td>
 
                     {/* Precio unitario */}
-                    <td data-label="Precio" style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                    <td className="pos-cart-col-price" data-label="Precio" style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                       {hasDiscount ? (
                         <div>
                           <span style={{ textDecoration: "line-through", color: "var(--pos-text-muted, #94a3b8)", fontSize: "10px" }}>
@@ -223,7 +224,7 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
 
                     {/* Descuento (solo si hay alguna promo en el carrito) */}
                     {hasDiscounts && (
-                      <td data-label="Dto." style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                      <td className="pos-cart-col-discount" data-label="Dto." style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                         {hasDiscount ? (
                           <span style={{ color: "#d97706", fontWeight: "700" }}>
                             -${promoDetails.discountAmount.toFixed(2)}
@@ -236,6 +237,7 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
 
                     {/* Importe */}
                     <td
+                      className="pos-cart-col-amount"
                       data-label="Importe"
                       style={{
                         textAlign: "right",
@@ -248,7 +250,7 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
                     </td>
 
                     {/* Eliminar */}
-                    <td style={{ textAlign: "center", padding: "4px", overflow: "visible", position: "relative" }}>
+                    <td className="pos-cart-col-remove" style={{ textAlign: "center", padding: "4px", overflow: "visible", position: "relative" }}>
                       <button
                         type="button"
                         className="pos-cart-remove-btn"
