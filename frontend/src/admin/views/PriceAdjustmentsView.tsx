@@ -151,6 +151,9 @@ const buildCategoryText = (product: PriceAdjustmentProduct) =>
     ? product.categories.map((category) => `${category.code} ${category.name}`).join(", ")
     : "Sin categoria";
 
+const formatCategoryOptionLabel = (category: Pick<AdminCategoryFlatItem, "code" | "name">) =>
+  category.code ? `${category.code} · ${category.name}` : category.name;
+
 const getValueError = (operation: PriceAdjustmentOperation, rawValue: string) => {
   const raw = rawValue.trim();
   if (!raw) return "El valor del ajuste es obligatorio.";
@@ -920,17 +923,20 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
         <div style={{ ...styles.scopeOptionField, ...(filtersStacked ? styles.scopeOptionFieldFull : {}) }}>
           <label style={ui.fieldLabel}>Division</label>
           <select
-            style={ui.input}
+            style={styles.scopeSelectInput}
             value={scopeDivisionId}
             onChange={(event) => changeScopeDivision(event.target.value)}
             disabled={categoriesLoading}
           >
             <option value="">{categoriesLoading ? "Cargando divisiones..." : "Selecciona una division"}</option>
-            {scopeDivisionOptions.map((division) => (
-              <option key={division.id} value={division.id}>
-                {division.code} {division.name}
-              </option>
-            ))}
+            {scopeDivisionOptions.map((division) => {
+              const label = formatCategoryOptionLabel(division);
+              return (
+                <option key={division.id} value={division.id} title={label}>
+                  {label}
+                </option>
+              );
+            })}
           </select>
         </div>
 
@@ -938,7 +944,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
           <div style={{ ...styles.scopeOptionField, ...(filtersStacked ? styles.scopeOptionFieldFull : {}) }}>
             <label style={ui.fieldLabel}>Departamento</label>
             <select
-              style={ui.input}
+              style={styles.scopeSelectInput}
               value={scopeDepartmentId}
               onChange={(event) => changeScopeDepartment(event.target.value)}
               disabled={categoriesLoading || !scopeDivisionId}
@@ -950,11 +956,14 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                     ? "Cargando departamentos..."
                     : "Selecciona un departamento"}
               </option>
-              {scopeDepartmentOptions.map((department) => (
-                <option key={department.id} value={department.id}>
-                  {department.code} {department.name}
-                </option>
-              ))}
+              {scopeDepartmentOptions.map((department) => {
+                const label = formatCategoryOptionLabel(department);
+                return (
+                  <option key={department.id} value={department.id} title={label}>
+                    {label}
+                  </option>
+                );
+              })}
             </select>
           </div>
         )}
@@ -963,7 +972,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
           <div style={{ ...styles.scopeOptionField, ...(filtersStacked ? styles.scopeOptionFieldFull : {}) }}>
             <label style={ui.fieldLabel}>Categoria</label>
             <select
-              style={ui.input}
+              style={styles.scopeSelectInput}
               value={categoryId}
               onChange={(event) => changeScopeCategory(event.target.value)}
               disabled={categoriesLoading || !scopeDepartmentId}
@@ -975,11 +984,14 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                     ? "Cargando categorias..."
                     : "Selecciona una categoria"}
               </option>
-              {scopeCategoryOptions.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.code} {category.name}
-                </option>
-              ))}
+              {scopeCategoryOptions.map((category) => {
+                const label = formatCategoryOptionLabel(category);
+                return (
+                  <option key={category.id} value={category.id} title={label}>
+                    {label}
+                  </option>
+                );
+              })}
             </select>
           </div>
         )}
@@ -1701,6 +1713,16 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   scopeSelectFieldFull: {
     maxWidth: "100%",
+  },
+  scopeSelectInput: {
+    ...ui.input,
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    paddingRight: 36,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
   scopeOptions: {
     minHeight: 44,
