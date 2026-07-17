@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { usePosCart } from "../hooks/usePosCart";
-import { Bell } from "lucide-react";
+import { Bell, X } from "lucide-react";
 
 interface CheckoutPanelProps {
   cartData: ReturnType<typeof usePosCart>;
@@ -54,6 +54,10 @@ export function CheckoutPanel({
 
   const [isQrExpanded, setIsQrExpanded] = useState(false);
   const [isParkedExpanded, setIsParkedExpanded] = useState(false);
+
+  // Mobile modal state
+  const [isMobileParkedModalOpen, setIsMobileParkedModalOpen] = useState(false);
+  const [isMobileQrModalOpen, setIsMobileQrModalOpen] = useState(false);
 
   const parkedListRef = useRef<HTMLDivElement>(null);
   const qrListRef = useRef<HTMLDivElement>(null);
@@ -158,7 +162,6 @@ export function CheckoutPanel({
   }, [isEmpty]);
 
   // Encontrar info del método de pago activo
-
   return (
     <div className="pos-checkout-panel">
 
@@ -166,10 +169,11 @@ export function CheckoutPanel({
       <div className="pos-checkout-left-col">
         {/* COLUMNA DERECHA: Ventas en Espera (Pausadas) */}
         {parkedSales.length > 0 && (
-          <div style={{ flex: isParkedExpanded ? 1 : "none", display: "flex", flexDirection: "column", marginBottom: "8px", minHeight: 0, transition: "flex 0.2s ease-out" }}>
+          <div style={{ flex: isParkedExpanded ? 1 : "none", display: "flex", flexDirection: "column", marginBottom: "8px", minHeight: 0, transition: "flex 0.2s ease-out" }} className="pos-hide-on-mobile">
             <button
               type="button"
               onClick={() => setIsParkedExpanded(!isParkedExpanded)}
+              className="pos-checkout-accordion-btn pos-hide-on-mobile"
               style={{
                 width: "100%",
                 display: "flex",
@@ -197,7 +201,7 @@ export function CheckoutPanel({
               marginTop: isParkedExpanded ? "6px" : 0,
               flex: isParkedExpanded ? 1 : "none",
               minHeight: 0
-            }}>
+            }} className="pos-hide-on-mobile">
               <div style={{ overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
                 <div 
                   ref={parkedListRef}
@@ -259,10 +263,11 @@ export function CheckoutPanel({
 
         {/* Pagos QR Pendientes */}
         {pendingQrSales.length > 0 && (
-          <div style={{ flex: isQrExpanded ? 1 : "none", display: "flex", flexDirection: "column", marginBottom: "8px", minHeight: 0, transition: "flex 0.2s ease-out" }}>
+          <div style={{ flex: isQrExpanded ? 1 : "none", display: "flex", flexDirection: "column", marginBottom: "8px", minHeight: 0, transition: "flex 0.2s ease-out" }} className="pos-hide-on-mobile">
             <button
               type="button"
               onClick={() => setIsQrExpanded(!isQrExpanded)}
+              className="pos-checkout-accordion-btn pos-hide-on-mobile"
               style={{
                 width: "100%",
                 display: "flex",
@@ -290,7 +295,7 @@ export function CheckoutPanel({
               marginTop: isQrExpanded ? "6px" : 0,
               flex: isQrExpanded ? 1 : "none",
               minHeight: 0
-            }}>
+            }} className="pos-hide-on-mobile">
               <div style={{ overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
                 <div 
                   ref={qrListRef}
@@ -385,6 +390,29 @@ export function CheckoutPanel({
 
       {/* COLUMNA DERECHA: Total + Resumen + Botones */}
       <div className="pos-totals-col">
+
+        {/* Botones de acceso rápido a listas — SOLO MÓVIL: aparecen encima del total */}
+        <div className="pos-checkout-mobile-quick-btns">
+          {parkedSales.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsMobileParkedModalOpen(true)}
+              className="pos-checkout-mobile-quick-btn parked"
+            >
+              ⏱️ {parkedSales.length} en espera
+            </button>
+          )}
+          {pendingQrSales.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsMobileQrModalOpen(true)}
+              className="pos-checkout-mobile-quick-btn qr"
+            >
+              <Bell size={12} style={{ marginRight: "4px" }} />
+              {pendingQrSales.length} QR pendiente{pendingQrSales.length > 1 ? "s" : ""}
+            </button>
+          )}
+        </div>
 
         {/* Total gigante siempre visible */}
         <div className={`pos-total-display ${hasDiscount ? "has-discount" : ""}`}>
@@ -490,6 +518,115 @@ export function CheckoutPanel({
           </button>
         </div>
       </div>
+
+      {/* MODAL MÓVIL: Ventas en espera */}
+      {isMobileParkedModalOpen && (
+        <div className="pos-mobile-list-modal-overlay" onClick={() => setIsMobileParkedModalOpen(false)}>
+          <div className="pos-mobile-list-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pos-mobile-list-modal-header">
+              <span>⏱️ Ventas en espera ({parkedSales.length})</span>
+              <button type="button" onClick={() => setIsMobileParkedModalOpen(false)} className="pos-mobile-list-modal-close">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="pos-mobile-list-modal-body">
+              {[...parkedSales].reverse().map((sale) => (
+                <div key={sale.id} className="pos-mobile-list-modal-item">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                    <div>
+                      <div style={{ fontSize: "13px", fontWeight: "700", color: "#0f172a" }}>
+                        {sale.customer ? sale.customer.name : "Venta Anónima"}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#64748b" }}>
+                        {new Date(sale.createdAt).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: "15px", fontWeight: "800", color: "#1e3a8a" }}>
+                      ${Number(sale.total).toFixed(2)}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      onClick={() => { onDeleteParkedSale && onDeleteParkedSale(sale.id); }}
+                      style={{ flex: 1, padding: "8px", border: "1px solid #ef4444", color: "#ef4444", borderRadius: "6px", fontSize: "12px", cursor: "pointer", fontWeight: "700", background: "transparent" }}
+                    >
+                      Eliminar
+                    </button>
+                    <button
+                      onClick={() => { onRecoverParkedSale && onRecoverParkedSale(sale); setIsMobileParkedModalOpen(false); }}
+                      style={{ flex: 2, padding: "8px", background: "#2563eb", border: "none", color: "white", borderRadius: "6px", fontSize: "12px", cursor: "pointer", fontWeight: "700" }}
+                    >
+                      Recuperar venta
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL MÓVIL: QRs pendientes */}
+      {isMobileQrModalOpen && (
+        <div className="pos-mobile-list-modal-overlay" onClick={() => setIsMobileQrModalOpen(false)}>
+          <div className="pos-mobile-list-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pos-mobile-list-modal-header">
+              <span><Bell size={14} style={{ marginRight: "6px", verticalAlign: "middle" }} />Pagos QR pendientes ({pendingQrSales.length})</span>
+              <button type="button" onClick={() => setIsMobileQrModalOpen(false)} className="pos-mobile-list-modal-close">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="pos-mobile-list-modal-body">
+              {[...pendingQrSales].reverse().map((sale) => {
+                const isChecking = pendingQrChecking === sale.invoiceNumber;
+                const isApproved = sale.status === "approved";
+                const isRejected = sale.status === "rejected";
+                return (
+                  <div key={sale.id} className="pos-mobile-list-modal-item">
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                      <span style={{ fontSize: "12px", fontWeight: "600", color: "#475569" }}>
+                        ...{sale.invoiceNumber.slice(-6)}
+                      </span>
+                      <span style={{ fontSize: "14px", fontWeight: "800", color: "#0f172a" }}>
+                        ${Number(sale.amount).toFixed(2)}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: "4px",
+                        padding: "2px 8px", borderRadius: "8px", fontSize: "10px", fontWeight: "800",
+                        backgroundColor: isApproved ? "#dcfce7" : isRejected ? "#fee2e2" : "#ffedd5",
+                        color: isApproved ? "#15803d" : isRejected ? "#b91c1c" : "#c2410c",
+                      }}>
+                        <span style={{ width: "5px", height: "5px", borderRadius: "50%", backgroundColor: isApproved ? "#22c55e" : isRejected ? "#ef4444" : "#f97316" }} />
+                        {isApproved ? "Aprobado" : isRejected ? "Rechazado" : "Pendiente"}
+                      </span>
+                      <button
+                        onClick={() => { setPendingCancelFieldErrors({}); setViewingPendingQrSale(sale); setIsMobileQrModalOpen(false); }}
+                        style={{ padding: "6px 12px", borderRadius: "4px", fontSize: "11px", fontWeight: "700", backgroundColor: "#dbeafe", color: "#1e40af", border: "1px solid #93c5fd", cursor: "pointer" }}
+                      >
+                        Ver QR
+                      </button>
+                      <button
+                        onClick={() => checkPendingQrStatus(sale.invoiceNumber)}
+                        disabled={isChecking}
+                        style={{
+                          padding: "6px 12px", borderRadius: "4px", fontSize: "11px", fontWeight: "700",
+                          backgroundColor: isChecking ? "#e2e8f0" : "#1e40af",
+                          color: isChecking ? "#94a3b8" : "white",
+                          border: "none", cursor: isChecking ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {isChecking ? "..." : "Verificar"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -42,9 +42,9 @@ export function QuickActionsCarousel({ onOpenModal, onLock }: QuickActionsCarous
   };
 
   return (
-    <div className="pos-quick-actions-container" style={{ padding: "10px 0" }}>
+    <div className="pos-quick-actions-container" style={{ padding: "10px 0", width: "100%" }}>
 
-      <div className="pos-quick-actions-bar" style={{ display: "flex", flexDirection: "column", gap: "10px", alignItems: "center" }}>
+      <div className="pos-quick-actions-bar" style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", width: "100%" }}>
         {ALL_ACTIONS.map((action) => {
           const Icon = action.icon;
           return (
@@ -72,8 +72,8 @@ export function QuickActionsCarousel({ onOpenModal, onLock }: QuickActionsCarous
                 position: "relative"
               }}
             >
-              <Icon size={20} style={{ marginBottom: "2px" }} />
-              <span style={{ fontSize: "8px", fontWeight: "700", textAlign: "center", lineHeight: "1" }}>{action.label}</span>
+              <Icon size={20} className="pos-quick-action-icon" />
+              <span className="pos-quick-action-label" style={{ fontSize: "8px", fontWeight: "700", textAlign: "center", lineHeight: "1" }}>{action.label}</span>
               <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px" }}>
                 {action.shortcutLabel}
               </span>

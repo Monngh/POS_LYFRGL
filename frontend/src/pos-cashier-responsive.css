@@ -854,6 +854,18 @@
     font-weight: 800;
   }
 
+  /* ══════════════════════════════════════════════════════════════
+     Tablet cart — layout exacto como imagen de referencia:
+     ┌──────────────────────────────────────────────────┐ ×
+     │ Nombre del producto (bold)                       │
+     │ 🏷 badge de promo                                │
+     ├────────────────┬──────────────────────┬──────────┤
+     │ PROD-001       │   Dto: -$3.67        │ [− 2 +]  │
+     ├────────────────┼──────────────────────┴──────────┤
+     │ Unitario: $X   │   Importe: $XX.XX               │
+     └────────────────┴─────────────────────────────────┘
+     ══════════════════════════════════════════════════════════════ */
+
   .pos-cashier-cart-table,
   .pos-cashier-cart-table tbody {
     display: block;
@@ -865,32 +877,41 @@
     display: none;
   }
 
+  /* Grid base (sin descuento):
+       [product ..... remove]
+       [sku ........ qty    ]
+       [price ...... amount ] */
   .pos-cashier-cart-table tbody tr {
     position: relative;
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-rows: auto auto auto;
     grid-template-areas:
-      "product remove"
-      "sku remove"
-      "price qty"
-      "amount qty";
-    gap: 5px 18px;
+      "product  product  remove"
+      "sku      price    qty"
+      ".        amount   qty";
+    column-gap: 16px;
+    row-gap: 4px;
+    align-items: start;
     width: 100%;
-    margin-bottom: 12px;
-    padding: 16px;
+    margin-bottom: 8px;
+    padding: 12px 16px;
     border: 1px solid var(--border-strong) !important;
     border-radius: 8px;
     background: var(--surface);
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
   }
 
+  /* Grid con descuento:
+       [product .....     remove]
+       [sku .... discount   qty ]
+       [price .. amount     qty ] */
   .pos-cashier-cart-table.has-discounts tbody tr {
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
     grid-template-areas:
-      "product remove"
-      "sku remove"
-      "price qty"
-      "discount qty"
-      "amount qty";
+      "product  product   product   remove"
+      "sku      price     discount  qty"
+      ".        amount    amount    qty";
   }
 
   .pos-cashier-cart-table tbody tr > td {
@@ -898,70 +919,128 @@
     min-width: 0;
     padding: 0 !important;
     border: 0 !important;
-    white-space: normal !important;
+    white-space: nowrap !important;
   }
 
-  .pos-cashier-cart-table tbody tr > td.pos-cart-col-sku {
-    grid-area: sku;
-    color: var(--text-muted) !important;
-    font-size: 13px !important;
-    font-weight: 600;
-  }
-
+  /* ── Nombre del producto ── */
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-product {
     grid-area: product;
-    padding-right: 28px !important;
     color: var(--text) !important;
-    font-size: 17px !important;
+    font-size: 15px !important;
     font-weight: 800 !important;
     line-height: 1.25;
     max-width: none !important;
+    padding-right: 4px !important;
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-product > div {
-    white-space: normal !important;
-    overflow: visible !important;
-    text-overflow: clip !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
+  /* El badge de promoción queda debajo del nombre (inline) */
+  .pos-cashier-cart-table tbody tr > td.pos-cart-col-product .pos-cart-promo-badge {
+    margin-top: 2px;
+    font-size: 10px !important;
+  }
+
+  /* ── Botón de eliminar (×) — arriba a la derecha ── */
+  .pos-cashier-cart-table tbody tr > td.pos-cart-col-remove {
+    grid-area: remove;
+    align-self: start;
+    justify-self: end;
+  }
+
+  .pos-cashier-cart-table tbody tr > td.pos-cart-col-remove button {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    color: var(--pos-text-muted, #94a3b8) !important;
+    transition: all 0.15s;
+  }
+
+  .pos-cashier-cart-table tbody tr > td.pos-cart-col-remove button:hover {
+    background: rgba(239, 68, 68, 0.1) !important;
+    color: #dc2626 !important;
+  }
+
+  .pos-cashier-cart-table tbody tr > td.pos-cart-col-remove svg {
+    width: 14px;
+    height: 14px;
+    color: inherit;
+    stroke: currentColor;
+  }
+
+  .pos-cashier-cart-table tbody tr > td.pos-cart-col-remove .pos-cart-remove-shortcut {
+    display: none !important;
+  }
+
+  /* ── SKU (fila 2, columna izquierda) ── */
+  .pos-cashier-cart-table tbody tr > td.pos-cart-col-sku {
+    grid-area: sku;
+    color: var(--text-muted) !important;
+    font-size: 11px !important;
+    font-weight: 600;
+    font-family: monospace;
+    align-self: center;
+  }
+
+  /* ── Control de cantidad (columna derecha, filas 2-3) ── */
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-qty {
     grid-area: qty;
     align-self: center;
     justify-self: end;
+    grid-row: span 2;
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-qty > div {
-    height: 30px;
+    height: 28px;
     border-radius: 4px !important;
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-qty button {
-    width: 28px !important;
-    height: 28px !important;
+    width: 26px !important;
+    height: 26px !important;
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-qty input {
-    width: 32px !important;
-    height: 28px !important;
-    font-size: 13px !important;
+    width: 30px !important;
+    height: 26px !important;
+    font-size: 12px !important;
   }
 
+  /* ── Precio unitario (fila 2, col centro) ──
+     Sin descuento: "Unitario: $xx.xx"
+     Con descuento: "$xx.xx ~~$original~~" */
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-price {
     grid-area: price;
     color: var(--text-secondary) !important;
-    font-size: 13px !important;
+    font-size: 12px !important;
     align-self: center;
     display: flex !important;
     flex-direction: row !important;
     align-items: baseline !important;
     flex-wrap: nowrap !important;
-    gap: 0 4px;
+    gap: 4px;
+    white-space: nowrap;
   }
 
+  /* "Unitario: " como prefijo */
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-price::before {
     content: "Unitario: ";
     white-space: nowrap;
     flex-shrink: 0;
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 600;
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-price > div {
@@ -980,73 +1059,55 @@
     white-space: nowrap !important;
   }
 
+  /* ── Descuento (fila 2, col derecha — solo con descuento) ── */
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-discount {
     grid-area: discount;
     align-self: center;
     justify-self: start;
     text-align: left !important;
     color: #d97706 !important;
-    font-size: 14px !important;
+    font-size: 13px !important;
     font-weight: 800 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: baseline !important;
+    gap: 4px;
+    white-space: nowrap;
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-discount::before {
     content: "Dto: ";
     color: var(--text-secondary);
-    font-weight: 500;
+    font-size: 11px;
+    font-weight: 600;
   }
 
+  /* ── Importe total (fila 3, col centro+derecha) ── */
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-amount {
     grid-area: amount;
     align-self: center;
     justify-self: start;
     text-align: left !important;
     color: var(--text) !important;
-    font-size: 15px !important;
+    font-size: 14px !important;
     font-weight: 800 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: baseline !important;
+    gap: 4px;
+    white-space: nowrap;
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-amount::before {
     content: "Importe: ";
-    color: var(--text);
-    font-weight: 500;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 600;
   }
 
-  .pos-cashier-cart-table tbody tr > td.pos-cart-col-remove {
-    grid-area: remove;
-    align-self: start;
-    justify-self: end;
-  }
-
-  .pos-cashier-cart-table tbody tr > td.pos-cart-col-remove button {
-    width: 24px;
-    height: 24px;
-    border-radius: 4px !important;
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    color: var(--pos-text-muted, #94a3b8) !important;
-    transition: all 0.15s;
-  }
-
-  .pos-cashier-cart-table tbody tr > td.pos-cart-col-remove button:hover {
-    background: var(--pos-red-light, rgba(239, 68, 68, 0.1)) !important;
-    color: var(--pos-red, #dc2626) !important;
-  }
-
-  .pos-cashier-cart-table tbody tr > td.pos-cart-col-remove svg {
-    width: 16px;
-    height: 16px;
-    color: inherit;
-    stroke: currentColor;
-  }
-
-  .pos-cashier-cart-table tbody tr > td.pos-cart-col-remove .pos-cart-remove-shortcut {
-    display: none !important;
+  /* Sin descuento: el importe también es visible (en fila 3) */
+  .pos-cashier-cart-table:not(.has-discounts) tbody tr > td.pos-cart-col-amount {
+    display: flex !important;
   }
 
   .pos-cashier-terminal-summary {
@@ -1060,6 +1121,7 @@
     width: 100% !important;
   }
 }
+
 
 /* Dashboard cajero: tablas compactas con menu en tablet/movil */
 @media (max-width: 1024px) {
