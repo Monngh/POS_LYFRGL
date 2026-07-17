@@ -382,8 +382,8 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
           const perUnitTax = Number(sdt.taxAmount) / saleDetail.quantity;
           lineTaxRefund += Number((perUnitTax * requestedQty).toFixed(2));
         }
-      } else {
-        // Fallback para ventas antiguas sin SaleDetailTax: usar 16% IVA por defecto
+      } else if (Number(saleDetail.taxAmount) > 0) {
+        // Fallback para ventas antiguas sin SaleDetailTax pero con impuesto en el detalle
         lineTaxRefund = lineNetRefund * 0.16;
       }
 
@@ -406,7 +406,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       });
     }
 
-    const refundTotal = (refundSubtotal - refundDiscount) + refundTax;
+    const refundTotal = refundSubtotal - refundDiscount;
 
     // 5. Procesar cambio de producto (si aplica)
     let exchangeSale: any = null;

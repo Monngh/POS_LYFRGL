@@ -47,6 +47,7 @@ export interface InvoiceHistoryItem {
   pdfUrl: string | null;
   xmlUrl: string | null;
   returnCfdiUuid?: string | null;
+  returnCfdiUuids?: string[];
   returnPdfUrl?: string | null;
   returnXmlUrl?: string | null;
   hasReturns?: boolean;

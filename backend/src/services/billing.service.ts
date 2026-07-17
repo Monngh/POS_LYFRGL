@@ -367,7 +367,10 @@ export class BillingService {
         const discountPerUnit = Number(detail.discountAmount) / quantity;
         const netUnitPrice = unitPrice - discountPerUnit;
 
-        const applicableTaxes = detail.product.productTaxes.filter((pt) => pt.taxType.active);
+        let applicableTaxes = detail.product.productTaxes.filter((pt) => pt.taxType.active);
+        if (Number(detail.taxAmount) <= 0) {
+          applicableTaxes = [];
+        }
 
         let ivaRate = 0;
         let iepsRate = 0;
@@ -406,8 +409,8 @@ export class BillingService {
           };
         });
 
-        // Fallback a IVA 16% si no hay impuestos
-        if (mappedTaxes.length === 0) {
+        // Fallback a IVA 16% si no hay impuestos pero la devolución tiene un monto de impuesto
+        if (mappedTaxes.length === 0 && Number(detail.taxAmount) > 0) {
           mappedTaxes.push({
             rate: 0.16,
             type: "IVA",
@@ -428,35 +431,70 @@ export class BillingService {
       });
 
       const defaultZip = (process.env.CORPORATE_ZIP || "42080").trim();
-      const rfc = sale.customer?.taxId?.toUpperCase() || "XAXX010101000";
-      const isGeneric = rfc === "XAXX010101000";
+      let rfc = sale.customer?.taxId?.toUpperCase() || "XAXX010101000";
+      let legal_name = rfc === "XAXX010101000" ? "PÚBLICO GENERAL" : (sale.customer?.name.toUpperCase() || "PÚBLICO GENERAL");
+      let tax_system = rfc === "XAXX010101000" ? "616" : (sale.customer?.taxRegime || "616");
+      let zip = rfc === "XAXX010101000" ? defaultZip : (sale.customer?.zipCode || defaultZip);
+      let email = sale.cfdiEmail || sale.customer?.email || "clientes@fmb.com";
+      let cfdiUse = rfc === "XAXX010101000" ? "S01" : (sale.customer?.cfdiUse || "G02");
 
       const cleanUuid = sale.cfdiUuid ? (sale.cfdiUuid.startsWith("GLOBAL:") ? sale.cfdiUuid.split(":")[1] : sale.cfdiUuid.split(":")[0]) : null;
+      
+      const parts = sale.cfdiUuid ? sale.cfdiUuid.split(":") : [];
+      let facturapiId = null;
+      if (parts.length > 0) {
+        if (parts[0] === "GLOBAL") {
+           facturapiId = parts.length > 2 ? parts[2] : null;
+        } else {
+           facturapiId = parts.length > 1 ? parts[1] : parts[0];
+        }
+      }
+
+      const authHeader = "Bearer " + apiKey;
+
+      if (facturapiId && !sale.cfdiUuid?.startsWith("GLOBAL:")) {
+        try {
+          const invRes = await fetch(`https://www.facturapi.io/v2/invoices/${facturapiId}`, {
+            headers: { "Authorization": authHeader }
+          });
+          if (invRes.ok) {
+            const invData = await invRes.json() as any;
+            if (invData && invData.customer) {
+              rfc = invData.customer.tax_id || rfc;
+              legal_name = invData.customer.legal_name || legal_name;
+              tax_system = invData.customer.tax_system || tax_system;
+              zip = invData.customer.address?.zip || zip;
+              email = invData.customer.email || email;
+            }
+          }
+        } catch (fetchErr) {
+          console.warn("No se pudo obtener la factura original de Facturapi para la Nota de Crédito. Se usarán datos locales.", fetchErr);
+        }
+      }
 
       const requestBody: any = {
         type: "E",
         customer: {
-          legal_name: isGeneric ? "PÚBLICO GENERAL" : (sale.customer?.name.toUpperCase() || "PÚBLICO GENERAL"),
+          legal_name,
           tax_id: rfc,
-          tax_system: isGeneric ? "616" : (sale.customer?.taxRegime || "616"),
-          email: sale.cfdiEmail || sale.customer?.email || "clientes@fmb.com",
-          address: {
-            zip: isGeneric ? defaultZip : (sale.customer?.zipCode || defaultZip)
-          }
+          tax_system,
+          email,
+          address: { zip }
         },
         items: facturapiItems,
         payment_form: paymentFormMap[sale.paymentMethod] || "01",
-        use: isGeneric ? "S01" : (sale.customer?.cfdiUse || "G02")
+        use: rfc === "XAXX010101000" ? "S01" : cfdiUse
       };
 
       if (cleanUuid) {
-        requestBody.relation = {
-          type: "01",
-          invoices: [cleanUuid]
-        };
+        requestBody.related_documents = [
+          {
+            relationship: "01",
+            documents: [cleanUuid]
+          }
+        ];
       }
 
-      const authHeader = "Bearer " + apiKey;
 
       const response = await fetch("https://www.facturapi.io/v2/invoices", {
         method: "POST",
@@ -638,10 +676,12 @@ export class BillingService {
         items: facturapiItems,
         payment_form: paymentFormMap[sale.paymentMethod] || "01",
         use: isGeneric ? "S01" : (sale.customer?.cfdiUse || "G02"),
-        relation: {
-          type: "01",
-          invoices: [cleanUuid]
-        }
+        related_documents: [
+          {
+            relationship: "01",
+            documents: [cleanUuid]
+          }
+        ]
       };
 
       const authHeader = "Bearer " + apiKey;

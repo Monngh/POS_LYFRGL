@@ -19,7 +19,7 @@ interface QuickActionsCarouselProps {
 const ALL_ACTIONS = [
   { id: "price-lookup",        label: "Consultar precio",  icon: Search,       shortcutLetter: "Q" as GlobalQuickActionLetter, shortcutLabel: "Alt+Q" },
   { id: "bank-deposit",        label: "Depósito banco",    icon: PiggyBank,    shortcutLetter: "G" as GlobalQuickActionLetter, shortcutLabel: "Alt+G" },
-  { id: "promotions",          label: "Promociones",       icon: Tag,          shortcutLetter: "P" as GlobalQuickActionLetter, shortcutLabel: "Alt+P" },
+  { id: "promotions",          label: "Promociones",       icon: Tag },
   { id: "cancel-sale",         label: "Cancelar venta",    icon: XCircle,      shortcutLetter: "N" as GlobalQuickActionLetter, shortcutLabel: "Alt+N" },
   { id: "returns",             label: "Devoluciones",      icon: RotateCcw,    shortcutLetter: "D" as GlobalQuickActionLetter, shortcutLabel: "Alt+D" },
   { id: "ticket-history",      label: "Reimprimir ticket", icon: Printer,      shortcutLetter: "H" as GlobalQuickActionLetter, shortcutLabel: "Alt+H" },
@@ -55,7 +55,7 @@ export function QuickActionsCarousel({ onOpenModal, onLock }: QuickActionsCarous
               type="button"
               data-shortcut-letter={"shortcutLetter" in action ? action.shortcutLetter : undefined}
               data-shortcut-key={"shortcutKey" in action ? action.shortcutKey : undefined}
-              title={`${action.label} (${action.shortcutLabel})`}
+              title={action.shortcutLabel ? `${action.label} (${action.shortcutLabel})` : action.label}
               style={{
                 width: "58px",
                 height: "58px",
@@ -74,9 +74,11 @@ export function QuickActionsCarousel({ onOpenModal, onLock }: QuickActionsCarous
             >
               <Icon size={20} className="pos-quick-action-icon" />
               <span className="pos-quick-action-label" style={{ fontSize: "8px", fontWeight: "700", textAlign: "center", lineHeight: "1" }}>{action.label}</span>
-              <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px" }}>
-                {action.shortcutLabel}
-              </span>
+              {action.shortcutLabel && (
+                <span className="pos-fkey-badge" style={{ position: "absolute", bottom: "-4px", right: "-4px", fontSize: "8px", padding: "1px 3px" }}>
+                  {action.shortcutLabel}
+                </span>
+              )}
             </button>
           );
         })}

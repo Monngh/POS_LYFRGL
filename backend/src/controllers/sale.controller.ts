@@ -501,6 +501,7 @@ export const authorizeAndCancelSale = async (req: Request, res: Response): Promi
     const sale = await prisma.sale.findUnique({ where: { invoiceNumber }, include: { saleDetails: true } });
     if (!sale) { res.status(404).json({ message: "Venta no encontrada." }); return; }
     if (sale.status === "CANCELADA") { res.status(400).json({ message: "Esta venta ya fue cancelada anteriormente." }); return; }
+    if (sale.cfdiUuid) { res.status(400).json({ message: "Las ventas facturadas no se pueden cancelar por este medio." }); return; }
 
     const hasReturns = await prisma.return.findFirst({ where: { saleId: sale.id } });
     if (hasReturns) {

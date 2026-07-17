@@ -1342,18 +1342,20 @@ const Autofacturacion: React.FC = () => {
                         </td>
                         <td style={{ ...styles.td, fontWeight: "600" }}>${inv.totalAmount.toFixed(2)}</td>
                         <td style={styles.td}>
-                          <span style={{
-                            padding: "4px 8px",
-                            borderRadius: "100px",
-                            fontSize: "11px",
-                            fontWeight: "700",
-                            backgroundColor: inv.status === "CANCELADA" ? "#fee2e2" : inv.hasReturns ? "#fef3c7" : "#d1fae5",
-                            color: inv.status === "CANCELADA" ? "#991b1b" : inv.hasReturns ? "#92400e" : "#065f46",
-                            whiteSpace: "nowrap",
-                            display: "inline-block"
-                          }}>
-                            {inv.status === "CANCELADA" ? "CANCELADA" : inv.hasReturns ? "DEVOLUCIÓN" : "COMPLETADA"}
-                          </span>
+                          <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+                            <span style={{
+                              fontSize: "10px",
+                              fontWeight: "700",
+                              backgroundColor: inv.status === "CANCELADA" ? (inv.hasReturns || (inv.returnCfdiUuids && inv.returnCfdiUuids.length > 0) ? "#fef3c7" : "#fee2e2") : inv.hasReturns || (inv.returnCfdiUuids && inv.returnCfdiUuids.length > 0) ? "#fef3c7" : "#d1fae5",
+                              color: inv.status === "CANCELADA" ? (inv.hasReturns || (inv.returnCfdiUuids && inv.returnCfdiUuids.length > 0) ? "#92400e" : "#991b1b") : inv.hasReturns || (inv.returnCfdiUuids && inv.returnCfdiUuids.length > 0) ? "#92400e" : "#065f46",
+                              padding: "2px 6px",
+                              borderRadius: "4px",
+                              border: `1px solid ${inv.status === "CANCELADA" ? (inv.hasReturns || (inv.returnCfdiUuids && inv.returnCfdiUuids.length > 0) ? "#fde68a" : "#fecaca") : inv.hasReturns || (inv.returnCfdiUuids && inv.returnCfdiUuids.length > 0) ? "#fde68a" : "#a7f3d0"}`,
+                              whiteSpace: "nowrap"
+                            }}>
+                              {inv.status === "CANCELADA" ? (inv.hasReturns || (inv.returnCfdiUuids && inv.returnCfdiUuids.length > 0) ? "DEV. TOTAL" : "CANCELADA") : inv.hasReturns || (inv.returnCfdiUuids && inv.returnCfdiUuids.length > 0) ? "DEVOLUCIÓN" : "COMPLETADA"}
+                            </span>
+                          </div>
                         </td>
                         <td style={{ ...styles.td, fontFamily: "monospace", fontSize: "12px", color: "#64748b" }}>
                           {inv.cfdiUuid ? (
@@ -1374,7 +1376,7 @@ const Autofacturacion: React.FC = () => {
                             <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", justifyContent: "center" }}>
                               {/* Factura Original */}
                               <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                                {inv.status === "CANCELADA" && (
+                                {inv.status === "CANCELADA" && !inv.hasReturns && (!inv.returnCfdiUuids || inv.returnCfdiUuids.length === 0) && (
                                   <span style={{ fontSize: "10px", color: "#ef4444", fontWeight: "700", backgroundColor: "#fef2f2", padding: "2px 6px", borderRadius: "4px", border: "1px solid #fecaca", whiteSpace: "nowrap" }}>
                                     Cancelada
                                   </span>
@@ -1399,9 +1401,34 @@ const Autofacturacion: React.FC = () => {
                               </div>
 
                               {/* Nota de Crédito */}
-                              {inv.returnCfdiUuid && (
+                              {inv.returnCfdiUuids && inv.returnCfdiUuids.length > 0 ? (
+                                inv.returnCfdiUuids.map((ncUuid, idx) => (
+                                  <div key={ncUuid} style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                    <span style={{ fontSize: "10px", fontWeight: "700", color: "#b91c1c", backgroundColor: "#fee2e2", padding: "2px 6px", borderRadius: "4px", border: "1px solid #fecaca", whiteSpace: "nowrap" }}>
+                                      NC {inv.returnCfdiUuids!.length > 1 ? idx + 1 : ""}
+                                    </span>
+                                    <a
+                                      href={`${API_BASE_URL}/api/public/sales/invoice/${ncUuid}/pdf`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      style={{ ...styles.actionIconBtn, backgroundColor: "#fff1f2", borderColor: "#fecdd3" }}
+                                      title="Ver Nota de Crédito (PDF)"
+                                    >
+                                      <FileText size={14} color="#be123c" />
+                                    </a>
+                                    <a
+                                      href={`${API_BASE_URL}/api/public/sales/invoice/${ncUuid}/xml`}
+                                      download={`nota-${ncUuid}.xml`}
+                                      style={{ ...styles.actionIconBtn, backgroundColor: "#fff1f2", borderColor: "#fecdd3" }}
+                                      title="Descargar Nota de Crédito (XML)"
+                                    >
+                                      <FileCode size={14} color="#be123c" />
+                                    </a>
+                                  </div>
+                                ))
+                              ) : inv.returnCfdiUuid ? (
                                 <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                                  <span style={{ fontSize: "10px", fontWeight: "700", color: "#b91c1c", backgroundColor: "#fee2e2", padding: "2px 6px", borderRadius: "4px", border: "1px solid #fecaca" }}>
+                                  <span style={{ fontSize: "10px", fontWeight: "700", color: "#b91c1c", backgroundColor: "#fee2e2", padding: "2px 6px", borderRadius: "4px", border: "1px solid #fecaca", whiteSpace: "nowrap" }}>
                                     NC
                                   </span>
                                   <a
@@ -1422,7 +1449,7 @@ const Autofacturacion: React.FC = () => {
                                     <FileCode size={14} color="#be123c" />
                                   </a>
                                 </div>
-                              )}
+                              ) : null}
                             </div>
                           ) : inv.status === "CANCELADA" ? (
                             <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>

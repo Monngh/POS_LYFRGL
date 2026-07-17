@@ -242,8 +242,12 @@ export const getCustomerInvoices = async (customerId: number) => {
       }
     }
 
-    const returnUuidStr = s.returns?.[0]?.cfdiUuid;
-    const cleanReturnUuid = returnUuidStr ? returnUuidStr.split(":")[0] : null;
+    const returnUuids = (s.returns || [])
+      .map(r => r.cfdiUuid)
+      .filter(uuid => uuid != null)
+      .map(uuid => uuid!.split(":")[0]);
+
+    const cleanReturnUuid = returnUuids.length > 0 ? returnUuids[0] : null;
 
     return {
       id: s.id,
@@ -258,6 +262,7 @@ export const getCustomerInvoices = async (customerId: number) => {
       pdfUrl: cleanUuid ? `/api/public/sales/invoice/${cleanUuid}/pdf` : null,
       xmlUrl: cleanUuid ? `/api/public/sales/invoice/${cleanUuid}/xml` : null,
       returnCfdiUuid: cleanReturnUuid,
+      returnCfdiUuids: returnUuids,
       returnPdfUrl: cleanReturnUuid ? `/api/public/sales/invoice/${cleanReturnUuid}/pdf` : null,
       returnXmlUrl: cleanReturnUuid ? `/api/public/sales/invoice/${cleanReturnUuid}/xml` : null,
       hasReturns: s.returns && s.returns.length > 0,

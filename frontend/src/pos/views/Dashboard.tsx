@@ -522,11 +522,13 @@ const Dashboard: React.FC = () => {
         if (sale.status === "CANCELED" || sale.status === "CANCELADA") {
           setCancelFieldErrors(prev => ({ ...prev, invoice: "Esta venta ya fue cancelada en su totalidad." }));
           setCancelSalePreview(null);
-        } else if (sale.status === "BILLED" || sale.status === "FACTURADA") {
+        } else if (sale.cfdiUuid) {
           setCancelFieldErrors(prev => ({ ...prev, invoice: "Las ventas facturadas no se pueden cancelar por este medio." }));
+          showToast("Las ventas facturadas no se pueden cancelar por este medio.", "error");
           setCancelSalePreview(null);
         } else if (sale.returns && sale.returns.length > 0) {
           setCancelFieldErrors(prev => ({ ...prev, invoice: "Venta con devoluciones parciales. Use el módulo de devoluciones." }));
+          showToast("Venta con devoluciones parciales. Use el módulo de devoluciones.", "error");
           setCancelSalePreview(null);
         } else if (new Date(sale.createdAt).toDateString() !== new Date().toDateString()) {
           setCancelFieldErrors(prev => ({ ...prev, invoice: "Solo se pueden cancelar ventas del mismo día." }));

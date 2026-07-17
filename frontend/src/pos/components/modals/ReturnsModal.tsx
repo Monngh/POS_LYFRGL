@@ -319,10 +319,7 @@ export default function ReturnsModal({
 
   const getItemRefundAmount = (item: any, qty: number) => {
     if (qty <= 0) return 0;
-    const lineNet = item.netUnitPrice * qty;
-    const unitTax = item.unitTax !== undefined ? item.unitTax : item.netUnitPrice * 0.16;
-    const lineTax = Number((unitTax * qty).toFixed(2));
-    return lineNet + lineTax;
+    return (item.unitPrice - item.unitDiscount) * qty;
   };
 
   const getReturnRefundTotal = () => {
