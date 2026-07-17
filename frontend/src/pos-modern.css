@@ -1049,7 +1049,11 @@
   flex-direction: column;
   gap: 4px;
   width: 100%;
-  margin-top: auto;
+  order: 1;
+}
+
+.pos-checkout-left-col {
+  order: 2;
 }
 
 /* Caja de total — grande y prominente */
@@ -1591,6 +1595,7 @@
   }
 
   .pos-checkout-left-col {
+    order: 1 !important;
     flex: 1;
     display: flex;
     flex-direction: row;
@@ -1599,6 +1604,7 @@
   }
 
   .pos-totals-col {
+    order: 2 !important;
     flex: 0 0 210px; /* Ancho fijo más delgado para totales en modo apaisado */
     margin-top: 0; /* Quitar alineación al fondo para que suba */
   }
