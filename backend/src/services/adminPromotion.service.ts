@@ -2,6 +2,15 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../app";
 import { AppError } from "../utils/AppError";
 import { parseSearchWords } from "../utils/search.util";
+import {
+  getPromotionRule,
+  getPromotionValidationIssues,
+  type PromotionValidationIssue,
+  type PromotionConfigForValidation,
+  type PromotionProductForValidation,
+  validateMoneyScale,
+} from "./promotionRules.util";
+import { formatMoney, roundMoney } from "../utils/money.util";
 
 const promotionInclude = Prisma.validator<Prisma.PromotionInclude>()({
   promotionType: true,
@@ -75,7 +84,7 @@ export interface PromotionPayload {
   minQuantity: number | null;
   payQuantity: number | null;
   specialPrice: number | null;
-  productIds: number[];
+  productIds?: number[];
 }
 
 export interface BuildPromotionPayloadOptions {
@@ -134,8 +143,6 @@ export const mapPromotion = (promotion: PromotionWithRelations) => ({
 
 // ─── Private helpers for buildPromotionPayload ───────────────────────────────
 
-type PromotionRule = "percentage" | "fixedAmount" | "buyXPayY" | "specialPrice";
-
 const parsePositiveInt = (value: unknown): number | null => {
   if (typeof value === "boolean") return null;
   if (typeof value === "string" && !value.trim()) return null;
@@ -172,14 +179,14 @@ const parseDate = (value: unknown, endOfDay = false): Date | null => {
 };
 
 type ProductIdsParseResult =
-  | { success: true; productIds: number[] }
+  | { success: true; productIds?: number[] }
   | { success: false; message: string };
 
 const parseProductIds = (value: unknown, required = true): ProductIdsParseResult => {
   if (value === undefined) {
     return required
       ? { success: false, message: "productIds es requerido." }
-      : { success: true, productIds: [] };
+      : { success: true };
   }
   if (!Array.isArray(value)) return { success: false, message: "productIds debe ser un arreglo." };
   if (value.length === 0) return { success: false, message: "productIds no puede estar vacío." };
@@ -213,17 +220,6 @@ const parseOptionalBoolean = (
   return { success: true, value };
 };
 
-const getRule = (typeName: string): PromotionRule | null => {
-  const normalized = typeName.toLowerCase().replace(/\s+/g, "");
-  if (normalized.includes("percentage") || normalized.includes("porcentaje")) return "percentage";
-  if (normalized.includes("fixedamount") || normalized.includes("montofijo") || normalized.includes("fixed"))
-    return "fixedAmount";
-  if (normalized.includes("buyxpayy") || normalized.includes("nxm") || normalized.includes("2x1") || normalized.includes("3x2"))
-    return "buyXPayY";
-  if (normalized.includes("specialprice") || normalized.includes("precioespecial")) return "specialPrice";
-  return null;
-};
-
 // ─── Validation / transformation (moved from controller) ─────────────────────
 
 export const buildPromotionPayload = async (
@@ -242,7 +238,7 @@ export const buildPromotionPayload = async (
   const startDate = parseDate(body.startDate);
   const endDate = parseDate(body.endDate, true);
   if (!startDate || !endDate) return "La fecha inicial y final son obligatorias.";
-  if (endDate < startDate) return "La fecha inicial no puede ser posterior a la fecha final.";
+  if (endDate < startDate) return "La fecha final no puede ser anterior a la fecha inicial.";
 
   const parsedIsActive = parseOptionalBoolean(
     body.isActive,
@@ -258,7 +254,7 @@ export const buildPromotionPayload = async (
   const parsedProductIds = parseProductIds(body.productIds, options.requireProductIds ?? true);
   if (!parsedProductIds.success) return parsedProductIds.message;
 
-  const rule = getRule(type.name);
+  const rule = getPromotionRule(type.name);
   if (!rule) return "El tipo de promocion no tiene reglas administrativas configuradas.";
 
   let value = parseNullableNumber(body.value);
@@ -268,17 +264,18 @@ export const buildPromotionPayload = async (
 
   if (rule === "percentage") {
     if (value === null || value <= 0 || value >= 100) return "El porcentaje debe ser mayor a 0 y menor a 100.";
-    const valueStr = String(value);
-    const decimalParts = valueStr.split(".");
-    if (decimalParts.length > 1 && decimalParts[1].length > 2) {
-      return "El porcentaje no puede tener mas de dos decimales.";
-    }
-    minQuantity = null; payQuantity = null; specialPrice = null;
+    const scaleError = validateMoneyScale(body.value, "El porcentaje");
+    if (scaleError) return scaleError;
+    if (minQuantity !== null && minQuantity < 1) return "La cantidad minima debe ser mayor o igual a 1.";
+    payQuantity = null; specialPrice = null;
   }
 
   if (rule === "fixedAmount") {
-    if (specialPrice === null || specialPrice <= 0) return "El precio especial debe ser mayor a 0.";
-    value = null; minQuantity = null; payQuantity = null;
+    if (value === null || value <= 0) return "El monto fijo debe ser mayor a 0.";
+    const scaleError = validateMoneyScale(body.value, "El monto fijo");
+    if (scaleError) return scaleError;
+    if (minQuantity !== null && minQuantity < 1) return "La cantidad minima debe ser mayor o igual a 1.";
+    payQuantity = null; specialPrice = null;
   }
 
   if (rule === "buyXPayY") {
@@ -290,7 +287,10 @@ export const buildPromotionPayload = async (
 
   if (rule === "specialPrice") {
     if (specialPrice === null || specialPrice <= 0) return "El precio especial debe ser mayor a 0.";
-    value = null; minQuantity = null; payQuantity = null;
+    const scaleError = validateMoneyScale(body.specialPrice, "El precio especial");
+    if (scaleError) return scaleError;
+    if (minQuantity !== null && minQuantity < 1) return "La cantidad minima debe ser mayor o igual a 1.";
+    value = null; payQuantity = null;
   }
 
   return {
@@ -310,15 +310,176 @@ export const buildPromotionPayload = async (
 
 // ─── DB helpers ──────────────────────────────────────────────────────────────
 
+export interface InvalidPromotionProductDetail {
+  productId: number;
+  sku: string | null;
+  name: string;
+  currentPrice: number | null;
+  requestedValue: number | null;
+  resultingPrice: number | null;
+  reason: string;
+  code: string;
+}
+
+export class PromotionProductsValidationError extends AppError {
+  public readonly invalidProducts: InvalidPromotionProductDetail[];
+
+  constructor(invalidProducts: InvalidPromotionProductDetail[]) {
+    super(formatInvalidPromotionProductsMessage(invalidProducts), 400, "PROMOTION_PRODUCTS_INVALID");
+    this.invalidProducts = invalidProducts;
+  }
+}
+
 const validateActiveProducts = async (tx: Prisma.TransactionClient, productIds: number[]) => {
   const uniqueProductIds = [...new Set(productIds)];
   const products = await tx.product.findMany({
     where: { id: { in: uniqueProductIds } },
-    select: { id: true, active: true, sellPrice: true },
+    select: { id: true, sku: true, name: true, active: true, sellPrice: true, costPrice: true },
   });
   if (products.length !== uniqueProductIds.length) throw new Error("PRODUCT_NOT_FOUND");
-  if (products.some((product) => !product.active)) throw new Error("PRODUCT_INACTIVE");
   return products;
+};
+
+const toValidationProduct = (product: {
+  id: number;
+  sku?: string | null;
+  name: string;
+  active?: boolean;
+  sellPrice: Prisma.Decimal | number;
+  costPrice?: Prisma.Decimal | number | null;
+}): PromotionProductForValidation => ({
+  id: product.id,
+  sku: product.sku ?? null,
+  name: product.name,
+  active: product.active,
+  sellPrice: Number(product.sellPrice),
+  costPrice: product.costPrice !== undefined && product.costPrice !== null ? Number(product.costPrice) : null,
+});
+
+const buildValidationConfig = (payload: PromotionPayload, typeName: string): PromotionConfigForValidation => ({
+  typeName,
+  value: payload.value,
+  minQuantity: payload.minQuantity,
+  payQuantity: payload.payQuantity,
+  specialPrice: payload.specialPrice,
+});
+
+const getPromotionConfigFromRecord = (promotion: {
+  id?: number;
+  name?: string;
+  value: Prisma.Decimal | number | null;
+  minQuantity: number | null;
+  payQuantity: number | null;
+  specialPrice: Prisma.Decimal | number | null;
+  promotionType: { name: string };
+}): PromotionConfigForValidation => ({
+  id: promotion.id,
+  name: promotion.name,
+  typeName: promotion.promotionType.name,
+  value: promotion.value !== null ? Number(promotion.value) : null,
+  minQuantity: promotion.minQuantity,
+  payQuantity: promotion.payQuantity,
+  specialPrice: promotion.specialPrice !== null ? Number(promotion.specialPrice) : null,
+});
+
+const getIssueReason = (issue: PromotionValidationIssue): string => {
+  if (issue.code === "FIXED_AMOUNT_NOT_BELOW_PRICE") {
+    const sellPrice = Number(issue.context?.sellPrice);
+    const requestedDiscount = Number(issue.context?.requestedDiscount ?? issue.context?.value);
+    return requestedDiscount > sellPrice
+      ? "el descuento es mayor que el precio del producto."
+      : "el descuento es igual al precio del producto.";
+  }
+  if (issue.code === "INVALID_FIXED_AMOUNT_RESULT") return "el descuento deja un precio final menor o igual a cero.";
+  if (issue.code === "SPECIAL_PRICE_NOT_BELOW_PRICE") return "el precio especial no es menor que el precio actual del producto.";
+  if (issue.code === "PROMOTION_BELOW_COST") return "el precio resultante queda por debajo del costo del producto.";
+  if (issue.code === "PRODUCT_INACTIVE") return "el producto esta inactivo.";
+  if (issue.code === "INVALID_SELL_PRICE") return "el producto no tiene un precio de venta vigente mayor a cero.";
+  if (issue.code === "INVALID_PERCENTAGE_RESULT") return "el porcentaje no genera un precio promocional valido.";
+  if (issue.code === "INVALID_BUY_X_PAY_Y_RESULT") return "la mecanica no genera un precio promocional valido.";
+  return issue.message;
+};
+
+const getRequestedValue = (issue: PromotionValidationIssue, config: PromotionConfigForValidation): number | null => {
+  const contextValue = issue.context?.requestedDiscount ?? issue.context?.specialPrice ?? issue.context?.value;
+  if (typeof contextValue === "number" && Number.isFinite(contextValue)) return roundMoney(contextValue);
+
+  const rule = getPromotionRule(config.typeName);
+  if (rule === "percentage" || rule === "fixedAmount") return config.value !== null ? roundMoney(config.value) : null;
+  if (rule === "specialPrice") return config.specialPrice !== null ? roundMoney(config.specialPrice) : null;
+  return null;
+};
+
+const getResultingPrice = (issue: PromotionValidationIssue, config: PromotionConfigForValidation): number | null => {
+  const contextPrice = issue.context?.finalUnitPrice;
+  if (typeof contextPrice === "number" && Number.isFinite(contextPrice)) return roundMoney(contextPrice);
+
+  const sellPrice = Number(issue.context?.sellPrice);
+  if (!Number.isFinite(sellPrice)) return null;
+
+  const rule = getPromotionRule(config.typeName);
+  if (rule === "fixedAmount" && config.value !== null) return roundMoney(sellPrice - config.value);
+  if (rule === "percentage" && config.value !== null) return roundMoney(sellPrice * (1 - config.value / 100));
+  if (rule === "specialPrice" && config.specialPrice !== null) return roundMoney(config.specialPrice);
+  return null;
+};
+
+const issueToInvalidProduct = (
+  issue: PromotionValidationIssue,
+  config: PromotionConfigForValidation
+): InvalidPromotionProductDetail | null => {
+  if (issue.productId === undefined || !issue.productName) return null;
+
+  const currentPrice = typeof issue.context?.sellPrice === "number" && Number.isFinite(issue.context.sellPrice)
+    ? roundMoney(issue.context.sellPrice)
+    : null;
+
+  return {
+    productId: issue.productId,
+    sku: issue.productSku ?? null,
+    name: issue.productName,
+    currentPrice,
+    requestedValue: getRequestedValue(issue, config),
+    resultingPrice: getResultingPrice(issue, config),
+    reason: getIssueReason(issue),
+    code: issue.code,
+  };
+};
+
+const formatInvalidPromotionProductsMessage = (invalidProducts: InvalidPromotionProductDetail[]) => {
+  const count = invalidProducts.length;
+  const header = `La promocion no puede aplicarse a ${count} producto${count === 1 ? "" : "s"}:`;
+  const lines = invalidProducts.map((product, index) => {
+    const requestedLabel = product.code.includes("SPECIAL_PRICE") ? "Precio especial solicitado" : "Descuento solicitado";
+    return [
+      `${index + 1}. ${product.name}`,
+      `   SKU: ${product.sku || "Sin SKU"}`,
+      `   Precio actual: ${product.currentPrice !== null ? formatMoney(product.currentPrice) : "No disponible"}`,
+      `   ${requestedLabel}: ${product.requestedValue !== null ? formatMoney(product.requestedValue) : "No disponible"}`,
+      `   Precio resultante: ${product.resultingPrice !== null ? formatMoney(product.resultingPrice) : "No disponible"}`,
+      `   Motivo: ${product.reason}`,
+    ].join("\n");
+  });
+
+  return [header, "", ...lines].join("\n\n");
+};
+
+const assertPromotionProductsAreValid = (
+  config: PromotionConfigForValidation,
+  products: PromotionProductForValidation[]
+) => {
+  const issues = getPromotionValidationIssues(config, products);
+  if (issues.length === 0) return;
+
+  const invalidProducts = issues
+    .map((issue) => issueToInvalidProduct(issue, config))
+    .filter((product): product is InvalidPromotionProductDetail => product !== null);
+
+  if (invalidProducts.length > 0) {
+    throw new PromotionProductsValidationError(invalidProducts);
+  }
+
+  throw new AppError(issues.map((issue) => issue.message).join(" "), 400);
 };
 
 const validateNoOverlappingActivePromotions = async (
@@ -446,11 +607,25 @@ export const getActiveProductsForPromotions = async (search?: string) => {
       active: true,
       ...(q ? { OR: [{ sku: { contains: q } }, { name: { contains: q } }] } : {}),
     },
-    select: { id: true, sku: true, name: true, sellPrice: true, active: true },
+    select: {
+      id: true,
+      sku: true,
+      name: true,
+      sellPrice: true,
+      active: true,
+      categories: { select: { categoryId: true } },
+    },
     orderBy: { name: "asc" },
     take: 500,
   });
-  return products.map((product) => ({ ...product, sellPrice: Number(product.sellPrice) }));
+  return products.map((product) => ({
+    id: product.id,
+    sku: product.sku,
+    name: product.name,
+    sellPrice: Number(product.sellPrice),
+    active: product.active,
+    categoryIds: product.categories.map((row) => row.categoryId),
+  }));
 };
 
 export const getPromotions = async (search?: string) => {
@@ -484,7 +659,15 @@ export const listAvailableProductsForPromotion = async (
 ) => {
   const promotion = await prisma.promotion.findUnique({
     where: { id: promotionId },
-    select: { id: true },
+    select: {
+      id: true,
+      name: true,
+      value: true,
+      minQuantity: true,
+      payQuantity: true,
+      specialPrice: true,
+      promotionType: { select: { name: true } },
+    },
   });
   if (!promotion) throw new Error("PROMOTION_NOT_FOUND");
 
@@ -492,7 +675,7 @@ export const listAvailableProductsForPromotion = async (
   const categoryIds = await getFinalCategoryIdsForScope(filters.scope, filters.categoryId);
 
   if (categoryIds && categoryIds.length === 0) {
-    return { page, limit, total: 0, totalPages: 0, products: [] };
+    return { page, limit, total: 0, totalPages: 0, products: [], invalidProducts: [] };
   }
 
   const associatedRows = filters.includeAssociated
@@ -518,16 +701,23 @@ export const listAvailableProductsForPromotion = async (
     where.categories = { some: { categoryId: { in: categoryIds } } };
   }
 
-  const [total, products] = await Promise.all([
-    prisma.product.count({ where }),
-    prisma.product.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy: [{ name: "asc" }, { id: "asc" }],
-      select: availableProductSelect,
-    }),
-  ]);
+  const promotionConfig = getPromotionConfigFromRecord(promotion);
+  const matchingProducts = await prisma.product.findMany({
+    where,
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+    select: availableProductSelect,
+  });
+  const invalidProducts: InvalidPromotionProductDetail[] = [];
+  const validProducts = matchingProducts.filter((product) => {
+    const issues = getPromotionValidationIssues(promotionConfig, [toValidationProduct(product)]);
+    const invalidDetails = issues
+      .map((issue) => issueToInvalidProduct(issue, promotionConfig))
+      .filter((detail): detail is InvalidPromotionProductDetail => detail !== null);
+    invalidProducts.push(...invalidDetails);
+    return invalidDetails.length === 0;
+  });
+  const total = validProducts.length;
+  const products = validProducts.slice(skip, skip + limit);
 
   return {
     page,
@@ -535,6 +725,7 @@ export const listAvailableProductsForPromotion = async (
     total,
     totalPages: Math.ceil(total / limit),
     products: products.map((product) => mapAvailableProduct(product, associatedIds)),
+    invalidProducts,
   };
 };
 
@@ -546,27 +737,24 @@ export const createPromotion = async (
   const payloadOrError = await buildPromotionPayload(body, options);
   if (typeof payloadOrError === "string") throw new AppError(payloadOrError, 400);
   const payload = payloadOrError;
+  const type = await getPromotionTypeById(payload.promotionTypeId);
+  if (!type) throw new AppError("El tipo de promocion seleccionado no existe.", 400);
 
   return prisma.$transaction(async (tx) => {
-    const products = payload.productIds.length > 0
-      ? await validateActiveProducts(tx, payload.productIds)
+    const requestedProductIds = payload.productIds ?? [];
+    const products = requestedProductIds.length > 0
+      ? await validateActiveProducts(tx, requestedProductIds)
       : [];
     const productIds = products.map((p) => p.id);
 
-    if (payload.isActive && productIds.length === 0) {
-      throw new AppError("No se puede activar una promocion sin productos asociados.", 400);
+    if (productIds.length === 0) {
+      throw new AppError("No se puede guardar una promocion sin productos asociados.", 400);
     }
 
-    if (payload.specialPrice !== null) {
-      const specialPriceVal = Number(payload.specialPrice);
-      const invalidProduct = products.find((p) => Number(p.sellPrice) <= specialPriceVal);
-      if (invalidProduct) {
-        throw new AppError(
-          `El precio especial debe ser menor que el precio de venta actual del producto (${invalidProduct.sellPrice}).`,
-          400
-        );
-      }
-    }
+    assertPromotionProductsAreValid(
+      buildValidationConfig(payload, type.name),
+      products.map(toValidationProduct)
+    );
 
     if (payload.isActive) {
       await validateNoOverlappingActivePromotions(tx, productIds, payload.startDate, payload.endDate);
@@ -602,6 +790,8 @@ export const updatePromotion = async (
   const payloadOrError = await buildPromotionPayload(body, options);
   if (typeof payloadOrError === "string") throw new AppError(payloadOrError, 400);
   const payload = payloadOrError;
+  const type = await getPromotionTypeById(payload.promotionTypeId);
+  if (!type) throw new AppError("El tipo de promocion seleccionado no existe.", 400);
 
   return prisma.$transaction(async (tx) => {
     const existing = await tx.promotion.findUnique({
@@ -619,6 +809,9 @@ export const updatePromotion = async (
     });
     if (!existing) throw new Error("PROMOTION_NOT_FOUND");
 
+    const existingProductIds = existing.products.map((p) => p.productId);
+    const requestedProductIds = payload.productIds ?? existingProductIds;
+
     if (existing.startDate <= new Date()) {
       const existingValue = existing.value !== null ? Number(existing.value) : null;
       const existingSpecialPrice = existing.specialPrice !== null ? Number(existing.specialPrice) : null;
@@ -634,31 +827,31 @@ export const updatePromotion = async (
         throw new AppError("No se permite modificar la configuracion economica de una promocion que ya ha iniciado.", 400);
       }
 
-      const existingProductIds = existing.products.map((p) => p.productId);
-      const hasRemovedProducts = existingProductIds.some((pid) => !payload.productIds.includes(pid));
+      const hasRemovedProducts = payload.productIds !== undefined
+        && existingProductIds.some((pid) => !payload.productIds!.includes(pid));
       if (hasRemovedProducts) {
         throw new AppError("No se permite quitar productos de una promocion que ya ha iniciado.", 400);
       }
     }
 
-    const products = await validateActiveProducts(tx, payload.productIds);
+    if (payload.isActive && requestedProductIds.length === 0) {
+      throw new AppError("No se puede activar una promocion sin productos asociados.", 400);
+    }
+
+    const products = await validateActiveProducts(tx, requestedProductIds);
     const productIds = products.map((p) => p.id);
 
-    if (payload.specialPrice !== null) {
-      const specialPriceVal = Number(payload.specialPrice);
-      const invalidProduct = products.find((p) => Number(p.sellPrice) <= specialPriceVal);
-      if (invalidProduct) {
-        throw new AppError(
-          `El precio especial debe ser menor que el precio de venta actual del producto (${invalidProduct.sellPrice}).`,
-          400
-        );
-      }
-    }
+    assertPromotionProductsAreValid(
+      buildValidationConfig(payload, type.name),
+      products.map(toValidationProduct)
+    );
 
     if (payload.isActive) {
       await validateNoOverlappingActivePromotions(tx, productIds, payload.startDate, payload.endDate, id);
     }
-    await tx.promotionProduct.deleteMany({ where: { promotionId: id } });
+    if (payload.productIds !== undefined) {
+      await tx.promotionProduct.deleteMany({ where: { promotionId: id } });
+    }
     const promotion = await tx.promotion.update({
       where: { id },
       data: {
@@ -672,7 +865,9 @@ export const updatePromotion = async (
         minQuantity: payload.minQuantity,
         payQuantity: payload.payQuantity,
         specialPrice: payload.specialPrice,
-        products: { create: productIds.map((productId) => ({ productId })) },
+        ...(payload.productIds !== undefined
+          ? { products: { create: productIds.map((productId) => ({ productId })) } }
+          : {}),
       },
       include: promotionInclude,
     });
@@ -686,12 +881,18 @@ export const updatePromotionStatus = async (id: number, isActive: boolean) =>
       where: { id },
       select: {
         id: true,
+        name: true,
         startDate: true,
         endDate: true,
+        value: true,
+        minQuantity: true,
+        payQuantity: true,
+        specialPrice: true,
+        promotionType: { select: { name: true } },
         products: {
           select: {
             productId: true,
-            product: { select: { active: true } },
+            product: { select: { id: true, sku: true, name: true, active: true, sellPrice: true, costPrice: true } },
           },
         },
       },
@@ -704,10 +905,16 @@ export const updatePromotionStatus = async (id: number, isActive: boolean) =>
       if (existing.products.length === 0) {
         throw new AppError("No se puede activar una promocion sin productos asociados.", 400);
       }
-      const hasActiveProduct = existing.products.some((p) => p.product.active);
-      if (!hasActiveProduct) {
-        throw new AppError("No se puede activar una promocion sin al menos un producto activo.", 400);
+      if (existing.products.some((p) => !p.product.active)) {
+        throw new AppError("No se puede activar una promocion con productos inactivos.", 400);
       }
+      if (existing.endDate < existing.startDate) {
+        throw new AppError("La fecha final no puede ser anterior a la fecha inicial.", 400);
+      }
+      assertPromotionProductsAreValid(
+        getPromotionConfigFromRecord(existing),
+        existing.products.map((row) => toValidationProduct(row.product))
+      );
       await validateNoOverlappingActivePromotions(
         tx,
         existing.products.map((product) => product.productId),
@@ -728,23 +935,28 @@ export const addProductsToPromotion = async (promotionId: number, productIds: nu
   prisma.$transaction(async (tx) => {
     const promotion = await tx.promotion.findUnique({
       where: { id: promotionId },
-      select: { id: true, startDate: true, endDate: true, isActive: true, specialPrice: true },
+      select: {
+        id: true,
+        name: true,
+        startDate: true,
+        endDate: true,
+        isActive: true,
+        value: true,
+        minQuantity: true,
+        payQuantity: true,
+        specialPrice: true,
+        promotionType: { select: { name: true } },
+      },
     });
     if (!promotion) throw new Error("PROMOTION_NOT_FOUND");
 
     const products = await validateActiveProducts(tx, productIds);
     const uniqueProductIds = products.map((p) => p.id);
 
-    if (promotion.specialPrice !== null) {
-      const specialPriceVal = Number(promotion.specialPrice);
-      const invalidProduct = products.find((p) => Number(p.sellPrice) <= specialPriceVal);
-      if (invalidProduct) {
-        throw new AppError(
-          `El precio especial debe ser menor que el precio de venta actual del producto (${invalidProduct.sellPrice}).`,
-          400
-        );
-      }
-    }
+    assertPromotionProductsAreValid(
+      getPromotionConfigFromRecord(promotion),
+      products.map(toValidationProduct)
+    );
 
     const existing = await tx.promotionProduct.findMany({
       where: { promotionId, productId: { in: uniqueProductIds } },
@@ -791,23 +1003,28 @@ export const syncPromotionProducts = async (promotionId: number, productIds: num
   prisma.$transaction(async (tx) => {
     const promotion = await tx.promotion.findUnique({
       where: { id: promotionId },
-      select: { id: true, startDate: true, endDate: true, isActive: true, specialPrice: true },
+      select: {
+        id: true,
+        name: true,
+        startDate: true,
+        endDate: true,
+        isActive: true,
+        value: true,
+        minQuantity: true,
+        payQuantity: true,
+        specialPrice: true,
+        promotionType: { select: { name: true } },
+      },
     });
     if (!promotion) throw new Error("PROMOTION_NOT_FOUND");
 
     const products = await validateActiveProducts(tx, productIds);
     const uniqueProductIds = products.map((p) => p.id);
 
-    if (promotion.specialPrice !== null) {
-      const specialPriceVal = Number(promotion.specialPrice);
-      const invalidProduct = products.find((p) => Number(p.sellPrice) <= specialPriceVal);
-      if (invalidProduct) {
-        throw new AppError(
-          `El precio especial debe ser menor que el precio de venta actual del producto (${invalidProduct.sellPrice}).`,
-          400
-        );
-      }
-    }
+    assertPromotionProductsAreValid(
+      getPromotionConfigFromRecord(promotion),
+      products.map(toValidationProduct)
+    );
 
     const existing = await tx.promotionProduct.findMany({
       where: { promotionId },

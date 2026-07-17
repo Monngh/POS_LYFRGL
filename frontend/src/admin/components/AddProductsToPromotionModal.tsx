@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, PackageMinus, PackagePlus, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, PackageMinus, PackagePlus, X } from "lucide-react";
 import {
   adminCategoryService,
   type AdminCategoryFlatItem,
@@ -12,6 +12,7 @@ import {
 } from "../utils/promotionsApi";
 import type {
   AvailablePromotionProduct,
+  InvalidPromotionProduct,
   PromotionAssociatedProduct,
   PromotionProductScope,
 } from "../types/promotions.types";
@@ -24,16 +25,14 @@ import { useToast } from "../../shared/context/ToastContext";
 const mxnFmt = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
 const fmt = (n: number) => mxnFmt.format(Number(n));
 
-const SCOPE_OPTIONS: { label: string; value: PromotionProductScope }[] = [
-  { label: "Todos los productos", value: "ALL" },
-  { label: "Por división", value: "DIVISION" },
-  { label: "Por departamento", value: "DEPARTMENT" },
-  { label: "Por categoría", value: "CATEGORY" },
-  { label: "Productos sin categoría", value: "UNCATEGORIZED" },
-];
-
-const SCOPE_NEEDS_CATEGORY: PromotionProductScope[] = ["DIVISION", "DEPARTMENT", "CATEGORY"];
 const LIMIT = 10;
+
+const getInvalidProductsFromError = (err: unknown): InvalidPromotionProduct[] => {
+  if (typeof err !== "object" || err === null || !("response" in err)) return [];
+  const apiError = err as { response?: { data?: { invalidProducts?: InvalidPromotionProduct[] } } };
+  const invalidProducts = apiError.response?.data?.invalidProducts;
+  return Array.isArray(invalidProducts) ? invalidProducts : [];
+};
 
 // ---------------------------------------------------------------------------
 // Props
@@ -45,6 +44,9 @@ interface AddProductsToPromotionModalProps {
   associatedProducts: PromotionAssociatedProduct[];
   onClose: () => void;
   onSuccess: () => void | Promise<void>;
+  selectionMode?: boolean;
+  selectedProductIds?: number[];
+  onApplySelection?: (productIds: number[]) => void | Promise<void>;
 }
 
 type ModalTab = "associated" | "available";
@@ -59,17 +61,27 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
   associatedProducts,
   onClose,
   onSuccess,
+  selectionMode = false,
+  selectedProductIds = [],
+  onApplySelection,
 }) => {
   const { showToast } = useToast();
-  const isMobile = useMediaQuery("(max-width: 1024px)");
   const [activeTab, setActiveTab] = useState<ModalTab>(associatedProducts.length > 0 ? "associated" : "available");
+  // Unificado en un solo breakpoint (1024px, el estándar del resto del panel admin) para
+  // controlar tanto el cambio tabla→cards como el colapso del panel de filtros. main y
+  // fix/promos traían cada uno su propio isMobile (1024 y 640 respectivamente) para dos
+  // propósitos distintos del mismo componente; usarlos por separado habría dejado un rango
+  // de ancho (640-1024) con comportamiento inconsistente entre ambas partes de la UI.
+  const isMobile = useMediaQuery("(max-width: 1024px)");
 
   // ── Filters state ──────────────────────────────────────────────────────────
-  const [scope, setScope] = useState<PromotionProductScope>("ALL");
-  const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
+  const [selectedDivisionId, setSelectedDivisionId] = useState<number | undefined>(undefined);
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<number | undefined>(undefined);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | undefined>(undefined);
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // ── Categories state ───────────────────────────────────────────────────────
   const [allCategories, setAllCategories] = useState<AdminCategoryFlatItem[]>([]);
@@ -80,9 +92,11 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
   const [pagination, setPagination] = useState({ page: 1, limit: LIMIT, total: 0, totalPages: 1 });
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState<string | null>(null);
+  const [invalidProducts, setInvalidProducts] = useState<InvalidPromotionProduct[]>([]);
 
   // ── Selection state ────────────────────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectingAll, setSelectingAll] = useState(false);
 
   // ── Submit state ───────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false);
@@ -97,6 +111,10 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
   useEffect(() => {
     setActiveTab(associatedProducts.length > 0 ? "associated" : "available");
   }, [promotionId, associatedProducts.length]);
+
+  useEffect(() => {
+    setSelectedIds(selectionMode ? new Set(selectedProductIds) : new Set());
+  }, [promotionId, selectionMode, selectedProductIds.join(",")]);
 
   // ── Debounce search ────────────────────────────────────────────────────────
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -131,33 +149,70 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
     };
   }, []);
 
-  // ── Filtered categories by scope ───────────────────────────────────────────
-  const filteredCategories = useMemo(() => {
-    if (!SCOPE_NEEDS_CATEGORY.includes(scope)) return [];
-    return allCategories.filter((cat) => cat.level === scope);
-  }, [allCategories, scope]);
+  // ── Hierarchical category options ─────────────────────────────────────────
+  const divisionOptions = useMemo(
+    () => allCategories.filter((cat) => cat.level === "DIVISION"),
+    [allCategories]
+  );
+
+  const departmentOptions = useMemo(() => {
+    if (!selectedDivisionId) return [];
+    return allCategories.filter(
+      (cat) => cat.level === "DEPARTMENT" && cat.parentId === selectedDivisionId
+    );
+  }, [allCategories, selectedDivisionId]);
+
+  const categoryOptions = useMemo(() => {
+    if (!selectedDepartmentId) return [];
+    return allCategories.filter(
+      (cat) => cat.level === "CATEGORY" && cat.parentId === selectedDepartmentId
+    );
+  }, [allCategories, selectedDepartmentId]);
+
+  const activeFilterLabels = useMemo(() => {
+    const labels: string[] = [];
+    const division = selectedDivisionId ? allCategories.find((cat) => cat.id === selectedDivisionId) : null;
+    const department = selectedDepartmentId ? allCategories.find((cat) => cat.id === selectedDepartmentId) : null;
+    const category = selectedCategoryId ? allCategories.find((cat) => cat.id === selectedCategoryId) : null;
+    if (division) labels.push(`Division ${division.name}`);
+    if (department) labels.push(`Departamento ${department.name}`);
+    if (category) labels.push(`Categoria ${category.name}`);
+    if (searchInput.trim()) labels.push(`Busqueda "${searchInput.trim()}"`);
+    return labels;
+  }, [allCategories, searchInput, selectedCategoryId, selectedDepartmentId, selectedDivisionId]);
+
+  const activeFilterCount = activeFilterLabels.length;
+  const activeFilterSummary = activeFilterLabels.length > 0
+    ? activeFilterLabels.join(", ")
+    : "Sin filtros activos";
+
+  // ── Derived scope + categoryId for the API call ───────────────────────────
+  const apiScope: PromotionProductScope = selectedCategoryId
+    ? "CATEGORY"
+    : selectedDepartmentId
+      ? "DEPARTMENT"
+      : selectedDivisionId
+        ? "DIVISION"
+        : "ALL";
+
+  const apiCategoryId: number | undefined =
+    selectedCategoryId ?? selectedDepartmentId ?? selectedDivisionId;
 
   // ── Load products ──────────────────────────────────────────────────────────
   const loadProducts = useCallback(async () => {
-    // For DIVISION, DEPARTMENT, CATEGORY we need a valid categoryId
-    if (SCOPE_NEEDS_CATEGORY.includes(scope) && !categoryId) {
-      setProducts([]);
-      setPagination({ page: 1, limit: LIMIT, total: 0, totalPages: 1 });
-      return;
-    }
-
     setProductsLoading(true);
     setProductsError(null);
     try {
       const result = await getAvailablePromotionProducts(promotionId, {
         search: debouncedSearch.trim() || undefined,
-        scope,
-        categoryId: SCOPE_NEEDS_CATEGORY.includes(scope) ? categoryId : undefined,
+        scope: apiScope,
+        categoryId: apiCategoryId,
         page,
         limit: LIMIT,
         includeAssociated: true,
       });
       setProducts(result.products);
+      setInvalidProducts(result.invalidProducts ?? []);
       setPagination(
         result.pagination ?? { page, limit: LIMIT, total: result.products.length, totalPages: 1 }
       );
@@ -165,33 +220,48 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
       const backendMessage = getPromotionApiError(err, "Error desconocido");
       setProductsError(`No se pudieron cargar los productos: ${backendMessage}`);
       setProducts([]);
+      setInvalidProducts([]);
     } finally {
       setProductsLoading(false);
     }
-  }, [promotionId, scope, categoryId, debouncedSearch, page]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promotionId, apiScope, apiCategoryId, debouncedSearch, page]);
 
   useEffect(() => {
     void loadProducts();
   }, [loadProducts]);
 
-  // ── Scope change ───────────────────────────────────────────────────────────
-  const handleScopeChange = (newScope: PromotionProductScope) => {
-    setScope(newScope);
-    setCategoryId(undefined);
-    setSelectedIds(new Set());
+  // ── Hierarchy change handlers ──────────────────────────────────────────────
+  const handleDivisionChange = (id: number | undefined) => {
+    setSelectedDivisionId(id);
+    setSelectedDepartmentId(undefined);
+    setSelectedCategoryId(undefined);
     setPage(1);
   };
 
-  // ── Category change ────────────────────────────────────────────────────────
+  const handleDepartmentChange = (id: number | undefined) => {
+    setSelectedDepartmentId(id);
+    setSelectedCategoryId(undefined);
+    setPage(1);
+  };
+
   const handleCategoryChange = (id: number | undefined) => {
-    setCategoryId(id);
-    setSelectedIds(new Set());
+    setSelectedCategoryId(id);
+    setPage(1);
+  };
+
+  const clearFilters = () => {
+    setSelectedDivisionId(undefined);
+    setSelectedDepartmentId(undefined);
+    setSelectedCategoryId(undefined);
+    setSearchInput("");
+    setDebouncedSearch("");
     setPage(1);
   };
 
   // ── Selection helpers ──────────────────────────────────────────────────────
   const toggleProduct = (id: number, alreadyAssociated: boolean) => {
-    if (alreadyAssociated) return;
+    if (!selectionMode && alreadyAssociated) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -200,24 +270,86 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
     });
   };
 
-  const selectVisible = () => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      products.forEach((p) => {
-        if (!p.alreadyAssociated) next.add(p.id);
-      });
-      return next;
+  const fetchFilteredProducts = async () => {
+    const first = await getAvailablePromotionProducts(promotionId, {
+      search: debouncedSearch.trim() || undefined,
+      scope: apiScope,
+      categoryId: apiCategoryId,
+      page: 1,
+      limit: 100,
+      includeAssociated: true,
     });
+    const allProducts = [...first.products];
+    const totalPages = first.pagination?.totalPages ?? 1;
+    if (totalPages > 1) {
+      const rest = await Promise.all(
+        Array.from({ length: totalPages - 1 }, (_, index) =>
+          getAvailablePromotionProducts(promotionId, {
+            search: debouncedSearch.trim() || undefined,
+            scope: apiScope,
+            categoryId: apiCategoryId,
+            page: index + 2,
+            limit: 100,
+            includeAssociated: true,
+          })
+        )
+      );
+      rest.forEach((pageResult) => allProducts.push(...pageResult.products));
+    }
+    return allProducts;
+  };
+
+  const selectFiltered = async () => {
+    setSelectingAll(true);
+    setSubmitError(null);
+    try {
+      const filteredProducts = await fetchFilteredProducts();
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filteredProducts.forEach((product) => {
+          if (selectionMode || !product.alreadyAssociated) next.add(product.id);
+        });
+        return next;
+      });
+    } catch (err: unknown) {
+      setSubmitError(getPromotionApiError(err, "No se pudieron seleccionar los productos filtrados."));
+    } finally {
+      setSelectingAll(false);
+    }
+  };
+
+  const deselectFiltered = async () => {
+    setSelectingAll(true);
+    setSubmitError(null);
+    try {
+      const filteredProducts = await fetchFilteredProducts();
+      const filteredIds = new Set(filteredProducts.map((product) => product.id));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filteredIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } catch (err: unknown) {
+      setSubmitError(getPromotionApiError(err, "No se pudieron quitar los productos filtrados."));
+    } finally {
+      setSelectingAll(false);
+    }
   };
 
   const clearSelection = () => setSelectedIds(new Set());
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (selectedIds.size === 0) return;
+    if (!selectionMode && selectedIds.size === 0) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
+      if (selectionMode) {
+        await onApplySelection?.(Array.from(selectedIds));
+        onClose();
+        return;
+      }
+
       await addProductsToPromotion(promotionId, Array.from(selectedIds));
       showToast(
         `${selectedIds.size} producto${selectedIds.size === 1 ? "" : "s"} agregado${selectedIds.size === 1 ? "" : "s"} a la promoción.`,
@@ -228,7 +360,13 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
       await loadProducts();
       setActiveTab("associated");
     } catch (err: unknown) {
-      setSubmitError(getPromotionApiError(err, "No se pudieron agregar los productos."));
+      const rejectedProducts = getInvalidProductsFromError(err);
+      if (rejectedProducts.length > 0) {
+        setInvalidProducts(rejectedProducts);
+        setSubmitError(null);
+      } else {
+        setSubmitError(getPromotionApiError(err, "No se pudieron agregar los productos."));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -236,16 +374,10 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
 
   // ── Selectable products on current page ────────────────────────────────────
   const selectableCount = products.filter((p) => !p.alreadyAssociated).length;
+  const selectableFilteredCount = selectionMode ? products.length : selectableCount;
   const visibleSelectedCount = products.filter((p) => selectedIds.has(p.id)).length;
-  const allVisibleSelected = selectableCount > 0 && visibleSelectedCount === selectableCount;
+  const allVisibleSelected = selectableFilteredCount > 0 && visibleSelectedCount === selectableFilteredCount;
 
-  // ── Category label for current scope ──────────────────────────────────────
-  const scopeLabel = (s: PromotionProductScope) => {
-    if (s === "DIVISION") return "División";
-    if (s === "DEPARTMENT") return "Departamento";
-    if (s === "CATEGORY") return "Categoría";
-    return "";
-  };
 
   const categoryText = (categories: AvailablePromotionProduct["categories"] | undefined) =>
     categories && categories.length > 0
@@ -254,6 +386,15 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
 
   const handleRemoveProduct = async (productId: number) => {
     if (!canRemoveAssociated || removingId !== null) return;
+
+    if (selectionMode) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(productId);
+        return next;
+      });
+      return;
+    }
 
     setRemovingId(productId);
     setRemoveError(null);
@@ -270,7 +411,12 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
     }
   };
 
-  const renderAssociatedProducts = () => (
+  const renderAssociatedProducts = () => {
+    const visibleAssociatedProducts = selectionMode
+      ? associatedProducts.filter((row) => selectedIds.has(row.productId))
+      : associatedProducts;
+
+    return (
     <div>
       {associatedProducts.length > 0 && !canRemoveAssociated && (
         <div style={s.infoBox}>Esta promocion ya inicio. Los productos asociados se muestran, pero no se pueden quitar.</div>
@@ -287,10 +433,10 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
           <div style={{ ...s.cell, ...s.colAssociatedAction }}>Accion</div>
         </div>
         <div style={s.tableBody}>
-          {associatedProducts.length === 0 ? (
+          {visibleAssociatedProducts.length === 0 ? (
             <div style={s.stateRow}>Esta promocion todavia no tiene productos asociados.</div>
           ) : (
-            associatedProducts.map((row) => {
+            visibleAssociatedProducts.map((row) => {
               const product = row.product;
               const productId = product?.id ?? row.productId;
               const isRemoving = removingId === productId;
@@ -346,14 +492,694 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
       {removeError && <div style={s.errorBox}>{removeError}</div>}
 
       <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
-        <button type="button" style={{ ...ui.ghostBtn, justifyContent: "center" }} onClick={onClose} disabled={removingId !== null}>
-          Cerrar
+        <button type="button" style={{ ...ui.ghostBtn, justifyContent: "center" }} onClick={onClose} disabled={removingId !== null || submitting}>
+          {selectionMode ? "Cancelar" : "Cerrar"}
+        </button>
+        {selectionMode && (
+          <button
+            type="button"
+            style={{ ...ui.primaryBtn, justifyContent: "center" }}
+            onClick={() => void handleSubmit()}
+            disabled={submitting}
+          >
+            {submitting ? "Aplicando..." : "Aplicar seleccion"}
+          </button>
+        )}
+      </div>
+    </div>
+    );
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  const filtersPanelId = `promotion-product-filters-${promotionId}`;
+  const filterControls = (
+    <div id={filtersPanelId} style={isMobile ? s.filtersPanel : s.filtersRow}>
+      <div style={{ ...s.filterGroup, ...(isMobile ? s.mobileFilterGroup : {}) }}>
+        <label style={ui.fieldLabel}>Division</label>
+        {categoriesLoading ? (
+          <div style={s.selectPlaceholder}>Cargando...</div>
+        ) : (
+          <select
+            style={{ ...ui.input, ...s.select }}
+            value={selectedDivisionId ?? ""}
+            onChange={(e) =>
+              handleDivisionChange(e.target.value ? Number(e.target.value) : undefined)
+            }
+          >
+            <option value="">Todas las divisiones</option>
+            {divisionOptions.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      <div style={{ ...s.filterGroup, ...(isMobile ? s.mobileFilterGroup : {}) }}>
+        <label style={ui.fieldLabel}>Departamento</label>
+        {categoriesLoading ? (
+          <div style={s.selectPlaceholder}>Cargando...</div>
+        ) : (
+          <select
+            style={{
+              ...ui.input,
+              ...s.select,
+              opacity: !selectedDivisionId ? 0.5 : 1,
+            }}
+            value={selectedDepartmentId ?? ""}
+            disabled={!selectedDivisionId}
+            onChange={(e) =>
+              handleDepartmentChange(e.target.value ? Number(e.target.value) : undefined)
+            }
+          >
+            <option value="">
+              {selectedDivisionId ? "Todos los departamentos" : "Selecciona una division"}
+            </option>
+            {departmentOptions.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      <div style={{ ...s.filterGroup, ...(isMobile ? s.mobileFilterGroup : {}) }}>
+        <label style={ui.fieldLabel}>Categoria</label>
+        {categoriesLoading ? (
+          <div style={s.selectPlaceholder}>Cargando...</div>
+        ) : (
+          <select
+            style={{
+              ...ui.input,
+              ...s.select,
+              opacity: !selectedDepartmentId ? 0.5 : 1,
+            }}
+            value={selectedCategoryId ?? ""}
+            disabled={!selectedDepartmentId}
+            onChange={(e) =>
+              handleCategoryChange(e.target.value ? Number(e.target.value) : undefined)
+            }
+          >
+            <option value="">
+              {selectedDepartmentId ? "Todas las categorias" : "Selecciona un departamento"}
+            </option>
+            {categoryOptions.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      <div style={{ ...s.filterGroup, ...(isMobile ? s.mobileFilterGroup : {}) }}>
+        <label style={ui.fieldLabel}>Busqueda</label>
+        <SearchInput
+          value={searchInput}
+          onChange={(v) => { setSearchInput(v); setPage(1); }}
+          placeholder="Buscar por SKU, codigo, nombre o descripcion"
+        />
+      </div>
+
+      <div style={{ ...s.filterActions, ...(isMobile ? s.mobileFilterGroup : {}) }}>
+        <button
+          type="button"
+          style={{ ...ui.ghostBtn, justifyContent: "center", width: isMobile ? "100%" : undefined }}
+          onClick={clearFilters}
+          disabled={activeFilterCount === 0}
+        >
+          Limpiar filtros
         </button>
       </div>
     </div>
   );
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const content = (
+    <>
+      {/* Header */}
+      <div style={ui.modalHeader}>
+        <span style={{ ...ui.modalTitle, display: "flex", alignItems: "center", gap: 8, fontSize: 0 }}>
+          <PackagePlus size={18} />
+          <span id="promotion-products-title" style={{ fontSize: 16 }}>Gestionar productos de la promocion</span>
+          {" "}
+        </span>
+        <button
+          type="button"
+          style={ui.linkBtn}
+          onClick={onClose}
+          disabled={submitting}
+          aria-label="Cerrar"
+        >
+          <X size={18} />
+        </button>
+      </div>
+
+      <div style={{ ...ui.modalBody, ...(isMobile ? { overflowY: "auto" } : {}) }}>
+        {/* Promotion name */}
+        <div style={s.promotionTag}>{promotionName}</div>
+
+        <div style={s.tabs} role="tablist" aria-label="Productos de la promocion">
+          <button
+            type="button"
+            style={{ ...s.tabButton, ...(activeTab === "associated" ? s.tabButtonActive : {}) }}
+            onClick={() => setActiveTab("associated")}
+          >
+            Productos asociados
+            <span style={s.tabCount}>{selectionMode ? selectedIds.size : associatedProducts.length}</span>
+          </button>
+          <button
+            type="button"
+            style={{ ...s.tabButton, ...(activeTab === "available" ? s.tabButtonActive : {}) }}
+            onClick={() => setActiveTab("available")}
+          >
+            Productos disponibles
+          </button>
+        </div>
+
+        {activeTab === "associated" ? renderAssociatedProducts() : (
+          <>
+            {isMobile ? (
+              <div style={s.mobileFiltersBlock}>
+                <button
+                  type="button"
+                  style={s.filtersToggle}
+                  aria-expanded={filtersOpen}
+                  aria-controls={filtersPanelId}
+                  onClick={() => setFiltersOpen((current) => !current)}
+                >
+                  <span style={s.filtersToggleText}>
+                    Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+                  </span>
+                  {filtersOpen ? (
+                    <ChevronUp size={16} style={s.filtersChevron} aria-hidden="true" />
+                  ) : (
+                    <ChevronDown size={16} style={s.filtersChevron} aria-hidden="true" />
+                  )}
+                </button>
+                {!filtersOpen && activeFilterCount > 0 && (
+                  <div style={s.filtersSummary} title={activeFilterSummary}>
+                    {activeFilterSummary}
+                  </div>
+                )}
+                {filtersOpen && filterControls}
+              </div>
+            ) : (
+              <>
+                {/* ── Filters row — Jerarquía División → Departamento → Categoría ── */}
+                <div style={s.filtersRow}>
+                  {/* División */}
+                  <div style={s.filterGroup}>
+                    <label style={ui.fieldLabel}>División</label>
+                    {categoriesLoading ? (
+                      <div style={s.selectPlaceholder}>Cargando...</div>
+                    ) : (
+                      <select
+                        style={{ ...ui.input, ...s.select }}
+                        value={selectedDivisionId ?? ""}
+                        onChange={(e) =>
+                          handleDivisionChange(e.target.value ? Number(e.target.value) : undefined)
+                        }
+                      >
+                        <option value="">Todas las divisiones</option>
+                        {divisionOptions.map((cat) => (
+                          <option key={cat.id} value={cat.id}>
+                            {cat.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  {/* Departamento — solo cuando hay división seleccionada */}
+                  <div style={s.filterGroup}>
+                    <label style={ui.fieldLabel}>Departamento</label>
+                    {categoriesLoading ? (
+                      <div style={s.selectPlaceholder}>Cargando...</div>
+                    ) : (
+                      <select
+                        style={{
+                          ...ui.input,
+                          ...s.select,
+                          opacity: !selectedDivisionId ? 0.5 : 1,
+                        }}
+                        value={selectedDepartmentId ?? ""}
+                        disabled={!selectedDivisionId}
+                        onChange={(e) =>
+                          handleDepartmentChange(e.target.value ? Number(e.target.value) : undefined)
+                        }
+                      >
+                        <option value="">
+                          {selectedDivisionId ? "Todos los departamentos" : "Selecciona una división"}
+                        </option>
+                        {departmentOptions.map((cat) => (
+                          <option key={cat.id} value={cat.id}>
+                            {cat.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  {/* Categoría — solo cuando hay departamento seleccionado */}
+                  <div style={s.filterGroup}>
+                    <label style={ui.fieldLabel}>Categoría</label>
+                    {categoriesLoading ? (
+                      <div style={s.selectPlaceholder}>Cargando...</div>
+                    ) : (
+                      <select
+                        style={{
+                          ...ui.input,
+                          ...s.select,
+                          opacity: !selectedDepartmentId ? 0.5 : 1,
+                        }}
+                        value={selectedCategoryId ?? ""}
+                        disabled={!selectedDepartmentId}
+                        onChange={(e) =>
+                          handleCategoryChange(e.target.value ? Number(e.target.value) : undefined)
+                        }
+                      >
+                        <option value="">
+                          {selectedDepartmentId ? "Todas las categorías" : "Selecciona un departamento"}
+                        </option>
+                        {categoryOptions.map((cat) => (
+                          <option key={cat.id} value={cat.id}>
+                            {cat.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                </div>
+
+                {/* ── Search ── */}
+                <div style={{ marginBottom: 12 }}>
+                  <SearchInput
+                    value={searchInput}
+                    onChange={(v) => { setSearchInput(v); setPage(1); }}
+                    placeholder="Buscar por SKU, código, nombre o descripción"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* ── Selection controls ── */}
+            <div style={s.selectionBar}>
+              <button
+                type="button"
+                style={{ ...ui.ghostBtn, fontSize: 12, padding: "5px 10px", height: 30 }}
+                onClick={() => void selectFiltered()}
+                disabled={selectableFilteredCount === 0 || productsLoading || selectingAll}
+                title="Seleccionar todos los productos que coinciden con el filtro actual"
+              >
+                {allVisibleSelected ? "✓ " : ""}{isMobile ? "Todos" : "Seleccionar todos"}
+              </button>
+              {selectionMode && (
+                <button
+                  type="button"
+                  style={{ ...ui.ghostBtn, fontSize: 12, padding: "5px 10px", height: 30 }}
+                  onClick={() => void deselectFiltered()}
+                  disabled={selectedIds.size === 0 || productsLoading || selectingAll}
+                >
+                  {isMobile ? "Deseleccionar" : "Deseleccionar filtrados"}
+                </button>
+              )}
+              <button
+                type="button"
+                style={{ ...ui.ghostBtn, fontSize: 12, padding: "5px 10px", height: 30 }}
+                onClick={clearSelection}
+                disabled={selectedIds.size === 0}
+              >
+                {isMobile ? "Limpiar" : "Limpiar selección"}
+              </button>
+              <span style={s.counter}>
+                {selectedIds.size} producto{selectedIds.size === 1 ? "" : "s"} seleccionado{selectedIds.size === 1 ? "" : "s"}
+              </span>
+            </div>
+
+            {/* ── Productos rechazados por el motor de reglas ── */}
+            {invalidProducts.length > 0 && (
+              <div style={s.invalidPreviewBox}>
+                <div style={{ fontWeight: 800, marginBottom: 6 }}>
+                  La promocion no puede aplicarse a {invalidProducts.length} producto{invalidProducts.length === 1 ? "" : "s"}.
+                </div>
+                {invalidProducts.map((product, index) => (
+                  <div key={`${product.productId}-${index}`} style={s.invalidPreviewItem}>
+                    <strong>{index + 1}. {product.name}</strong>
+                    <span>SKU: {product.sku || "Sin SKU"}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── Products table or cards ── */}
+            <div style={{
+              ...s.tableWrap,
+              ...(isMobile ? { border: "none", backgroundColor: "transparent" } : {})
+            }}>
+              {/* Table header */}
+              {!isMobile && (
+                <div style={{ ...s.tableRow, ...s.tableHead }}>
+                  <div style={{ ...s.cell, ...s.colCheck }} />
+                  <div style={{ ...s.cell, ...s.colSku }}>SKU</div>
+                  <div style={{ ...s.cell, ...s.colBarcode }}>Código barras</div>
+                  <div style={{ ...s.cell, ...s.colName }}>Producto</div>
+                  <div style={{ ...s.cell, ...s.colCost }}>Costo</div>
+                  <div style={{ ...s.cell, ...s.colPrice }}>Precio venta</div>
+                  <div style={{ ...s.cell, ...s.colCats }}>Categorías</div>
+                  <div style={{ ...s.cell, ...s.colStatus }}>Estado</div>
+                </div>
+              )}
+
+              {/* Table body */}
+              <div style={{
+                ...s.tableBody,
+                ...(isMobile ? { maxHeight: "42vh", padding: "4px 2px" } : {})
+              }}>
+                {/* Loading */}
+                {productsLoading && (
+                  <div style={s.stateRow}>Cargando productos...</div>
+                )}
+
+                {/* Error */}
+                {!productsLoading && productsError && (
+                  <div style={{ ...s.stateRow, color: "#b91c1c" }}>{productsError}</div>
+                )}
+
+                {/* Products load regardless of hierarchy selection — hierarchy is just a filter */}
+
+                {/* Empty results */}
+                {!productsLoading &&
+                  !productsError &&
+                  products.length === 0 && (
+                    <div style={s.stateRow}>
+                      {debouncedSearch.trim()
+                        ? "No se encontraron productos con esa búsqueda."
+                        : "No hay productos disponibles con estos filtros."}
+                    </div>
+                  )}
+
+                {/* Products */}
+                {!productsLoading &&
+                  !productsError &&
+                  products.map((product) => {
+                    const isSelected = selectedIds.has(product.id);
+                    const disabled = !selectionMode && product.alreadyAssociated;
+
+                    if (isMobile) {
+                      return (
+                        <div
+                          key={product.id}
+                          onClick={() => !disabled && toggleProduct(product.id, product.alreadyAssociated)}
+                          style={{
+                            backgroundColor: isSelected
+                              ? "rgba(30,58,138,0.06)"
+                              : disabled
+                              ? "var(--surface-2)"
+                              : "var(--surface)",
+                            border: isSelected ? "2px solid var(--accent)" : "1px solid var(--border-soft)",
+                            borderRadius: 14,
+                            padding: 14,
+                            marginBottom: 10,
+                            opacity: disabled ? 0.65 : 1,
+                            cursor: disabled ? "default" : "pointer",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 8,
+                            boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+                          }}
+                        >
+                          {/* Header card: Checkbox, SKU y Status */}
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                disabled={disabled}
+                                onChange={() => toggleProduct(product.id, product.alreadyAssociated)}
+                                onClick={(e) => e.stopPropagation()}
+                                style={s.check}
+                                aria-label={`Seleccionar ${product.name}`}
+                              />
+                              <span style={s.skuBadge}>{product.sku}</span>
+                            </div>
+                            <div>
+                              {product.alreadyAssociated ? (
+                                <Badge tone="blue">Ya asociado</Badge>
+                              ) : product.active ? (
+                                <Badge tone="green">Activo</Badge>
+                              ) : (
+                                <Badge tone="slate">Inactivo</Badge>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Name and Description */}
+                          <div>
+                            <div style={{ fontWeight: 700, color: "var(--text)", fontSize: 13, wordBreak: "break-word" }}>
+                              {product.name}
+                            </div>
+                            {product.description && (
+                              <div style={{ ...s.productDesc, color: "var(--text-muted)", wordBreak: "break-word" }}>
+                                {product.description}
+                              </div>
+                            )}
+                            {product.barcode && (
+                              <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2, fontFamily: "monospace" }}>
+                                Código: {product.barcode}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Cost & Sell Price */}
+                          <div style={{ display: "flex", gap: 20 }}>
+                            <div>
+                              <span style={{ fontSize: 9, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Costo</span>
+                              <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmt(product.costPrice)}</div>
+                            </div>
+                            <div>
+                              <span style={{ fontSize: 9, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Precio Venta</span>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{moneyExact(Number(product.sellPrice))}</div>
+                            </div>
+                          </div>
+
+                          {/* Categories (línea completa) */}
+                          <div style={{ borderTop: "1px solid var(--border-soft)", paddingTop: 8 }}>
+                            <span style={{ fontSize: 9, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 4 }}>Categorías</span>
+                            {product.categories.length === 0 ? (
+                              <span style={s.noCatBadge}>Sin categoría</span>
+                            ) : (
+                              <div style={s.catList}>
+                                {product.categories.map((cat) => (
+                                  <span key={cat.id} style={s.catBadge}>
+                                    {cat.name}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={product.id}
+                        style={{
+                          ...s.tableRow,
+                          backgroundColor: isSelected
+                            ? "rgba(30,58,138,0.06)"
+                            : disabled
+                            ? "var(--surface-2)"
+                            : undefined,
+                          opacity: disabled ? 0.65 : 1,
+                          cursor: disabled ? "default" : "pointer",
+                        }}
+                        onClick={() => !disabled && toggleProduct(product.id, product.alreadyAssociated)}
+                      >
+                        {/* Checkbox */}
+                        <div style={{ ...s.cell, ...s.colCheck, textAlign: "center" as const }}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            disabled={disabled}
+                            onChange={() => toggleProduct(product.id, product.alreadyAssociated)}
+                            onClick={(e) => e.stopPropagation()}
+                            style={s.check}
+                            aria-label={`Seleccionar ${product.name}`}
+                          />
+                        </div>
+
+                        {/* SKU */}
+                        <div style={{ ...s.cell, ...s.colSku }}>
+                          <span style={s.skuBadge}>{product.sku}</span>
+                        </div>
+
+                        {/* Barcode */}
+                        <div style={{ ...s.cell, ...s.colBarcode, color: "var(--text-muted)", fontSize: 12 }}>
+                          {product.barcode ?? "—"}
+                        </div>
+
+                        {/* Name */}
+                        <div style={{ ...s.cell, ...s.colName }}>
+                          <div style={s.productName}>{product.name}</div>
+                          {product.description && (
+                            <div style={s.productDesc}>{product.description}</div>
+                          )}
+                        </div>
+
+                        {/* Cost */}
+                        <div style={{ ...s.cell, ...s.colCost, fontVariantNumeric: "tabular-nums" as const }}>
+                          {fmt(product.costPrice)}
+                        </div>
+
+                        {/* Sell price */}
+                        <div
+                          style={{
+                            ...s.cell,
+                            ...s.colPrice,
+                            fontWeight: 800,
+                            fontVariantNumeric: "tabular-nums" as const,
+                          }}
+                        >
+                          {moneyExact(Number(product.sellPrice))}
+                        </div>
+
+                        {/* Categories */}
+                        <div style={{ ...s.cell, ...s.colCats }}>
+                          {product.categories.length === 0 ? (
+                            <span style={s.noCatBadge}>Sin categoría</span>
+                          ) : (
+                            <div style={s.catList}>
+                              {product.categories.map((cat) => (
+                                <span key={cat.id} style={s.catBadge}>
+                                  {cat.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Status */}
+                        <div style={{ ...s.cell, ...s.colStatus, textAlign: "center" as const }}>
+                          {product.alreadyAssociated ? (
+                            <Badge tone="blue">Ya asociado</Badge>
+                          ) : product.active ? (
+                            <Badge tone="green">Activo</Badge>
+                          ) : (
+                            <Badge tone="slate">Inactivo</Badge>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+
+            {/* ── Pagination ── */}
+            {pagination.totalPages > 1 && (
+              <div style={s.paginationBar}>
+                <button
+                  type="button"
+                  style={{
+                    ...ui.ghostBtn,
+                    padding: "5px 10px",
+                    height: 30,
+                    fontSize: 12,
+                    ...(isMobile ? { width: 34, height: 30, padding: 0, justifyContent: "center" } : {})
+                  }}
+                  disabled={page <= 1 || productsLoading}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  title="Anterior"
+                >
+                  <ChevronLeft size={14} />
+                  {!isMobile && " Anterior"}
+                </button>
+                <span style={s.pageInfo}>
+                  {isMobile ? `${pagination.page}/${pagination.totalPages}` : `Página ${pagination.page} de ${pagination.totalPages}`}
+                  {!isMobile && (
+                    <span style={{ marginLeft: 8, color: "var(--text-faint)", fontWeight: 500 }}>
+                      ({pagination.total} producto{pagination.total === 1 ? "" : "s"})
+                    </span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  style={{
+                    ...ui.ghostBtn,
+                    padding: "5px 10px",
+                    height: 30,
+                    fontSize: 12,
+                    ...(isMobile ? { width: 34, height: 30, padding: 0, justifyContent: "center" } : {})
+                  }}
+                  disabled={page >= pagination.totalPages || productsLoading}
+                  onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                  title="Siguiente"
+                >
+                  {!isMobile && "Siguiente "}
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            )}
+
+            {/* ── Submit error ── */}
+            {submitError && (
+              <div style={s.errorBox}>{submitError}</div>
+            )}
+
+            {/* ── Action buttons ── */}
+            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+              <button
+                type="button"
+                style={{
+                  ...ui.ghostBtn,
+                  flex: 1,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: 6,
+                  ...(isMobile ? { padding: "10px 0", maxWidth: 50 } : {})
+                }}
+                onClick={onClose}
+                disabled={submitting}
+                title="Cancelar"
+              >
+                <X size={15} />
+                {!isMobile && <span>Cancelar</span>}
+              </button>
+              <button
+                type="button"
+                style={{
+                  ...ui.primaryBtn,
+                  flex: isMobile ? 1 : 2,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: 6,
+                  opacity: (!selectionMode && selectedIds.size === 0) || submitting ? 0.55 : 1,
+                  cursor: (!selectionMode && selectedIds.size === 0) || submitting ? "not-allowed" : "pointer",
+                }}
+                disabled={(!selectionMode && selectedIds.size === 0) || submitting}
+                onClick={handleSubmit}
+                title={selectionMode ? "Aplicar seleccion" : "Agregar seleccionados"}
+              >
+                <PackagePlus size={15} />
+                {selectionMode ? (
+                  <span>{submitting ? "Aplicando..." : isMobile ? `Aplicar (${selectedIds.size})` : "Aplicar seleccion"}</span>
+                ) : submitting ? (
+                  <span>Agregando...</span>
+                ) : isMobile ? (
+                  <span>Agregar ({selectedIds.size})</span>
+                ) : (
+                  <span>Agregar {selectedIds.size > 0 ? selectedIds.size : ""} producto{selectedIds.size === 1 ? "" : "s"} seleccionado{selectedIds.size === 1 ? "" : "s"}</span>
+                )}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+
   return (
     <div style={{ ...s.overlay, ...(isMobile ? { padding: 0 } : {}) }} onClick={!submitting ? onClose : undefined}>
       <div
@@ -367,486 +1193,7 @@ const AddProductsToPromotionModal: React.FC<AddProductsToPromotionModalProps> = 
         aria-labelledby="promotion-products-title"
         aria-label="Gestionar productos de la promocion"
       >
-        {/* Header */}
-        <div style={ui.modalHeader}>
-          <span style={{ ...ui.modalTitle, display: "flex", alignItems: "center", gap: 8, fontSize: 0 }}>
-            <PackagePlus size={18} />
-            <span id="promotion-products-title" style={{ fontSize: 16 }}>Gestionar productos de la promocion</span>
-            {" "}
-          </span>
-          <button
-            type="button"
-            style={ui.linkBtn}
-            onClick={onClose}
-            disabled={submitting}
-            aria-label="Cerrar"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <div style={{ ...ui.modalBody, ...(isMobile ? { overflowY: "auto" } : {}) }}>
-          {/* Promotion name */}
-          <div style={s.promotionTag}>{promotionName}</div>
-
-          <div style={s.tabs} role="tablist" aria-label="Productos de la promocion">
-            <button
-              type="button"
-              style={{ ...s.tabButton, ...(activeTab === "associated" ? s.tabButtonActive : {}) }}
-              onClick={() => setActiveTab("associated")}
-            >
-              Productos asociados
-              <span style={s.tabCount}>{associatedProducts.length}</span>
-            </button>
-            <button
-              type="button"
-              style={{ ...s.tabButton, ...(activeTab === "available" ? s.tabButtonActive : {}) }}
-              onClick={() => setActiveTab("available")}
-            >
-              Productos disponibles
-            </button>
-          </div>
-
-          {activeTab === "associated" ? renderAssociatedProducts() : (
-          <>
-
-          {/* ── Filters row ── */}
-          <div style={{
-            ...s.filtersRow,
-            ...(isMobile ? { flexDirection: "column", alignItems: "stretch", gap: 8 } : {})
-          }}>
-            {/* Scope selector */}
-            <div style={{
-              ...s.filterGroup,
-              ...(isMobile ? { flex: "1 1 100%", width: "100%" } : {})
-            }}>
-              <label style={ui.fieldLabel}>Alcance</label>
-              <select
-                style={{ ...ui.input, ...s.select }}
-                value={scope}
-                onChange={(e) => handleScopeChange(e.target.value as PromotionProductScope)}
-              >
-                {SCOPE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Category selector — only when scope requires it */}
-            {SCOPE_NEEDS_CATEGORY.includes(scope) && (
-              <div style={{
-                ...s.filterGroup,
-                ...(isMobile ? { flex: "1 1 100%", width: "100%" } : {})
-              }}>
-                <label style={ui.fieldLabel}>{scopeLabel(scope)}</label>
-                {categoriesLoading ? (
-                  <div style={s.selectPlaceholder}>Cargando categorías...</div>
-                ) : (
-                  <select
-                    style={{ ...ui.input, ...s.select }}
-                    value={categoryId ?? ""}
-                    onChange={(e) =>
-                      handleCategoryChange(e.target.value ? Number(e.target.value) : undefined)
-                    }
-                  >
-                    <option value="">Selecciona {scopeLabel(scope).toLowerCase()}...</option>
-                    {filteredCategories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* ── Search ── */}
-          <div style={{ marginBottom: 12 }}>
-            <SearchInput
-              value={searchInput}
-              onChange={(v) => { setSearchInput(v); setPage(1); }}
-              placeholder="Buscar por SKU, código, nombre o descripción"
-            />
-          </div>
-
-          {/* ── Selection controls ── */}
-          <div style={s.selectionBar}>
-            <button
-              type="button"
-              style={{ ...ui.ghostBtn, fontSize: 12, padding: "5px 10px", height: 30 }}
-              onClick={selectVisible}
-              disabled={selectableCount === 0 || productsLoading}
-              title="Seleccionar todos los productos visibles en esta página"
-            >
-              {allVisibleSelected ? "✓ " : ""}{isMobile ? "Todos visibles" : "Seleccionar visibles"}
-            </button>
-            <button
-              type="button"
-              style={{ ...ui.ghostBtn, fontSize: 12, padding: "5px 10px", height: 30 }}
-              onClick={clearSelection}
-              disabled={selectedIds.size === 0}
-            >
-              {isMobile ? "Limpiar" : "Limpiar selección"}
-            </button>
-            <span style={s.counter}>
-              {selectedIds.size} producto{selectedIds.size === 1 ? "" : "s"} seleccionado{selectedIds.size === 1 ? "" : "s"}
-            </span>
-          </div>
-
-          {/* ── Products table or cards ── */}
-          <div style={{
-            ...s.tableWrap,
-            ...(isMobile ? { border: "none", backgroundColor: "transparent" } : {})
-          }}>
-            {/* Table header */}
-            {!isMobile && (
-              <div style={{ ...s.tableRow, ...s.tableHead }}>
-                <div style={{ ...s.cell, ...s.colCheck }} />
-                <div style={{ ...s.cell, ...s.colSku }}>SKU</div>
-                <div style={{ ...s.cell, ...s.colBarcode }}>Código barras</div>
-                <div style={{ ...s.cell, ...s.colName }}>Producto</div>
-                <div style={{ ...s.cell, ...s.colCost }}>Costo</div>
-                <div style={{ ...s.cell, ...s.colPrice }}>Precio venta</div>
-                <div style={{ ...s.cell, ...s.colCats }}>Categorías</div>
-                <div style={{ ...s.cell, ...s.colStatus }}>Estado</div>
-              </div>
-            )}
-
-            {/* Table body */}
-            <div style={{
-              ...s.tableBody,
-              ...(isMobile ? { maxHeight: "42vh", padding: "4px 2px" } : {})
-            }}>
-              {/* Loading */}
-              {productsLoading && (
-                <div style={s.stateRow}>Cargando productos...</div>
-              )}
-
-              {/* Error */}
-              {!productsLoading && productsError && (
-                <div style={{ ...s.stateRow, color: "#b91c1c" }}>{productsError}</div>
-              )}
-
-              {/* Empty state: waiting for category */}
-              {!productsLoading &&
-                !productsError &&
-                SCOPE_NEEDS_CATEGORY.includes(scope) &&
-                !categoryId && (
-                  <div style={s.stateRow}>
-                    Selecciona una {scopeLabel(scope).toLowerCase()} para ver productos.
-                  </div>
-                )}
-
-              {/* Empty results */}
-              {!productsLoading &&
-                !productsError &&
-                products.length === 0 &&
-                (!SCOPE_NEEDS_CATEGORY.includes(scope) || categoryId) && (
-                  <div style={s.stateRow}>
-                    {debouncedSearch.trim()
-                      ? "No se encontraron productos con esa búsqueda."
-                      : "No hay productos disponibles con estos filtros."}
-                  </div>
-                )}
-
-              {/* Products */}
-              {!productsLoading &&
-                !productsError &&
-                products.map((product) => {
-                  const isSelected = selectedIds.has(product.id);
-                  const disabled = product.alreadyAssociated;
-
-                  if (isMobile) {
-                    return (
-                      <div
-                        key={product.id}
-                        onClick={() => !disabled && toggleProduct(product.id, product.alreadyAssociated)}
-                        style={{
-                          backgroundColor: isSelected
-                            ? "rgba(30,58,138,0.06)"
-                            : disabled
-                            ? "var(--surface-2)"
-                            : "var(--surface)",
-                          border: isSelected ? "2px solid var(--accent)" : "1px solid var(--border-soft)",
-                          borderRadius: 14,
-                          padding: 14,
-                          marginBottom: 10,
-                          opacity: disabled ? 0.65 : 1,
-                          cursor: disabled ? "default" : "pointer",
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: 8,
-                          boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
-                        }}
-                      >
-                        {/* Header card: Checkbox, SKU y Status */}
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              disabled={disabled}
-                              onChange={() => toggleProduct(product.id, product.alreadyAssociated)}
-                              onClick={(e) => e.stopPropagation()}
-                              style={s.check}
-                              aria-label={`Seleccionar ${product.name}`}
-                            />
-                            <span style={s.skuBadge}>{product.sku}</span>
-                          </div>
-                          <div>
-                            {product.alreadyAssociated ? (
-                              <Badge tone="blue">Ya asociado</Badge>
-                            ) : product.active ? (
-                              <Badge tone="green">Activo</Badge>
-                            ) : (
-                              <Badge tone="slate">Inactivo</Badge>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Name and Description */}
-                        <div>
-                          <div style={{ fontWeight: 700, color: "var(--text)", fontSize: 13, wordBreak: "break-word" }}>
-                            {product.name}
-                          </div>
-                          {product.description && (
-                            <div style={{ ...s.productDesc, color: "var(--text-muted)", wordBreak: "break-word" }}>
-                              {product.description}
-                            </div>
-                          )}
-                          {product.barcode && (
-                            <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2, fontFamily: "monospace" }}>
-                              Código: {product.barcode}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Cost & Sell Price */}
-                        <div style={{ display: "flex", gap: 20 }}>
-                          <div>
-                            <span style={{ fontSize: 9, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Costo</span>
-                            <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{fmt(product.costPrice)}</div>
-                          </div>
-                          <div>
-                            <span style={{ fontSize: 9, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase" }}>Precio Venta</span>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{moneyExact(Number(product.sellPrice))}</div>
-                          </div>
-                        </div>
-
-                        {/* Categories (línea completa) */}
-                        <div style={{ borderTop: "1px solid var(--border-soft)", paddingTop: 8 }}>
-                          <span style={{ fontSize: 9, color: "var(--text-faint)", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: 4 }}>Categorías</span>
-                          {product.categories.length === 0 ? (
-                            <span style={s.noCatBadge}>Sin categoría</span>
-                          ) : (
-                            <div style={s.catList}>
-                              {product.categories.map((cat) => (
-                                <span key={cat.id} style={s.catBadge}>
-                                  {cat.name}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div
-                      key={product.id}
-                      style={{
-                        ...s.tableRow,
-                        backgroundColor: isSelected
-                          ? "rgba(30,58,138,0.06)"
-                          : disabled
-                          ? "var(--surface-2)"
-                          : undefined,
-                        opacity: disabled ? 0.65 : 1,
-                        cursor: disabled ? "default" : "pointer",
-                      }}
-                      onClick={() => !disabled && toggleProduct(product.id, product.alreadyAssociated)}
-                    >
-                      {/* Checkbox */}
-                      <div style={{ ...s.cell, ...s.colCheck, textAlign: "center" as const }}>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          disabled={disabled}
-                          onChange={() => toggleProduct(product.id, product.alreadyAssociated)}
-                          onClick={(e) => e.stopPropagation()}
-                          style={s.check}
-                          aria-label={`Seleccionar ${product.name}`}
-                        />
-                      </div>
-
-                      {/* SKU */}
-                      <div style={{ ...s.cell, ...s.colSku }}>
-                        <span style={s.skuBadge}>{product.sku}</span>
-                      </div>
-
-                      {/* Barcode */}
-                      <div style={{ ...s.cell, ...s.colBarcode, color: "var(--text-muted)", fontSize: 12 }}>
-                        {product.barcode ?? "—"}
-                      </div>
-
-                      {/* Name */}
-                      <div style={{ ...s.cell, ...s.colName }}>
-                        <div style={s.productName}>{product.name}</div>
-                        {product.description && (
-                          <div style={s.productDesc}>{product.description}</div>
-                        )}
-                      </div>
-
-                      {/* Cost */}
-                      <div style={{ ...s.cell, ...s.colCost, fontVariantNumeric: "tabular-nums" as const }}>
-                        {fmt(product.costPrice)}
-                      </div>
-
-                      {/* Sell price */}
-                      <div
-                        style={{
-                          ...s.cell,
-                          ...s.colPrice,
-                          fontWeight: 800,
-                          fontVariantNumeric: "tabular-nums" as const,
-                        }}
-                      >
-                        {moneyExact(Number(product.sellPrice))}
-                      </div>
-
-                      {/* Categories */}
-                      <div style={{ ...s.cell, ...s.colCats }}>
-                        {product.categories.length === 0 ? (
-                          <span style={s.noCatBadge}>Sin categoría</span>
-                        ) : (
-                          <div style={s.catList}>
-                            {product.categories.map((cat) => (
-                              <span key={cat.id} style={s.catBadge}>
-                                {cat.name}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Status */}
-                      <div style={{ ...s.cell, ...s.colStatus, textAlign: "center" as const }}>
-                        {product.alreadyAssociated ? (
-                          <Badge tone="blue">Ya asociado</Badge>
-                        ) : product.active ? (
-                          <Badge tone="green">Activo</Badge>
-                        ) : (
-                          <Badge tone="slate">Inactivo</Badge>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-
-          {/* ── Pagination ── */}
-          {pagination.totalPages > 1 && (
-            <div style={s.paginationBar}>
-              <button
-                type="button"
-                style={{
-                  ...ui.ghostBtn,
-                  padding: "5px 10px",
-                  height: 30,
-                  fontSize: 12,
-                  ...(isMobile ? { width: 34, height: 30, padding: 0, justifyContent: "center" } : {})
-                }}
-                disabled={page <= 1 || productsLoading}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                title="Anterior"
-              >
-                <ChevronLeft size={14} />
-                {!isMobile && " Anterior"}
-              </button>
-              <span style={s.pageInfo}>
-                {isMobile ? `${pagination.page}/${pagination.totalPages}` : `Página ${pagination.page} de ${pagination.totalPages}`}
-                {!isMobile && (
-                  <span style={{ marginLeft: 8, color: "var(--text-faint)", fontWeight: 500 }}>
-                    ({pagination.total} producto{pagination.total === 1 ? "" : "s"})
-                  </span>
-                )}
-              </span>
-              <button
-                type="button"
-                style={{
-                  ...ui.ghostBtn,
-                  padding: "5px 10px",
-                  height: 30,
-                  fontSize: 12,
-                  ...(isMobile ? { width: 34, height: 30, padding: 0, justifyContent: "center" } : {})
-                }}
-                disabled={page >= pagination.totalPages || productsLoading}
-                onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
-                title="Siguiente"
-              >
-                {!isMobile && "Siguiente "}
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          )}
-
-          {/* ── Submit error ── */}
-          {submitError && (
-            <div style={s.errorBox}>{submitError}</div>
-          )}
-
-          {/* ── Action buttons ── */}
-          <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-            <button
-              type="button"
-              style={{
-                ...ui.ghostBtn,
-                flex: 1,
-                justifyContent: "center",
-                alignItems: "center",
-                gap: 6,
-                ...(isMobile ? { padding: "10px 0", maxWidth: 50 } : {})
-              }}
-              onClick={onClose}
-              disabled={submitting}
-              title="Cancelar"
-            >
-              <X size={15} />
-              {!isMobile && <span>Cancelar</span>}
-            </button>
-            <button
-              type="button"
-              style={{
-                ...ui.primaryBtn,
-                flex: isMobile ? 1 : 2,
-                justifyContent: "center",
-                alignItems: "center",
-                gap: 6,
-                opacity: selectedIds.size === 0 || submitting ? 0.55 : 1,
-                cursor: selectedIds.size === 0 || submitting ? "not-allowed" : "pointer",
-              }}
-              disabled={selectedIds.size === 0 || submitting}
-              onClick={handleSubmit}
-              title="Agregar seleccionados"
-            >
-              <PackagePlus size={15} />
-              {submitting ? (
-                <span>Agregando...</span>
-              ) : isMobile ? (
-                <span>Agregar ({selectedIds.size})</span>
-              ) : (
-                <span>Agregar {selectedIds.size > 0 ? selectedIds.size : ""} producto{selectedIds.size === 1 ? "" : "s"} seleccionado{selectedIds.size === 1 ? "" : "s"}</span>
-              )}
-            </button>
-          </div>
-          </>
-          )}
-        </div>
+        {content}
       </div>
     </div>
   );
@@ -941,12 +1288,70 @@ const s: Record<string, React.CSSProperties> = {
     marginBottom: 12,
     alignItems: "flex-end",
   },
+  mobileFiltersBlock: {
+    marginBottom: 8,
+  },
+  filtersToggle: {
+    alignItems: "center",
+    backgroundColor: "var(--surface-2)",
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    color: "var(--text)",
+    cursor: "pointer",
+    display: "flex",
+    justifyContent: "space-between",
+    minHeight: 36,
+    padding: "7px 10px",
+    width: "100%",
+  },
+  filtersToggleText: {
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  filtersChevron: {
+    color: "var(--text-secondary)",
+    flexShrink: 0,
+    transition: "transform 160ms ease",
+  },
+  filtersSummary: {
+    color: "var(--text-secondary)",
+    fontSize: 12,
+    fontWeight: 600,
+    lineHeight: 1.35,
+    marginTop: 5,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  filtersPanel: {
+    border: "1px solid var(--border-soft)",
+    borderRadius: 8,
+    display: "grid",
+    gap: 8,
+    alignItems: "start",
+    height: "auto",
+    marginTop: 8,
+    minHeight: 0,
+    padding: 10,
+  },
   filterGroup: {
     display: "flex",
     flexDirection: "column",
     gap: 4,
     flex: "1 1 200px",
     minWidth: 160,
+  },
+  mobileFilterGroup: {
+    display: "grid",
+    flex: "0 0 auto",
+    gap: 4,
+    minWidth: 0,
+    width: "100%",
+  },
+  filterActions: {
+    alignItems: "flex-end",
+    display: "flex",
+    flex: "0 0 auto",
   },
   select: {
     height: 38,
@@ -1123,6 +1528,24 @@ const s: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     marginTop: 12,
     padding: "10px 12px",
+    whiteSpace: "pre-line" as const,
+  },
+  invalidPreviewBox: {
+    backgroundColor: "#fff7ed",
+    border: "1px solid #fed7aa",
+    borderRadius: 8,
+    color: "#9a3412",
+    fontSize: 12,
+    lineHeight: 1.45,
+    marginBottom: 12,
+    padding: "10px 12px",
+  },
+  invalidPreviewItem: {
+    display: "grid",
+    gap: 2,
+    borderTop: "1px solid #fed7aa",
+    marginTop: 6,
+    paddingTop: 6,
   },
   check: {
     width: 16,

@@ -1,80 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { Minus, Plus, XCircle, Tag, ShoppingCart } from "lucide-react";
 import { usePosCart } from "../hooks/usePosCart";
-
-interface ActivePromotion {
-  id: number;
-  name: string;
-  type: string;
-  value: number | null;
-  minQuantity: number | null;
-  payQuantity: number | null;
-  specialPrice: number | null;
-}
-
-interface Product {
-  id: number;
-  sku: string;
-  name: string;
-  sellPrice: number;
-  stock: number;
-  activePromotion?: ActivePromotion | null;
-}
-
-interface CartItem {
-  product: Product;
-  quantity: number;
-}
-
-const calculateItemPromotion = (item: CartItem) => {
-  const promo = item.product.activePromotion;
-  const originalPrice = Number(item.product.sellPrice);
-  const quantity = item.quantity;
-  const subtotalOriginal = originalPrice * quantity;
-
-  if (!promo) {
-    return { finalPrice: originalPrice, discountAmount: 0, label: "", promoApplied: false };
-  }
-
-  let discountAmount = 0;
-  let finalPrice = originalPrice;
-  const minQty = promo.minQuantity || 1;
-
-  if (promo.type === "Percentage") {
-    if (quantity >= minQty) {
-      const val = Number(promo.value) || 0;
-      const discountPerUnit = originalPrice * (val / 100);
-      discountAmount = discountPerUnit * quantity;
-      finalPrice = originalPrice - discountPerUnit;
-    }
-  } else if (promo.type === "FixedAmount") {
-    if (quantity >= minQty) {
-      const val = Number(promo.value) || 0;
-      discountAmount = val * quantity;
-      finalPrice = Math.max(0, originalPrice - val);
-    }
-  } else if (promo.type === "BuyXPayY") {
-    const x = Number(promo.minQuantity) || 1;
-    const y = Number(promo.payQuantity) || 1;
-    if (quantity >= x) {
-      const groups = Math.floor(quantity / x);
-      const remainder = quantity % x;
-      const paidUnits = (groups * y) + remainder;
-      const lineCost = paidUnits * originalPrice;
-      discountAmount = subtotalOriginal - lineCost;
-      finalPrice = lineCost / quantity;
-    }
-  } else if (promo.type === "SpecialPrice") {
-    const special = Number(promo.specialPrice) || originalPrice;
-    if (quantity >= minQty) {
-      finalPrice = special;
-      discountAmount = (originalPrice - special) * quantity;
-    }
-  }
-
-  const promoApplied = discountAmount > 0;
-  return { finalPrice, discountAmount, label: promoApplied ? promo.name : "", promoApplied };
-};
+// main tenía una copia local de este cálculo, duplicada del backend, que nunca recibió
+// el fix de "no aplicar SpecialPrice si el precio especial es mayor al original" (sí
+// aplicado en promotion.service.ts). fix/promos la extrae a un util compartido que ya
+// incluye ese resguardo (y de forma más robusta, vía discountCents <= 0) — se adopta
+// esa versión para no perpetuar la inconsistencia entre frontend y backend.
+import { calculateItemPromotion } from "../utils/promotionPricing";
 
 interface CartPanelProps {
   cartData: ReturnType<typeof usePosCart>;
@@ -280,7 +212,7 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
                             ${Number(item.product.sellPrice).toFixed(2)}
                           </span>
                           <br />
-                          <span style={{ color: "#1e40af", fontWeight: "700" }}>
+                          <span style={{ color: "var(--pos-blue)", fontWeight: "700" }}>
                             ${promoDetails.finalPrice.toFixed(2)}
                           </span>
                         </div>

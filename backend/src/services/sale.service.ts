@@ -1,8 +1,49 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../app";
 import { AppError } from "../utils/AppError";
+import { toMoneyCents } from "../utils/money.util";
 import { PromotionService } from "./promotion.service";
 
 type NormalizedSaleItem = { productId: number; quantity: number; name?: string };
+
+const assertPromotionCalculationStillValid = async (
+  tx: Prisma.TransactionClient,
+  itemsWithCosts: any[]
+) => {
+  const cartItems = itemsWithCosts.map((item) => ({
+    id: item.productId,
+    productId: item.productId,
+    name: item.productName,
+    quantity: item.quantity,
+  }));
+
+  const recalculated = await PromotionService.calculatePromotions(cartItems, tx);
+  if (recalculated.lines.length !== itemsWithCosts.length) {
+    throw new AppError("No se pudo validar nuevamente el carrito antes de cobrar.", 400);
+  }
+
+  for (let i = 0; i < itemsWithCosts.length; i++) {
+    const original = itemsWithCosts[i];
+    const recalculatedLine = recalculated.lines[i];
+    const originalDiscount = toMoneyCents(Number(original.discountAmount || 0));
+    const recalculatedDiscount = toMoneyCents(recalculatedLine.discountAmount);
+    const originalPrice = toMoneyCents(Number(original.unitPrice));
+    const recalculatedPrice = toMoneyCents(recalculatedLine.originalPrice);
+    const originalPromotionId = original.promotionId ?? null;
+    const recalculatedPromotionId = recalculatedLine.appliedPromotion?.promotionId ?? null;
+
+    if (
+      originalDiscount !== recalculatedDiscount ||
+      originalPrice !== recalculatedPrice ||
+      originalPromotionId !== recalculatedPromotionId
+    ) {
+      throw new AppError(
+        "El precio o la promocion de uno o mas productos cambio antes de cobrar. Actualice el carrito e intente de nuevo.",
+        409
+      );
+    }
+  }
+};
 
 export const calculateSaleCart = async (params: {
   normalizedItems: NormalizedSaleItem[];
@@ -74,7 +115,7 @@ export const calculateSaleCart = async (params: {
     const { product, inventoryId, currentStock, quantity } = dbProducts[i];
     const calcLine = promoCalc.lines[i];
 
-    const finalPriceWithTaxesAndDiscount = (Number(product.sellPrice) * quantity) - calcLine.discountAmount;
+    const finalPriceWithTaxesAndDiscount = calcLine.finalLineTotal;
 
     const applicableTaxes = product.productTaxes
       ? product.productTaxes.map((pt: any) => pt.taxType).filter((t: any) => t.active)
@@ -112,6 +153,7 @@ export const calculateSaleCart = async (params: {
       productId: product.id,
       quantity,
       unitPrice: Number(product.sellPrice),
+      productName: product.name,
       costPrice: Number(product.costPrice),
       discountAmount: calcLine.discountAmount,
       promotionId: calcLine.appliedPromotion?.promotionId || null,
@@ -210,6 +252,8 @@ export const processSaleTransaction = async (params: {
   } = params;
 
   return prisma.$transaction(async (tx) => {
+    await assertPromotionCalculationStillValid(tx, itemsWithCosts);
+
     // a. Crear registro de venta principal y pagos
     const sale = await tx.sale.create({
       data: {

@@ -13,7 +13,7 @@ export type ValidatorRule =
   | { type: "barcode"; required?: boolean }
   | { type: "searchSafe"; label?: string; max?: number };
 
-export const SAFE_TEXT_PATTERN = /^[A-Za-z\u00C1\u00C9\u00CD\u00D3\u00DA\u00E1\u00E9\u00ED\u00F3\u00FA\u00D1\u00F1\u00DC\u00FC0-9\s.,#\/()-]+$/;
+export const SAFE_TEXT_PATTERN = /^[A-Za-z\u00C1\u00C9\u00CD\u00D3\u00DA\u00E1\u00E9\u00ED\u00F3\u00FA\u00D1\u00F1\u00DC\u00FC0-9\s.,#\/()%$+:-]+$/;
 export const SAFE_REFERENCE_PATTERN = /^[A-Za-z\u00C1\u00C9\u00CD\u00D3\u00DA\u00E1\u00E9\u00ED\u00F3\u00FA\u00D1\u00F1\u00DC\u00FC0-9\s.,#_\/:-]+$/;
 export const SAFE_SEARCH_PATTERN = /^[A-Za-z\u00C1\u00C9\u00CD\u00D3\u00DA\u00E1\u00E9\u00ED\u00F3\u00FA\u00D1\u00F1\u00DC\u00FC0-9\s.,#_\/:@()+-]+$/;
 export const RFC_PATTERN = /^[A-Z\u00D1&]{3,4}[0-9]{6}[A-Z0-9]{3}$/;

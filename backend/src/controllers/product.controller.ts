@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../app";
 import { normalizeSearchText, parseSearchWords } from "../utils/search.util";
+import { PromotionService } from "../services/promotion.service";
 
 /**
  * Buscar productos por código de barras, SKU o nombre y retornar su inventario en la sucursal actual
@@ -112,22 +113,7 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
     const mappedProducts = products.map((p) => {
       const branchInventory = p.inventories[0];
       
-      // Encontrar promoción activa
-      const activePP = p.promotionProducts.find(pp => 
-        pp.promotion.isActive &&
-        pp.promotion.startDate <= today &&
-        pp.promotion.endDate >= today
-      );
-
-      const activePromo = activePP ? {
-        id: activePP.promotion.id,
-        name: activePP.promotion.name,
-        type: activePP.promotion.promotionType.name,
-        value: activePP.promotion.value ? Number(activePP.promotion.value) : null,
-        minQuantity: activePP.promotion.minQuantity,
-        payQuantity: activePP.promotion.payQuantity,
-        specialPrice: activePP.promotion.specialPrice ? Number(activePP.promotion.specialPrice) : null,
-      } : null;
+      const activePromo = PromotionService.getDisplayPromotionForProduct(p, p.promotionProducts, today);
 
       const taxes = p.productTaxes
         ? p.productTaxes

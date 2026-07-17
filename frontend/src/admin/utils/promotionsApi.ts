@@ -35,6 +35,7 @@ const normalizeAvailableProductsResponse = (
         total: payload.data.total,
         totalPages: payload.data.totalPages,
       },
+      invalidProducts: payload.data.invalidProducts,
       categories: payload.data.categories,
     };
   }

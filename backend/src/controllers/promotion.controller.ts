@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { PromotionService } from "../services/promotion.service";
+import { AppError } from "../utils/AppError";
 
 export class PromotionController {
   /**
@@ -11,6 +12,10 @@ export class PromotionController {
       const promotions = await PromotionService.getActivePromotions();
       res.json(promotions);
     } catch (error: any) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({ message: error.message });
+        return;
+      }
       console.error(error);
       res.status(500).json({ message: "Error interno del servidor." });
     }
@@ -71,6 +76,10 @@ export class PromotionController {
       const result = await PromotionService.calculatePromotions(items);
       res.json(result);
     } catch (error: any) {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({ message: error.message });
+        return;
+      }
       console.error(error);
       res.status(500).json({ message: "Error interno del servidor." });
     }

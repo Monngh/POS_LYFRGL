@@ -5,10 +5,13 @@ import { ConfirmModal, DataTable } from "../../shared/ui";
 import type { Column } from "../../shared/ui";
 import { useToast } from "../../shared/context/ToastContext";
 import AddProductsToPromotionModal from "../components/AddProductsToPromotionModal";
-import type { PromotionAssociatedProductDetail } from "../types/promotions.types";
+import {
+  adminCategoryService,
+  type AdminCategoryFlatItem,
+} from "../services/categoryAdmin.service";
+import type { InvalidPromotionProduct, PromotionAssociatedProductDetail } from "../types/promotions.types";
 import {
   collectRoundedDecimalMessages,
-  DECIMAL_INPUT_REGEX,
   handleDecimalInputChange,
   validateDecimalField,
 } from "../../shared/utils/decimalInput";
@@ -70,6 +73,7 @@ interface ProductOption {
   name: string;
   sellPrice: number;
   active: boolean;
+  categoryIds: number[];
 }
 
 interface PromotionProduct {
@@ -114,6 +118,23 @@ interface FormState {
 type FieldErrors = Partial<Record<keyof FormState, string>>;
 
 type RuleKey = "percentage" | "fixedAmount" | "buyXPayY" | "specialPrice";
+const PROMOTION_DECIMAL_INPUT_REGEX = /^\d*(?:\.\d{0,2})?$/;
+
+interface PromotionInvalidProductSummary {
+  productId: number;
+  name: string;
+  sku: string | null;
+}
+
+interface ProductCompatibilityValidationResult {
+  message: string;
+  products: PromotionInvalidProductSummary[];
+}
+
+interface FormValidationResult {
+  errors: FieldErrors;
+  invalidProducts: PromotionInvalidProductSummary[];
+}
 
 interface PromotionDecimalValues {
   value: number | null;
@@ -155,6 +176,22 @@ const getErrorMessage = (err: unknown, fallback: string) => {
   }
 
   return fallback;
+};
+
+const invalidProductsHeading = (count: number) =>
+  `La promocion no puede aplicarse a ${count} producto${count === 1 ? "" : "s"}.`;
+
+const toInvalidProductSummary = (product: ProductOption | InvalidPromotionProduct): PromotionInvalidProductSummary => ({
+  productId: "productId" in product ? product.productId : product.id,
+  name: product.name,
+  sku: product.sku || null,
+});
+
+const getInvalidProductsFromError = (err: unknown): PromotionInvalidProductSummary[] => {
+  if (typeof err !== "object" || err === null || !("response" in err)) return [];
+  const apiError = err as { response?: { data?: { invalidProducts?: InvalidPromotionProduct[] } } };
+  const invalidProducts = apiError.response?.data?.invalidProducts;
+  return Array.isArray(invalidProducts) ? invalidProducts.map(toInvalidProductSummary) : [];
 };
 
 const getRule = (typeName: string): RuleKey | null => {
@@ -234,39 +271,252 @@ const productSummary = (promotion: PromotionRow) => {
   return names.length <= 2 ? names.join(", ") : `${names.slice(0, 2).join(", ")} +${names.length - 2}`;
 };
 
+const hasMaxTwoDecimals = (value: string) => {
+  const [, decimalPart = ""] = value.trim().split(".");
+  return decimalPart.length <= 2;
+};
+
+const validateSelectedProductsForPromotion = (
+  selectedRule: RuleKey | null,
+  selectedProductIds: number[],
+  products: ProductOption[],
+  decimalValues: PromotionDecimalValues,
+): ProductCompatibilityValidationResult | string | undefined => {
+  const selectedProducts = selectedProductIds
+    .map((productId) => products.find((product) => product.id === productId))
+    .filter((product): product is ProductOption => Boolean(product));
+
+  if (selectedProducts.length !== selectedProductIds.length) {
+    return "Uno o mas productos seleccionados ya no estan disponibles.";
+  }
+
+  const formatProductConflicts = (conflicts: ProductOption[]): ProductCompatibilityValidationResult => ({
+    message: invalidProductsHeading(conflicts.length),
+    products: conflicts.map(toInvalidProductSummary),
+  });
+
+  if (selectedRule === "percentage" && decimalValues.value !== null) {
+    const conflicts = selectedProducts.flatMap((product) => {
+      const finalPrice = Math.round((product.sellPrice * (1 - decimalValues.value! / 100) + Number.EPSILON) * 100) / 100;
+      return finalPrice <= 0 || finalPrice >= product.sellPrice
+        ? [product]
+        : [];
+    });
+    if (conflicts.length > 0) return formatProductConflicts(conflicts);
+  }
+
+  if (selectedRule === "fixedAmount" && decimalValues.value !== null) {
+    const conflicts = selectedProducts.filter((product) => decimalValues.value! >= product.sellPrice);
+    if (conflicts.length > 0) return formatProductConflicts(conflicts);
+  }
+
+  if (selectedRule === "specialPrice" && decimalValues.specialPrice !== null) {
+    const conflicts = selectedProducts.filter((product) => decimalValues.specialPrice! >= product.sellPrice);
+    if (conflicts.length > 0) return formatProductConflicts(conflicts);
+  }
+
+  return undefined;
+};
+
+const InvalidPromotionProductsNotice: React.FC<{ products: PromotionInvalidProductSummary[] }> = ({ products }) => (
+  <div style={styles.invalidProductsBox} role="alert">
+    <div style={styles.invalidProductsTitle}>{invalidProductsHeading(products.length)}</div>
+    <div style={styles.invalidProductsList}>
+      {products.map((product, index) => (
+        <div key={`${product.productId}-${index}`} style={styles.invalidProductRow}>
+          <span style={styles.invalidProductName}>{index + 1}. {product.name}</span>
+          <span style={styles.invalidProductSku}>SKU: {product.sku || "Sin SKU"}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const PromotionProductsSummary: React.FC<{
+  count: number;
+  products: PromotionProduct[];
+  selectedProductIds: number[];
+  disabled?: boolean;
+  onManage: () => void;
+}> = ({ count, products, selectedProductIds, disabled, onManage }) => {
+  const selectedIds = new Set(selectedProductIds);
+  const preview = products
+    .filter((row) => selectedIds.has(row.productId))
+    .slice(0, 3)
+    .map((row) => row.product?.name ?? `Producto #${row.productId}`);
+
+  return (
+    <div style={styles.productsSummaryBox}>
+      <div style={styles.productsSummaryText}>
+        <span style={styles.productsSummaryLabel}>Productos asociados</span>
+        <strong style={styles.productsSummaryCount}>
+          {count} producto{count === 1 ? "" : "s"} seleccionado{count === 1 ? "" : "s"}
+        </strong>
+        {preview.length > 0 && (
+          <span style={styles.productsSummaryPreview}>
+            {preview.join(", ")}
+            {count > preview.length ? ` +${count - preview.length}` : ""}
+          </span>
+        )}
+      </div>
+      <button
+        type="button"
+        style={{ ...ui.ghostBtn, justifyContent: "center", whiteSpace: "nowrap" }}
+        onClick={onManage}
+        disabled={disabled}
+      >
+        <PackagePlus size={15} /> Gestionar productos
+      </button>
+    </div>
+  );
+};
+
 const ProductSelector: React.FC<{
   products: ProductOption[];
   selectedIds: number[];
-  onToggle: (productId: number) => void;
+  onChangeSelected: (ids: number[]) => void;
   disabled?: boolean;
-}> = ({ products, selectedIds, onToggle, disabled }) => {
+  allCategories: AdminCategoryFlatItem[];
+}> = ({ products, selectedIds, onChangeSelected, disabled, allCategories }) => {
   const [query, setQuery] = useState("");
+  const [selDivisionId, setSelDivisionId] = useState<number | undefined>(undefined);
+  const [selDepartmentId, setSelDepartmentId] = useState<number | undefined>(undefined);
+  const [selCategoryId, setSelCategoryId] = useState<number | undefined>(undefined);
   const isMobile = useMediaQuery("(max-width: 1024px)");
+
+  // Hierarchical options
+  const divisionOptions = useMemo(
+    () => allCategories.filter((cat) => cat.level === "DIVISION"),
+    [allCategories]
+  );
+  const departmentOptions = useMemo(
+    () => selDivisionId
+      ? allCategories.filter((cat) => cat.level === "DEPARTMENT" && cat.parentId === selDivisionId)
+      : [],
+    [allCategories, selDivisionId]
+  );
+  const categoryOptions = useMemo(
+    () => selDepartmentId
+      ? allCategories.filter((cat) => cat.level === "CATEGORY" && cat.parentId === selDepartmentId)
+      : [],
+    [allCategories, selDepartmentId]
+  );
+
+  // Filter products by hierarchy + text
   const filtered = useMemo(() => {
-    return filterProductsBySearch(products, query);
-  }, [products, query]);
+    let list = filterProductsBySearch(products, query);
+    if (selCategoryId) {
+      list = list.filter((p) => p.categoryIds.includes(selCategoryId));
+    } else if (selDepartmentId) {
+      const catIds = new Set(categoryOptions.map((c) => c.id));
+      list = list.filter((p) => p.categoryIds.some((id) => catIds.has(id)));
+    } else if (selDivisionId) {
+      const allDeptIds = allCategories
+        .filter((c) => c.level === "DEPARTMENT" && c.parentId === selDivisionId)
+        .map((c) => c.id);
+      const catIds = new Set(
+        allCategories
+          .filter((c) => c.level === "CATEGORY" && allDeptIds.includes(c.parentId!))
+          .map((c) => c.id)
+      );
+      list = list.filter((p) => p.categoryIds.some((id) => catIds.has(id)));
+    }
+    return list;
+  }, [products, query, selCategoryId, selDepartmentId, selDivisionId, categoryOptions, allCategories]);
+
+  const handleDivisionChange = (id: number | undefined) => {
+    setSelDivisionId(id);
+    setSelDepartmentId(undefined);
+    setSelCategoryId(undefined);
+  };
+  const handleDepartmentChange = (id: number | undefined) => {
+    setSelDepartmentId(id);
+    setSelCategoryId(undefined);
+  };
+
+  const selectorStyle: React.CSSProperties = {
+    height: 36,
+    padding: "0 10px",
+    fontSize: 12,
+    border: "1px solid var(--border)",
+    borderRadius: 7,
+    backgroundColor: "var(--input-bg, var(--surface))",
+    color: "var(--text)",
+    cursor: "pointer",
+    flex: "1 1 140px",
+    minWidth: 130,
+  };
 
   return (
     <div style={styles.productPicker}>
-      <div style={{
-        ...styles.productPickerTop,
-        flexDirection: isMobile ? "column" : "row",
-        alignItems: isMobile ? "stretch" : "center",
-        gap: isMobile ? 8 : 10,
-      }}>
-        <SearchInput
-          value={query}
-          onChange={setQuery}
-          placeholder="Buscar SKU o producto"
-          style={isMobile ? { minWidth: 0, flex: "1 1 auto", width: "100%" } : undefined}
-        />
-        <span style={{
-          ...styles.selectedCount,
-          marginLeft: isMobile ? "0" : "auto",
-          alignSelf: isMobile ? "flex-end" : "center",
-        }}>
-          {selectedIds.length} seleccionado{selectedIds.length === 1 ? "" : "s"}
-        </span>
+      {/* Hierarchy filters row */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+        <select
+          style={selectorStyle}
+          value={selDivisionId ?? ""}
+          onChange={(e) => handleDivisionChange(e.target.value ? Number(e.target.value) : undefined)}
+        >
+          <option value="">Todas las divisiones</option>
+          {divisionOptions.map((cat) => (
+            <option key={cat.id} value={cat.id}>{cat.name}</option>
+          ))}
+        </select>
+        <select
+          style={{ ...selectorStyle, opacity: !selDivisionId ? 0.5 : 1 }}
+          value={selDepartmentId ?? ""}
+          disabled={!selDivisionId}
+          onChange={(e) => handleDepartmentChange(e.target.value ? Number(e.target.value) : undefined)}
+        >
+          <option value="">{selDivisionId ? "Todos los departamentos" : "Selecciona una división"}</option>
+          {departmentOptions.map((cat) => (
+            <option key={cat.id} value={cat.id}>{cat.name}</option>
+          ))}
+        </select>
+        <select
+          style={{ ...selectorStyle, opacity: !selDepartmentId ? 0.5 : 1 }}
+          value={selCategoryId ?? ""}
+          disabled={!selDepartmentId}
+          onChange={(e) => setSelCategoryId(e.target.value ? Number(e.target.value) : undefined)}
+        >
+          <option value="">{selDepartmentId ? "Todas las categorías" : "Selecciona un departamento"}</option>
+          {categoryOptions.map((cat) => (
+            <option key={cat.id} value={cat.id}>{cat.name}</option>
+          ))}
+        </select>
+      </div>
+      <div style={{ ...styles.productPickerTop, flexWrap: "wrap", gap: 12 }}>
+        <div style={{ flex: "1 1 200px" }}>
+          <SearchInput value={query} onChange={setQuery} placeholder="Buscar SKU o producto" />
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button
+            type="button"
+            style={{ ...ui.ghostBtn, fontSize: 12, padding: "5px 10px", height: 30 }}
+            onClick={() => {
+              const allIds = new Set(selectedIds);
+              filtered.forEach((p) => allIds.add(p.id));
+              onChangeSelected(Array.from(allIds));
+            }}
+            disabled={filtered.length === 0 || disabled}
+          >
+            Seleccionar todos
+          </button>
+          <button
+            type="button"
+            style={{ ...ui.ghostBtn, fontSize: 12, padding: "5px 10px", height: 30 }}
+            onClick={() => {
+              const filteredIds = new Set(filtered.map((p) => p.id));
+              const remaining = selectedIds.filter((id) => !filteredIds.has(id));
+              onChangeSelected(remaining);
+            }}
+            disabled={selectedIds.length === 0 || disabled}
+          >
+            Quitar todos
+          </button>
+          <span style={{ ...styles.selectedCount, marginLeft: 8 }}>
+            {selectedIds.length} seleccionado{selectedIds.length === 1 ? "" : "s"}
+          </span>
+        </div>
       </div>
       {isMobile ? (
         <div style={styles.productList}>
@@ -274,80 +524,110 @@ const ProductSelector: React.FC<{
             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Producto</span>
             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Precio</span>
           </div>
-          {filtered.length === 0 ? (
-            <div style={styles.productEmpty}>
-              {query.trim() ? "No se encontraron productos con esa búsqueda." : "No hay productos activos para mostrar."}
-            </div>
-          ) : (
-            filtered.map((product) => (
-              <div
-                key={product.id}
-                style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderBottom: "1px solid var(--border)", width: "100%", boxSizing: "border-box" }}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedIds.includes(product.id)}
-                  disabled={disabled}
-                  onChange={() => onToggle(product.id)}
-                  style={{ width: 18, height: 18, flexShrink: 0 }}
-                  aria-label={`Seleccionar ${product.name}`}
-                />
-                <div style={{ flex: 1, minWidth: 0, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {product.name}
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
-                      SKU: {product.sku}
+          <div style={{ maxHeight: 240, overflowY: "auto", overflowX: "hidden" }}>
+            {filtered.length === 0 ? (
+              <div style={styles.productEmpty}>
+                {query.trim() ? "No se encontraron productos con esa búsqueda." : "No hay productos activos para mostrar."}
+              </div>
+            ) : (
+              filtered.map((product) => (
+                <div
+                  key={product.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 12px",
+                    borderBottom: "1px solid var(--border)",
+                    width: "100%",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(product.id)}
+                    disabled={disabled}
+                    onChange={() => onChangeSelected(
+                      selectedIds.includes(product.id)
+                        ? selectedIds.filter((id) => id !== product.id)
+                        : [...selectedIds, product.id]
+                    )}
+                    style={{ width: 18, height: 18, flexShrink: 0 }}
+                    aria-label={`Seleccionar ${product.name}`}
+                  />
+                  <div style={{ flex: 1, minWidth: 0, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: "var(--text)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {product.name}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
+                        SKU: {product.sku}
+                      </div>
                     </div>
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", flexShrink: 0 }}>
                     {moneyExact(Number(product.sellPrice))}
                   </div>
                 </div>
-              </div>
-            ))
-          )}
+              ))
+            )}
+          </div>
         </div>
       ) : (
         <div style={styles.productList}>
-          <table style={{ ...ui.table, ...styles.productTable }}>
-            <thead>
-              <tr style={{ ...ui.theadRow, ...styles.productGridRow }}>
-                <th style={{ ...ui.th, ...styles.productColCheck }} />
-                <th style={{ ...ui.th, ...styles.productColSku }}>SKU</th>
-                <th style={{ ...ui.th, ...styles.productColName }}>Nombre</th>
-                <th style={{ ...ui.th, ...styles.productColPrice, textAlign: "right" }}>Precio</th>
-              </tr>
-            </thead>
-            <tbody style={styles.productTbody}>
-              {filtered.length === 0 ? (
-                <tr style={styles.productGridRowEmpty}>
-                  <td style={{ ...styles.productEmpty, width: "100%" }}>
-                    {query.trim() ? "No se encontraron productos con esa búsqueda." : "No hay productos activos para mostrar."}
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((product) => (
-                  <tr key={product.id} style={styles.productGridRow}>
-                    <td style={{ ...ui.td, ...styles.productColCheck, textAlign: "center" }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(product.id)}
-                        disabled={disabled}
-                        onChange={() => onToggle(product.id)}
-                        style={styles.check}
-                        aria-label={`Seleccionar ${product.name}`}
-                      />
-                    </td>
-                    <td style={{ ...ui.td, ...styles.productColSku }}>{product.sku}</td>
-                    <td title={product.name} style={{ ...ui.td, ...styles.productColName }}>{product.name}</td>
-                    <td style={{ ...ui.td, ...styles.productColPrice }}>{moneyExact(Number(product.sellPrice))}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <div
+            style={{
+              ...ui.theadRow,
+              ...styles.productGridRow,
+              position: "sticky",
+              top: 0,
+              zIndex: 1,
+              backgroundColor: "var(--surface-2)",
+            }}
+          >
+            <div style={{ ...ui.th, ...styles.productColCheck }} />
+            <div style={{ ...ui.th, ...styles.productColSku }}>SKU</div>
+            <div style={{ ...ui.th, ...styles.productColName }}>Nombre</div>
+            <div style={{ ...ui.th, ...styles.productColPrice }}>Precio</div>
+          </div>
+          <div style={styles.productTbody}>
+            {filtered.length === 0 ? (
+              <div style={styles.productEmpty}>
+                {query.trim() ? "No se encontraron productos con esa búsqueda." : "No hay productos activos para mostrar."}
+              </div>
+            ) : (
+              filtered.map((product) => (
+                <div key={product.id} style={styles.productGridRow}>
+                  <div style={{ ...ui.td, ...styles.productColCheck, textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(product.id)}
+                      disabled={disabled}
+                      onChange={() => onChangeSelected(
+                        selectedIds.includes(product.id)
+                          ? selectedIds.filter((id) => id !== product.id)
+                          : [...selectedIds, product.id]
+                      )}
+                      style={styles.check}
+                      aria-label={`Seleccionar ${product.name}`}
+                    />
+                  </div>
+                  <div style={{ ...ui.td, ...styles.productColSku }}>{product.sku}</div>
+                  <div title={product.name} style={{ ...ui.td, ...styles.productColName }}>{product.name}</div>
+                  <div style={{ ...ui.td, ...styles.productColPrice }}>{moneyExact(Number(product.sellPrice))}</div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -369,17 +649,31 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
   const [form, setForm] = useState<FormState>(emptyForm());
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [formInvalidProducts, setFormInvalidProducts] = useState<PromotionInvalidProductSummary[]>([]);
+  const [pageInvalidProducts, setPageInvalidProducts] = useState<PromotionInvalidProductSummary[]>([]);
   const [saving, setSaving] = useState(false);
   const [loadingActionId, setLoadingActionId] = useState<number | null>(null);
 
   const [detail, setDetail] = useState<PromotionRow | null>(null);
   const [confirmTogglePromotion, setConfirmTogglePromotion] = useState<PromotionRow | null>(null);
 
-  // State for the products manager modal (associated + available products)
+  // State for the standalone products manager opened from the promotions list.
   const [addProductsTarget, setAddProductsTarget] = useState<PromotionRow | null>(null);
+  const [productsManagerMode, setProductsManagerMode] = useState<"immediate" | "selection">("immediate");
 
   const [expandedPromotions, setExpandedPromotions] = useState<Record<number, boolean>>({});
+  const [allCategories, setAllCategories] = useState<AdminCategoryFlatItem[]>([]);
   const isMobile = useMediaQuery("(max-width: 1024px)");
+
+  // Load categories once for the hierarchical filter in ProductSelector
+  useEffect(() => {
+    let cancelled = false;
+    adminCategoryService
+      .listFlat({ active: true })
+      .then((data) => { if (!cancelled) setAllCategories(data); })
+      .catch(() => { if (!cancelled) setAllCategories([]); });
+    return () => { cancelled = true; };
+  }, []);
 
   const toggleExpandPromotion = (id: number) =>
     setExpandedPromotions((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -388,6 +682,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
     void refreshToken;
     setLoading(true);
     setError(null);
+    setPageInvalidProducts([]);
 
     try {
       const [promotionsRes, typesRes, productsRes] = await Promise.all([
@@ -471,6 +766,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
             : event.target.value;
         setForm((current) => ({ ...current, [key]: value }));
         setFormError(null);
+        setFormInvalidProducts([]);
         setFieldErrors((prev) => {
           const next = { ...prev };
           const error = validateField(key, value);
@@ -484,47 +780,50 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
     (key: "value" | "specialPrice") =>
       (event: React.ChangeEvent<HTMLInputElement>) => {
         const rawValue = event.target.value.trim();
-        if (rawValue && !DECIMAL_INPUT_REGEX.test(rawValue)) {
+        if (rawValue && !PROMOTION_DECIMAL_INPUT_REGEX.test(rawValue)) {
           setFieldErrors((prev) => ({
             ...prev,
             [key]: key === "value"
-              ? "El valor debe ser un numero valido con maximo 3 decimales."
-              : "El precio especial debe ser un numero valido con maximo 3 decimales.",
+              ? "El valor debe ser un numero valido con maximo 2 decimales."
+              : "El precio especial debe ser un numero valido con maximo 2 decimales.",
           }));
           return;
         }
         handleDecimalInputChange(rawValue, (nextValue) => {
           setForm((current) => ({ ...current, [key]: nextValue }));
           setFormError(null);
+          setFormInvalidProducts([]);
           const validation =
             key === "value" && selectedRule === "percentage"
               ? validateDecimalField(nextValue, "El porcentaje", {
                 min: 0,
                 max: 100,
                 minExclusive: true,
-                invalidMessage: "El porcentaje debe ser un numero valido con maximo 3 decimales.",
+                invalidMessage: "El porcentaje debe ser un numero valido con maximo 2 decimales.",
                 minMessage: "El porcentaje debe ser mayor a 0.",
-                maxMessage: "El porcentaje debe ser menor o igual a 100.",
+                maxMessage: "El porcentaje debe ser menor a 100.",
               })
               : key === "value" && selectedRule === "fixedAmount"
                 ? validateDecimalField(nextValue, "El monto fijo", {
                   min: 0,
                   minExclusive: true,
-                  invalidMessage: "El monto fijo debe ser un numero valido con maximo 3 decimales.",
+                  invalidMessage: "El monto fijo debe ser un numero valido con maximo 2 decimales.",
                   minMessage: "El monto fijo debe ser mayor a 0.",
                 })
                 : key === "specialPrice" && selectedRule === "specialPrice"
                   ? validateDecimalField(nextValue, "El precio especial", {
                     min: 0,
                     minExclusive: true,
-                    invalidMessage: "El precio especial debe ser un numero valido con maximo 3 decimales.",
+                    invalidMessage: "El precio especial debe ser un numero valido con maximo 2 decimales.",
                     minMessage: "El precio especial debe ser mayor a 0.",
                   })
                   : { ok: true as const };
           setFieldErrors((prev) => {
             const next = { ...prev };
             if (!validation.ok) next[key] = validation.error;
-            else delete next[key];
+            else if (key === "value" && selectedRule === "percentage" && Number(nextValue) >= 100) {
+              next[key] = "El porcentaje debe ser menor a 100.";
+            } else delete next[key];
             return next;
           });
         });
@@ -534,16 +833,20 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
     const emptyValues: PromotionDecimalValues = { value: null, specialPrice: null, roundingMessages: [] };
 
     if (selectedRule === "percentage") {
+      if (!hasMaxTwoDecimals(form.value)) {
+        return { ok: false, error: "El porcentaje no puede tener mas de dos decimales." };
+      }
       const value = validateDecimalField(form.value, "El porcentaje", {
         min: 0,
         max: 100,
         minExclusive: true,
-        invalidMessage: "El porcentaje debe ser un numero valido con maximo 3 decimales.",
+        invalidMessage: "El porcentaje debe ser un numero valido con maximo 2 decimales.",
         minMessage: "El porcentaje debe ser mayor a 0.",
-        maxMessage: "El porcentaje debe ser menor o igual a 100.",
+        maxMessage: "El porcentaje debe ser menor a 100.",
       });
       if (!value.ok) return { ok: false, error: value.error };
       const decimalValue = value.value;
+      if (decimalValue.value >= 100) return { ok: false, error: "El porcentaje debe ser menor a 100." };
       return {
         ok: true,
         value: {
@@ -555,10 +858,13 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
     }
 
     if (selectedRule === "fixedAmount") {
+      if (!hasMaxTwoDecimals(form.value)) {
+        return { ok: false, error: "El monto fijo no puede tener mas de dos decimales." };
+      }
       const value = validateDecimalField(form.value, "El monto fijo", {
         min: 0,
         minExclusive: true,
-        invalidMessage: "El monto fijo debe ser un numero valido con maximo 3 decimales.",
+        invalidMessage: "El monto fijo debe ser un numero valido con maximo 2 decimales.",
         minMessage: "El monto fijo debe ser mayor a 0.",
       });
       if (!value.ok) return { ok: false, error: value.error };
@@ -574,10 +880,13 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
     }
 
     if (selectedRule === "specialPrice") {
+      if (!hasMaxTwoDecimals(form.specialPrice)) {
+        return { ok: false, error: "El precio especial no puede tener mas de dos decimales." };
+      }
       const specialPrice = validateDecimalField(form.specialPrice, "El precio especial", {
         min: 0,
         minExclusive: true,
-        invalidMessage: "El precio especial debe ser un numero valido con maximo 3 decimales.",
+        invalidMessage: "El precio especial debe ser un numero valido con maximo 2 decimales.",
         minMessage: "El precio especial debe ser mayor a 0.",
       });
       if (!specialPrice.ok) return { ok: false, error: specialPrice.error };
@@ -607,6 +916,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
       specialPrice: rule === "specialPrice" ? current.specialPrice : "",
     }));
     setFormError(null);
+    setFormInvalidProducts([]);
     setFieldErrors((prev) => {
       const next = { ...prev };
       delete next.promotionTypeId;
@@ -618,12 +928,10 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
     });
   };
 
-  const toggleFormProduct = (productId: number) => {
+  const setFormProductIds = (productIds: number[]) => {
     setForm((current) => ({
       ...current,
-      productIds: current.productIds.includes(productId)
-        ? current.productIds.filter((id) => id !== productId)
-        : [...current.productIds, productId],
+      productIds,
     }));
     setFieldErrors((prev) => {
       const next = { ...prev };
@@ -631,10 +939,13 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
       return next;
     });
     setFormError(null);
+    setFormInvalidProducts([]);
   };
 
-  const validateForm = () => {
+  const validateForm = (): FormValidationResult => {
     const errors: FieldErrors = {};
+    let invalidProducts: PromotionInvalidProductSummary[] = [];
+    const isCreating = editing === "create";
 
     const nameError = validateField("name", form.name);
     if (nameError) errors.name = nameError;
@@ -653,9 +964,10 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
 
     const start = new Date(`${form.startDate}T00:00:00`);
     const end = new Date(`${form.endDate}T23:59:59`);
-    if (form.startDate && form.endDate && end <= start) errors.endDate = "La fecha final debe ser mayor que la fecha inicial.";
+    if (form.startDate && form.endDate && end <= start) errors.endDate = "La fecha final no puede ser anterior a la fecha inicial.";
     if (typeof form.isActive !== "boolean") errors.isActive = "El estado de la promocion es invalido.";
-    if (form.productIds.length === 0) errors.productIds = "Seleccione al menos un producto activo.";
+    if (isCreating && form.productIds.length === 0) errors.productIds = "Seleccione al menos un producto activo.";
+    if (!isCreating && form.productIds.length === 0) errors.productIds = "Agregue al menos un producto asociado antes de guardar.";
 
     if (selectedRule === "percentage") {
       const decimalValidation = validatePromotionDecimals();
@@ -685,8 +997,23 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
     }
 
     if (!selectedRule) errors.promotionTypeId = "El tipo de promocion seleccionado no esta soportado.";
+    const decimalValidation = validatePromotionDecimals();
+    if (isCreating && decimalValidation.ok) {
+      const productValidationError = validateSelectedProductsForPromotion(
+        selectedRule,
+        form.productIds,
+        products,
+        decimalValidation.value,
+      );
+      if (typeof productValidationError === "string") {
+        errors.productIds = productValidationError;
+      } else if (productValidationError) {
+        errors.productIds = productValidationError.message;
+        invalidProducts = productValidationError.products;
+      }
+    }
 
-    return errors;
+    return { errors, invalidProducts };
   };
 
   const buildPayload = (decimalValues: PromotionDecimalValues) => ({
@@ -708,6 +1035,8 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
     setForm(emptyForm());
     setFieldErrors({});
     setFormError(null);
+    setFormInvalidProducts([]);
+    setPageInvalidProducts([]);
     setNotice(null);
   };
 
@@ -721,6 +1050,8 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
     setNotice(null);
     setFieldErrors({});
     setFormError(null);
+    setFormInvalidProducts([]);
+    setPageInvalidProducts([]);
     try {
       const fresh = await loadPromotionDetail(promotion.id);
       if (!fresh) throw new Error("PROMOTION_NOT_FOUND");
@@ -752,6 +1083,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
     try {
       const fresh = await loadPromotionDetail(promotion.id);
       if (!fresh) throw new Error("PROMOTION_NOT_FOUND");
+      setProductsManagerMode("immediate");
       setAddProductsTarget(fresh);
     } catch (err: unknown) {
       setError(getErrorMessage(err, "No se pudo abrir el selector de productos."));
@@ -762,10 +1094,25 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
 
   /** Llamada cuando el modal de agregar productos asocia productos con éxito */
   const handleAddProductsSuccess = async () => {
-    if (addProductsTarget) {
+    if (addProductsTarget && productsManagerMode === "immediate") {
       try {
         const fresh = await loadPromotionDetail(addProductsTarget.id);
-        if (fresh) setAddProductsTarget(fresh);
+        if (fresh) {
+          setAddProductsTarget(fresh);
+          setEditing((current) => (
+            current && current !== "create" && current.id === fresh.id ? fresh : current
+          ));
+          setForm((current) => ({
+            ...current,
+            productIds: fresh.products.map((row) => row.productId),
+          }));
+          setFieldErrors((prev) => {
+            const next = { ...prev };
+            delete next.productIds;
+            return next;
+          });
+          setFormInvalidProducts([]);
+        }
       } catch {
         // silently ignore refresh error
       }
@@ -773,20 +1120,38 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
     await load();
   };
 
+  const openProductsManagerFromForm = () => {
+    if (!editing || editing === "create") return;
+    setProductsManagerMode("selection");
+    setAddProductsTarget(editing);
+  };
+
+  const applyProductSelection = (productIds: number[]) => {
+    setFormProductIds(productIds);
+    setAddProductsTarget(null);
+    setProductsManagerMode("immediate");
+  };
+
   const closeForm = () => {
     if (saving) return;
     setEditing(null);
     setFieldErrors({});
     setFormError(null);
+    setFormInvalidProducts([]);
+    if (productsManagerMode === "selection") {
+      setAddProductsTarget(null);
+      setProductsManagerMode("immediate");
+    }
   };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
 
     const validation = validateForm();
-    if (Object.keys(validation).length > 0) {
-      setFieldErrors(validation);
-      setFormError("Revisa los campos marcados antes de guardar.");
+    if (Object.keys(validation.errors).length > 0) {
+      setFieldErrors(validation.errors);
+      setFormInvalidProducts(validation.invalidProducts);
+      setFormError(validation.invalidProducts.length > 0 ? null : "Revisa los campos marcados antes de guardar.");
       return;
     }
     const decimalValidation = validatePromotionDecimals();
@@ -795,12 +1160,14 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
         ...prev,
         [selectedRule === "specialPrice" ? "specialPrice" : "value"]: decimalValidation.error,
       }));
+      setFormInvalidProducts([]);
       setFormError("Revisa los campos marcados antes de guardar.");
       return;
     }
 
     setSaving(true);
     setFormError(null);
+    setFormInvalidProducts([]);
     setFieldErrors({});
     try {
       if (decimalValidation.value.roundingMessages.length > 0) {
@@ -818,9 +1185,14 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
       setEditing(null);
       setForm(emptyForm());
       setFieldErrors({});
+      setFormInvalidProducts([]);
+      setAddProductsTarget(null);
+      setProductsManagerMode("immediate");
       await load();
     } catch (err: unknown) {
-      setFormError(getErrorMessage(err, "No se pudo guardar la promocion."));
+      const invalidProducts = getInvalidProductsFromError(err);
+      setFormInvalidProducts(invalidProducts);
+      setFormError(invalidProducts.length > 0 ? null : getErrorMessage(err, "No se pudo guardar la promocion."));
     } finally {
       setSaving(false);
     }
@@ -838,19 +1210,23 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
     setConfirmTogglePromotion(null);
     setLoadingActionId(promotion.id);
     setError(null);
+    setPageInvalidProducts([]);
     setNotice(null);
     try {
       await api.patch(`/api/admin-promotions/promotions/${promotion.id}/status`, { isActive: next });
       setNotice(`Promocion ${next ? "activada" : "desactivada"} correctamente.`);
       await load();
     } catch (err: unknown) {
-      setError(getErrorMessage(err, "No se pudo cambiar el estado de la promocion."));
+      const invalidProducts = getInvalidProductsFromError(err);
+      setPageInvalidProducts(invalidProducts);
+      setError(invalidProducts.length > 0 ? null : getErrorMessage(err, "No se pudo cambiar el estado de la promocion."));
     } finally {
       setLoadingActionId(null);
     }
   };
 
   const paged = usePagination(filteredRows, { resetKey: `${search}|${statusFilter}` });
+  const editingPromotion = editing && editing !== "create" ? editing : null;
 
   const columns: Column<PromotionRow>[] = [
     {
@@ -971,6 +1347,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
           {notice}
         </div>
       )}
+      {pageInvalidProducts.length > 0 && <InvalidPromotionProductsNotice products={pageInvalidProducts} />}
 
       {isMobile ? (
         /* ── Mobile / Tablet: Card-based layout (DevolucionesView pattern with Inventario header) ── */
@@ -1353,8 +1730,24 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
               <div style={styles.formGrid}>
                 <div style={{ gridColumn: "1 / -1" }}>
                   <label style={ui.fieldLabel}>Nombre *</label>
-                  <input style={ui.input} value={form.name} onChange={setField("name")} placeholder="Coca Cola 20% OFF" autoFocus />
-                  {fieldErrors.name && <p style={styles.fieldError}>{fieldErrors.name}</p>}
+                  <input
+                    style={ui.input}
+                    value={form.name}
+                    onChange={setField("name")}
+                    placeholder="Coca Cola 20% OFF"
+                    autoFocus
+                    maxLength={100}
+                  />
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+                    {fieldErrors.name ? (
+                      <p style={{ ...styles.fieldError, marginTop: 0, marginBottom: 0 }}>{fieldErrors.name}</p>
+                    ) : (
+                      <div />
+                    )}
+                    <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: "auto", fontWeight: 600 }}>
+                      {form.name.length} / 100
+                    </span>
+                  </div>
                 </div>
 
                 <div style={{ gridColumn: "1 / -1" }}>
@@ -1364,8 +1757,18 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
                     value={form.description}
                     onChange={setField("description")}
                     placeholder="Descuento en refrescos"
+                    maxLength={180}
                   />
-                  {fieldErrors.description && <p style={styles.fieldError}>{fieldErrors.description}</p>}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+                    {fieldErrors.description ? (
+                      <p style={{ ...styles.fieldError, marginTop: 0, marginBottom: 0 }}>{fieldErrors.description}</p>
+                    ) : (
+                      <div />
+                    )}
+                    <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: "auto", fontWeight: 600 }}>
+                      {form.description.length} / 180
+                    </span>
+                  </div>
                 </div>
 
                 <div>
@@ -1381,15 +1784,18 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
                   {fieldErrors.promotionTypeId && <p style={styles.fieldError}>{fieldErrors.promotionTypeId}</p>}
                 </div>
 
-                <label style={styles.checkRow}>
-                  <input
-                    type="checkbox"
-                    checked={form.isActive}
-                    onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.checked }))}
-                    style={styles.check}
-                  />
-                  <span>Promocion activa</span>
-                </label>
+                <div>
+                  <label style={ui.fieldLabel}>Estado *</label>
+                  <select
+                    style={ui.input}
+                    value={form.isActive ? "true" : "false"}
+                    onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "true" }))}
+                  >
+                    <option value="true">Activa</option>
+                    <option value="false">Inactiva</option>
+                  </select>
+                  {fieldErrors.isActive && <p style={styles.fieldError}>{fieldErrors.isActive}</p>}
+                </div>
 
                 <div>
                   <label style={ui.fieldLabel}>Inicio *</label>
@@ -1399,7 +1805,7 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
 
                 <div>
                   <label style={ui.fieldLabel}>Fin *</label>
-                  <input type="date" style={ui.input} value={form.endDate} onChange={setField("endDate")} />
+                  <input type="date" style={ui.input} value={form.endDate} onChange={setField("endDate")} min={form.startDate || undefined} />
                   {fieldErrors.endDate && <p style={styles.fieldError}>{fieldErrors.endDate}</p>}
                 </div>
 
@@ -1443,9 +1849,27 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
               </div>
 
               <div style={{ marginTop: 18 }}>
-                <label style={ui.fieldLabel}>Productos *</label>
-                <ProductSelector products={products} selectedIds={form.productIds} onToggle={toggleFormProduct} disabled={saving} />
-                {fieldErrors.productIds && <p style={styles.fieldError}>{fieldErrors.productIds}</p>}
+                {editing === "create" ? (
+                  <>
+                    <label style={ui.fieldLabel}>Productos *</label>
+                    <ProductSelector products={products} selectedIds={form.productIds} onChangeSelected={setFormProductIds} disabled={saving} allCategories={allCategories} />
+                  </>
+                ) : (
+                  editingPromotion && (
+                    <PromotionProductsSummary
+                      count={form.productIds.length}
+                      products={editingPromotion.products}
+                      selectedProductIds={form.productIds}
+                      disabled={saving}
+                      onManage={openProductsManagerFromForm}
+                    />
+                  )
+                )}
+                {formInvalidProducts.length > 0 ? (
+                  <InvalidPromotionProductsNotice products={formInvalidProducts} />
+                ) : (
+                  fieldErrors.productIds && <p style={styles.fieldError}>{fieldErrors.productIds}</p>
+                )}
               </div>
 
               {formError && <p style={styles.formError}>{formError}</p>}
@@ -1472,61 +1896,108 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
                 <X size={18} />
               </button>
             </div>
-            <div style={ui.modalBody}>
-              <div style={styles.detailGrid}>
-                <div>
-                  <span style={styles.detailLabel}>Tipo</span>
-                  <strong>{typeLabel(detail.promotionType.name)}</strong>
+            <div style={{ ...ui.modalBody, padding: "14px 20px" }}>
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
+                gap: 12,
+                marginBottom: 16,
+              }}>
+                <div style={{ ...ui.kpiCard, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                  <span style={{ ...styles.detailLabel, marginBottom: 4 }}>Tipo</span>
+                  <strong style={{ fontSize: 13, color: "var(--text)" }}>{typeLabel(detail.promotionType.name)}</strong>
                 </div>
-                <div>
-                  <span style={styles.detailLabel}>Valor</span>
-                  <strong>{formatPromotionValue(detail)}</strong>
+                <div style={{ ...ui.kpiCard, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                  <span style={{ ...styles.detailLabel, marginBottom: 4 }}>Valor</span>
+                  <strong style={{ fontSize: 13, color: "var(--text)" }}>{formatPromotionValue(detail)}</strong>
                 </div>
-                <div>
-                  <span style={styles.detailLabel}>Vigencia</span>
-                  <strong>{fmtDate(detail.startDate)} - {fmtDate(detail.endDate)}</strong>
+                <div style={{ ...ui.kpiCard, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                  <span style={{ ...styles.detailLabel, marginBottom: 4 }}>Vigencia</span>
+                  <strong style={{ fontSize: 12, color: "var(--text)" }}>{fmtDate(detail.startDate)} - {fmtDate(detail.endDate)}</strong>
                 </div>
-                <div>
-                  <span style={styles.detailLabel}>Estado</span>
-                  <Badge tone={getStatus(detail).tone}>{getStatus(detail).label}</Badge>
+                <div style={{ ...ui.kpiCard, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                  <span style={{ ...styles.detailLabel, marginBottom: 4 }}>Estado</span>
+                  <div>
+                    <Badge tone={getStatus(detail).tone}>{getStatus(detail).label}</Badge>
+                  </div>
                 </div>
               </div>
 
-              {detail.description && <p style={styles.detailDescription}>{detail.description}</p>}
+              {detail.description && (
+                <div style={{
+                  backgroundColor: "var(--surface-2)",
+                  border: "1px solid var(--border-soft)",
+                  borderRadius: 8,
+                  padding: "10px 12px",
+                  fontSize: 12.5,
+                  color: "var(--text-secondary)",
+                  lineHeight: 1.45,
+                  marginBottom: 16,
+                }}>
+                  {detail.description}
+                </div>
+              )}
 
-              <div style={{ marginTop: 18 }}>
-                <label style={ui.fieldLabel}>Productos asignados ({detail.products.length})</label>
-                {detail.products.length === 0 ? (
-                  <div style={{ fontSize: 13, color: "var(--text-faint)", textAlign: "center", padding: "16px 0" }}>
-                    Sin productos asignados
-                  </div>
-                ) : (
-                  <div style={{ maxHeight: "40vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, paddingRight: 2 }}>
-                    {detail.products.map((row) => (
-                      <div key={row.productId} style={{
-                        backgroundColor: "var(--surface-2)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 10,
-                        padding: "10px 14px",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 3,
-                      }}>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text)", wordBreak: "break-word", overflowWrap: "anywhere" }}>
-                          {row.product?.name ?? `Producto #${row.productId}`}
-                        </div>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--accent-strong)" }}>
-                          {row.product?.sku ?? `#${row.productId}`}
-                        </div>
-                        {row.product && (
-                          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
-                            Precio: <strong style={{ color: "var(--text)" }}>{moneyExact(Number(row.product.sellPrice))}</strong>
+              <div style={{ marginTop: 0 }}>
+                <label style={{ ...ui.fieldLabel, marginBottom: 6 }}>Productos asignados ({detail.products.length})</label>
+                <div style={{
+                  ...styles.assignedList,
+                  maxHeight: "32vh",
+                  overflowY: "auto",
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                }}>
+                  {detail.products.length === 0 ? (
+                    <div style={{ padding: "16px", fontSize: 13, color: "var(--text-muted)", textAlign: "center" }}>
+                      No hay productos asignados a esta promoción.
+                    </div>
+                  ) : (
+                    detail.products.map((row) =>
+                      isMobile ? (
+                        <div
+                          key={row.productId}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "flex-start",
+                            padding: "10px 12px",
+                            borderBottom: "1px solid var(--border)",
+                            gap: 8,
+                          }}
+                        >
+                          <div style={{ minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: "var(--text)",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {row.product?.name ?? `Producto #${row.productId}`}
+                            </div>
+                            <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
+                              {row.product?.sku ?? `#${row.productId}`}
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", flexShrink: 0 }}>
+                            {row.product ? moneyExact(Number(row.product.sellPrice)) : ""}
+                          </div>
+                        </div>
+                      ) : (
+                        <div key={row.productId} style={styles.assignedRow}>
+                          <span style={styles.sku}>{row.product?.sku ?? `#${row.productId}`}</span>
+                          <span style={{ fontWeight: 800 }}>{row.product?.name ?? `Producto #${row.productId}`}</span>
+                          <span style={{ marginLeft: "auto", color: "var(--text-muted)" }}>
+                            {row.product ? moneyExact(Number(row.product.sellPrice)) : ""}
+                          </span>
+                        </div>
+                      )
+                    )
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1551,7 +2022,13 @@ const PromocionesView: React.FC<ViewProps> = ({ refreshToken, initialFilters }) 
           promotionName={addProductsTarget.name}
           promotionStartDate={addProductsTarget.startDate}
           associatedProducts={addProductsTarget.products}
-          onClose={() => setAddProductsTarget(null)}
+          selectionMode={productsManagerMode === "selection"}
+          selectedProductIds={productsManagerMode === "selection" ? form.productIds : undefined}
+          onApplySelection={applyProductSelection}
+          onClose={() => {
+            setAddProductsTarget(null);
+            setProductsManagerMode("immediate");
+          }}
           onSuccess={handleAddProductsSuccess}
         />
       )}
@@ -1728,6 +2205,84 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: 700,
     marginTop: 14,
     padding: "10px 12px",
+    whiteSpace: "pre-line",
+  },
+  productsSummaryBox: {
+    alignItems: "center",
+    backgroundColor: "var(--surface-2)",
+    border: "1px solid var(--border-soft)",
+    borderRadius: 8,
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 12,
+    justifyContent: "space-between",
+    padding: "12px",
+  },
+  productsSummaryText: {
+    display: "grid",
+    gap: 3,
+    minWidth: 0,
+  },
+  productsSummaryLabel: {
+    color: "var(--text-muted)",
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: "0.4px",
+    textTransform: "uppercase",
+  },
+  productsSummaryCount: {
+    color: "var(--text)",
+    fontSize: 14,
+    fontWeight: 800,
+  },
+  productsSummaryPreview: {
+    color: "var(--text-secondary)",
+    fontSize: 12,
+    fontWeight: 600,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  invalidProductsBox: {
+    backgroundColor: "#fff7ed",
+    border: "1px solid #fed7aa",
+    borderRadius: 8,
+    color: "#9a3412",
+    fontSize: 13,
+    lineHeight: 1.45,
+    marginTop: 10,
+    padding: "10px 12px",
+  },
+  invalidProductsTitle: {
+    fontWeight: 800,
+    marginBottom: 8,
+  },
+  invalidProductsList: {
+    display: "grid",
+    gap: 6,
+  },
+  invalidProductRow: {
+    display: "grid",
+    gap: 2,
+    borderTop: "1px solid #fed7aa",
+    paddingTop: 6,
+  },
+  invalidProductName: {
+    color: "#7c2d12",
+    fontWeight: 800,
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  invalidProductSku: {
+    color: "#9a3412",
+    fontSize: 12,
+    fontWeight: 700,
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
   fieldError: {
     color: "#b91c1c",
