@@ -122,7 +122,9 @@ export function SalesTerminalView({
     handleRegisterCustomerSubmit, setNewCustomerFieldErrors,
   } = customerData;
 
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(() => {
+    return typeof window !== "undefined" ? window.innerWidth <= 1024 : false;
+  });
   const [isPromotionsModalOpen, setIsPromotionsModalOpen] = React.useState(false);
   const [isMobileHeaderModalOpen, setIsMobileHeaderModalOpen] = React.useState(false);
 
@@ -482,6 +484,9 @@ export function SalesTerminalView({
 
             <div className="card-premium pos-cashier-cart-card" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "14px", gap: "10px" }}>
               <CartPanel cartData={cartData} onToast={onToast} />
+              <div className="hide-on-mobile">
+                <PromotionsGrid cart={cartData.cart} onAddProduct={cartData.addProductToCart} onToast={onToast} cartDiscount={cartData.cartDiscount} />
+              </div>
             </div>
           </div>
 

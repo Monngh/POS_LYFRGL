@@ -29,9 +29,10 @@ export function SalesLayoutView({
 
   return (
     <div className={`pos-sales-layout ${isSidebarCollapsed ? "sidebar-collapsed" : ""}`}>
-      {/* Overlay para cerrar el menú flotante */}
+      {/* Overlay para cerrar el menú flotante en móvil */}
       {!isSidebarCollapsed && (
         <div 
+          className="hide-on-desktop"
           style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.3)", zIndex: 40 }}
           onClick={() => setIsSidebarCollapsed(true)}
         />

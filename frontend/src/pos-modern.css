@@ -492,15 +492,11 @@
   border-right: 1px solid var(--pos-border);
   display: flex;
   flex-direction: column;
-  position: absolute; /* Modificado para ser flotante */
-  top: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 50;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  padding: 14px;
+  position: relative;
+  z-index: 10;
+  padding: 14px 8px;
   overflow: hidden;
-  box-shadow: 4px 0 15px rgba(0,0,0,0.05); /* Sombra para resaltar que flota */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .pos-sidebar-inner-content {
@@ -1038,7 +1034,7 @@
   padding-top: 12px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   width: 100%;
   height: 100%;
   flex: 1;
@@ -1049,11 +1045,6 @@
   flex-direction: column;
   gap: 4px;
   width: 100%;
-  order: 1;
-}
-
-.pos-checkout-left-col {
-  order: 2;
 }
 
 /* Caja de total — grande y prominente */
@@ -2252,11 +2243,17 @@
    of square icon-buttons
    ============================================================ */
 @media (max-width: 1024px) {
-  /* The sidebar overlays as a floating panel, make it wider */
+  /* The sidebar overlays as a floating panel on tablet/mobile */
   .pos-sales-sidebar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 50;
     width: 200px;
     min-width: 200px;
     padding: 12px 10px;
+    box-shadow: 4px 0 15px rgba(0,0,0,0.15);
   }
 
   .pos-quick-actions-bar {
@@ -2394,25 +2391,32 @@
   padding: 12px;
 }
 
-/* Hide mobile modals on non-phone */
-@media (min-width: 769px) {
+/* Hide mobile modals and mobile elements on desktop */
+@media (min-width: 1025px) {
   .pos-mobile-list-modal-overlay {
     display: none !important;
   }
   .pos-checkout-mobile-quick-btns {
     display: none !important;
   }
+  .hide-on-desktop {
+    display: none !important;
+  }
+  .show-on-mobile {
+    display: none !important;
+  }
 }
 
-/* Show mobile quick btns only on phone */
-@media (max-width: 768px) {
+/* Show mobile quick btns and hide desktop-only items on mobile/tablet */
+@media (max-width: 1024px) {
   .pos-checkout-mobile-quick-btns {
     display: flex;
     gap: 8px;
     margin-bottom: 8px;
   }
 
-  .pos-hide-on-mobile {
+  .pos-hide-on-mobile,
+  .hide-on-mobile {
     display: none !important;
   }
 }
