@@ -773,261 +773,265 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
             : { display: "grid", gridTemplateColumns: "minmax(320px, 38%) minmax(0, 1fr)", gap: 20, alignItems: "start" }
         }
       >
-      <div style={isStackedLayout ? undefined : { minWidth: 0 }}>
-      {/* ============ NUEVA ORDEN ============ */}
-      <Panel style={{ padding: 0, marginBottom: 16, overflow: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 20px", borderBottom: "1px solid var(--border)", backgroundColor: "var(--surface-2)" }}>
-          <span style={{ display: "inline-flex", width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent-soft)", color: "var(--accent-strong)" }}>
-            <ShoppingCart size={17} />
-          </span>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>Nueva orden de compra</div>
-            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Selecciona proveedor y sucursal, agrega productos y registra la orden.</div>
-          </div>
-        </div>
-
-        <div style={{ padding: 15 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 10 }}>
-            <div>
-              <label style={ui.fieldLabel}>Sucursal de destino *</label>
-              <select
-                style={{ ...ui.input, ...(fieldErrors.branchId ? { borderColor: "#fca5a5" } : {}) }}
-                value={branchId}
-                onChange={(e) => { setBranchId(e.target.value); setFieldErrors((prev) => ({ ...prev, branchId: undefined })); }}
-              >
-                <option value="">Seleccione…</option>
-                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-              {fieldErrors.branchId && <p style={styles.fieldError}>{fieldErrors.branchId}</p>}
-            </div>
-            <div>
-              <label style={ui.fieldLabel}>Proveedor *</label>
-              <button
-                type="button"
-                style={{ ...ui.input, display: "flex", alignItems: "center", justifyContent: "space-between", textAlign: "left", cursor: "pointer", height: 38, ...(fieldErrors.supplierId ? { borderColor: "#fca5a5" } : {}) }}
-                onClick={() => { setSupplierSearch(""); setSupplierModalOpen(true); }}
-              >
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 7, color: selectedSupplier ? "var(--text)" : "var(--text-muted)", fontSize: 14, minWidth: 0 }}>
-                  <Truck size={15} color="var(--text-muted)" style={{ flexShrink: 0 }} />
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedSupplier ? selectedSupplier.name : "Seleccione proveedor…"}</span>
-                </span>
-                <ChevronDown size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} />
-              </button>
-              {fieldErrors.supplierId && <p style={styles.fieldError}>{fieldErrors.supplierId}</p>}
-            </div>
-          </div>
-
-          {/* Selección de productos: buscador + resultados + editor de renglones + total, agrupados en una sola tarjeta */}
-          <div style={{ backgroundColor: "var(--surface-2)", border: "1px solid var(--border-soft)", borderRadius: 10, padding: 12, marginBottom: 10 }}>
-          <div style={{ marginBottom: 10 }}>
-            <SearchBox
-              value={productSearch}
-              onChange={setProductSearch}
-              placeholder={supplierId ? "Buscar producto por nombre o SKU para agregar…" : "Selecciona un proveedor para buscar productos"}
-              disabled={!supplierId}
-              autoFocus={false}
-            />
-            {supplierId && (
-              <div style={{ maxHeight: 220, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6, marginTop: 8, padding: 8, border: "1px solid var(--border-soft)", borderRadius: 8, backgroundColor: "var(--surface)" }}>
-                {loadingProducts ? (
-                  <div style={{ textAlign: "center", color: "var(--text-muted)", padding: 12, fontSize: 12 }}>Cargando productos del proveedor…</div>
-                ) : (() => {
-                  const filtered = filterProductsBySearch(productPool, productSearch);
-                  if (filtered.length === 0) {
-                    return <div style={{ textAlign: "center", color: "var(--text-muted)", padding: 12, fontSize: 12 }}>No se encontraron productos con esa búsqueda.</div>;
-                  }
-                  return filtered.map((p) => {
-                    return (
-                      <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-soft)", backgroundColor: "var(--surface)" }} className="cmp-modal-item">
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", overflowWrap: "anywhere" }}>{p.name}</div>
-                          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>SKU: {p.sku} · Costo base: {money(p.costPrice)} · {UNIT_LABELS[unitProfile(p.satUnitKey).def]}</div>
-                        </div>
-                        <button type="button" style={{ ...actionBtn("#1e3a8a"), flexShrink: 0 }} className="active-tap" onClick={() => addProduct(p)}>
-                          <Plus size={13} /> Agregar
-                        </button>
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-            )}
-          </div>
-
-          {/* Editor de productos */}
-          {isPhone || !isStackedLayout ? renderLineCards() : renderLineGrid()}
-
-          {/* Barra: total (con wrap para evitar encimados) */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 14, justifyContent: "flex-end", alignItems: "center", marginTop: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", padding: "8px 16px", borderRadius: 10, backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>
-              <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>
-                {computedTotals.items} artículo{computedTotals.items === 1 ? "" : "s"}
+        <div style={isStackedLayout ? undefined : { minWidth: 0 }}>
+          {/* ============ NUEVA ORDEN ============ */}
+          <Panel style={{ padding: 0, marginBottom: 16, overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 20px", borderBottom: "1px solid var(--border)", backgroundColor: "var(--surface-2)" }}>
+              <span style={{ display: "inline-flex", width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent-soft)", color: "var(--accent-strong)" }}>
+                <ShoppingCart size={17} />
               </span>
-              <span style={{ width: 1, height: 20, backgroundColor: "var(--border)" }} />
-              <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3px" }}>Total estimado</span>
-              <span style={{ fontSize: 19, fontWeight: 800, color: "var(--accent-strong)", whiteSpace: "nowrap" }}>{money(computedTotals.total)}</span>
-            </div>
-          </div>
-          </div>
-
-          {formError && <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 14 }}>{formError}</p>}
-          {success && (
-            <p style={{ color: "#15803d", fontSize: 13, fontWeight: 700, marginTop: 14, display: "flex", alignItems: "center", gap: 8 }}>
-              <CheckCircle2 size={16} /> {success}
-            </p>
-          )}
-
-          {/* Notas + acción */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-end", justifyContent: "space-between", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border-soft)" }}>
-            <div style={{ flex: "1 1 320px", minWidth: 0 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <label style={{ ...ui.fieldLabel, marginBottom: 0 }}>Notas (opcional)</label>
-                <span style={{ fontSize: 11, color: notes.length >= 200 ? "var(--color-danger)" : "var(--text-muted)", fontWeight: 600 }}>{notes.length} / 200</span>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>Nueva orden de compra</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Selecciona proveedor y sucursal, agrega productos y registra la orden.</div>
               </div>
-              <textarea
-                style={{ ...ui.input, resize: "vertical", minHeight: 44, fontSize: 13, ...(fieldErrors.notes ? { borderColor: "#fca5a5" } : {}) }}
-                value={notes}
-                maxLength={200}
-                onChange={(e) => { setNotes(e.target.value); setFieldErrors((prev) => ({ ...prev, notes: undefined })); }}
-                placeholder="Observaciones sobre la compra…"
-              />
-              {fieldErrors.notes && <p style={styles.fieldError}>{fieldErrors.notes}</p>}
             </div>
-            <button style={{ ...ui.primaryBtn, height: 40, flexShrink: 0 }} className="active-tap" onClick={submit} disabled={saving}>
-              <CheckCircle2 size={16} /> {saving ? "Guardando…" : "Crear orden de compra"}
-            </button>
-          </div>
-        </div>
-      </Panel>
-      </div>
 
-      <div style={isStackedLayout ? undefined : { minWidth: 0 }}>
-      {/* ============ HISTORIAL ============ */}
-      <Panel style={{ padding: 0, overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: isPhone ? "flex-start" : "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, flexDirection: isPhone ? "column" : "row", padding: "14px 20px", borderBottom: "1px solid var(--border)", backgroundColor: "var(--surface-2)" }}>
-        <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text)", display: "flex", alignItems: "center", gap: 8, margin: 0 }}>
-          Órdenes de compra
-          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 999, padding: "2px 10px" }}>{filteredPurchases.length}</span>
-        </h3>
-        <Toolbar style={isPhone ? { width: "100%", flexWrap: "wrap", marginBottom: 0 } : { marginBottom: 0 }}>
-          <FilterSelect
-            value={filterStatus}
-            onChange={setFilterStatus}
-            style={isPhone ? { flex: 1, minWidth: 120 } : undefined}
-            options={[
-              { value: "all", label: "Todos los estados" },
-              { value: "PENDIENTE", label: "Pendiente" },
-              { value: "RECIBIDA", label: "Recibida" },
-              { value: "CANCELADA", label: "Cancelada" },
-            ]}
-          />
-          <FilterSelect
-            value={filterBranchId}
-            onChange={setFilterBranchId}
-            style={isPhone ? { flex: 1, minWidth: 120 } : undefined}
-            options={[{ value: "all", label: "Todas las sucursales" }, ...branches.map((b) => ({ value: String(b.id), label: b.name }))]}
-          />
-          <FilterSelect
-            value={filterSupplierId}
-            onChange={setFilterSupplierId}
-            style={isPhone ? { flex: 1, minWidth: 120 } : undefined}
-            options={[{ value: "all", label: "Todos los proveedores" }, ...suppliers.map((s) => ({ value: String(s.id), label: s.name }))]}
-          />
-        </Toolbar>
-      </div>
-
-      <div style={{ padding: 15 }}>
-      {isPhone ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {purchasesLoading && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>Cargando información…</div>
-          )}
-          {!purchasesLoading && filteredPurchases.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>No hay órdenes de compra con los filtros seleccionados.</div>
-          )}
-          {!purchasesLoading && paged.pageItems.map((p) => {
-            const isExpanded = expandedPurchases[p.id];
-            return (
-              <div key={p.id} style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: 16, boxShadow: "var(--shadow-card, 0 1px 2px rgba(0,0,0,0.05))" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 15, fontWeight: 800, color: "var(--accent)", overflowWrap: "anywhere" }}>{p.reference}</span>
-                      <Badge tone={statusTone(p.status)}>{statusLabel(p.status)}</Badge>
-                    </div>
-                    <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                      <Truck size={13} /> {p.supplier.name} <span style={{ color: "var(--border-strong)" }}>·</span> <Building2 size={13} /> {p.branch.name}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-secondary)" }}>
-                      <Calendar size={13} color="var(--accent)" /> {fmtDate(p.purchaseDate)} {fmtTime(p.purchaseDate)}
-                    </div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: "var(--accent-strong)", marginTop: 6 }}>{money(Number(p.total))}</div>
-                  </div>
-                  <button onClick={() => toggleExpand(p.id)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--surface)", border: "1px solid var(--border-strong)", borderRadius: 8, width: 38, height: 38, cursor: "pointer", color: "var(--accent)", padding: 0, flexShrink: 0 }} className="active-tap">
-                    {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            <div style={{ padding: 15 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 10 }}>
+                <div>
+                  <label style={ui.fieldLabel}>Sucursal de destino *</label>
+                  <select
+                    style={{ ...ui.input, ...(fieldErrors.branchId ? { borderColor: "#fca5a5" } : {}) }}
+                    value={branchId}
+                    onChange={(e) => { setBranchId(e.target.value); setFieldErrors((prev) => ({ ...prev, branchId: undefined })); }}
+                  >
+                    <option value="">Seleccione…</option>
+                    {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                  {fieldErrors.branchId && <p style={styles.fieldError}>{fieldErrors.branchId}</p>}
+                </div>
+                <div>
+                  <label style={ui.fieldLabel}>Proveedor *</label>
+                  <button
+                    type="button"
+                    style={{ ...ui.input, display: "flex", alignItems: "center", justifyContent: "space-between", textAlign: "left", cursor: "pointer", height: 38, ...(fieldErrors.supplierId ? { borderColor: "#fca5a5" } : {}) }}
+                    onClick={() => { setSupplierSearch(""); setSupplierModalOpen(true); }}
+                  >
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 7, color: selectedSupplier ? "var(--text)" : "var(--text-muted)", fontSize: 14, minWidth: 0 }}>
+                      <Truck size={15} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedSupplier ? selectedSupplier.name : "Seleccione proveedor…"}</span>
+                    </span>
+                    <ChevronDown size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} />
                   </button>
+                  {fieldErrors.supplierId && <p style={styles.fieldError}>{fieldErrors.supplierId}</p>}
+                </div>
+              </div>
+
+              {/* Selección de productos: buscador + resultados + editor de renglones + total, agrupados en una sola tarjeta */}
+              <div style={{ backgroundColor: "var(--surface-2)", border: "1px solid var(--border-soft)", borderRadius: 10, padding: 12, marginBottom: 10 }}>
+                <div style={{ marginBottom: 10 }}>
+                  <SearchBox
+                    value={productSearch}
+                    onChange={setProductSearch}
+                    placeholder={supplierId ? "Buscar producto por nombre o SKU para agregar…" : "Selecciona un proveedor para buscar productos"}
+                    disabled={!supplierId}
+                    autoFocus={false}
+                  />
+                  {supplierId && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ maxHeight: 220, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6, padding: 8, border: "1px solid var(--border-soft)", borderRadius: 8, backgroundColor: "var(--surface)" }}>
+                        {loadingProducts ? (
+                          <div style={{ textAlign: "center", color: "var(--text-muted)", padding: 12, fontSize: 12 }}>Cargando productos del proveedor…</div>
+                        ) : (() => {
+                          const filtered = filterProductsBySearch(productPool, productSearch);
+                          if (filtered.length === 0) {
+                            return <div style={{ textAlign: "center", color: "var(--text-muted)", padding: 12, fontSize: 12 }}>No se encontraron productos con esa búsqueda.</div>;
+                          }
+                          return filtered.map((p) => {
+                            return (
+                              <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-soft)", backgroundColor: "var(--surface)" }} className="cmp-modal-item">
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", overflowWrap: "anywhere" }}>{p.name}</div>
+                                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>SKU: {p.sku} · Costo base: {money(p.costPrice)} · {UNIT_LABELS[unitProfile(p.satUnitKey).def]}</div>
+                                </div>
+                                <button type="button" style={{ ...actionBtn("#1e3a8a"), flexShrink: 0 }} className="active-tap" onClick={() => addProduct(p)}>
+                                  <Plus size={13} /> Agregar
+                                </button>
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {p.status === "PENDIENTE" && (
-                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                    <button style={{ ...actionBtn("#1e3a8a"), flex: 1, justifyContent: "center", height: 38 }} onClick={() => receive(p)} disabled={receiving === p.id} className="active-tap">
-                      <CheckCircle size={15} /> {receiving === p.id ? "Recibiendo…" : "Recibir"}
-                    </button>
-                    <button style={{ ...actionBtn("#dc2626"), flex: 1, justifyContent: "center", height: 38 }} onClick={() => cancelPurchase(p)} className="active-tap">
-                      <Ban size={15} /> Cancelar
-                    </button>
-                  </div>
-                )}
+                <div style={{ borderTop: "1px solid var(--border)", margin: "12px 0" }} />
 
-                {isExpanded && (
-                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
-                    <div style={{ backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)", padding: 14 }}>
-                      <h4 style={{ fontSize: 12.5, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Artículos ({p.details.length})</h4>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                        {p.details.map((d) => (
-                          <div key={d.id} style={{ borderBottom: "1px dashed var(--border)", paddingBottom: 10 }}>
-                            <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-secondary)", overflowWrap: "anywhere", marginBottom: 2 }}>{d.product.name}</div>
-                            <div style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 6 }}>SKU: {d.product.sku}</div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>{d.quantity} {(UNIT_LABELS[(d.unit || "").toUpperCase()] || d.unit || "pieza").toLowerCase()}</span>
-                              <span style={{ color: "var(--text-faint)", fontSize: 12 }}>×</span>
-                              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>{money(d.unitCost)}</span>
-                              <span style={{ fontSize: 12, color: "var(--text-faint)" }}>=</span>
-                              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)" }}>{money(d.quantity * d.unitCost)}</span>
+                <label style={{ ...ui.fieldLabel, marginBottom: 6 }}>Productos en la orden ({lines.length})</label>
+                {isPhone || !isStackedLayout ? renderLineCards() : renderLineGrid()}
+
+                {/* Barra: total (con wrap para evitar encimados) */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 14, justifyContent: "flex-end", alignItems: "center", marginTop: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", padding: "8px 16px", borderRadius: 10, backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>
+                    <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>
+                      {computedTotals.items} artículo{computedTotals.items === 1 ? "" : "s"}
+                    </span>
+                    <span style={{ width: 1, height: 20, backgroundColor: "var(--border)" }} />
+                    <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3px" }}>Total estimado</span>
+                    <span style={{ fontSize: 19, fontWeight: 800, color: "var(--accent-strong)", whiteSpace: "nowrap" }}>{money(computedTotals.total)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {formError && <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 14 }}>{formError}</p>}
+              {success && (
+                <p style={{ color: "#15803d", fontSize: 13, fontWeight: 700, marginTop: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                  <CheckCircle2 size={16} /> {success}
+                </p>
+              )}
+
+              {/* Notas + acción */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-end", justifyContent: "space-between", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border-soft)" }}>
+                <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <label style={{ ...ui.fieldLabel, marginBottom: 0 }}>Notas (opcional)</label>
+                    <span style={{ fontSize: 11, color: notes.length >= 200 ? "var(--color-danger)" : "var(--text-muted)", fontWeight: 600 }}>{notes.length} / 200</span>
+                  </div>
+                  <textarea
+                    style={{ ...ui.input, resize: "vertical", minHeight: 44, fontSize: 13, ...(fieldErrors.notes ? { borderColor: "#fca5a5" } : {}) }}
+                    value={notes}
+                    maxLength={200}
+                    onChange={(e) => { setNotes(e.target.value); setFieldErrors((prev) => ({ ...prev, notes: undefined })); }}
+                    placeholder="Observaciones sobre la compra…"
+                  />
+                  {fieldErrors.notes && <p style={styles.fieldError}>{fieldErrors.notes}</p>}
+                </div>
+                <button style={{ ...ui.primaryBtn, height: 40, flexShrink: 0 }} className="active-tap" onClick={submit} disabled={saving}>
+                  <CheckCircle2 size={16} /> {saving ? "Guardando…" : "Crear orden de compra"}
+                </button>
+              </div>
+            </div>
+          </Panel>
+        </div>
+
+        <div style={isStackedLayout ? undefined : { minWidth: 0 }}>
+          {/* ============ HISTORIAL ============ */}
+          <Panel style={{ padding: 0, overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: isPhone ? "flex-start" : "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, flexDirection: isPhone ? "column" : "row", padding: "14px 20px", borderBottom: "1px solid var(--border)", backgroundColor: "var(--surface-2)" }}>
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text)", display: "flex", alignItems: "center", gap: 8, margin: 0 }}>
+                Órdenes de compra
+                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 999, padding: "2px 10px" }}>{filteredPurchases.length}</span>
+              </h3>
+              <Toolbar style={isPhone ? { width: "100%", flexWrap: "wrap", marginBottom: 0 } : { marginBottom: 0 }}>
+                <FilterSelect
+                  value={filterStatus}
+                  onChange={setFilterStatus}
+                  style={isPhone ? { flex: 1, minWidth: 120 } : undefined}
+                  options={[
+                    { value: "all", label: "Todos los estados" },
+                    { value: "PENDIENTE", label: "Pendiente" },
+                    { value: "RECIBIDA", label: "Recibida" },
+                    { value: "CANCELADA", label: "Cancelada" },
+                  ]}
+                />
+                <FilterSelect
+                  value={filterBranchId}
+                  onChange={setFilterBranchId}
+                  style={isPhone ? { flex: 1, minWidth: 120 } : undefined}
+                  options={[{ value: "all", label: "Todas las sucursales" }, ...branches.map((b) => ({ value: String(b.id), label: b.name }))]}
+                />
+                <FilterSelect
+                  value={filterSupplierId}
+                  onChange={setFilterSupplierId}
+                  style={isPhone ? { flex: 1, minWidth: 120 } : undefined}
+                  options={[{ value: "all", label: "Todos los proveedores" }, ...suppliers.map((s) => ({ value: String(s.id), label: s.name }))]}
+                />
+              </Toolbar>
+            </div>
+
+            <div style={{ padding: 15 }}>
+              {isPhone ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {purchasesLoading && (
+                    <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>Cargando información…</div>
+                  )}
+                  {!purchasesLoading && filteredPurchases.length === 0 && (
+                    <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-faint)", fontSize: 13, fontWeight: 500 }}>No hay órdenes de compra con los filtros seleccionados.</div>
+                  )}
+                  {!purchasesLoading && paged.pageItems.map((p) => {
+                    const isExpanded = expandedPurchases[p.id];
+                    return (
+                      <div key={p.id} style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: 16, boxShadow: "var(--shadow-card, 0 1px 2px rgba(0,0,0,0.05))" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                              <span style={{ fontSize: 15, fontWeight: 800, color: "var(--accent)", overflowWrap: "anywhere" }}>{p.reference}</span>
+                              <Badge tone={statusTone(p.status)}>{statusLabel(p.status)}</Badge>
+                            </div>
+                            <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              <Truck size={13} /> {p.supplier.name} <span style={{ color: "var(--border-strong)" }}>·</span> <Building2 size={13} /> {p.branch.name}
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-secondary)" }}>
+                              <Calendar size={13} color="var(--accent)" /> {fmtDate(p.purchaseDate)} {fmtTime(p.purchaseDate)}
+                            </div>
+                            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--accent-strong)", marginTop: 6 }}>{money(Number(p.total))}</div>
+                          </div>
+                          <button onClick={() => toggleExpand(p.id)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--surface)", border: "1px solid var(--border-strong)", borderRadius: 8, width: 38, height: 38, cursor: "pointer", color: "var(--accent)", padding: 0, flexShrink: 0 }} className="active-tap">
+                            {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                          </button>
+                        </div>
+
+                        {p.status === "PENDIENTE" && (
+                          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                            <button style={{ ...actionBtn("#1e3a8a"), flex: 1, justifyContent: "center", height: 38 }} onClick={() => receive(p)} disabled={receiving === p.id} className="active-tap">
+                              <CheckCircle size={15} /> {receiving === p.id ? "Recibiendo…" : "Recibir"}
+                            </button>
+                            <button style={{ ...actionBtn("#dc2626"), flex: 1, justifyContent: "center", height: 38 }} onClick={() => cancelPurchase(p)} className="active-tap">
+                              <Ban size={15} /> Cancelar
+                            </button>
+                          </div>
+                        )}
+
+                        {isExpanded && (
+                          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
+                            <div style={{ backgroundColor: "var(--surface-2)", borderRadius: 12, border: "1px solid var(--border)", padding: 14 }}>
+                              <h4 style={{ fontSize: 12.5, fontWeight: 800, color: "var(--text)", marginBottom: 10 }}>Artículos ({p.details.length})</h4>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                                {p.details.map((d) => (
+                                  <div key={d.id} style={{ borderBottom: "1px dashed var(--border)", paddingBottom: 10 }}>
+                                    <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-secondary)", overflowWrap: "anywhere", marginBottom: 2 }}>{d.product.name}</div>
+                                    <div style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 6 }}>SKU: {d.product.sku}</div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>{d.quantity} {(UNIT_LABELS[(d.unit || "").toUpperCase()] || d.unit || "pieza").toLowerCase()}</span>
+                                      <span style={{ color: "var(--text-faint)", fontSize: 12 }}>×</span>
+                                      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>{money(d.unitCost)}</span>
+                                      <span style={{ fontSize: 12, color: "var(--text-faint)" }}>=</span>
+                                      <span style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)" }}>{money(d.quantity * d.unitCost)}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              {p.notes && (
+                                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Notas</div>
+                                  <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>{p.notes}</div>
+                                </div>
+                              )}
                             </div>
                           </div>
-                        ))}
+                        )}
                       </div>
-                      {p.notes && (
-                        <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Notas</div>
-                          <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>{p.notes}</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <DataTable
-          columns={purchaseColumns}
-          data={paged.pageItems}
-          loading={purchasesLoading}
-          emptyMessage="No hay órdenes de compra con los filtros seleccionados."
-          keyExtractor={(p) => p.id}
-          maxHeight="calc(100vh - 275px)"
-        />
-      )}
+                    );
+                  })}
+                </div>
+              ) : (
+                <DataTable
+                  columns={purchaseColumns}
+                  data={paged.pageItems}
+                  loading={purchasesLoading}
+                  emptyMessage="No hay órdenes de compra con los filtros seleccionados."
+                  keyExtractor={(p) => p.id}
+                  maxHeight="calc(100vh - 275px)"
+                />
+              )}
 
-      {!purchasesLoading && (
-        <Pagination page={paged.page} pageCount={paged.pageCount} total={paged.total} from={paged.from} to={paged.to} onPage={paged.setPage} itemLabel="órdenes" />
-      )}
-      </div>
-      </Panel>
-      </div>
+              {!purchasesLoading && (
+                <Pagination page={paged.page} pageCount={paged.pageCount} total={paged.total} from={paged.from} to={paged.to} onPage={paged.setPage} itemLabel="órdenes" />
+              )}
+            </div>
+          </Panel>
+        </div>
       </div>
 
       {/* MODAL SELECCIÓN PROVEEDOR */}
