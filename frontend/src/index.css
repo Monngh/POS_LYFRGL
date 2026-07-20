@@ -417,6 +417,14 @@ button:disabled {
   min-width: 700px;
 }
 
+/* Visibilidad de productos autofacturación */
+.autofact-products-desktop {
+  display: block;
+}
+.autofact-products-mobile {
+  display: none;
+}
+
 /* ==========================================================================
    Portal Autofacturación — Ajustes responsive
    ========================================================================== */
@@ -425,6 +433,38 @@ button:disabled {
     padding: 20px 16px !important;
   }
 }
+
+/* Móvil: Teléfonos S, M y L (<= 725px) */
+@media (max-width: 725px) {
+  .autofact-products-desktop {
+    display: none !important;
+  }
+  .autofact-products-mobile {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    max-height: 250px !important;
+    overflow-y: auto !important;
+    padding-right: 4px;
+    margin-top: 16px;
+  }
+  .autofact-product-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+}
+
+/* Tablet y Pantalla Mediana (726px–1023px) */
+@media (min-width: 726px) and (max-width: 1023px) {
+  .autofact-table-scroll {
+    overflow-y: visible !important;
+    max-height: none !important;
+  }
+}
+
 
 @media (max-width: 600px) {
   .autofact-form-grid {
