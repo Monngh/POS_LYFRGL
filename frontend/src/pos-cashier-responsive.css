@@ -122,8 +122,8 @@
 
 }
 
-/* --- Móvil / tablet pequeña (≤767px) --- */
-@media (max-width: 767px) {
+/* --- Móvil / tablet pequeña (≤629px) --- */
+@media (max-width: 629px) {
   .pos-cashier-navbar {
     height: auto !important;
     min-height: 56px;
@@ -688,7 +688,7 @@
    así nunca se cortan ni requieren scroll horizontal.
    Solo afecta tablas dentro de .pos-cashier-table-card (no el carrito ni modales).
    ========================================================================== */
-@media (max-width: 767px) {
+@media (max-width: 629px) {
   /* Cada tabla-tarjeta queda contenida y hace scroll vertical interno
      para que la vista no se haga enorme con muchas filas */
   .pos-cashier-table-card .pos-cashier-table-scroll--dashboard-deposits {
@@ -807,7 +807,7 @@
 }
 
 /* Nueva venta: tablet conserva flujo vertical y carrito sin scroll horizontal */
-@media (min-width: 768px) and (max-width: 1023px) {
+@media (min-width: 630px) and (max-width: 1023px) {
   .pos-cashier-terminal-header {
     height: auto !important;
     padding: 12px 18px !important;
@@ -1297,8 +1297,8 @@
   }
 }
 
-/* Ajustes adicionales para tablet (768px-1023px): mantener tabla compacta */
-@media (min-width: 768px) and (max-width: 1023px) {
+/* Ajustes adicionales para tablet (630px-1023px): mantener tabla compacta */
+@media (min-width: 630px) and (max-width: 1023px) {
   .pos-cashier-table-card .pos-cashier-table-scroll table {
     min-width: 0 !important;
   }
@@ -1308,8 +1308,8 @@
   }
 }
 
-/* Asegurar que en 767px y menos se usen las tarjetas correctamente */
-@media (max-width: 767px) {
+/* Asegurar que en 629px y menos se usen las tarjetas correctamente */
+@media (max-width: 629px) {
   .pos-cashier-table-scroll--dashboard-deposits table {
     display: block !important;
   }

@@ -1508,7 +1508,7 @@
 /* ============================================================
    Responsive Overrides
    ============================================================ */
-/* Tablet + Mobile (<1024px) */
+/* Tablet + Mobile (<1024px): layout stack, compact navbar */
 @media (max-width: 1023px) {
   .pos-main-layout-container {
     flex-direction: column;
@@ -1578,6 +1578,8 @@
     padding: 3px 8px;
   }
   
+  /* En tablet/mobile, ocultar elementos solo de escritorio
+     (los accordions .pos-hide-on-mobile se restauran en el bloque tablet) */
   .hide-on-mobile {
     display: none !important;
   }
@@ -1631,8 +1633,8 @@
 
 }
 
-/* Mobile only (<768px) */
-@media (max-width: 767px) {
+/* Mobile only (<630px) */
+@media (max-width: 629px) {
   .pos-terminal-navbar-left { width: 100%; }
   .pos-terminal-navbar-right { width: 100%; justify-content: flex-start; }
 
@@ -2433,8 +2435,8 @@
   }
 }
 
-/* Show mobile quick btns on tablet/mobile (<1440px) */
-@media (max-width: 1439px) {
+/* Show mobile quick btns only on mobile (<630px) */
+@media (max-width: 629px) {
   .pos-checkout-mobile-quick-btns {
     display: flex;
     flex-direction: column;
@@ -2446,6 +2448,257 @@
   .pos-hide-on-mobile,
   .hide-on-mobile {
     display: none !important;
+  }
+}
+
+/* On tablet+laptop range (630px–1439px) hide desktop-only elements but NOT accordions */
+@media (min-width: 630px) and (max-width: 1439px) {
+  .pos-hide-on-desktop {
+    display: none !important;
+  }
+  /* The mobile quick buttons banner cards are hidden — accordions show instead */
+  .pos-checkout-mobile-quick-btns {
+    display: none !important;
+  }
+
+}
+
+/* ============================================================
+   Cart table card layout (630px–1023px)
+   HTML td order: sku | product | qty | price | [discount] | amount | remove
+   Card grid layout:
+     Row 1 (full width): Product name + promo badge
+     Row 2: [SKU]  [Discount]  [Qty control]
+     Row 3: [Price] [Amount]   [Remove btn]
+   ============================================================ */
+@media (min-width: 630px) and (max-width: 1023px) {
+  /* Turn table into block so rows can use grid layout */
+  .pos-cashier-cart-table {
+    display: block;
+  }
+  .pos-cashier-cart-table thead {
+    display: none !important;
+  }
+  .pos-cashier-cart-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 4px 2px;
+  }
+
+  /* Each row becomes a grid card */
+  .pos-cashier-cart-table tbody tr {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr auto;
+    grid-template-rows: auto auto auto;
+    border: 1px solid var(--pos-border, #e2e8f0) !important;
+    border-radius: 8px !important;
+    padding: 10px 12px;
+    gap: 2px 10px;
+    background: var(--pos-surface, #fff);
+    /* Selected highlight via inline borderLeft still works */
+  }
+
+  /* Row 1 full-width: Product name */
+  .pos-cashier-cart-table td.pos-cart-col-product {
+    grid-column: 1 / -1 !important;
+    grid-row: 1 !important;
+    max-width: 100% !important;
+    font-size: 13px !important;
+    padding: 0 0 6px 0 !important;
+    border-bottom: 1px solid var(--pos-border, #e2e8f0);
+    margin-bottom: 4px;
+    white-space: normal !important;
+  }
+
+  /* Col 1, Row 2: SKU */
+  .pos-cashier-cart-table td.pos-cart-col-sku {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+    padding: 2px 0 !important;
+    font-size: 11px !important;
+    color: var(--pos-text-muted, #94a3b8);
+    align-self: start;
+  }
+
+  /* Col 1, Row 3: Unit price */
+  .pos-cashier-cart-table td.pos-cart-col-price {
+    grid-column: 1 !important;
+    grid-row: 3 !important;
+    text-align: left !important;
+    padding: 2px 0 !important;
+    font-size: 12px !important;
+    align-self: start;
+  }
+  .pos-cashier-cart-table td.pos-cart-col-price::before {
+    content: "Unitario ";
+    font-size: 10px;
+    color: var(--pos-text-muted, #94a3b8);
+    font-weight: 600;
+  }
+
+  /* Col 2, Row 2: Discount */
+  .pos-cashier-cart-table td.pos-cart-col-discount {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    text-align: left !important;
+    padding: 2px 0 !important;
+    display: flex !important;
+    flex-direction: column;
+    align-self: start;
+  }
+  .pos-cashier-cart-table td.pos-cart-col-discount::before {
+    content: "Dto.";
+    font-size: 10px;
+    color: var(--pos-text-muted, #94a3b8);
+    font-weight: 600;
+    display: block;
+  }
+
+  /* Col 2, Row 3: Amount / Importe */
+  .pos-cashier-cart-table td.pos-cart-col-amount {
+    grid-column: 2 !important;
+    grid-row: 3 !important;
+    text-align: left !important;
+    padding: 2px 0 !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    align-self: start;
+  }
+  .pos-cashier-cart-table td.pos-cart-col-amount::before {
+    content: "Importe ";
+    font-size: 10px;
+    color: var(--pos-text-muted, #94a3b8);
+    font-weight: 600;
+    display: block;
+  }
+
+  /* When no promos (no discount column), amount shifts to col 2 row 2-3 */
+  .pos-cashier-cart-table:not(.has-discounts) td.pos-cart-col-amount {
+    grid-column: 2 !important;
+    grid-row: 2 / 4 !important;
+    display: flex !important;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  /* Col 3, Rows 2-3: Qty control (spans 2 rows) */
+  .pos-cashier-cart-table td.pos-cart-col-qty {
+    grid-column: 3 !important;
+    grid-row: 2 / 4 !important;
+    display: flex !important;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0 !important;
+    text-align: right !important;
+    gap: 6px;
+  }
+
+  /* Col 3, Row 3: Remove button (in same cell as qty, or own row) */
+  .pos-cashier-cart-table td.pos-cart-col-remove {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    display: flex !important;
+    justify-content: flex-end;
+    align-items: flex-start;
+    padding: 0 !important;
+  }
+
+  /* Slightly bigger controls for touch */
+  .pos-cashier-cart-table .pos-qty-btn {
+    width: 26px;
+    height: 26px;
+  }
+  .pos-cashier-cart-table .pos-qty-input {
+    width: 38px;
+    height: 26px;
+    font-size: 13px;
+  }
+  .pos-cashier-cart-table .pos-cart-remove-btn {
+    width: 26px;
+    height: 26px;
+  }
+
+  /* Empty cart state */
+  .pos-cashier-cart-table tbody tr.pos-cart-empty-row {
+    display: table-row !important;
+    grid-template-columns: unset !important;
+  }
+}
+
+/* ============================================================
+   Tablet Layout (630px–1023px)
+   3-column horizontal checkout: parked | qr-pending | total
+   ============================================================ */
+@media (min-width: 630px) and (max-width: 1023px) {
+  /* Show the accordion panels (overrides the general hide-on-mobile) */
+  .pos-hide-on-mobile {
+    display: flex !important;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  /* 3-column checkout layout */
+  .pos-checkout-panel {
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  /* Accordions container: side by side */
+  .pos-checkout-left-col {
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 10px !important;
+    align-items: flex-start !important;
+    min-width: 0 !important;
+  }
+
+  /* Totals fixed width on the right */
+  .pos-totals-col {
+    flex: 0 0 230px !important;
+    min-width: 200px !important;
+    margin-top: 0 !important;
+  }
+
+  /* Hide mobile banner buttons — accordions are shown */
+  .pos-checkout-mobile-quick-btns {
+    display: none !important;
+  }
+
+  /* Compact the total display */
+  .pos-total-display-amount {
+    font-size: 26px !important;
+  }
+  .pos-total-display-label {
+    font-size: 10px !important;
+  }
+  .pos-summary-row {
+    font-size: 12px;
+    margin-bottom: 2px;
+  }
+  .pos-btn-checkout {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+  .pos-btn-cancel,
+  .pos-btn-pause {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  /* The checkout column spans full width in the column layout */
+  .pos-checkout-col {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-y: visible !important;
+    height: auto !important;
+  }
+  .pos-checkout-panel {
+    height: auto !important;
   }
 }
 
