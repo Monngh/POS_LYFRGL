@@ -1,5 +1,5 @@
 import React from "react";
-import { Menu, MapPin, Clock, AlertTriangle, Banknote, CreditCard, ArrowLeftRight, QrCode, ExternalLink, Ticket, XCircle, Store, Sun, Moon } from "lucide-react";
+import { Menu, MapPin, Clock, AlertTriangle, Banknote, CreditCard, ArrowLeftRight, QrCode, ExternalLink, Ticket, XCircle, Store, Sun, Moon, Eye, EyeOff, ShoppingCart, DollarSign, Activity } from "lucide-react";
 import { HeaderCashInfo } from "./HeaderCashInfo";
 import { usePosTheme, togglePosTheme } from "../../shared/hooks/usePosTheme";
 import { TICKET_PRINT_MEDIA_STYLES } from "../../shared/utils/ticketEmailDocument.util";
@@ -129,6 +129,29 @@ export function SalesTerminalView({
   });
   const [isPromotionsModalOpen, setIsPromotionsModalOpen] = React.useState(false);
   const [isMobileHeaderModalOpen, setIsMobileHeaderModalOpen] = React.useState(false);
+  const [showValues, setShowValues] = React.useState(false);
+  const [shiftDuration, setShiftDuration] = React.useState({ hours: 0, minutes: 0, totalMinutes: 0 });
+
+  React.useEffect(() => {
+    if (!isMobileHeaderModalOpen || !session?.openedAt) return;
+    const calcDuration = () => {
+      try {
+        const start = new Date(session.openedAt).getTime();
+        const now = Date.now();
+        const diffMs = Math.max(0, now - start);
+        const totalMinutes = Math.floor(diffMs / 60000);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        setShiftDuration({ hours, minutes, totalMinutes });
+      } catch {
+        setShiftDuration({ hours: 0, minutes: 0, totalMinutes: 0 });
+      }
+    };
+    calcDuration();
+    const interval = setInterval(calcDuration, 30000);
+    return () => clearInterval(interval);
+  }, [isMobileHeaderModalOpen, session?.openedAt]);
+
 
   const { parkedSales, fetchParkedSales, parkSale, deleteParkedSale } = useParkedSales(user?.branch?.id);
   const [mixedModalOpen, setMixedModalOpen] = React.useState(false);
@@ -345,101 +368,6 @@ export function SalesTerminalView({
             <span>{user?.branch?.name || "Sucursal"}</span>
           </div>
 
-          {/* Modal Detalles Header Móvil */}
-          {isMobileHeaderModalOpen && (
-            <div
-              className="pos-modal-overlay active-tap"
-              onClick={() => setIsMobileHeaderModalOpen(false)}
-              style={{ zIndex: 9999 }}
-            >
-              <div
-                className="pos-mobile-session-card card-premium"
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  width: "min(92vw, 600px)",
-                  padding: "0",
-                  overflow: "hidden",
-                  borderRadius: "12px",
-                }}
-              >
-                {/* Header de la card */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", borderBottom: "1px solid var(--pos-border)" }}>
-                  <h3 style={{ margin: 0, fontSize: "14px", fontWeight: "800", color: "var(--pos-text)", textTransform: "uppercase", letterSpacing: "0.4px" }}>Resumen de Sesión</h3>
-                  <button onClick={() => setIsMobileHeaderModalOpen(false)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--pos-text-muted)", display: "flex", alignItems: "center" }}>
-                    <XCircle size={20} />
-                  </button>
-                </div>
-
-                {/* Body dividido en 2 columnas */}
-                <div style={{ display: "flex", flexDirection: "row", gap: 0 }}>
-
-                  {/* Columna 1: Cajero */}
-                  <div style={{ flex: 1, padding: "16px 18px", borderRight: "1px solid var(--pos-border)", display: "flex", flexDirection: "column", gap: "12px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <div className="pos-terminal-avatar" style={{ width: "36px", height: "36px", fontSize: "14px", flexShrink: 0 }}>
-                        {(user?.name || "C").charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: "800", fontSize: "13px", color: "var(--pos-text)" }}>{user?.name || "Cajero"}</div>
-                        <div style={{ fontSize: "10px", color: "var(--pos-text-muted)", fontWeight: "600" }}>{user?.branch?.name || "Sucursal"}</div>
-                      </div>
-                    </div>
-
-                    <div
-                      className={`pos-terminal-session-badge active-tap ${session?.status === "ABIERTA" || session?.status === "active" ? "open" : "closed"}`}
-                      style={{ cursor: "pointer", alignSelf: "flex-start", fontSize: "11px", padding: "3px 10px" }}
-                      onClick={() => { setIsMobileHeaderModalOpen(false); onOpenModal("shift-summary"); }}
-                    >
-                      {session?.status === "ABIERTA" || session?.status === "active" ? "CAJA ABIERTA" : "CAJA CERRADA"}
-                    </div>
-
-                    {sessionStats && (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", padding: "6px 8px", background: "var(--pos-surface-2)", borderRadius: "6px", border: "1px solid var(--pos-border)" }}>
-                          <span style={{ color: "var(--pos-text-muted)", fontWeight: "600" }}>Fondo inicial:</span>
-                          <span style={{ fontWeight: "700", color: "var(--pos-text)", fontVariantNumeric: "tabular-nums" }}>$***.**</span>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", padding: "6px 8px", background: "var(--pos-green-soft)", borderRadius: "6px", border: "1px solid rgba(21,128,61,0.2)" }}>
-                          <span style={{ color: "var(--pos-green)", fontWeight: "600" }}>En caja:</span>
-                          <span style={{ fontWeight: "800", color: "var(--pos-green)", fontVariantNumeric: "tabular-nums" }}>$***.**</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Columna 2: Resumen de turno */}
-                  <div style={{ flex: 1, padding: "16px 18px", display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <div style={{ fontSize: "10px", fontWeight: "800", color: "var(--pos-text-muted)", textTransform: "uppercase", letterSpacing: "0.4px" }}>Turno actual</div>
-
-                    {sessionStats ? (
-                      <>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", padding: "6px 8px", background: "var(--pos-surface-2)", borderRadius: "6px", border: "1px solid var(--pos-border)" }}>
-                            <span style={{ color: "var(--pos-text-muted)", fontWeight: "600" }}>Ventas:</span>
-                            <span style={{ fontWeight: "800", color: "var(--pos-blue)", fontVariantNumeric: "tabular-nums" }}>{sessionStats.salesCount}</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", padding: "6px 8px", background: "var(--pos-blue-soft)", borderRadius: "6px", border: "1px solid var(--pos-blue-light)" }}>
-                            <span style={{ color: "var(--pos-blue)", fontWeight: "600" }}>Total vendido:</span>
-                            <span style={{ fontWeight: "800", color: "var(--pos-blue)", fontVariantNumeric: "tabular-nums" }}>$***.**</span>
-                          </div>
-                        </div>
-
-                        <button
-                          className="pos-btn-pause"
-                          onClick={() => { setIsMobileHeaderModalOpen(false); onOpenModal("shift-summary"); }}
-                          style={{ marginTop: "auto", fontSize: "11px", padding: "8px 10px" }}
-                        >
-                          Ver resumen completo
-                        </button>
-                      </>
-                    ) : (
-                      <div style={{ color: "var(--pos-text-muted)", fontSize: "12px", textAlign: "center", paddingTop: "16px" }}>Sin datos de sesión</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Botón de detalles solo móvil */}
           <button
@@ -522,6 +450,161 @@ export function SalesTerminalView({
           </div>
         </div>
       </header>
+
+      {/* Modal Resumen de Sesión — fuera del header para posicionarse como overlay global */}
+      {isMobileHeaderModalOpen && (
+        <div
+          className="pos-modal-overlay active-tap"
+          onClick={() => setIsMobileHeaderModalOpen(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.45)" }}
+        >
+          <div
+            className="pos-mobile-session-card card-premium"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(92vw, 600px)",
+              padding: "0",
+              overflow: "hidden",
+              borderRadius: "12px",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+            }}
+          >
+            {/* Header de la card */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", borderBottom: "1px solid var(--pos-border)" }}>
+              <h3 style={{ margin: 0, fontSize: "14px", fontWeight: "800", color: "var(--pos-text)", textTransform: "uppercase", letterSpacing: "0.4px" }}>Resumen de Sesión</h3>
+              <button onClick={() => setIsMobileHeaderModalOpen(false)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--pos-text-muted)", display: "flex", alignItems: "center" }}>
+                <XCircle size={20} />
+              </button>
+            </div>
+
+            {/* Body dividido en 2 columnas */}
+            <div style={{ display: "flex", flexDirection: "row", gap: 0 }}>
+
+              {/* Columna 1: Cajero y montos de caja */}
+              <div style={{ flex: 1, padding: "16px 18px", borderRight: "1px solid var(--pos-border)", display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <div className="pos-terminal-avatar" style={{ width: "36px", height: "36px", fontSize: "14px", flexShrink: 0 }}>
+                    {(user?.name || "C").charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: "800", fontSize: "13px", color: "var(--pos-text)", textTransform: "uppercase" }}>{user?.name || "Cajero"}</div>
+                    <div style={{ fontSize: "10px", color: "var(--pos-text-muted)", fontWeight: "600" }}>CAJERO</div>
+                  </div>
+                </div>
+
+                <div
+                  className={`pos-terminal-session-badge active-tap ${session?.status === "ABIERTA" || session?.status === "active" ? "open" : "closed"}`}
+                  style={{ cursor: "pointer", alignSelf: "flex-start", fontSize: "11px", padding: "3px 10px" }}
+                >
+                  {session?.status === "ABIERTA" || session?.status === "active" ? "CAJA ABIERTA" : "CAJA CERRADA"}
+                </div>
+
+                {sessionStats && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "4px" }}>
+                    {/* Botón de ojito colocado ENCIMA de donde salen los montos */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "2px" }}>
+                      <span style={{ fontSize: "10px", fontWeight: "800", color: "var(--pos-text-muted)", textTransform: "uppercase", letterSpacing: "0.3px" }}>Valores en caja</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowValues(!showValues)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          color: "var(--pos-text-muted)",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          fontSize: "11px",
+                          fontWeight: "600"
+                        }}
+                        className="active-tap"
+                        title={showValues ? "Ocultar montos" : "Mostrar montos"}
+                      >
+                        {showValues ? <EyeOff size={14} /> : <Eye size={14} />}
+                        <span>{showValues ? "Ocultar" : "Mostrar"}</span>
+                      </button>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", padding: "6px 8px", background: "var(--pos-surface-2)", borderRadius: "6px", border: "1px solid var(--pos-border)" }}>
+                      <span style={{ color: "var(--pos-text-muted)", fontWeight: "600" }}>Fondo:</span>
+                      <span style={{ fontWeight: "700", color: "var(--pos-text)", fontVariantNumeric: "tabular-nums" }}>
+                        {showValues ? `$${(sessionStats.initialAmount ?? 0).toFixed(2)}` : "$***.**"}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", padding: "6px 8px", background: "var(--pos-green-soft)", borderRadius: "6px", border: "1px solid rgba(21,128,61,0.2)" }}>
+                      <span style={{ color: "var(--pos-green)", fontWeight: "600" }}>En caja:</span>
+                      <span style={{ fontWeight: "800", color: "var(--pos-green)", fontVariantNumeric: "tabular-nums" }}>
+                        {showValues ? `$${(sessionStats.expectedAmount ?? 0).toFixed(2)}` : "$***.**"}
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: "12px", fontWeight: "700", color: "var(--pos-text)", marginTop: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span style={{ padding: "2px 6px", background: "var(--pos-blue-soft)", color: "var(--pos-blue)", borderRadius: "4px", fontSize: "11px" }}>
+                        {sessionStats.salesCount} {sessionStats.salesCount === 1 ? "venta" : "ventas"}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Columna 2: Resumen de turno directamente */}
+              <div style={{ flex: 1, padding: "16px 18px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                <div style={{ fontSize: "10px", fontWeight: "800", color: "var(--pos-text-muted)", textTransform: "uppercase", letterSpacing: "0.4px" }}>Resumen del Turno</div>
+
+                {sessionStats ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px", backgroundColor: "var(--pos-surface-2)", borderRadius: "6px", border: "1px solid var(--pos-border)" }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--pos-text-muted)", fontWeight: 600 }}>
+                        <Clock size={13} /> Tiempo transcurrido
+                      </span>
+                      <strong style={{ fontSize: "12px", color: "var(--pos-text)" }}>{shiftDuration.hours}h {shiftDuration.minutes}m</strong>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px", backgroundColor: "var(--pos-surface-2)", borderRadius: "6px", border: "1px solid var(--pos-border)" }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--pos-text-muted)", fontWeight: 600 }}>
+                        <ShoppingCart size={13} /> Ventas realizadas
+                      </span>
+                      <strong style={{ fontSize: "12px", color: "var(--pos-text)" }}>{sessionStats.salesCount}</strong>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px", backgroundColor: "var(--pos-surface-2)", borderRadius: "6px", border: "1px solid var(--pos-border)" }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--pos-text-muted)", fontWeight: 600 }}>
+                        <DollarSign size={13} /> Acumulado
+                      </span>
+                      <strong style={{ fontSize: "12px", color: "var(--pos-blue)" }}>
+                        {showValues ? `$${(sessionStats.totalSalesAmount ?? 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : "$***.**"}
+                      </strong>
+                    </div>
+
+                    {paymentMethod && (
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px", backgroundColor: "var(--pos-surface-2)", borderRadius: "6px", border: "1px solid var(--pos-border)" }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--pos-text-muted)", fontWeight: 600 }}>
+                          <Activity size={13} /> Método actual
+                        </span>
+                        <span style={{
+                          fontSize: "11px",
+                          fontWeight: "700",
+                          padding: "2px 8px",
+                          borderRadius: "4px",
+                          backgroundColor: "var(--pos-border)",
+                          color: "var(--pos-text)"
+                        }}>
+                          {paymentMethod}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ color: "var(--pos-text-muted)", fontSize: "12px", textAlign: "center", paddingTop: "16px" }}>Sin datos de sesión</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Subheader móvil: cajero + estado de caja (solo visible en tablet/móvil) */}
       <div className="pos-mobile-subheader">
