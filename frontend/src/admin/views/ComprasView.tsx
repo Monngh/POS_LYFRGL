@@ -840,15 +840,14 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                     return <div style={{ textAlign: "center", color: "var(--text-muted)", padding: 12, fontSize: 12 }}>No se encontraron productos con esa búsqueda.</div>;
                   }
                   return filtered.map((p) => {
-                    const isAdded = lines.some((l) => l.productId === String(p.id));
                     return (
                       <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-soft)", backgroundColor: "var(--surface)" }} className="cmp-modal-item">
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", overflowWrap: "anywhere" }}>{p.name}</div>
                           <div style={{ fontSize: 11, color: "var(--text-muted)" }}>SKU: {p.sku} · Costo base: {money(p.costPrice)} · {UNIT_LABELS[unitProfile(p.satUnitKey).def]}</div>
                         </div>
-                        <button type="button" style={{ ...actionBtn(isAdded ? "#475569" : "#1e3a8a"), flexShrink: 0 }} className="active-tap" onClick={() => addProduct(p)}>
-                          <Plus size={13} /> {isAdded ? "+1" : "Agregar"}
+                        <button type="button" style={{ ...actionBtn("#1e3a8a"), flexShrink: 0 }} className="active-tap" onClick={() => addProduct(p)}>
+                          <Plus size={13} /> Agregar
                         </button>
                       </div>
                     );
