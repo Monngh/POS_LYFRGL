@@ -787,7 +787,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
         </div>
 
         <div style={{ padding: 15 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 14, marginBottom: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 10 }}>
             <div>
               <label style={ui.fieldLabel}>Sucursal de destino *</label>
               <select
@@ -815,7 +815,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
               </button>
               {fieldErrors.supplierId && <p style={styles.fieldError}>{fieldErrors.supplierId}</p>}
             </div>
-            <div>
+            <div style={{ gridColumn: "1 / -1" }}>
               <label style={ui.fieldLabel}>Referencia / Folio</label>
               <input style={{ ...ui.input, backgroundColor: "var(--surface-2)", cursor: "not-allowed", color: "var(--text-secondary)" }} value={reference} readOnly title="Folio generado automáticamente" />
             </div>
