@@ -10,7 +10,10 @@ import type {
   PriceAdjustmentHistoryResponse,
   PriceAdjustmentOperation,
   PriceAdjustmentProduct,
+  PriceAdjustmentReversalPreviewResponse,
   PriceAdjustmentScope,
+  RevertPriceAdjustmentPayload,
+  RevertPriceAdjustmentResult,
   ResolveProductsResult,
 } from "../types/priceAdjustments.types";
 
@@ -134,6 +137,24 @@ export const priceAdjustmentsApi = {
       params: compactParams(params),
     });
     return normalizeHistoryProducts(dataOf(response.data));
+  },
+
+  async getReversalPreview(id: number): Promise<PriceAdjustmentReversalPreviewResponse> {
+    const response = await api.get<ApiEnvelope<PriceAdjustmentReversalPreviewResponse>>(
+      `${BASE_URL}/history/${id}/reversal-preview`
+    );
+    return dataOf(response.data);
+  },
+
+  async revertAdjustment(
+    id: number,
+    payload: RevertPriceAdjustmentPayload
+  ): Promise<RevertPriceAdjustmentResult> {
+    const response = await api.post<ApiEnvelope<RevertPriceAdjustmentResult>>(
+      `${BASE_URL}/history/${id}/revert`,
+      payload
+    );
+    return dataOf(response.data);
   },
 };
 

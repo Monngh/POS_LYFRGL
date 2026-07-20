@@ -619,15 +619,20 @@ model PriceAdjustment {
   appliedAt   DateTime @default(now())
   appliedById Int
   categoryId  Int?
+  reversalOfId Int?
 
   appliedBy User      @relation(fields: [appliedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   category  Category? @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reversalOf PriceAdjustment?  @relation("PriceAdjustmentReversal", fields: [reversalOfId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reversals  PriceAdjustment[] @relation("PriceAdjustmentReversal")
 
-  details PriceAdjustmentDetail[]
+  details                 PriceAdjustmentDetail[] @relation("PriceAdjustmentDetails")
+  reversedOriginalDetails PriceAdjustmentDetail[] @relation("PriceAdjustmentDetailReversal")
 
   @@index([appliedAt])
   @@index([appliedById])
   @@index([categoryId])
+  @@index([reversalOfId])
   @@index([scope])
 }
 
@@ -640,14 +645,22 @@ model PriceAdjustmentDetail {
   newSellPrice      Decimal @db.Decimal(18, 2)
   costPriceAtChange Decimal @db.Decimal(18, 2)
   isBelowCost       Boolean @default(false)
+  reversedAt        DateTime?
+  reversedByAdjustmentId Int?
+  reversalSourceDetailId Int?
 
   createdAt DateTime @default(now())
 
-  priceAdjustment PriceAdjustment @relation(fields: [priceAdjustmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  priceAdjustment PriceAdjustment @relation("PriceAdjustmentDetails", fields: [priceAdjustmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   product         Product         @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reversedByAdjustment PriceAdjustment? @relation("PriceAdjustmentDetailReversal", fields: [reversedByAdjustmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reversalSourceDetail PriceAdjustmentDetail?  @relation("PriceAdjustmentDetailSource", fields: [reversalSourceDetailId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reversalDetails      PriceAdjustmentDetail[] @relation("PriceAdjustmentDetailSource")
 
   @@index([priceAdjustmentId])
   @@index([productId])
+  @@index([reversedByAdjustmentId])
+  @@index([reversalSourceDetailId])
 }
 
 // ─── VENTAS PAUSADAS (PARKED SALES) ───────────────────────

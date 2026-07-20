@@ -13,7 +13,9 @@ import {
   Loader2,
   PackageSearch,
   Percent,
+  RotateCcw,
   Search,
+  ShieldCheck,
   Tags,
   X,
 } from "lucide-react";
@@ -34,6 +36,9 @@ import type {
   PriceAdjustmentHistoryResponse,
   PriceAdjustmentOperation,
   PriceAdjustmentProduct,
+  PriceAdjustmentReversalConflict,
+  PriceAdjustmentReversalPreviewResponse,
+  PriceAdjustmentReversalProduct,
   PriceAdjustmentScope,
 } from "../types/priceAdjustments.types";
 import {
@@ -68,6 +73,7 @@ const CATEGORY_SCOPES: PriceAdjustmentScope[] = ["DIVISION", "DEPARTMENT", "CATE
 const VALUE_INPUT_REGEX = /^\d*(?:\.\d{0,2})?$/;
 const HISTORY_PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 const DETAIL_PAGE_SIZE = 10;
+const REVERSAL_REASON_MAX_LENGTH = 500;
 
 const scopeOptions: Array<{ value: PriceAdjustmentScope; label: string }> = [
   { value: "SELECTED_PRODUCTS", label: "Productos seleccionados" },
@@ -99,6 +105,7 @@ const adjustmentTypeLabel = (type: string, direction: string) => {
   if (type === "FIXED" && direction === "INCREASE") return "Aumento fijo";
   if (type === "FIXED" && direction === "DECREASE") return "Descuento fijo";
   if (type === "EXACT" && direction === "SET") return "Precio exacto";
+  if (type === "REVERSAL") return "Reversión";
   return `${type} ${direction}`;
 };
 
@@ -120,7 +127,9 @@ const formatAdjustmentValue = (operation: PriceAdjustmentOperation | string, val
     : moneyExact(Number(value));
 
 const formatStoredAdjustmentValue = (type: string, value: number) =>
-  type === "PERCENTAGE"
+  type === "REVERSAL"
+    ? "-"
+    : type === "PERCENTAGE"
     ? `${value.toLocaleString("es-MX", { maximumFractionDigits: 2 })}%`
     : moneyExact(Number(value));
 
@@ -171,6 +180,21 @@ const getValueError = (operation: PriceAdjustmentOperation, rawValue: string) =>
 };
 
 const selectedArrayFromSet = (ids: Set<number>) => [...ids].sort((a, b) => a - b);
+
+const getReversalConflictsFromError = (error: unknown): PriceAdjustmentReversalConflict[] => {
+  if (typeof error === "object" && error !== null && "response" in error) {
+    const apiError = error as {
+      response?: {
+        data?: {
+          conflicts?: PriceAdjustmentReversalConflict[];
+        };
+      };
+    };
+    return Array.isArray(apiError.response?.data?.conflicts) ? apiError.response.data.conflicts : [];
+  }
+
+  return [];
+};
 
 const Kpi: React.FC<{ label: string; value: React.ReactNode; icon: React.ReactNode }> = ({ label, value, icon }) => (
   <div style={styles.kpiCard}>
@@ -269,6 +293,17 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [detailProducts, setDetailProducts] = useState<HistoryProductsResponse | null>(null);
   const [detailProductsLoading, setDetailProductsLoading] = useState(false);
   const [detailProductsError, setDetailProductsError] = useState<string | null>(null);
+  const [detailReloadToken, setDetailReloadToken] = useState(0);
+  const [reversalMode, setReversalMode] = useState(false);
+  const [reversalPreview, setReversalPreview] = useState<PriceAdjustmentReversalPreviewResponse | null>(null);
+  const [reversalLoading, setReversalLoading] = useState(false);
+  const [reversalError, setReversalError] = useState<string | null>(null);
+  const [selectedReversalDetailIds, setSelectedReversalDetailIds] = useState<Set<number>>(new Set());
+  const [reversalReason, setReversalReason] = useState("");
+  const [reversalConfirmOpen, setReversalConfirmOpen] = useState(false);
+  const [reversalCredential, setReversalCredential] = useState("");
+  const [reverting, setReverting] = useState(false);
+  const [reversalConflicts, setReversalConflicts] = useState<PriceAdjustmentReversalConflict[]>([]);
 
   const selectedProductIdArray = useMemo(() => selectedArrayFromSet(selectedProductIds), [selectedProductIds]);
   const manualSelectedArray = useMemo(() => selectedArrayFromSet(manualSelectedIds), [manualSelectedIds]);
@@ -397,12 +432,54 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
       ? `Mostrando ${detailRangeStart}-${detailRangeEnd} de ${detailTotalProducts} producto${detailTotalProducts === 1 ? "" : "s"} · pagina ${detailCurrentPage} de ${detailDisplayTotalPages}`
       : `${detailTotalProducts} producto${detailTotalProducts === 1 ? "" : "s"}`
     : "Sin datos";
+  const reversalProductsByDetailId = useMemo(
+    () => new Map((reversalPreview?.products ?? []).map((product) => [product.detailId, product])),
+    [reversalPreview]
+  );
+  const reversibleProducts = useMemo(
+    () => (reversalPreview?.products ?? []).filter((product) => product.reversible),
+    [reversalPreview]
+  );
+  const selectedReversalProducts = useMemo(
+    () =>
+      (reversalPreview?.products ?? []).filter((product) =>
+        selectedReversalDetailIds.has(product.detailId)
+      ),
+    [reversalPreview, selectedReversalDetailIds]
+  );
+  const reversalReasonTrimmed = reversalReason.trim();
+  const detailReversalBlockReason = detail?.reversalStatus?.isReversal
+    ? "Los ajustes de reversión no pueden revertirse."
+    : reversalPreview?.adjustment.blockReason ?? null;
+  const canContinueReversal =
+    reversalMode &&
+    selectedReversalDetailIds.size > 0 &&
+    Boolean(reversalReasonTrimmed) &&
+    reversalReason.length <= REVERSAL_REASON_MAX_LENGTH &&
+    !detailReversalBlockReason &&
+    !reversalLoading &&
+    !reverting;
 
   const getHistoryCategoryText = (adjustment: PriceAdjustmentHistoryItem) =>
     adjustment.category ? `${adjustment.category.code} ${adjustment.category.name}` : "-";
 
   const getHistoryReasonText = (adjustment: PriceAdjustmentHistoryItem) =>
     adjustment.notes || "Sin motivo registrado";
+
+  const getHistoryReversalText = (adjustment: PriceAdjustmentHistoryItem) => {
+    if (adjustment.reversalStatus?.isReversal) {
+      return adjustment.reversalOfId ? `Reversión de #${adjustment.reversalOfId}` : "Ajuste de reversión";
+    }
+
+    if (adjustment.reversalStatus?.status === "NOT_REVERTED") {
+      return adjustment.reversalStatus.label;
+    }
+
+    const related = adjustment.reversals?.length
+      ? ` · Rev. #${adjustment.reversals.map((item) => item.id).join(", #")}`
+      : "";
+    return `${adjustment.reversalStatus?.label ?? "No revertido"}${related}`;
+  };
 
   const cancelPendingPreview = () => {
     previewRequestIdRef.current += 1;
@@ -417,6 +494,17 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     setNotes("");
     setConfirmBelowCost(false);
     setConfirmApplyOpen(false);
+  };
+
+  const resetReversalState = () => {
+    setReversalMode(false);
+    setReversalError(null);
+    setSelectedReversalDetailIds(new Set());
+    setReversalReason("");
+    setReversalConfirmOpen(false);
+    setReversalCredential("");
+    setReverting(false);
+    setReversalConflicts([]);
   };
 
   const cancelPendingResolve = () => {
@@ -524,6 +612,28 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     ]
   );
 
+  const loadReversalPreview = useCallback(async () => {
+    if (detailId === null) return null;
+
+    setReversalLoading(true);
+    setReversalError(null);
+    try {
+      const result = await priceAdjustmentsApi.getReversalPreview(detailId);
+      setReversalPreview(result);
+      setSelectedReversalDetailIds((current) => {
+        const validIds = new Set(result.products.filter((product) => product.reversible).map((product) => product.detailId));
+        return new Set([...current].filter((detailIdValue) => validIds.has(detailIdValue)));
+      });
+      return result;
+    } catch (error: unknown) {
+      setReversalPreview(null);
+      setReversalError(getApiErrorMessage(error, "No se pudo cargar la elegibilidad de reversión."));
+      return null;
+    } finally {
+      setReversalLoading(false);
+    }
+  }, [detailId]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedHistorySearch(historySearch);
@@ -569,7 +679,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
       .then(setDetail)
       .catch((error: unknown) => setDetailError(getApiErrorMessage(error, "No se pudo cargar el detalle del ajuste.")))
       .finally(() => setDetailLoading(false));
-  }, [detailOpen, detailId]);
+  }, [detailOpen, detailId, detailReloadToken]);
 
   useEffect(() => {
     if (!detailOpen || detailId === null) return;
@@ -604,7 +714,13 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     return () => {
       cancelled = true;
     };
-  }, [debouncedDetailSearch, detailId, detailOpen, detailOnlyBelowCost, detailPage]);
+  }, [debouncedDetailSearch, detailId, detailOpen, detailOnlyBelowCost, detailPage, detailReloadToken]);
+
+  useEffect(() => {
+    if (!detailOpen || detailId === null || !detail) return;
+    if (detail.reversalStatus?.isReversal) return;
+    void loadReversalPreview();
+  }, [detail, detailId, detailOpen, detailReloadToken, loadReversalPreview]);
 
   useEffect(() => {
     removedProductToastGuardRef.current.forEach((productId) => {
@@ -878,6 +994,124 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     }
   };
 
+  const startReversalMode = async () => {
+    setReversalMode(true);
+    setReversalConflicts([]);
+    setReversalError(null);
+    await loadReversalPreview();
+  };
+
+  const toggleReversalDetail = (product: PriceAdjustmentReversalProduct) => {
+    if (!product.reversible || reverting) return;
+    setSelectedReversalDetailIds((current) => {
+      const next = new Set(current);
+      if (next.has(product.detailId)) next.delete(product.detailId);
+      else next.add(product.detailId);
+      return next;
+    });
+    setReversalError(null);
+  };
+
+  const selectAllReversibleProducts = () => {
+    setSelectedReversalDetailIds(new Set(reversibleProducts.map((product) => product.detailId)));
+    setReversalError(null);
+  };
+
+  const clearReversalSelection = () => {
+    setSelectedReversalDetailIds(new Set());
+    setReversalError(null);
+  };
+
+  const openReversalConfirm = async () => {
+    if (selectedReversalDetailIds.size === 0) {
+      setReversalError("Selecciona al menos un producto reversible.");
+      return;
+    }
+
+    if (!reversalReasonTrimmed) {
+      setReversalError("El motivo de la reversión es obligatorio.");
+      return;
+    }
+
+    if (reversalReason.length > REVERSAL_REASON_MAX_LENGTH) {
+      setReversalError(`El motivo no puede exceder ${REVERSAL_REASON_MAX_LENGTH} caracteres.`);
+      return;
+    }
+
+    const latestPreview = await loadReversalPreview();
+    if (!latestPreview) return;
+
+    const latestById = new Map(latestPreview.products.map((product) => [product.detailId, product]));
+    const conflictingSelections = [...selectedReversalDetailIds]
+      .map((detailIdValue) => ({
+        detailId: detailIdValue,
+        product: latestById.get(detailIdValue),
+      }))
+      .filter(({ product }) => !product?.reversible);
+
+    if (conflictingSelections.length > 0) {
+      setReversalConflicts(
+        conflictingSelections.map(({ detailId: detailIdValue, product }) => ({
+          detailId: product?.detailId ?? detailIdValue,
+          productId: product?.productId,
+          name: product?.name,
+          sku: product?.sku,
+          reasonCode: product?.reasonCode ?? "PRICE_CHANGED",
+          reason: product?.reason ?? "El producto ya no puede revertirse.",
+          originalNewPrice: product?.newSellPrice,
+          currentPrice: product?.currentSellPrice ?? undefined,
+          targetPrice: product?.targetSellPrice,
+        }))
+      );
+      setReversalError("Algunos productos ya no pueden revertirse.");
+      return;
+    }
+
+    setReversalConflicts([]);
+    setReversalCredential("");
+    setReversalConfirmOpen(true);
+  };
+
+  const confirmReversal = async () => {
+    if (detailId === null || reverting) return;
+
+    if (!reversalCredential.trim()) {
+      setReversalError("Debes confirmar tu PIN o contraseña.");
+      return;
+    }
+
+    setReverting(true);
+    setReversalError(null);
+    setReversalConflicts([]);
+    try {
+      const result = await priceAdjustmentsApi.revertAdjustment(detailId, {
+        productDetailIds: selectedArrayFromSet(selectedReversalDetailIds),
+        reason: reversalReasonTrimmed,
+        credential: reversalCredential,
+      });
+      showToast(
+        result.affectedRows === 1
+          ? "El producto fue revertido correctamente."
+          : `${result.affectedRows} productos fueron revertidos correctamente.`,
+        "success"
+      );
+      setReversalConfirmOpen(false);
+      setReversalCredential("");
+      setSelectedReversalDetailIds(new Set());
+      setReversalReason("");
+      setDetailReloadToken((token) => token + 1);
+      await Promise.all([loadReversalPreview(), loadHistory(historyPage)]);
+    } catch (error: unknown) {
+      const conflicts = getReversalConflictsFromError(error);
+      setReversalConflicts(conflicts);
+      setReversalError(getApiErrorMessage(error, "No se pudo revertir el ajuste."));
+      showToast("No se pudo revertir el ajuste.", "error");
+      void loadReversalPreview();
+    } finally {
+      setReverting(false);
+    }
+  };
+
   const openDetail = (adjustmentId: number) => {
     setDetailId(adjustmentId);
     setDetail(null);
@@ -889,15 +1123,22 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     setDetailError(null);
     setDetailProductsError(null);
     setDetailProductsLoading(false);
+    resetReversalState();
+    setReversalPreview(null);
+    setReversalLoading(false);
     setDetailOpen(true);
   };
 
   const closeDetail = () => {
+    if (reverting) return;
     setDetailOpen(false);
     setDetailId(null);
     setDetail(null);
     setDetailProducts(null);
     setDetailProductsLoading(false);
+    resetReversalState();
+    setReversalPreview(null);
+    setReversalLoading(false);
   };
 
   const handleDetailPreviousPage = () => {
@@ -1522,6 +1763,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
             <col style={styles.historyValueColumn} />
             <col style={styles.historyCountColumn} />
             <col style={styles.historyBelowCostColumn} />
+            <col style={styles.historyReversalColumn} />
             <col style={styles.historyReasonColumn} />
             <col style={styles.historyActionsColumn} />
           </colgroup>
@@ -1535,13 +1777,14 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
               <th style={{ ...styles.historyTh, textAlign: "right" }}>Valor</th>
               <th style={{ ...styles.historyTh, textAlign: "right" }}>Productos</th>
               <th style={{ ...styles.historyTh, textAlign: "center" }}>Debajo</th>
+              <th style={styles.historyTh}>Reversión</th>
               <th style={styles.historyTh}>Motivo</th>
               <th style={{ ...styles.historyTh, textAlign: "center" }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
             <TableState
-              colSpan={10}
+              colSpan={11}
               loading={historyLoading}
               error={historyError}
               empty={!historyLoading && historyRows.length === 0}
@@ -1577,6 +1820,11 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                   <td style={styles.historyNumberTd}>{adjustment.affectedRows}</td>
                   <td style={styles.historyCenterTd}>
                     <Badge tone={adjustment.belowCostCount > 0 ? "red" : "green"}>{adjustment.belowCostCount}</Badge>
+                  </td>
+                  <td style={styles.historyTd}>
+                    <span style={styles.historyReasonText} title={getHistoryReversalText(adjustment)}>
+                      {getHistoryReversalText(adjustment)}
+                    </span>
                   </td>
                   <td style={styles.historyTd}>
                     <span style={styles.historyReasonText} title={getHistoryReasonText(adjustment)}>
@@ -1741,7 +1989,112 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                       <div><strong>Valor:</strong> {formatStoredAdjustmentValue(detail.type, detail.value)}</div>
                       <div><strong>Productos afectados:</strong> {detail.affectedRows}</div>
                       <div><strong>Motivo:</strong> {detail.notes || "Sin motivo registrado"}</div>
+                      <div><strong>Estado de reversión:</strong> {detail.reversalStatus?.label ?? "No revertido"}</div>
+                      {detail.reversalOfId && (
+                        <div><strong>Ajuste original:</strong> #{detail.reversalOfId}</div>
+                      )}
+                      {!detail.reversalOfId && detail.reversals?.length > 0 && (
+                        <div>
+                          <strong>Ajustes de reversión:</strong>{" "}
+                          {detail.reversals.map((item) => `#${item.id}`).join(", ")}
+                        </div>
+                      )}
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {!detailLoading && detail && (
+                <div style={styles.reversalHeader}>
+                  <div style={styles.reversalHeaderText}>
+                    <strong>{detail.reversalStatus?.label ?? "No revertido"}</strong>
+                    {detailReversalBlockReason && (
+                      <span>{detailReversalBlockReason}</span>
+                    )}
+                  </div>
+                  {!detail.reversalStatus?.isReversal && (
+                    <div style={styles.inlineActions}>
+                      {reversalMode ? (
+                        <>
+                          <button type="button" style={ui.ghostBtn} onClick={() => void loadReversalPreview()} disabled={reversalLoading || reverting}>
+                            {reversalLoading ? "Actualizando..." : "Actualizar elegibilidad"}
+                          </button>
+                          <button type="button" style={ui.ghostBtn} onClick={resetReversalState} disabled={reverting}>
+                            Cancelar reversión
+                          </button>
+                        </>
+                      ) : (
+                        <button type="button" style={ui.primaryBtn} onClick={() => void startReversalMode()} disabled={reversalLoading || Boolean(detailReversalBlockReason)}>
+                          <RotateCcw size={15} /> Revertir productos
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {reversalMode && (
+                <div style={styles.reversalPanel}>
+                  {reversalLoading && <div style={styles.reversalStatusLine}>Consultando elegibilidad actual...</div>}
+                  {reversalError && <InlineAlert tone="error">{reversalError}</InlineAlert>}
+                  {detailReversalBlockReason && (
+                    <InlineAlert tone="warning">{detailReversalBlockReason}</InlineAlert>
+                  )}
+                  {reversalConflicts.length > 0 && (
+                    <div style={styles.reversalConflictList}>
+                      {reversalConflicts.slice(0, 5).map((conflict) => (
+                        <div key={`${conflict.detailId ?? conflict.productId ?? conflict.reasonCode}-${conflict.reason}`} style={styles.reversalConflictItem}>
+                          <strong>{conflict.sku || conflict.name || `Detalle #${conflict.detailId}`}</strong>
+                          <span>{conflict.reason}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={styles.reversalControls}>
+                    <div style={styles.reversalCounter}>
+                      {selectedReversalDetailIds.size} producto{selectedReversalDetailIds.size === 1 ? "" : "s"} seleccionado{selectedReversalDetailIds.size === 1 ? "" : "s"} para revertir
+                    </div>
+                    <div style={styles.inlineActions}>
+                      <button type="button" style={ui.ghostBtn} onClick={selectAllReversibleProducts} disabled={reversalLoading || reversibleProducts.length === 0 || reverting}>
+                        Seleccionar todos los reversibles
+                      </button>
+                      <button type="button" style={ui.ghostBtn} onClick={clearReversalSelection} disabled={selectedReversalDetailIds.size === 0 || reverting}>
+                        Deseleccionar todos
+                      </button>
+                    </div>
+                  </div>
+                  <label style={ui.fieldLabel}>Motivo de la reversión *</label>
+                  <textarea
+                    style={{ ...ui.input, minHeight: 78, resize: "vertical" }}
+                    value={reversalReason}
+                    onChange={(event) => {
+                      setReversalReason(event.target.value);
+                      setReversalError(null);
+                    }}
+                    maxLength={REVERSAL_REASON_MAX_LENGTH}
+                    placeholder="Corrección de ajuste aplicado por error."
+                    disabled={reverting}
+                  />
+                  <div style={styles.fieldFooter}>
+                    {!reversalReasonTrimmed && reversalReason.length > 0 ? (
+                      <p style={styles.fieldErrorInline}>El motivo no puede quedar vacío.</p>
+                    ) : (
+                      <span />
+                    )}
+                    <span>{reversalReason.length} / {REVERSAL_REASON_MAX_LENGTH} caracteres</span>
+                  </div>
+                  <div style={styles.footerActions}>
+                    <button type="button" style={ui.ghostBtn} onClick={resetReversalState} disabled={reverting}>
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      style={{ ...ui.primaryBtn, opacity: canContinueReversal ? 1 : 0.65 }}
+                      onClick={() => void openReversalConfirm()}
+                      disabled={!canContinueReversal}
+                    >
+                      Continuar
+                    </button>
                   </div>
                 </div>
               )}
@@ -1763,20 +2116,30 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
               </Toolbar>
 
               <div style={{ ...ui.tableWrap, maxHeight: 360, overflowY: "auto" }}>
-                <table style={{ ...ui.table, minWidth: 760 }}>
+                <table style={{ ...ui.table, minWidth: reversalMode ? 980 : 760 }}>
                   <thead>
                     <tr style={ui.theadRow}>
+                      {reversalMode && <th style={{ ...ui.th, width: 46, textAlign: "center" }}>Sel.</th>}
                       <th style={ui.th}>SKU</th>
                       <th style={ui.th}>Producto</th>
                       <th style={{ ...ui.th, textAlign: "right" }}>Precio anterior</th>
-                      <th style={{ ...ui.th, textAlign: "right" }}>Precio nuevo</th>
-                      <th style={{ ...ui.th, textAlign: "right" }}>Costo al cambio</th>
-                      <th style={{ ...ui.th, textAlign: "center" }}>Debajo costo</th>
+                      <th style={{ ...ui.th, textAlign: "right" }}>Precio aplicado</th>
+                      {reversalMode ? (
+                        <>
+                          <th style={{ ...ui.th, textAlign: "right" }}>Precio actual</th>
+                          <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
+                        </>
+                      ) : (
+                        <>
+                          <th style={{ ...ui.th, textAlign: "right" }}>Costo al cambio</th>
+                          <th style={{ ...ui.th, textAlign: "center" }}>Debajo costo</th>
+                        </>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
                     <TableState
-                      colSpan={6}
+                      colSpan={reversalMode ? 7 : 6}
                       loading={detailProductsBusy}
                       error={detailProductsError}
                       empty={!detailProductsBusy && (detailProducts?.products.length ?? 0) === 0}
@@ -1784,20 +2147,59 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                     />
                     {!detailProductsBusy &&
                       !detailProductsError &&
-                      detailProducts?.products.map((row) => (
-                        <tr key={row.id}>
-                          <td style={styles.codeCell}>{row.producto.sku}</td>
-                          <td style={{ ...ui.td, whiteSpace: "normal", color: "var(--text)", fontWeight: 700 }}>
-                            {row.producto.name}
-                          </td>
-                          <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(Number(row.oldSellPrice))}</td>
-                          <td style={{ ...ui.td, textAlign: "right", fontWeight: 800 }}>{moneyExact(Number(row.newSellPrice))}</td>
-                          <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(Number(row.costPriceAtChange))}</td>
-                          <td style={{ ...ui.td, textAlign: "center" }}>
-                            <Badge tone={row.isBelowCost ? "red" : "green"}>{row.isBelowCost ? "Si" : "No"}</Badge>
-                          </td>
-                        </tr>
-                      ))}
+                      detailProducts?.products.map((row) => {
+                        const reversalProduct = reversalProductsByDetailId.get(row.id);
+                        const isSelectable = Boolean(reversalProduct?.reversible);
+                        const isSelected = selectedReversalDetailIds.has(row.id);
+                        const disabledRow = reversalMode && !isSelectable;
+
+                        return (
+                          <tr key={row.id} style={disabledRow ? styles.reversalDisabledRow : undefined}>
+                            {reversalMode && (
+                              <td style={{ ...ui.td, textAlign: "center" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  disabled={!isSelectable || reverting}
+                                  onChange={() => reversalProduct && toggleReversalDetail(reversalProduct)}
+                                  style={{
+                                    ...styles.checkbox,
+                                    cursor: isSelectable && !reverting ? "pointer" : "not-allowed",
+                                  }}
+                                />
+                              </td>
+                            )}
+                            <td style={styles.codeCell}>{row.producto.sku}</td>
+                            <td style={{ ...ui.td, whiteSpace: "normal", color: "var(--text)", fontWeight: 700 }}>
+                              {row.producto.name}
+                              {reversalMode && reversalProduct?.reason && (
+                                <div style={styles.reversalReasonText}>No disponible: {reversalProduct.reason.replace(/^No disponible:\s*/i, "")}</div>
+                              )}
+                            </td>
+                            <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(Number(row.oldSellPrice))}</td>
+                            <td style={{ ...ui.td, textAlign: "right", fontWeight: 800 }}>{moneyExact(Number(row.newSellPrice))}</td>
+                            {reversalMode ? (
+                              <>
+                                <td style={{ ...ui.td, textAlign: "right" }}>
+                                  {reversalProduct?.currentSellPrice === null || reversalProduct?.currentSellPrice === undefined
+                                    ? "-"
+                                    : moneyExact(Number(reversalProduct.currentSellPrice))}
+                                </td>
+                                <td style={{ ...ui.td, textAlign: "center" }}>
+                                  <Badge tone={isSelectable ? "green" : "red"}>{isSelectable ? "Disponible" : "No disponible"}</Badge>
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td style={{ ...ui.td, textAlign: "right" }}>{moneyExact(Number(row.costPriceAtChange))}</td>
+                                <td style={{ ...ui.td, textAlign: "center" }}>
+                                  <Badge tone={row.isBelowCost ? "red" : "green"}>{row.isBelowCost ? "Si" : "No"}</Badge>
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>
@@ -1823,6 +2225,67 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                     </button>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reversalConfirmOpen && (
+        <div style={ui.overlay} onClick={() => !reverting && setReversalConfirmOpen(false)}>
+          <div style={{ ...ui.modal, maxWidth: 620, width: "100%" }} onClick={(event) => event.stopPropagation()}>
+            <div style={ui.modalHeader}>
+              <span style={ui.modalTitle}>Confirmar reversión</span>
+              <button type="button" style={ui.linkBtn} onClick={() => setReversalConfirmOpen(false)} disabled={reverting}>
+                <X size={18} />
+              </button>
+            </div>
+            <div style={ui.modalBody}>
+              <div style={styles.reversalConfirmHeader}>
+                <div style={styles.reversalConfirmIcon}>
+                  <ShieldCheck size={18} />
+                </div>
+                <div>
+                  <strong>Se revertirán {selectedReversalProducts.length} producto{selectedReversalProducts.length === 1 ? "" : "s"}.</strong>
+                  <div style={styles.mutedSmall}>Ajuste original #{detailId} · {reversalReasonTrimmed}</div>
+                </div>
+              </div>
+              <div style={styles.reversalSummaryList}>
+                {selectedReversalProducts.map((product) => (
+                  <div key={product.detailId} style={styles.reversalSummaryItem}>
+                    <strong>{product.name}</strong>
+                    <span>SKU: {product.sku}</span>
+                    <span>
+                      Precio actual: {product.currentSellPrice === null ? "-" : moneyExact(Number(product.currentSellPrice))} · Precio restaurado: {moneyExact(Number(product.targetSellPrice))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <label style={ui.fieldLabel}>PIN o contraseña *</label>
+              <input
+                type="password"
+                style={ui.input}
+                value={reversalCredential}
+                onChange={(event) => {
+                  setReversalCredential(event.target.value);
+                  setReversalError(null);
+                }}
+                disabled={reverting}
+                autoComplete="current-password"
+              />
+              {reversalError && <InlineAlert tone="error">{reversalError}</InlineAlert>}
+              <div style={styles.footerActions}>
+                <button type="button" style={ui.ghostBtn} onClick={() => setReversalConfirmOpen(false)} disabled={reverting}>
+                  Volver
+                </button>
+                <button
+                  type="button"
+                  style={{ ...ui.primaryBtn, opacity: reverting || !reversalCredential.trim() ? 0.65 : 1 }}
+                  onClick={() => void confirmReversal()}
+                  disabled={reverting || !reversalCredential.trim()}
+                >
+                  {reverting ? "Revirtiendo..." : "Revertir productos"}
+                </button>
               </div>
             </div>
           </div>
@@ -2370,7 +2833,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   historyTable: {
     ...ui.table,
-    minWidth: 1160,
+    minWidth: 1340,
     tableLayout: "fixed",
     marginTop: 0,
   },
@@ -2397,6 +2860,9 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   historyBelowCostColumn: {
     width: 78,
+  },
+  historyReversalColumn: {
+    width: 180,
   },
   historyReasonColumn: {
     width: 232,
@@ -2563,6 +3029,118 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: "center",
     gap: 12,
     flexWrap: "wrap",
+  },
+  reversalHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    padding: "10px 12px",
+    backgroundColor: "var(--surface)",
+    marginBottom: 12,
+  },
+  reversalHeaderText: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 3,
+    color: "var(--text-secondary)",
+    fontSize: 13,
+    fontWeight: 700,
+    minWidth: 0,
+  },
+  reversalPanel: {
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: "var(--surface-2)",
+    marginBottom: 12,
+  },
+  reversalStatusLine: {
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 800,
+    marginBottom: 8,
+  },
+  reversalControls: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    flexWrap: "wrap",
+    marginBottom: 12,
+  },
+  reversalCounter: {
+    color: "var(--text-secondary)",
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  reversalConflictList: {
+    display: "grid",
+    gap: 6,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  reversalConflictItem: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+    border: "1px solid #fecaca",
+    borderRadius: 8,
+    padding: "8px 10px",
+    backgroundColor: "#fef2f2",
+    color: "#991b1b",
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  reversalDisabledRow: {
+    backgroundColor: "#fafafa",
+    color: "var(--text-muted)",
+  },
+  reversalReasonText: {
+    marginTop: 4,
+    color: "#b91c1c",
+    fontSize: 12,
+    fontWeight: 700,
+    lineHeight: 1.25,
+  },
+  reversalConfirmHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    color: "var(--text)",
+    marginBottom: 12,
+  },
+  reversalConfirmIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: "var(--accent-soft)",
+    color: "var(--accent-strong)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  reversalSummaryList: {
+    display: "grid",
+    gap: 8,
+    maxHeight: 220,
+    overflowY: "auto",
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 14,
+    backgroundColor: "var(--surface)",
+  },
+  reversalSummaryItem: {
+    display: "grid",
+    gap: 2,
+    color: "var(--text-secondary)",
+    fontSize: 12,
+    fontWeight: 700,
   },
   confirmSummary: {
     display: "grid",

@@ -4,7 +4,10 @@ import {
     getPriceAdjustmentById,
     getPriceAdjustmentHistory,
     getPriceAdjustmentProducts,
+    getPriceAdjustmentReversalPreview,
+    PriceAdjustmentReversalConflictError,
     previewPriceAdjustment,
+    revertPriceAdjustment,
     resolveProductsForPriceAdjustment,
 } from "../services/adminPriceAdjustment.service";
 import { AppError } from "../utils/AppError";
@@ -151,6 +154,67 @@ export const getPriceAdjustmentProductsController = async (
             data: result,
         });
     } catch (error) {
+        next(error);
+    }
+};
+
+export const getPriceAdjustmentReversalPreviewController = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+) => {
+    try {
+        const result = await getPriceAdjustmentReversalPreview(Number(req.params.id));
+
+        res.status(200).json({
+            message: "Vista previa de reversión obtenida correctamente.",
+            data: result,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const revertPriceAdjustmentController = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+) => {
+    try {
+        if (!req.user) {
+            throw new AppError("No fue posible identificar al usuario.", 401);
+        }
+
+        const userId = req.user.userId;
+
+        if (!Number.isInteger(userId) || userId <= 0) {
+            throw new AppError("No fue posible identificar al usuario.", 401);
+        }
+
+        const result = await revertPriceAdjustment({
+            adjustmentId: Number(req.params.id),
+            productDetailIds: req.body.productDetailIds,
+            reason: req.body.reason,
+            credential: req.body.credential,
+            appliedById: userId,
+        });
+
+        res.status(200).json({
+            message:
+                result.affectedRows === 1
+                    ? "El producto fue revertido correctamente."
+                    : `${result.affectedRows} productos fueron revertidos correctamente.`,
+            data: result,
+        });
+    } catch (error) {
+        if (error instanceof PriceAdjustmentReversalConflictError) {
+            res.status(error.statusCode).json({
+                message: error.message,
+                conflicts: error.conflicts,
+            });
+            return;
+        }
+
         next(error);
     }
 };
