@@ -717,31 +717,63 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                   <Trash2 size={16} color="#b91c1c" />
                 </button>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <div>
-                  <label style={styles.miniLabel}>Cantidad</label>
-                  <QtyStepper value={l.quantity} onChange={(v) => setLine(i, "quantity", v)} onStep={(d) => stepQuantity(i, d)} error={!!err.quantity} compact />
-                  {err.quantity && <p style={styles.fieldError}>{err.quantity}</p>}
-                </div>
-                <div>
-                  <label style={styles.miniLabel}>Unidad</label>
-                  <select style={{ ...ui.input, padding: "8px 6px", textAlign: "center", height: 38 }} value={l.unit} onChange={(e) => changeLineUnit(i, e.target.value)}>
-                    {units.map((u) => <option key={u} value={u}>{UNIT_LABELS[u]}</option>)}
-                    {!units.includes(l.unit) && <option value={l.unit}>{UNIT_LABELS[l.unit] || l.unit}</option>}
-                  </select>
-                </div>
-                <div>
-                  <label style={styles.miniLabel}>Costo unit.</label>
-                  <input type="text" inputMode="decimal" style={{ ...ui.input, padding: "8px 10px", textAlign: "right", height: 38, borderColor: err.unitCost ? "#fca5a5" : "var(--border)" }} value={l.unitCost} onChange={(e) => setDecimalLine(i, e.target.value)} placeholder="0.00" />
-                  {err.unitCost && <p style={styles.fieldError}>{err.unitCost}</p>}
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <label style={{ ...styles.miniLabel, textAlign: "right" }}>Importe</label>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: "var(--accent-strong)", paddingTop: 8 }}>
-                    {money((Number(l.quantity) || 0) * (Number(l.unitCost) || 0))}
+              {isPhone ? (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div>
+                    <label style={styles.miniLabel}>Cantidad</label>
+                    <QtyStepper value={l.quantity} onChange={(v) => setLine(i, "quantity", v)} onStep={(d) => stepQuantity(i, d)} error={!!err.quantity} compact />
+                    {err.quantity && <p style={styles.fieldError}>{err.quantity}</p>}
+                  </div>
+                  <div>
+                    <label style={styles.miniLabel}>Unidad</label>
+                    <select style={{ ...ui.input, padding: "8px 6px", textAlign: "center", height: 38 }} value={l.unit} onChange={(e) => changeLineUnit(i, e.target.value)}>
+                      {units.map((u) => <option key={u} value={u}>{UNIT_LABELS[u]}</option>)}
+                      {!units.includes(l.unit) && <option value={l.unit}>{UNIT_LABELS[l.unit] || l.unit}</option>}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={styles.miniLabel}>Costo unit.</label>
+                    <input type="text" inputMode="decimal" style={{ ...ui.input, padding: "8px 10px", textAlign: "right", height: 38, borderColor: err.unitCost ? "#fca5a5" : "var(--border)" }} value={l.unitCost} onChange={(e) => setDecimalLine(i, e.target.value)} placeholder="0.00" />
+                    {err.unitCost && <p style={styles.fieldError}>{err.unitCost}</p>}
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <label style={{ ...styles.miniLabel, textAlign: "right" }}>Importe</label>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: "var(--accent-strong)", paddingTop: 8 }}>
+                      {money((Number(l.quantity) || 0) * (Number(l.unitCost) || 0))}
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <div style={{ flex: "1 1 100px", minWidth: 90 }}>
+                      <label style={styles.miniLabel}>Cantidad</label>
+                      <QtyStepper value={l.quantity} onChange={(v) => setLine(i, "quantity", v)} onStep={(d) => stepQuantity(i, d)} error={!!err.quantity} compact />
+                      {err.quantity && <p style={styles.fieldError}>{err.quantity}</p>}
+                    </div>
+                    <div style={{ flex: "1 1 90px", minWidth: 85 }}>
+                      <label style={styles.miniLabel}>Unidad</label>
+                      <select style={{ ...ui.input, padding: "8px 6px", textAlign: "center", height: 38 }} value={l.unit} onChange={(e) => changeLineUnit(i, e.target.value)}>
+                        {units.map((u) => <option key={u} value={u}>{UNIT_LABELS[u]}</option>)}
+                        {!units.includes(l.unit) && <option value={l.unit}>{UNIT_LABELS[l.unit] || l.unit}</option>}
+                      </select>
+                    </div>
+                    <div style={{ flex: "1 1 80px", minWidth: 75 }}>
+                      <label style={styles.miniLabel}>Costo unit.</label>
+                      <input type="text" inputMode="decimal" style={{ ...ui.input, padding: "8px 10px", textAlign: "right", height: 38, borderColor: err.unitCost ? "#fca5a5" : "var(--border)" }} value={l.unitCost} onChange={(e) => setDecimalLine(i, e.target.value)} placeholder="0.00" />
+                      {err.unitCost && <p style={styles.fieldError}>{err.unitCost}</p>}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+                    <div style={{ textAlign: "right" }}>
+                      <label style={{ ...styles.miniLabel, textAlign: "right" }}>Importe</label>
+                      <div style={{ fontWeight: 800, fontSize: 15, color: "var(--accent-strong)" }}>
+                        {money((Number(l.quantity) || 0) * (Number(l.unitCost) || 0))}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
               {renderUnitConversionRow(l, i, "card")}
             </div>
           );
