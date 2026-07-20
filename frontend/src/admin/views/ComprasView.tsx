@@ -817,7 +817,8 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
             </div>
           </div>
 
-          {/* Buscador inline de productos del proveedor seleccionado */}
+          {/* Selección de productos: buscador + resultados + editor de renglones + total, agrupados en una sola tarjeta */}
+          <div style={{ backgroundColor: "var(--surface-2)", border: "1px solid var(--border-soft)", borderRadius: 10, padding: 12, marginBottom: 10 }}>
           <div style={{ marginBottom: 10 }}>
             <SearchBox
               value={productSearch}
@@ -827,7 +828,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
               autoFocus={false}
             />
             {supplierId && (
-              <div style={{ maxHeight: 220, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6, marginTop: 8, padding: 8, border: "1px solid var(--border-soft)", borderRadius: 8, backgroundColor: "var(--surface-2)" }}>
+              <div style={{ maxHeight: 220, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6, marginTop: 8, padding: 8, border: "1px solid var(--border-soft)", borderRadius: 8, backgroundColor: "var(--surface)" }}>
                 {loadingProducts ? (
                   <div style={{ textAlign: "center", color: "var(--text-muted)", padding: 12, fontSize: 12 }}>Cargando productos del proveedor…</div>
                 ) : (() => {
@@ -858,7 +859,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
 
           {/* Barra: total (con wrap para evitar encimados) */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 14, justifyContent: "flex-end", alignItems: "center", marginTop: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", padding: "8px 16px", borderRadius: 10, backgroundColor: "var(--surface-2)", border: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", padding: "8px 16px", borderRadius: 10, backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>
               <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>
                 {computedTotals.items} artículo{computedTotals.items === 1 ? "" : "s"}
               </span>
@@ -866,6 +867,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
               <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3px" }}>Total estimado</span>
               <span style={{ fontSize: 19, fontWeight: 800, color: "var(--accent-strong)", whiteSpace: "nowrap" }}>{money(computedTotals.total)}</span>
             </div>
+          </div>
           </div>
 
           {formError && <p style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600, marginTop: 14 }}>{formError}</p>}
