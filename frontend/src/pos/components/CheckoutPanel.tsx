@@ -399,7 +399,11 @@ export function CheckoutPanel({
               onClick={() => setIsMobileParkedModalOpen(true)}
               className="pos-checkout-mobile-quick-btn parked"
             >
-              ⏱️ {parkedSales.length} en espera
+              <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "16px" }}>⏱️</span>
+                <span>{parkedSales.length} venta{parkedSales.length > 1 ? "s" : ""} en espera <small style={{ opacity: 0.7 }}>(Alt+E)</small></span>
+              </span>
+              <span className="pos-mobile-btn-plus">+</span>
             </button>
           )}
           {pendingQrSales.length > 0 && (
@@ -408,8 +412,11 @@ export function CheckoutPanel({
               onClick={() => setIsMobileQrModalOpen(true)}
               className="pos-checkout-mobile-quick-btn qr"
             >
-              <Bell size={12} style={{ marginRight: "4px" }} />
-              {pendingQrSales.length} QR pendiente{pendingQrSales.length > 1 ? "s" : ""}
+              <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Bell size={15} />
+                <span>{pendingQrSales.length} pago{pendingQrSales.length > 1 ? "s" : ""} pendiente{pendingQrSales.length > 1 ? "s" : ""} <small style={{ opacity: 0.7 }}>(Alt+S)</small></span>
+              </span>
+              <span className="pos-mobile-btn-plus">+</span>
             </button>
           )}
         </div>

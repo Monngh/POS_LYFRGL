@@ -340,7 +340,7 @@ export function SalesTerminalView({
           <span className="pos-terminal-brand-text">POS</span>
 
           {/* Sucursal */}
-          <div className="pos-terminal-chip">
+          <div className="pos-terminal-chip hide-on-mobile">
             <MapPin size={12} />
             <span>{user?.branch?.name || "Sucursal"}</span>
           </div>
@@ -439,12 +439,12 @@ export function SalesTerminalView({
           </div>
         </div>
 
-        <div className="pos-terminal-navbar-right hide-on-mobile">
+        <div className="pos-terminal-navbar-right">
           {/* Toggle modo claro/oscuro */}
           <button
             type="button"
             onClick={togglePosTheme}
-            className="pos-terminal-menu-btn active-tap"
+            className="pos-terminal-menu-btn active-tap hide-on-mobile"
             title={theme === "dark" ? "Modo claro" : "Modo oscuro"}
             aria-label={theme === "dark" ? "Activar modo claro" : "Activar modo oscuro"}
           >
@@ -459,17 +459,40 @@ export function SalesTerminalView({
         </div>
       </header>
 
+      {/* Subheader móvil: cajero + estado de caja (solo visible en tablet/móvil) */}
+      <div className="pos-mobile-subheader">
+        <div className="pos-mobile-subheader-user">
+          <div className="pos-terminal-avatar" style={{ width: "22px", height: "22px", fontSize: "10px" }}>
+            {(user?.name || "C").charAt(0).toUpperCase()}
+          </div>
+          <span className="pos-mobile-subheader-user-name">{user?.name || "Cajero"}</span>
+        </div>
+        <div
+          className={`pos-terminal-session-badge active-tap ${
+            session?.status === "ABIERTA" || session?.status === "active" ? "open" : "closed"
+          }`}
+          style={{ fontSize: "10px", padding: "2px 8px" }}
+          onClick={() => onOpenModal("shift-summary")}
+        >
+          {session?.status === "ABIERTA" || session?.status === "active" ? "CAJA ABIERTA" : "CAJA CERRADA"}
+        </div>
+      </div>
+
       {/* Cuerpo Terminal */}
       <SalesLayoutView
         recentSales={recentSales}
         onOpenModal={(modal) => {
+          setIsSidebarCollapsed(true);
           if (modal === "promotions") {
             setIsPromotionsModalOpen(true);
           } else {
             onOpenModal(modal);
           }
         }}
-        onLock={onLock || (() => {})}
+        onLock={() => {
+          setIsSidebarCollapsed(true);
+          if (onLock) onLock();
+        }}
         onReprintTicket={onReprintTicket}
         onStartReturn={onStartReturn}
         isSidebarCollapsed={isSidebarCollapsed}

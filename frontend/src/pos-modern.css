@@ -1508,7 +1508,8 @@
 /* ============================================================
    Responsive Overrides
    ============================================================ */
-@media (max-width: 1024px) {
+/* Tablet + Mobile (<1024px) */
+@media (max-width: 1023px) {
   .pos-main-layout-container {
     flex-direction: column;
   }
@@ -1630,7 +1631,8 @@
 
 }
 
-@media (max-width: 768px) {
+/* Mobile only (<768px) */
+@media (max-width: 767px) {
   .pos-terminal-navbar-left { width: 100%; }
   .pos-terminal-navbar-right { width: 100%; justify-content: flex-start; }
 
@@ -2259,7 +2261,8 @@
    On tablet/mobile the sidebar shows horizontal pills instead
    of square icon-buttons
    ============================================================ */
-@media (max-width: 1024px) {
+/* Sidebar pill layout on tablet/mobile (<1024px) */
+@media (max-width: 1023px) {
   /* The sidebar overlays as a floating panel on tablet/mobile */
   .pos-sales-sidebar {
     position: absolute;
@@ -2321,27 +2324,33 @@
 }
 
 .pos-checkout-mobile-quick-btn {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 11px;
+  justify-content: space-between;
+  width: 100%;
+  border-radius: 8px;
+  padding: 13px 16px;
+  font-size: 13px;
   font-weight: 800;
   cursor: pointer;
-  border: none;
   transition: all 0.15s ease;
-  flex: 1;
-  justify-content: center;
+}
+
+.pos-checkout-mobile-quick-btn .pos-mobile-btn-plus {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0.6;
 }
 
 .pos-checkout-mobile-quick-btn.parked {
-  background: #eff6ff;
+  background: var(--pos-blue-soft, #eff6ff);
   color: #1e3a8a;
   border: 1px solid #bfdbfe;
 }
 
 .pos-checkout-mobile-quick-btn.qr {
-  background: #fef3c7;
+  background: var(--pos-amber-soft, #fffbeb);
   color: #b45309;
   border: 1px solid #fde68a;
 }
@@ -2408,8 +2417,8 @@
   padding: 12px;
 }
 
-/* Hide mobile modals and mobile elements on desktop */
-@media (min-width: 1025px) {
+/* Hide mobile modals and mobile elements on Desktop (≥1440px) */
+@media (min-width: 1440px) {
   .pos-mobile-list-modal-overlay {
     display: none !important;
   }
@@ -2424,16 +2433,120 @@
   }
 }
 
-/* Show mobile quick btns and hide desktop-only items on mobile/tablet */
-@media (max-width: 1024px) {
+/* Show mobile quick btns on tablet/mobile (<1440px) */
+@media (max-width: 1439px) {
   .pos-checkout-mobile-quick-btns {
     display: flex;
+    flex-direction: column;
     gap: 8px;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
+    width: 100%;
   }
 
   .pos-hide-on-mobile,
   .hide-on-mobile {
     display: none !important;
+  }
+}
+
+/* ============================================================
+   Laptop Adjustments (1024px–1439px)
+   Keeps two-column layout like desktop but more compact
+   ============================================================ */
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .pos-sales-main-content {
+    padding: 10px;
+    gap: 10px;
+  }
+  .pos-main-layout-container {
+    flex-direction: row;
+    gap: 12px;
+  }
+  .pos-cart-col {
+    flex: 1 1 300px;
+    gap: 10px;
+  }
+  .pos-checkout-col {
+    flex: 0 1 280px;
+    padding: 10px;
+    gap: 8px;
+  }
+  /* Compact the search+customer row */
+  .pos-cashier-cart-card {
+    padding: 10px !important;
+    gap: 8px !important;
+  }
+  /* Slightly smaller total display */
+  .pos-total-display-amount {
+    font-size: 28px !important;
+  }
+  .pos-total-display-label {
+    font-size: 10px !important;
+  }
+  /* Compact summary rows */
+  .pos-summary-row {
+    font-size: 12px;
+    margin-bottom: 2px;
+  }
+  /* Compact action buttons */
+  .pos-btn-checkout {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+  .pos-btn-cancel,
+  .pos-btn-pause {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+  /* Checkout panel stays as vertical column on laptop */
+  .pos-checkout-panel {
+    flex-direction: column !important;
+  }
+  .pos-checkout-left-col {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  /* Hide mobile quick buttons on laptop */
+  .pos-checkout-mobile-quick-btns {
+    display: none !important;
+  }
+  /* Keep desktop accordion panels visible */
+  .pos-hide-on-mobile {
+    display: block !important;
+  }
+}
+
+/* ============================================================
+   Mobile Sub-header bar (<1024px)
+   Cajero name + session status below the main header
+   ============================================================ */
+.pos-mobile-subheader {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .pos-mobile-subheader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 14px;
+    background-color: var(--pos-surface);
+    border-bottom: 1px solid var(--pos-border);
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .pos-mobile-subheader-user {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .pos-mobile-subheader-user-name {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--pos-text);
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
