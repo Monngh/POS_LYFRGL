@@ -76,6 +76,13 @@ interface Line {
   quantity: string;
   unitCost: string;
   unit: string;
+  // Conversión de unidades capturada manualmente (solo aplica según `unit`):
+  // CAJA usa piecesPerBox; LOTE usa piecesPerLot (modo directo) o
+  // boxesPerLot + piecesPerBox (modo por cajas), según lotMode.
+  piecesPerBox: string;
+  boxesPerLot: string;
+  piecesPerLot: string;
+  lotMode: "boxes" | "direct";
 }
 
 type TopFieldErrors = Partial<Record<"branchId" | "supplierId" | "reference" | "notes", string>>;
@@ -119,6 +126,10 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
   // Teléfono real: por debajo de 640px se usan tarjetas apiladas. De ahí hacia
   // arriba (incluidas pantallas medianas) se usa el diseño de rejilla mejorado.
   const isPhone = useMediaQuery("(max-width: 640px)");
+  // Layout de 2 columnas (form + historial lado a lado) solo desde 1025px en
+  // adelante. Por debajo (tablet incluido) se mantiene el apilado vertical,
+  // igual que el resto del panel admin (sidebar colapsa en el mismo punto).
+  const isStackedLayout = useMediaQuery("(max-width: 1024px)");
   const [expandedPurchases, setExpandedPurchases] = useState<Record<number, boolean>>({});
 
   const toggleExpand = (id: number) => {
@@ -141,9 +152,8 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
   // Modales y buscadores
   const [supplierModalOpen, setSupplierModalOpen] = useState(false);
   const [supplierSearch, setSupplierSearch] = useState("");
-  const [productModalOpen, setProductModalOpen] = useState(false);
   const [productSearch, setProductSearch] = useState("");
-  useBodyScrollLock(supplierModalOpen || productModalOpen);
+  useBodyScrollLock(supplierModalOpen);
 
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -201,14 +211,23 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
   const productPool = supplierProducts.length > 0 ? supplierProducts : products;
   const productById = (id: string) => productPool.find((p) => String(p.id) === id);
 
+  // Campos de conversión de unidades: solo enteros, con su propia etiqueta de error.
+  const INTEGER_LINE_FIELD_LABELS: Partial<Record<keyof Line, string>> = {
+    quantity: "La cantidad",
+    piecesPerBox: "Piezas por caja",
+    boxesPerLot: "Cajas en el lote",
+    piecesPerLot: "Piezas totales del lote",
+  };
+
   const setLine = (i: number, k: keyof Line, v: string) => {
-    const value = k === "quantity" ? normalizeIntegerInput(v) : v;
+    const isIntegerField = k in INTEGER_LINE_FIELD_LABELS;
+    const value = isIntegerField ? normalizeIntegerInput(v) : v;
     setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, [k]: value } : l)));
     setLineErrors((prev) => {
       const next = { ...prev };
-      const invalidInteger = k === "quantity" && v.trim() !== "" && value !== v;
+      const invalidInteger = isIntegerField && v.trim() !== "" && value !== v;
       if (invalidInteger) {
-        next[i] = { ...(next[i] || {}), quantity: "La cantidad solo puede contener números enteros." };
+        next[i] = { ...(next[i] || {}), [k]: `${INTEGER_LINE_FIELD_LABELS[k]} solo puede contener números enteros.` };
       } else if (next[i]) {
         next[i] = { ...next[i] };
         delete next[i][k];
@@ -235,6 +254,33 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
     setLine(i, "unitCost", v);
   };
 
+  // Toggle "Por cajas" / "Total directo" para renglones con unidad LOTE.
+  const setLineLotMode = (i: number, mode: Line["lotMode"]) => {
+    setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, lotMode: mode } : l)));
+    setFormError(null);
+  };
+
+  // Cambiar la unidad de un renglón: limpia los campos de conversión que ya no
+  // aplican para evitar enviar valores obsoletos de una unidad anterior.
+  const changeLineUnit = (i: number, nextUnit: string) => {
+    setLines((ls) =>
+      ls.map((l, idx) => {
+        if (idx !== i) return l;
+        if (nextUnit === "CAJA" || nextUnit === "LOTE") return { ...l, unit: nextUnit };
+        return { ...l, unit: nextUnit, piecesPerBox: "", boxesPerLot: "", piecesPerLot: "" };
+      })
+    );
+    setLineErrors((prev) => {
+      if (!prev[i]) return prev;
+      const rowErrors = { ...prev[i] };
+      delete rowErrors.piecesPerBox;
+      delete rowErrors.boxesPerLot;
+      delete rowErrors.piecesPerLot;
+      return { ...prev, [i]: rowErrors };
+    });
+    setFormError(null);
+  };
+
   const removeLine = (i: number) => {
     setLines((ls) => ls.filter((_, idx) => idx !== i));
     setLineErrors({});
@@ -250,7 +296,16 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
       }
       return [
         ...prevLines,
-        { productId: String(p.id), quantity: "1", unitCost: String(p.costPrice), unit: unitProfile(p.satUnitKey).def },
+        {
+          productId: String(p.id),
+          quantity: "1",
+          unitCost: String(p.costPrice),
+          unit: unitProfile(p.satUnitKey).def,
+          piecesPerBox: "",
+          boxesPerLot: "",
+          piecesPerLot: "",
+          lotMode: "boxes",
+        },
       ];
     });
     setFormError(null);
@@ -282,7 +337,15 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
       setFormError("Debe agregar al menos un producto a la compra.");
       return;
     }
-    const details: Array<{ productId: number; quantity: number; unitCost: number; unit: string }> = [];
+    const details: Array<{
+      productId: number;
+      quantity: number;
+      unitCost: number;
+      unit: string;
+      piecesPerBox?: number;
+      boxesPerLot?: number;
+      piecesPerLot?: number;
+    }> = [];
     const roundedValues: Array<DecimalFieldValue | null> = [];
     for (const [index, line] of selectedLines.entries()) {
       const originalIndex = lines.indexOf(line);
@@ -304,6 +367,31 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
       if (!line.unitCost.trim()) {
         rowErrors.unitCost = `El costo unitario es obligatorio.`;
       }
+
+      // Conversión de unidades: obligatoria solo para CAJA y LOTE (piezas físicas
+      // reales para inventario; no afecta el cálculo de dinero del renglón).
+      const piecesPerBoxNum = Number(line.piecesPerBox);
+      const boxesPerLotNum = Number(line.boxesPerLot);
+      const piecesPerLotNum = Number(line.piecesPerLot);
+      if (line.unit === "CAJA") {
+        if (!line.piecesPerBox.trim() || !Number.isInteger(piecesPerBoxNum) || piecesPerBoxNum <= 0) {
+          rowErrors.piecesPerBox = "Piezas por caja es obligatorio y debe ser un entero mayor a 0.";
+        }
+      } else if (line.unit === "LOTE") {
+        if (line.lotMode === "direct") {
+          if (!line.piecesPerLot.trim() || !Number.isInteger(piecesPerLotNum) || piecesPerLotNum <= 0) {
+            rowErrors.piecesPerLot = "Piezas totales del lote es obligatorio y debe ser un entero mayor a 0.";
+          }
+        } else {
+          if (!line.boxesPerLot.trim() || !Number.isInteger(boxesPerLotNum) || boxesPerLotNum <= 0) {
+            rowErrors.boxesPerLot = "Cajas en el lote es obligatorio y debe ser un entero mayor a 0.";
+          }
+          if (!line.piecesPerBox.trim() || !Number.isInteger(piecesPerBoxNum) || piecesPerBoxNum <= 0) {
+            rowErrors.piecesPerBox = "Piezas por caja es obligatorio y debe ser un entero mayor a 0.";
+          }
+        }
+      }
+
       if (Object.keys(rowErrors).length > 0) {
         nextLineErrors[originalIndex] = rowErrors;
         continue;
@@ -315,6 +403,9 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
         quantity,
         unitCost: unitCostValue?.value ?? 0,
         unit: line.unit,
+        ...(line.unit === "CAJA" ? { piecesPerBox: piecesPerBoxNum } : {}),
+        ...(line.unit === "LOTE" && line.lotMode === "direct" ? { piecesPerLot: piecesPerLotNum } : {}),
+        ...(line.unit === "LOTE" && line.lotMode === "boxes" ? { boxesPerLot: boxesPerLotNum, piecesPerBox: piecesPerBoxNum } : {}),
       });
     }
     if (Object.keys(nextFieldErrors).length > 0 || Object.keys(nextLineErrors).length > 0) {
@@ -477,6 +568,82 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
   const selectedSupplier = suppliers.find((s) => String(s.id) === supplierId);
 
   // ---- Editor de renglones (rejilla, para medianas y grandes) ----
+  // Campos de conversión de unidades (Piezas por caja / Cajas en el lote / Piezas
+  // totales del lote), compartidos entre la rejilla de escritorio y las tarjetas de
+  // teléfono. Solo se renderiza cuando la unidad del renglón es CAJA o LOTE.
+  const renderUnitConversionRow = (l: Line, i: number, variant: "grid" | "card") => {
+    if (l.unit !== "CAJA" && l.unit !== "LOTE") return null;
+    const err = lineErrors[i] || {};
+
+    const wrapStyle: React.CSSProperties =
+      variant === "grid"
+        ? { display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 12, padding: "10px 14px", backgroundColor: "var(--surface-2)", borderTop: "1px dashed var(--border-soft)" }
+        : { display: "flex", flexDirection: "column", gap: 8, marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--border-soft)" };
+
+    const conversionField = (label: string, key: "piecesPerBox" | "boxesPerLot" | "piecesPerLot") => (
+      <div style={{ minWidth: 130 }}>
+        <label style={styles.miniLabel}>{label}</label>
+        <input
+          type="text"
+          inputMode="numeric"
+          value={l[key]}
+          onChange={(e) => setLine(i, key, e.target.value)}
+          placeholder="0"
+          style={{ ...ui.input, padding: "8px 10px", height: 36, borderColor: err[key] ? "#fca5a5" : "var(--border)" }}
+        />
+        {err[key] && <p style={styles.fieldError}>{err[key]}</p>}
+      </div>
+    );
+
+    if (l.unit === "CAJA") {
+      return <div style={wrapStyle}>{conversionField("Piezas por caja", "piecesPerBox")}</div>;
+    }
+
+    // LOTE: toggle entre "Por cajas" (boxesPerLot × piecesPerBox) y "Total directo" (piecesPerLot).
+    return (
+      <div style={wrapStyle}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+          <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", width: "fit-content" }}>
+            <button
+              type="button"
+              onClick={() => setLineLotMode(i, "boxes")}
+              className="active-tap"
+              style={{
+                padding: "6px 12px", fontSize: 11, fontWeight: 700, border: "none", cursor: "pointer",
+                backgroundColor: l.lotMode === "boxes" ? "var(--accent)" : "var(--surface)",
+                color: l.lotMode === "boxes" ? "#fff" : "var(--text-secondary)",
+              }}
+            >
+              Por cajas
+            </button>
+            <button
+              type="button"
+              onClick={() => setLineLotMode(i, "direct")}
+              className="active-tap"
+              style={{
+                padding: "6px 12px", fontSize: 11, fontWeight: 700, border: "none", borderLeft: "1px solid var(--border)", cursor: "pointer",
+                backgroundColor: l.lotMode === "direct" ? "var(--accent)" : "var(--surface)",
+                color: l.lotMode === "direct" ? "#fff" : "var(--text-secondary)",
+              }}
+            >
+              Total directo
+            </button>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+            {l.lotMode === "direct"
+              ? conversionField("Piezas totales del lote", "piecesPerLot")
+              : (
+                <>
+                  {conversionField("Cajas en el lote", "boxesPerLot")}
+                  {conversionField("Piezas por caja", "piecesPerBox")}
+                </>
+              )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderLineGrid = () => (
     <div style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
       <div style={{ display: "grid", gridTemplateColumns: LINE_COLS, gap: 12, alignItems: "center", padding: "9px 14px", backgroundColor: "var(--surface-2)", borderBottom: "1px solid var(--border)" }}>
@@ -486,7 +653,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
       </div>
       {lines.length === 0 ? (
         <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "26px 12px", fontSize: 13 }}>
-          Aún no hay productos. Usa <strong>«Agregar producto»</strong> para incluir artículos en la orden.
+          Aún no hay productos. Usa el buscador de arriba para incluir artículos en la orden.
         </div>
       ) : (
         lines.map((l, i) => {
@@ -494,29 +661,32 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
           const units = unitProfile(prod?.satUnitKey).units;
           const err = lineErrors[i] || {};
           return (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: LINE_COLS, gap: 12, alignItems: "start", padding: "12px 14px", borderBottom: i < lines.length - 1 ? "1px solid var(--border-soft)" : "none" }}>
-              <div style={{ minWidth: 0, paddingTop: 4 }}>
-                <div style={{ fontWeight: 600, color: "var(--text)", overflowWrap: "anywhere" }}>{prod?.name || "Desconocido"}</div>
-                <div style={{ fontSize: 11, color: "var(--text-faint)" }}>SKU: {prod?.sku || "—"}</div>
+            <div key={i} style={{ borderBottom: i < lines.length - 1 ? "1px solid var(--border-soft)" : "none" }}>
+              <div style={{ display: "grid", gridTemplateColumns: LINE_COLS, gap: 12, alignItems: "start", padding: "12px 14px" }}>
+                <div style={{ minWidth: 0, paddingTop: 4 }}>
+                  <div style={{ fontWeight: 600, color: "var(--text)", overflowWrap: "anywhere" }}>{prod?.name || "Desconocido"}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-faint)" }}>SKU: {prod?.sku || "—"}</div>
+                </div>
+                <div>
+                  <QtyStepper value={l.quantity} onChange={(v) => setLine(i, "quantity", v)} onStep={(d) => stepQuantity(i, d)} error={!!err.quantity} />
+                  {err.quantity && <p style={styles.fieldError}>{err.quantity}</p>}
+                </div>
+                <select style={{ ...ui.input, padding: "8px 6px", textAlign: "center", height: 38 }} value={l.unit} onChange={(e) => changeLineUnit(i, e.target.value)}>
+                  {units.map((u) => <option key={u} value={u}>{UNIT_LABELS[u]}</option>)}
+                  {!units.includes(l.unit) && <option value={l.unit}>{UNIT_LABELS[l.unit] || l.unit}</option>}
+                </select>
+                <div>
+                  <input type="text" inputMode="decimal" style={{ ...ui.input, padding: "8px 10px", textAlign: "right", height: 38, borderColor: err.unitCost ? "#fca5a5" : "var(--border)" }} value={l.unitCost} onChange={(e) => setDecimalLine(i, e.target.value)} placeholder="0.00" />
+                  {err.unitCost && <p style={styles.fieldError}>{err.unitCost}</p>}
+                </div>
+                <div style={{ textAlign: "right", fontWeight: 800, color: "var(--accent-strong)", paddingTop: 9 }}>
+                  {money((Number(l.quantity) || 0) * (Number(l.unitCost) || 0))}
+                </div>
+                <button onClick={() => removeLine(i)} style={{ background: "none", border: "none", cursor: "pointer", padding: 6, marginTop: 3, justifySelf: "center" }} title="Quitar renglón" className="active-tap">
+                  <Trash2 size={16} color="#b91c1c" />
+                </button>
               </div>
-              <div>
-                <QtyStepper value={l.quantity} onChange={(v) => setLine(i, "quantity", v)} onStep={(d) => stepQuantity(i, d)} error={!!err.quantity} />
-                {err.quantity && <p style={styles.fieldError}>{err.quantity}</p>}
-              </div>
-              <select style={{ ...ui.input, padding: "8px 6px", textAlign: "center", height: 38 }} value={l.unit} onChange={(e) => setLine(i, "unit", e.target.value)}>
-                {units.map((u) => <option key={u} value={u}>{UNIT_LABELS[u]}</option>)}
-                {!units.includes(l.unit) && <option value={l.unit}>{UNIT_LABELS[l.unit] || l.unit}</option>}
-              </select>
-              <div>
-                <input type="text" inputMode="decimal" style={{ ...ui.input, padding: "8px 10px", textAlign: "right", height: 38, borderColor: err.unitCost ? "#fca5a5" : "var(--border)" }} value={l.unitCost} onChange={(e) => setDecimalLine(i, e.target.value)} placeholder="0.00" />
-                {err.unitCost && <p style={styles.fieldError}>{err.unitCost}</p>}
-              </div>
-              <div style={{ textAlign: "right", fontWeight: 800, color: "var(--accent-strong)", paddingTop: 9 }}>
-                {money((Number(l.quantity) || 0) * (Number(l.unitCost) || 0))}
-              </div>
-              <button onClick={() => removeLine(i)} style={{ background: "none", border: "none", cursor: "pointer", padding: 6, marginTop: 3, justifySelf: "center" }} title="Quitar renglón" className="active-tap">
-                <Trash2 size={16} color="#b91c1c" />
-              </button>
+              {renderUnitConversionRow(l, i, "grid")}
             </div>
           );
         })
@@ -529,7 +699,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {lines.length === 0 ? (
         <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px 12px", fontSize: 13, backgroundColor: "var(--surface-2)", borderRadius: 10, border: "1px dashed var(--border)" }}>
-          Aún no hay productos. Usa «Agregar producto» para incluir artículos en la orden.
+          Aún no hay productos. Usa el buscador de arriba para incluir artículos en la orden.
         </div>
       ) : (
         lines.map((l, i) => {
@@ -555,7 +725,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                 </div>
                 <div>
                   <label style={styles.miniLabel}>Unidad</label>
-                  <select style={{ ...ui.input, padding: "8px 6px", textAlign: "center", height: 38 }} value={l.unit} onChange={(e) => setLine(i, "unit", e.target.value)}>
+                  <select style={{ ...ui.input, padding: "8px 6px", textAlign: "center", height: 38 }} value={l.unit} onChange={(e) => changeLineUnit(i, e.target.value)}>
                     {units.map((u) => <option key={u} value={u}>{UNIT_LABELS[u]}</option>)}
                     {!units.includes(l.unit) && <option value={l.unit}>{UNIT_LABELS[l.unit] || l.unit}</option>}
                   </select>
@@ -572,6 +742,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                   </div>
                 </div>
               </div>
+              {renderUnitConversionRow(l, i, "card")}
             </div>
           );
         })
@@ -593,8 +764,18 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
         subtitle="Órdenes de compra — el inventario se actualiza al recibir la mercancía"
       />
 
+      {/* En desktop (>1024px) el formulario y el historial van lado a lado (38/62).
+          En tablet/móvil se mantiene el apilado vertical original. */}
+      <div
+        style={
+          isStackedLayout
+            ? undefined
+            : { display: "grid", gridTemplateColumns: "minmax(320px, 38%) minmax(0, 1fr)", gap: 20, alignItems: "start" }
+        }
+      >
+      <div style={isStackedLayout ? undefined : { minWidth: 0 }}>
       {/* ============ NUEVA ORDEN ============ */}
-      <Panel style={{ padding: 0, marginBottom: 24, overflow: "hidden" }}>
+      <Panel style={{ padding: 0, marginBottom: 16, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 20px", borderBottom: "1px solid var(--border)", backgroundColor: "var(--surface-2)" }}>
           <span style={{ display: "inline-flex", width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent-soft)", color: "var(--accent-strong)" }}>
             <ShoppingCart size={17} />
@@ -605,8 +786,8 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
           </div>
         </div>
 
-        <div style={{ padding: 20 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 14, marginBottom: 16 }}>
+        <div style={{ padding: 15 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 14, marginBottom: 10 }}>
             <div>
               <label style={ui.fieldLabel}>Sucursal de destino *</label>
               <select
@@ -640,22 +821,48 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
             </div>
           </div>
 
-          {/* Editor de productos */}
-          {isPhone ? renderLineCards() : renderLineGrid()}
+          {/* Buscador inline de productos del proveedor seleccionado */}
+          <div style={{ marginBottom: 10 }}>
+            <SearchBox
+              value={productSearch}
+              onChange={setProductSearch}
+              placeholder={supplierId ? "Buscar producto por nombre o SKU para agregar…" : "Selecciona un proveedor para buscar productos"}
+              disabled={!supplierId}
+              autoFocus={false}
+            />
+            {supplierId && (
+              <div style={{ maxHeight: 220, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6, marginTop: 8, padding: 8, border: "1px solid var(--border-soft)", borderRadius: 8, backgroundColor: "var(--surface-2)" }}>
+                {loadingProducts ? (
+                  <div style={{ textAlign: "center", color: "var(--text-muted)", padding: 12, fontSize: 12 }}>Cargando productos del proveedor…</div>
+                ) : (() => {
+                  const filtered = filterProductsBySearch(productPool, productSearch);
+                  if (filtered.length === 0) {
+                    return <div style={{ textAlign: "center", color: "var(--text-muted)", padding: 12, fontSize: 12 }}>No se encontraron productos con esa búsqueda.</div>;
+                  }
+                  return filtered.map((p) => {
+                    const isAdded = lines.some((l) => l.productId === String(p.id));
+                    return (
+                      <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-soft)", backgroundColor: "var(--surface)" }} className="cmp-modal-item">
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", overflowWrap: "anywhere" }}>{p.name}</div>
+                          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>SKU: {p.sku} · Costo base: {money(p.costPrice)} · {UNIT_LABELS[unitProfile(p.satUnitKey).def]}</div>
+                        </div>
+                        <button type="button" style={{ ...actionBtn(isAdded ? "#475569" : "#1e3a8a"), flexShrink: 0 }} className="active-tap" onClick={() => addProduct(p)}>
+                          <Plus size={13} /> {isAdded ? "+1" : "Agregar"}
+                        </button>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            )}
+          </div>
 
-          {/* Barra: agregar + total (con wrap para evitar encimados) */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 14, justifyContent: "space-between", alignItems: "center", marginTop: 16 }}>
-            <button
-              style={{ ...ui.ghostBtn, justifyContent: "center" }}
-              className="active-tap"
-              onClick={() => {
-                if (!supplierId) { setFormError("Por favor, seleccione un proveedor primero."); return; }
-                setProductSearch("");
-                setProductModalOpen(true);
-              }}
-            >
-              <Plus size={15} /> Agregar producto
-            </button>
+          {/* Editor de productos */}
+          {isPhone || !isStackedLayout ? renderLineCards() : renderLineGrid()}
+
+          {/* Barra: total (con wrap para evitar encimados) */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 14, justifyContent: "flex-end", alignItems: "center", marginTop: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", padding: "8px 16px", borderRadius: 10, backgroundColor: "var(--surface-2)", border: "1px solid var(--border)" }}>
               <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>
                 {computedTotals.items} artículo{computedTotals.items === 1 ? "" : "s"}
@@ -674,7 +881,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
           )}
 
           {/* Notas + acción */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-end", justifyContent: "space-between", marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--border-soft)" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-end", justifyContent: "space-between", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border-soft)" }}>
             <div style={{ flex: "1 1 320px", minWidth: 0 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                 <label style={{ ...ui.fieldLabel, marginBottom: 0 }}>Notas (opcional)</label>
@@ -695,12 +902,15 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
           </div>
         </div>
       </Panel>
+      </div>
 
+      <div style={isStackedLayout ? undefined : { minWidth: 0 }}>
       {/* ============ HISTORIAL ============ */}
-      <div style={{ display: "flex", alignItems: isPhone ? "flex-start" : "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 12, flexDirection: isPhone ? "column" : "row" }}>
-        <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text)", display: "flex", alignItems: "center", gap: 8 }}>
+      <Panel style={{ padding: 0, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: isPhone ? "flex-start" : "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, flexDirection: isPhone ? "column" : "row", padding: "14px 20px", borderBottom: "1px solid var(--border)", backgroundColor: "var(--surface-2)" }}>
+        <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text)", display: "flex", alignItems: "center", gap: 8, margin: 0 }}>
           Órdenes de compra
-          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", backgroundColor: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 999, padding: "2px 10px" }}>{filteredPurchases.length}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: 999, padding: "2px 10px" }}>{filteredPurchases.length}</span>
         </h3>
         <Toolbar style={isPhone ? { width: "100%", flexWrap: "wrap", marginBottom: 0 } : { marginBottom: 0 }}>
           <FilterSelect
@@ -729,6 +939,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
         </Toolbar>
       </div>
 
+      <div style={{ padding: 15 }}>
       {isPhone ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {purchasesLoading && (
@@ -810,12 +1021,17 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
           loading={purchasesLoading}
           emptyMessage="No hay órdenes de compra con los filtros seleccionados."
           keyExtractor={(p) => p.id}
+          maxHeight="calc(100vh - 275px)"
         />
       )}
 
       {!purchasesLoading && (
         <Pagination page={paged.page} pageCount={paged.pageCount} total={paged.total} from={paged.from} to={paged.to} onPage={paged.setPage} itemLabel="órdenes" />
       )}
+      </div>
+      </Panel>
+      </div>
+      </div>
 
       {/* MODAL SELECCIÓN PROVEEDOR */}
       {supplierModalOpen && (
@@ -847,44 +1063,6 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
         </div>
       )}
 
-      {/* MODAL SELECCIÓN PRODUCTOS */}
-      {productModalOpen && (
-        <div style={ui.overlay} onClick={() => setProductModalOpen(false)}>
-          <div style={{ ...ui.modal, maxWidth: 600 }} onClick={(e) => e.stopPropagation()}>
-            <div style={ui.modalHeader}>
-              <h3 style={ui.modalTitle}>Agregar productos</h3>
-              <button onClick={() => setProductModalOpen(false)} style={styles.modalClose} aria-label="Cerrar"><X size={18} /></button>
-            </div>
-            <div style={ui.modalBody}>
-              <SearchBox value={productSearch} onChange={setProductSearch} placeholder="Buscar por nombre o SKU…" />
-              <div style={{ maxHeight: 360, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
-                {loadingProducts ? (
-                  <div style={{ textAlign: "center", color: "var(--text-muted)", padding: 16, fontSize: 13 }}>Cargando productos del proveedor…</div>
-                ) : (() => {
-                  const filtered = filterProductsBySearch(productPool, productSearch);
-                  if (filtered.length === 0) {
-                    return <div style={{ textAlign: "center", color: "var(--text-muted)", padding: 16, fontSize: 13 }}>No se encontraron productos con esa búsqueda.</div>;
-                  }
-                  return filtered.map((p) => {
-                    const isAdded = lines.some((l) => l.productId === String(p.id));
-                    return (
-                      <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 14px", borderRadius: 8, border: "1px solid var(--border-soft)", backgroundColor: "var(--surface)" }} className="cmp-modal-item">
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", overflowWrap: "anywhere" }}>{p.name}</div>
-                          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>SKU: {p.sku} · Costo base: {money(p.costPrice)} · {UNIT_LABELS[unitProfile(p.satUnitKey).def]}</div>
-                        </div>
-                        <button type="button" style={{ ...actionBtn(isAdded ? "#475569" : "#1e3a8a"), flexShrink: 0 }} className="active-tap" onClick={() => addProduct(p)}>
-                          <Plus size={13} /> {isAdded ? "+1" : "Agregar"}
-                        </button>
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
@@ -898,10 +1076,23 @@ const QtyStepper: React.FC<{ value: string; onChange: (v: string) => void; onSte
   </div>
 );
 
-const SearchBox: React.FC<{ value: string; onChange: (v: string) => void; placeholder?: string }> = ({ value, onChange, placeholder }) => (
-  <div style={{ display: "flex", alignItems: "center", gap: 8, border: "1px solid var(--border)", borderRadius: 8, padding: "0 12px", height: 40, backgroundColor: "var(--input-bg)" }}>
+const SearchBox: React.FC<{ value: string; onChange: (v: string) => void; placeholder?: string; disabled?: boolean; autoFocus?: boolean }> = ({
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  autoFocus = true,
+}) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 8, border: "1px solid var(--border)", borderRadius: 8, padding: "0 12px", height: 40, backgroundColor: disabled ? "var(--surface-2)" : "var(--input-bg)", opacity: disabled ? 0.7 : 1 }}>
     <Search size={16} color="var(--text-muted)" />
-    <input autoFocus value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={{ border: "none", outline: "none", background: "transparent", width: "100%", fontSize: 14, color: "var(--text)", fontFamily: "inherit" }} />
+    <input
+      autoFocus={autoFocus}
+      disabled={disabled}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      style={{ border: "none", outline: "none", background: "transparent", width: "100%", fontSize: 14, color: "var(--text)", fontFamily: "inherit", cursor: disabled ? "not-allowed" : "text" }}
+    />
   </div>
 );
 
