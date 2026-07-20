@@ -944,6 +944,17 @@
   margin-top: 2px;
 }
 
+/* Lista de promociones */
+.pos-promotions-list {
+  display: flex;
+  overflow-x: auto;
+  gap: 10px;
+  padding-bottom: 8px;
+  padding-top: 10px;
+  padding-right: 12px;
+}
+
+
 /* Controles de cantidad compactos */
 .pos-qty-control {
   display: inline-flex;
@@ -2555,7 +2566,27 @@
     padding: 14px 16px !important;
     font-size: 15px !important;
   }
+
+  /* Mostrar promociones 2 en 2 en móvil con scroll vertical */
+  .pos-promotions-list {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    max-height: 200px !important;
+    padding-bottom: 8px !important;
+    padding-top: 6px !important;
+    padding-right: 2px !important;
+  }
+
+  .pos-promotions-list .pos-quick-action-btn {
+    min-width: 0 !important;
+    width: 100% !important;
+    flex-shrink: 1 !important;
+  }
 }
+
 
 
 /* On tablet+laptop range (726px–1439px) hide desktop-only elements but NOT accordions */

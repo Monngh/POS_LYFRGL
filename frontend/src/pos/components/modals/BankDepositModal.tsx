@@ -830,11 +830,11 @@ export default function BankDepositModal({
                   </div>
                 </div>
 
-                {/* Tabla de Resultados */}
+                {/* Desktop/tablet: tabla clásica */}
                 <div
                   ref={depListRef}
                   style={{ maxHeight: "220px", overflowX: "auto", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "6px", marginBottom: "14px", outline: "none" }}
-                  className="pos-cashier-inline-table-scroll"
+                  className="pos-cashier-inline-table-scroll pos-deposit-table-wrap"
                   tabIndex={-1}
                   onKeyDown={handleDepListKeyDown}
                 >
@@ -960,6 +960,89 @@ export default function BankDepositModal({
                       )}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Mobile: cards con scroll vertical */}
+                <div className="pos-deposit-cards-wrap">
+                  {depSearchLoading ? (
+                    <p style={{ textAlign: "center", color: "var(--text-muted)", fontSize: "13px", padding: "16px" }}>Buscando resguardos...</p>
+                  ) : depSearchResults.length === 0 ? (
+                    <p style={{ textAlign: "center", color: "var(--text-muted)", fontSize: "13px", padding: "16px" }}>No se encontraron resguardos.</p>
+                  ) : (
+                    depSearchResults.map((dep, depIdx) => (
+                      <div
+                        key={dep.id}
+                        className="pos-deposit-card"
+                        style={{ backgroundColor: depIdx === selectedDepIdx ? "var(--surface-2)" : "var(--surface)" }}
+                        onClick={() => setSelectedDepIdx(depIdx)}
+                      >
+                        {/* Fila superior: referencia + badge estado */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                          <div>
+                            <div style={{ fontWeight: "700", fontSize: "13px" }}>{dep.reference || `#${dep.id}`}</div>
+                            <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>{new Date(dep.createdAt).toLocaleDateString()}</div>
+                          </div>
+                          <span style={
+                            dep.status === "COMPLETED" ? badgeSuccess :
+                            dep.status === "CANCELLED" ? badgeDanger :
+                            badgeWarning
+                          }>
+                            {dep.status === "COMPLETED" ? "Exitoso" :
+                             dep.status === "CANCELLED" ? "Cancelado" : "Pendiente"}
+                          </span>
+                        </div>
+                        {/* Monto + Cajero */}
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                          <div>
+                            <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>Cajero</div>
+                            <div style={{ fontSize: "13px", fontWeight: "600" }}>{dep.userName}</div>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>Monto</div>
+                            <div style={{ fontSize: "15px", fontWeight: "800", color: dep.status === "CANCELLED" ? "#b91c1c" : "#059669" }}>
+                              {dep.status === "CANCELLED" ? "" : "-"}${Number(dep.amount).toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                        {/* Destino */}
+                        <div style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "10px" }}>
+                          {dep.paymentType?.startsWith("MERCADOPAGO_")
+                            ? `Ref: ****${dep.accountNumber.slice(-4)}`
+                            : `Cuenta: ****${dep.accountNumber.slice(-4)}`}
+                          {" — "}{dep.targetName ? "Destino registrado" : "Destino no registrado"}
+                        </div>
+                        {/* Botones de acción */}
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); onOpenDepositReceipt(dep); }}
+                            style={{ padding: "6px 12px", borderRadius: "6px", backgroundColor: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}
+                          >
+                            Ver comprobante
+                          </button>
+                          {dep.status === "PENDING" && dep.paymentType?.startsWith("MERCADOPAGO_") && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleSyncDeposit(dep.id); }}
+                              disabled={syncingDepositId === dep.id}
+                              style={{ padding: "6px 12px", borderRadius: "6px", backgroundColor: "#d1fae5", color: "#065f46", border: "1px solid #a7f3d0", fontSize: "12px", fontWeight: "700", cursor: syncingDepositId === dep.id ? "not-allowed" : "pointer", opacity: syncingDepositId === dep.id ? 0.7 : 1 }}
+                            >
+                              {syncingDepositId === dep.id ? "Sincronizando..." : "Sincronizar"}
+                            </button>
+                          )}
+                          {dep.status === "PENDING" && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setCancellingDep(dep); }}
+                              style={{ padding: "6px 12px", borderRadius: "6px", backgroundColor: "#fef2f2", color: "#b91c1c", border: "1px solid #fecaca", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}
+                            >
+                              Cancelar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
 
               </div>

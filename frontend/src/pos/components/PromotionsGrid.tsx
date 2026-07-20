@@ -267,7 +267,7 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
             <div 
               ref={listRef}
               onKeyDown={handleListKeyDown}
-              style={{ display: "flex", overflowX: "auto", gap: "10px", paddingBottom: "8px", paddingTop: "10px", paddingRight: "12px" }}
+              className="pos-promotions-list"
             >
               {availablePromotions.map((promo) => {
                 const badge = getDiscountBadge(promo);
