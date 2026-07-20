@@ -133,8 +133,8 @@ export function ProductSearchPanel({ searchData, cartData }: ProductSearchPanelP
                 }}
                 style={{
                   ...styles.dropdownItem,
-                  backgroundColor: idx === selectedIndex ? "#eff6ff" : "transparent",
-                  outline: idx === selectedIndex ? "2px solid #3b82f6" : "none",
+                  backgroundColor: idx === selectedIndex ? "var(--accent-soft)" : "transparent",
+                  outline: idx === selectedIndex ? "2px solid var(--accent)" : "none",
                   outlineOffset: "-2px",
                   borderRadius: "6px",
                   margin: "0 4px",
@@ -143,7 +143,7 @@ export function ProductSearchPanel({ searchData, cartData }: ProductSearchPanelP
               >
                 {/* Nombre + stock */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                  <span style={{ fontWeight: "600" }}>{p.name}</span>
+                  <span style={{ fontWeight: "600", color: "var(--text)" }}>{p.name}</span>
                   <span style={{
                     fontSize: "11px",
                     fontWeight: "700",
