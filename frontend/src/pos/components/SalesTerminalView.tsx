@@ -347,47 +347,95 @@ export function SalesTerminalView({
 
           {/* Modal Detalles Header Móvil */}
           {isMobileHeaderModalOpen && (
-            <div className="pos-modal-overlay active-tap" onClick={() => setIsMobileHeaderModalOpen(false)}>
-              <div className="pos-modal-content card-premium" onClick={(e) => e.stopPropagation()} style={{ width: "320px", padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--pos-border)", paddingBottom: "12px" }}>
-                  <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "var(--pos-text)" }}>Detalles de Sesión</h3>
-                  <button onClick={() => setIsMobileHeaderModalOpen(false)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--pos-text-muted)" }}>
+            <div
+              className="pos-modal-overlay active-tap"
+              onClick={() => setIsMobileHeaderModalOpen(false)}
+              style={{ zIndex: 9999 }}
+            >
+              <div
+                className="pos-mobile-session-card card-premium"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  width: "min(92vw, 600px)",
+                  padding: "0",
+                  overflow: "hidden",
+                  borderRadius: "12px",
+                }}
+              >
+                {/* Header de la card */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", borderBottom: "1px solid var(--pos-border)" }}>
+                  <h3 style={{ margin: 0, fontSize: "14px", fontWeight: "800", color: "var(--pos-text)", textTransform: "uppercase", letterSpacing: "0.4px" }}>Resumen de Sesión</h3>
+                  <button onClick={() => setIsMobileHeaderModalOpen(false)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--pos-text-muted)", display: "flex", alignItems: "center" }}>
                     <XCircle size={20} />
                   </button>
                 </div>
-                
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <div className="pos-terminal-avatar">{(user?.name || "C").charAt(0).toUpperCase()}</div>
-                    <span style={{ fontWeight: "600", color: "var(--pos-text)" }}>{user?.name || "Cajero"}</span>
-                  </div>
-                  
-                  <div 
-                    className={`pos-terminal-session-badge active-tap ${session?.status === "ABIERTA" || session?.status === "active" ? "open" : "closed"}`}
-                    style={{ cursor: "pointer", userSelect: "none", alignSelf: "flex-start", fontSize: "12px", padding: "4px 8px" }}
-                    onClick={() => { setIsMobileHeaderModalOpen(false); onOpenModal("shift-summary"); }}
-                  >
-                    {session?.status === "ABIERTA" || session?.status === "active" ? "CAJA ABIERTA" : "CAJA CERRADA"}
-                  </div>
-                  
-                  <HeaderCashInfo sessionStats={sessionStats} onOpenSummary={() => { setIsMobileHeaderModalOpen(false); onOpenModal("shift-summary"); }} />
-                  
-                  {sessionStats && sessionStats.salesCount > 0 && (
-                    <div className="pos-terminal-chip sales-count" style={{ alignSelf: "flex-start" }}>
-                      {sessionStats.salesCount} {sessionStats.salesCount === 1 ? "venta" : "ventas"}
+
+                {/* Body dividido en 2 columnas */}
+                <div style={{ display: "flex", flexDirection: "row", gap: 0 }}>
+
+                  {/* Columna 1: Cajero */}
+                  <div style={{ flex: 1, padding: "16px 18px", borderRight: "1px solid var(--pos-border)", display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <div className="pos-terminal-avatar" style={{ width: "36px", height: "36px", fontSize: "14px", flexShrink: 0 }}>
+                        {(user?.name || "C").charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: "800", fontSize: "13px", color: "var(--pos-text)" }}>{user?.name || "Cajero"}</div>
+                        <div style={{ fontSize: "10px", color: "var(--pos-text-muted)", fontWeight: "600" }}>{user?.branch?.name || "Sucursal"}</div>
+                      </div>
                     </div>
-                  )}
-                </div>
-                
-                <div style={{ marginTop: "8px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                  <button className="pos-fkey-btn" onClick={() => handleGlobalQuickAction("F8")} style={{ flex: 1, minHeight: "44px" }}>
-                    <Store size={16} style={{ marginRight: "6px" }} />
-                    <span>Cobro/Devol. (F8)</span>
-                  </button>
-                  <button className="pos-fkey-btn" onClick={() => handleGlobalQuickAction("autofacturacion")} style={{ flex: 1, minHeight: "44px" }}>
-                    <QrCode size={16} style={{ marginRight: "6px" }} />
-                    <span>Facturación</span>
-                  </button>
+
+                    <div
+                      className={`pos-terminal-session-badge active-tap ${session?.status === "ABIERTA" || session?.status === "active" ? "open" : "closed"}`}
+                      style={{ cursor: "pointer", alignSelf: "flex-start", fontSize: "11px", padding: "3px 10px" }}
+                      onClick={() => { setIsMobileHeaderModalOpen(false); onOpenModal("shift-summary"); }}
+                    >
+                      {session?.status === "ABIERTA" || session?.status === "active" ? "CAJA ABIERTA" : "CAJA CERRADA"}
+                    </div>
+
+                    {sessionStats && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", padding: "6px 8px", background: "var(--pos-surface-2)", borderRadius: "6px", border: "1px solid var(--pos-border)" }}>
+                          <span style={{ color: "var(--pos-text-muted)", fontWeight: "600" }}>Fondo inicial:</span>
+                          <span style={{ fontWeight: "700", color: "var(--pos-text)", fontVariantNumeric: "tabular-nums" }}>$***.**</span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", padding: "6px 8px", background: "var(--pos-green-soft)", borderRadius: "6px", border: "1px solid rgba(21,128,61,0.2)" }}>
+                          <span style={{ color: "var(--pos-green)", fontWeight: "600" }}>En caja:</span>
+                          <span style={{ fontWeight: "800", color: "var(--pos-green)", fontVariantNumeric: "tabular-nums" }}>$***.**</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Columna 2: Resumen de turno */}
+                  <div style={{ flex: 1, padding: "16px 18px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <div style={{ fontSize: "10px", fontWeight: "800", color: "var(--pos-text-muted)", textTransform: "uppercase", letterSpacing: "0.4px" }}>Turno actual</div>
+
+                    {sessionStats ? (
+                      <>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", padding: "6px 8px", background: "var(--pos-surface-2)", borderRadius: "6px", border: "1px solid var(--pos-border)" }}>
+                            <span style={{ color: "var(--pos-text-muted)", fontWeight: "600" }}>Ventas:</span>
+                            <span style={{ fontWeight: "800", color: "var(--pos-blue)", fontVariantNumeric: "tabular-nums" }}>{sessionStats.salesCount}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", padding: "6px 8px", background: "var(--pos-blue-soft)", borderRadius: "6px", border: "1px solid var(--pos-blue-light)" }}>
+                            <span style={{ color: "var(--pos-blue)", fontWeight: "600" }}>Total vendido:</span>
+                            <span style={{ fontWeight: "800", color: "var(--pos-blue)", fontVariantNumeric: "tabular-nums" }}>$***.**</span>
+                          </div>
+                        </div>
+
+                        <button
+                          className="pos-btn-pause"
+                          onClick={() => { setIsMobileHeaderModalOpen(false); onOpenModal("shift-summary"); }}
+                          style={{ marginTop: "auto", fontSize: "11px", padding: "8px 10px" }}
+                        >
+                          Ver resumen completo
+                        </button>
+                      </>
+                    ) : (
+                      <div style={{ color: "var(--pos-text-muted)", fontSize: "12px", textAlign: "center", paddingTop: "16px" }}>Sin datos de sesión</div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -405,36 +453,52 @@ export function SalesTerminalView({
           </button>
         </div>
 
-        {/* Centro: cajero + estado */}
+        {/* Centro: en tablet/móvil solo muestra el badge de estado (click abre modal).
+            En desktop/laptop muestra todo: cajero + estado + cash info */}
         <div className="pos-terminal-navbar-center hide-on-mobile">
-          <div className="pos-terminal-user-btn">
-            <div className="pos-terminal-avatar">
-              {(user?.name || "C").charAt(0).toUpperCase()}
-            </div>
-            <span className="pos-terminal-user-name">{user?.name || "Cajero"}</span>
+          {/* Solo el badge — visible en tablet/móvil al hacer click */}
+          <div
+            className={`pos-terminal-session-badge active-tap pos-session-badge-tablet-only ${
+              session?.status === "ABIERTA" || session?.status === "active" ? "open" : "closed"
+            }`}
+            style={{ cursor: "pointer", userSelect: "none" }}
+            onClick={() => setIsMobileHeaderModalOpen(true)}
+            title="Ver detalles de caja"
+          >
+            {session?.status === "ABIERTA" || session?.status === "active" ? "CAJA ABIERTA" : "CAJA CERRADA"}
           </div>
 
-          {/* Estado de caja + Totales inline */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginLeft: "16px" }}>
-            <div 
-              className={`pos-terminal-session-badge active-tap ${
-                session?.status === "ABIERTA" || session?.status === "active" ? "open" : "closed"
-              }`}
-              style={{ cursor: "pointer", userSelect: "none" }}
-              onClick={() => onOpenModal("shift-summary")}
-              title="Ver detalles de caja"
-            >
-              {session?.status === "ABIERTA" || session?.status === "active" ? "CAJA ABIERTA" : "CAJA CERRADA"}
+          {/* Resto de info — visible solo en laptop/desktop */}
+          <div className="pos-navbar-center-full">
+            <div className="pos-terminal-user-btn">
+              <div className="pos-terminal-avatar">
+                {(user?.name || "C").charAt(0).toUpperCase()}
+              </div>
+              <span className="pos-terminal-user-name">{user?.name || "Cajero"}</span>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <HeaderCashInfo sessionStats={sessionStats} onOpenSummary={() => onOpenModal("shift-summary")} />
-              
-              {sessionStats && sessionStats.salesCount > 0 && (
-                <div className="pos-terminal-chip sales-count" style={{ display: "flex", alignItems: "center", height: "28px" }}>
-                  {sessionStats.salesCount} {sessionStats.salesCount === 1 ? "venta" : "ventas"}
-                </div>
-              )}
+            {/* Estado de caja + Totales inline */}
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginLeft: "16px" }}>
+              <div 
+                className={`pos-terminal-session-badge active-tap ${
+                  session?.status === "ABIERTA" || session?.status === "active" ? "open" : "closed"
+                }`}
+                style={{ cursor: "pointer", userSelect: "none" }}
+                onClick={() => onOpenModal("shift-summary")}
+                title="Ver detalles de caja"
+              >
+                {session?.status === "ABIERTA" || session?.status === "active" ? "CAJA ABIERTA" : "CAJA CERRADA"}
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <HeaderCashInfo sessionStats={sessionStats} onOpenSummary={() => onOpenModal("shift-summary")} />
+                
+                {sessionStats && sessionStats.salesCount > 0 && (
+                  <div className="pos-terminal-chip sales-count" style={{ display: "flex", alignItems: "center", height: "28px" }}>
+                    {sessionStats.salesCount} {sessionStats.salesCount === 1 ? "venta" : "ventas"}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

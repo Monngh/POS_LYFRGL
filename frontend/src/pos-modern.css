@@ -2433,6 +2433,50 @@
   .show-on-mobile {
     display: none !important;
   }
+  /* Hide Promotions action on desktop — it's in the cart area instead */
+  .pos-promotions-sidebar-btn {
+    display: none !important;
+  }
+  /* On desktop: show full center info, hide tablet-only badge */
+  .pos-session-badge-tablet-only {
+    display: none !important;
+  }
+  .pos-navbar-center-full {
+    display: flex;
+    align-items: center;
+  }
+}
+
+/* On laptop (1024-1439px): also show full center, hide tablet badge */
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .pos-session-badge-tablet-only {
+    display: none !important;
+  }
+  .pos-navbar-center-full {
+    display: flex !important;
+    align-items: center !important;
+  }
+}
+
+/* On tablet/mobile (<1024px): show only the badge, hide full center info */
+@media (max-width: 1023px) {
+  .pos-session-badge-tablet-only {
+    display: inline-flex !important;
+  }
+  .pos-navbar-center-full {
+    display: none !important;
+  }
+}
+
+/* Two-column session modal card responsive */
+@media (max-width: 500px) {
+  .pos-mobile-session-card > div:last-child {
+    flex-direction: column !important;
+  }
+  .pos-mobile-session-card > div:last-child > div:first-child {
+    border-right: none !important;
+    border-bottom: 1px solid var(--pos-border);
+  }
 }
 
 /* Show mobile quick btns only on mobile (<700px) */
@@ -2610,24 +2654,39 @@
   }
 
   /* Bigger controls for touch — qty input and remove btn */
+  .pos-cashier-cart-table .pos-qty-control {
+    width: 100%;
+  }
   .pos-cashier-cart-table .pos-qty-btn {
-    width: 30px;
-    height: 30px;
-    font-size: 15px;
+    width: 36px;
+    height: 36px;
+    font-size: 17px;
   }
   .pos-cashier-cart-table .pos-qty-input {
-    width: 44px;
-    height: 30px;
-    font-size: 14px;
+    width: 56px;
+    height: 36px;
+    font-size: 15px;
+    font-weight: 800;
   }
   .pos-cashier-cart-table .pos-cart-remove-btn {
-    width: 30px;
+    width: 90px;
     height: 30px;
+    border-radius: 6px;
+    background: var(--pos-red-soft, #fef2f2);
+    color: var(--pos-red, #b91c1c);
+    border: 1px solid rgba(185, 28, 28, 0.2);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
   }
   .pos-cashier-cart-table .pos-cart-remove-btn svg {
-    width: 17px;
-    height: 17px;
+    width: 14px;
+    height: 14px;
   }
+
 
   /* Empty cart state */
   .pos-cashier-cart-table tbody tr.pos-cart-empty-row {
@@ -2645,6 +2704,35 @@
      We do NOT override display here — the inline styles on accordion wrappers
      (display:flex) and accordion content (display:grid) must be preserved so the
      gridTemplateRows collapse animation works correctly when toggling. */
+
+  /* On tablet: always show the center navbar section (cajero + status) */
+  .pos-terminal-navbar-center.hide-on-mobile {
+    display: flex !important;
+  }
+
+  /* On tablet: hide the clock modal button (info is visible in header directly) */
+  .show-on-mobile {
+    display: none !important;
+  }
+
+  /* On tablet: hide the mobile subheader (info is in header already) */
+  .pos-mobile-subheader {
+    display: none !important;
+  }
+
+  /* Compact the navbar-center on tablet so it fits */
+  .pos-terminal-navbar-center {
+    gap: 6px !important;
+    margin-left: 0 !important;
+  }
+  .pos-terminal-user-name {
+    font-size: 11px !important;
+    max-width: 90px !important;
+  }
+  .pos-terminal-session-badge {
+    font-size: 9px !important;
+    padding: 2px 6px !important;
+  }
 
   /* 3-column checkout layout */
   .pos-checkout-panel {
@@ -2712,8 +2800,13 @@
 /* ============================================================
    Laptop Adjustments (1024px–1439px)
    Keeps two-column layout like desktop but more compact
+   Promotions button is HIDDEN on laptop and desktop
    ============================================================ */
 @media (min-width: 1024px) and (max-width: 1439px) {
+  /* Hide Promotions action on laptop */
+  .pos-promotions-sidebar-btn {
+    display: none !important;
+  }
   .pos-sales-main-content {
     padding: 10px;
     gap: 10px;
@@ -2784,7 +2877,9 @@
   display: none;
 }
 
-@media (max-width: 1023px) {
+/* Mobile sub-header only shows on phone (<700px)
+   On tablet (700-1023px) the center header section shows this info directly */
+@media (max-width: 699px) {
   .pos-mobile-subheader {
     display: flex;
     justify-content: space-between;

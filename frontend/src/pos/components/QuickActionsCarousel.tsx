@@ -51,7 +51,7 @@ export function QuickActionsCarousel({ onOpenModal, onLock }: QuickActionsCarous
             <button
               key={action.id}
               onClick={() => handleAction(action.id)}
-              className="pos-quick-action-icon-btn active-tap"
+              className={`pos-quick-action-icon-btn active-tap${action.id === "promotions" ? " pos-promotions-sidebar-btn" : ""}`}
               type="button"
               data-shortcut-letter={"shortcutLetter" in action ? action.shortcutLetter : undefined}
               data-shortcut-key={"shortcutKey" in action ? action.shortcutKey : undefined}
