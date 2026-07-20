@@ -18,6 +18,7 @@ const validPriceAdjustmentScopes: PriceAdjustmentScope[] = [
 ];
 
 const PRICE_ADJUSTMENT_NOTES_MAX_LENGTH = 500;
+const HISTORY_LIMIT_OPTIONS = [10, 20, 50, 100];
 
 const isPriceAdjustmentScope = (
     scope: string
@@ -926,8 +927,17 @@ type HistoryQueryInput = {
 };
 
 const getPagination = (page?: number, limit?: number) => {
-    const normalizedPage = Math.max(Number(page) || 1, 1);
-    const normalizedLimit = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const requestedPage = Number(page);
+    const requestedLimit = Number(limit);
+    const normalizedPage =
+        Number.isInteger(requestedPage) && requestedPage > 0
+            ? requestedPage
+            : 1;
+    const normalizedLimit =
+        Number.isInteger(requestedLimit) &&
+            HISTORY_LIMIT_OPTIONS.includes(requestedLimit)
+            ? requestedLimit
+            : 10;
 
     return {
         page: normalizedPage,

@@ -5,6 +5,8 @@ import {
   ArrowDown,
   ArrowUp,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   DollarSign,
   Eye,
   History,
@@ -64,6 +66,8 @@ interface EmployeesResponse {
 
 const CATEGORY_SCOPES: PriceAdjustmentScope[] = ["DIVISION", "DEPARTMENT", "CATEGORY"];
 const VALUE_INPUT_REGEX = /^\d*(?:\.\d{0,2})?$/;
+const HISTORY_PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+const DETAIL_PAGE_SIZE = 10;
 
 const scopeOptions: Array<{ value: PriceAdjustmentScope; label: string }> = [
   { value: "SELECTED_PRODUCTS", label: "Productos seleccionados" },
@@ -236,6 +240,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
   const resolveRequestIdRef = useRef(0);
   const previewRequestIdRef = useRef(0);
+  const historyRequestIdRef = useRef(0);
   const removedProductToastGuardRef = useRef<Set<number>>(new Set());
 
   const [historySearch, setHistorySearch] = useState("");
@@ -367,6 +372,38 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     return "La vista previa se generara automaticamente.";
   }, [adjustmentValue, preview, previewLoading, selectedProductIdArray.length, valueError]);
 
+  const historyRows = history?.adjustments ?? [];
+  const historyTotal = history?.total ?? 0;
+  const historyPageNumber = history?.page ?? historyPage;
+  const historyPageLimit = history?.limit ?? historyLimit;
+  const historyTotalPages = Math.max(history?.totalPages ?? 0, 1);
+  const historyRangeStart = historyTotal === 0 ? 0 : (historyPageNumber - 1) * historyPageLimit + 1;
+  const historyRangeEnd = historyTotal === 0 ? 0 : Math.min(historyRangeStart + historyRows.length - 1, historyTotal);
+  const detailTotalProducts = detailProducts?.total ?? 0;
+  const detailTotalPages = Math.ceil(detailTotalProducts / DETAIL_PAGE_SIZE);
+  const detailDisplayTotalPages = Math.max(detailTotalPages, 1);
+  const detailPagePending = Boolean(detailProducts && detailProducts.page !== detailPage);
+  const detailProductsBusy = detailProductsLoading || detailPagePending;
+  const detailCurrentPage = detailProductsBusy ? detailPage : detailProducts?.page ?? detailPage;
+  const showDetailPagination = detailTotalPages > 1;
+  const detailRangeStart = detailTotalProducts === 0 ? 0 : (detailCurrentPage - 1) * DETAIL_PAGE_SIZE + 1;
+  const detailRangeSize = detailProductsBusy ? DETAIL_PAGE_SIZE : detailProducts?.products.length ?? DETAIL_PAGE_SIZE;
+  const detailRangeEnd =
+    detailTotalProducts === 0
+      ? 0
+      : Math.min(detailRangeStart + detailRangeSize - 1, detailTotalProducts);
+  const detailProductsSummary = detailProducts
+    ? showDetailPagination
+      ? `Mostrando ${detailRangeStart}-${detailRangeEnd} de ${detailTotalProducts} producto${detailTotalProducts === 1 ? "" : "s"} · pagina ${detailCurrentPage} de ${detailDisplayTotalPages}`
+      : `${detailTotalProducts} producto${detailTotalProducts === 1 ? "" : "s"}`
+    : "Sin datos";
+
+  const getHistoryCategoryText = (adjustment: PriceAdjustmentHistoryItem) =>
+    adjustment.category ? `${adjustment.category.code} ${adjustment.category.name}` : "-";
+
+  const getHistoryReasonText = (adjustment: PriceAdjustmentHistoryItem) =>
+    adjustment.notes || "Sin motivo registrado";
+
   const cancelPendingPreview = () => {
     previewRequestIdRef.current += 1;
     setPreviewLoading(false);
@@ -449,6 +486,8 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const loadHistory = useCallback(
     async (pageOverride?: number) => {
+      const requestId = historyRequestIdRef.current + 1;
+      historyRequestIdRef.current = requestId;
       setHistoryLoading(true);
       setHistoryError(null);
       try {
@@ -462,11 +501,15 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
           page: pageOverride ?? historyPage,
           limit: historyLimit,
         });
+        if (requestId !== historyRequestIdRef.current) return;
         setHistory(result);
       } catch (error: unknown) {
+        if (requestId !== historyRequestIdRef.current) return;
         setHistoryError(getApiErrorMessage(error, "No se pudo cargar el historial de ajustes."));
       } finally {
-        setHistoryLoading(false);
+        if (requestId === historyRequestIdRef.current) {
+          setHistoryLoading(false);
+        }
       }
     },
     [
@@ -482,7 +525,10 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   );
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedHistorySearch(historySearch), 300);
+    const timer = window.setTimeout(() => {
+      setDebouncedHistorySearch(historySearch);
+      setHistoryPage(1);
+    }, 300);
     return () => window.clearTimeout(timer);
   }, [historySearch]);
 
@@ -507,29 +553,6 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   }, []);
 
   useEffect(() => {
-    if (activeTab === "history") {
-      void loadHistory();
-    }
-  }, [activeTab, loadHistory]);
-
-  useEffect(() => {
-    if (activeTab === "history") {
-      void loadHistory(1);
-      setHistoryPage(1);
-    }
-  }, [
-    debouncedHistorySearch,
-    historyFrom,
-    historyLimit,
-    historyOperation,
-    historyScope,
-    historyTo,
-    historyUserId,
-    activeTab,
-    loadHistory,
-  ]);
-
-  useEffect(() => {
     if (activeTab === "adjust") {
       void loadAvailableProducts();
     } else {
@@ -550,20 +573,37 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   useEffect(() => {
     if (!detailOpen || detailId === null) return;
+    let cancelled = false;
     setDetailProductsLoading(true);
     setDetailProductsError(null);
     priceAdjustmentsApi
       .getAdjustmentProducts(detailId, {
         search: debouncedDetailSearch.trim() || undefined,
         page: detailPage,
-        limit: 10,
+        limit: DETAIL_PAGE_SIZE,
         onlyBelowCost: detailOnlyBelowCost,
       })
-      .then(setDetailProducts)
-      .catch((error: unknown) =>
-        setDetailProductsError(getApiErrorMessage(error, "No se pudieron cargar los productos del ajuste."))
-      )
-      .finally(() => setDetailProductsLoading(false));
+      .then((result) => {
+        if (cancelled) return;
+        const nextTotalPages = Math.max(Math.ceil(result.total / DETAIL_PAGE_SIZE), 1);
+        if (result.page > nextTotalPages) {
+          setDetailPage(nextTotalPages);
+          return;
+        }
+        setDetailProducts(result);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setDetailProductsError(getApiErrorMessage(error, "No se pudieron cargar los productos del ajuste."));
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setDetailProductsLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [debouncedDetailSearch, detailId, detailOpen, detailOnlyBelowCost, detailPage]);
 
   useEffect(() => {
@@ -848,6 +888,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     setDetailPage(1);
     setDetailError(null);
     setDetailProductsError(null);
+    setDetailProductsLoading(false);
     setDetailOpen(true);
   };
 
@@ -856,6 +897,17 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     setDetailId(null);
     setDetail(null);
     setDetailProducts(null);
+    setDetailProductsLoading(false);
+  };
+
+  const handleDetailPreviousPage = () => {
+    if (detailProductsBusy || detailPage <= 1) return;
+    setDetailPage((page) => Math.max(page - 1, 1));
+  };
+
+  const handleDetailNextPage = () => {
+    if (detailProductsBusy || detailPage >= detailDisplayTotalPages) return;
+    setDetailPage(detailPage + 1);
   };
 
   const renderManualProductPicker = () => {
@@ -1402,23 +1454,55 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   const renderHistoryTab = () => (
     <div style={styles.stack}>
       <Toolbar>
-        <SearchInput value={historySearch} onChange={setHistorySearch} placeholder="Buscar por motivo, usuario o categoria" />
-        <input style={styles.dateInput} type="date" value={historyFrom} onChange={(event) => setHistoryFrom(event.target.value)} />
-        <input style={styles.dateInput} type="date" value={historyTo} onChange={(event) => setHistoryTo(event.target.value)} />
+        <SearchInput
+          value={historySearch}
+          onChange={(value) => {
+            setHistorySearch(value);
+            setHistoryPage(1);
+          }}
+          placeholder="Buscar por motivo, usuario o categoria"
+        />
+        <input
+          style={styles.dateInput}
+          type="date"
+          value={historyFrom}
+          onChange={(event) => {
+            setHistoryFrom(event.target.value);
+            setHistoryPage(1);
+          }}
+        />
+        <input
+          style={styles.dateInput}
+          type="date"
+          value={historyTo}
+          onChange={(event) => {
+            setHistoryTo(event.target.value);
+            setHistoryPage(1);
+          }}
+        />
         <FilterSelect
           value={historyOperation}
-          onChange={(value) => setHistoryOperation(value as PriceAdjustmentOperation | "")}
+          onChange={(value) => {
+            setHistoryOperation(value as PriceAdjustmentOperation | "");
+            setHistoryPage(1);
+          }}
           options={operationFilterOptions}
         />
         <FilterSelect
           value={historyScope}
-          onChange={(value) => setHistoryScope(value as PriceAdjustmentScope | "")}
+          onChange={(value) => {
+            setHistoryScope(value as PriceAdjustmentScope | "");
+            setHistoryPage(1);
+          }}
           options={scopeFilterOptions}
         />
         {userOptions.length > 0 && (
           <FilterSelect
             value={historyUserId}
-            onChange={setHistoryUserId}
+            onChange={(value) => {
+              setHistoryUserId(value);
+              setHistoryPage(1);
+            }}
             options={[
               { value: "", label: "Todos los usuarios" },
               ...userOptions.map((user) => ({ value: String(user.id), label: user.name })),
@@ -1427,20 +1511,32 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
         )}
       </Toolbar>
 
-      <div style={{ ...ui.tableWrap, maxHeight: "64vh", overflowY: "auto" }}>
-        <table style={{ ...ui.table, minWidth: 1080 }}>
+      <div className="table-sticky-head" style={styles.historyTableWrap}>
+        <table style={styles.historyTable}>
+          <colgroup>
+            <col style={styles.historyDateColumn} />
+            <col style={styles.historyUserColumn} />
+            <col style={styles.historyScopeColumn} />
+            <col style={styles.historyCategoryColumn} />
+            <col style={styles.historyOperationColumn} />
+            <col style={styles.historyValueColumn} />
+            <col style={styles.historyCountColumn} />
+            <col style={styles.historyBelowCostColumn} />
+            <col style={styles.historyReasonColumn} />
+            <col style={styles.historyActionsColumn} />
+          </colgroup>
           <thead>
             <tr style={ui.theadRow}>
-              <th style={ui.th}>Fecha</th>
-              <th style={ui.th}>Usuario</th>
-              <th style={ui.th}>Alcance</th>
-              <th style={ui.th}>Categoria</th>
-              <th style={ui.th}>Tipo de ajuste</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Valor</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Productos</th>
-              <th style={{ ...ui.th, textAlign: "right" }}>Debajo costo</th>
-              <th style={ui.th}>Motivo</th>
-              <th style={{ ...ui.th, textAlign: "center" }}>Acciones</th>
+              <th style={styles.historyTh}>Fecha</th>
+              <th style={styles.historyTh}>Usuario</th>
+              <th style={styles.historyTh}>Alcance</th>
+              <th style={styles.historyTh}>Categoria</th>
+              <th style={styles.historyTh}>Operacion</th>
+              <th style={{ ...styles.historyTh, textAlign: "right" }}>Valor</th>
+              <th style={{ ...styles.historyTh, textAlign: "right" }}>Productos</th>
+              <th style={{ ...styles.historyTh, textAlign: "center" }}>Debajo</th>
+              <th style={styles.historyTh}>Motivo</th>
+              <th style={{ ...styles.historyTh, textAlign: "center" }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -1448,32 +1544,48 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
               colSpan={10}
               loading={historyLoading}
               error={historyError}
-              empty={!historyLoading && (history?.adjustments.length ?? 0) === 0}
-              emptyText="No hay ajustes de precios con los filtros seleccionados."
+              empty={!historyLoading && historyRows.length === 0}
+              emptyText="No hay ajustes de precios registrados con los filtros seleccionados."
             />
             {!historyLoading &&
               !historyError &&
-              history?.adjustments.map((adjustment) => (
+              historyRows.map((adjustment) => (
                 <tr key={adjustment.id}>
-                  <td style={ui.td}>{fmtDateTime(adjustment.appliedAt)}</td>
-                  <td style={{ ...ui.td, whiteSpace: "normal" }}>
-                    <strong style={{ color: "var(--text)" }}>{adjustment.appliedBy.name}</strong>
-                    <div style={styles.mutedSmall}>{adjustment.appliedBy.email}</div>
+                  <td style={styles.historyNowrapTd}>{fmtDateTime(adjustment.appliedAt)}</td>
+                  <td style={styles.historyTd}>
+                    <div style={styles.historyCellStack}>
+                      <strong style={styles.historyPrimaryText} title={adjustment.appliedBy.name}>
+                        {adjustment.appliedBy.name}
+                      </strong>
+                      <span style={styles.historySecondaryText} title={adjustment.appliedBy.email || ""}>
+                        {adjustment.appliedBy.email || "-"}
+                      </span>
+                    </div>
                   </td>
-                  <td style={ui.td}>{scopeLabel(adjustment.scope)}</td>
-                  <td style={{ ...ui.td, whiteSpace: "normal" }}>
-                    {adjustment.category ? `${adjustment.category.code} ${adjustment.category.name}` : "-"}
+                  <td style={styles.historyNowrapTd}>{scopeLabel(adjustment.scope)}</td>
+                  <td style={styles.historyTd}>
+                    <span style={styles.historyTruncateText} title={getHistoryCategoryText(adjustment)}>
+                      {getHistoryCategoryText(adjustment)}
+                    </span>
                   </td>
-                  <td style={ui.td}>{adjustmentTypeLabel(adjustment.type, adjustment.direction)}</td>
-                  <td style={{ ...ui.td, textAlign: "right", fontWeight: 800 }}>{formatStoredAdjustmentValue(adjustment.type, adjustment.value)}</td>
-                  <td style={{ ...ui.td, textAlign: "right", fontWeight: 800 }}>{adjustment.affectedRows}</td>
-                  <td style={{ ...ui.td, textAlign: "right" }}>
+                  <td style={styles.historyTd}>
+                    <span style={styles.historyTruncateText} title={adjustmentTypeLabel(adjustment.type, adjustment.direction)}>
+                      {adjustmentTypeLabel(adjustment.type, adjustment.direction)}
+                    </span>
+                  </td>
+                  <td style={styles.historyMoneyTd}>{formatStoredAdjustmentValue(adjustment.type, adjustment.value)}</td>
+                  <td style={styles.historyNumberTd}>{adjustment.affectedRows}</td>
+                  <td style={styles.historyCenterTd}>
                     <Badge tone={adjustment.belowCostCount > 0 ? "red" : "green"}>{adjustment.belowCostCount}</Badge>
                   </td>
-                  <td style={{ ...ui.td, whiteSpace: "normal", maxWidth: 230 }}>{adjustment.notes || "Sin motivo registrado"}</td>
-                  <td style={{ ...ui.td, textAlign: "center" }}>
-                    <button type="button" style={ui.linkBtn} onClick={() => openDetail(adjustment.id)}>
-                      <Eye size={14} style={{ verticalAlign: "-2px" }} /> Ver detalle
+                  <td style={styles.historyTd}>
+                    <span style={styles.historyReasonText} title={getHistoryReasonText(adjustment)}>
+                      {getHistoryReasonText(adjustment)}
+                    </span>
+                  </td>
+                  <td style={styles.historyActionTd}>
+                    <button type="button" style={styles.historyActionButton} onClick={() => openDetail(adjustment.id)}>
+                      <Eye size={14} /> Ver
                     </button>
                   </td>
                 </tr>
@@ -1482,35 +1594,60 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
         </table>
       </div>
 
-      <div style={styles.pagination}>
-        <span style={styles.mutedText}>
-          {history ? `${history.total} ajuste${history.total === 1 ? "" : "s"} · pagina ${history.page} de ${Math.max(history.totalPages, 1)}` : "Sin datos"}
+      <div style={styles.historyPagination}>
+        <span style={styles.historyPaginationText}>
+          {historyTotal > 0
+            ? `Mostrando ${historyRangeStart}-${historyRangeEnd} de ${historyTotal} registro${historyTotal === 1 ? "" : "s"}`
+            : "Mostrando 0 de 0 registros"}
         </span>
-        <div style={styles.inlineActions}>
-          <select style={ui.filterSelect} value={historyLimit} onChange={(event) => setHistoryLimit(Number(event.target.value))}>
-            {[10, 20, 50].map((limit) => (
-              <option key={limit} value={limit}>
-                {limit} por pagina
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            style={ui.ghostBtn}
-            onClick={() => setHistoryPage((page) => Math.max(page - 1, 1))}
-            disabled={historyLoading || historyPage <= 1}
+        {historyTotal > 0 && (
+        <div style={styles.historyPaginationControls}>
+          <label style={styles.historyPageSizeLabel}>
+            <span>Registros por pagina</span>
+            <select
+              style={styles.historyPageSizeSelect}
+              value={historyLimit}
+              onChange={(event) => {
+                setHistoryLimit(Number(event.target.value));
+                setHistoryPage(1);
+              }}
+            >
+              {HISTORY_PAGE_SIZE_OPTIONS.map((limit) => (
+                <option key={limit} value={limit}>
+                  {limit}
+                </option>
+              ))}
+            </select>
+          </label>
+            <button
+              type="button"
+              style={{
+                ...styles.historyPagerButton,
+                opacity: historyLoading || historyPageNumber <= 1 ? 0.55 : 1,
+                cursor: historyLoading || historyPageNumber <= 1 ? "not-allowed" : "pointer",
+              }}
+              onClick={() => setHistoryPage((page) => Math.max(page - 1, 1))}
+              disabled={historyLoading || historyPageNumber <= 1}
+              title="Pagina anterior"
           >
-            Anterior
+            <ChevronLeft size={14} /> Anterior
           </button>
-          <button
-            type="button"
-            style={ui.ghostBtn}
-            onClick={() => setHistoryPage((page) => page + 1)}
-            disabled={historyLoading || Boolean(history && historyPage >= history.totalPages)}
+          <span style={styles.historyPageText}>Pagina {historyPageNumber} de {historyTotalPages}</span>
+            <button
+              type="button"
+              style={{
+                ...styles.historyPagerButton,
+                opacity: historyLoading || historyPageNumber >= historyTotalPages ? 0.55 : 1,
+                cursor: historyLoading || historyPageNumber >= historyTotalPages ? "not-allowed" : "pointer",
+              }}
+              onClick={() => setHistoryPage((page) => page + 1)}
+              disabled={historyLoading || historyPageNumber >= historyTotalPages}
+              title="Pagina siguiente"
           >
-            Siguiente
+            Siguiente <ChevronRight size={14} />
           </button>
         </div>
+        )}
       </div>
     </div>
   );
@@ -1640,12 +1777,12 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                   <tbody>
                     <TableState
                       colSpan={6}
-                      loading={detailProductsLoading}
+                      loading={detailProductsBusy}
                       error={detailProductsError}
-                      empty={!detailProductsLoading && (detailProducts?.products.length ?? 0) === 0}
+                      empty={!detailProductsBusy && (detailProducts?.products.length ?? 0) === 0}
                       emptyText="No hay productos para estos filtros."
                     />
-                    {!detailProductsLoading &&
+                    {!detailProductsBusy &&
                       !detailProductsError &&
                       detailProducts?.products.map((row) => (
                         <tr key={row.id}>
@@ -1665,24 +1802,27 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                 </table>
               </div>
               <div style={styles.pagination}>
-                <span style={styles.mutedText}>
-                  {detailProducts
-                    ? `${detailProducts.total} producto${detailProducts.total === 1 ? "" : "s"} · pagina ${detailProducts.page} de ${Math.max(detailProducts.totalPages, 1)}`
-                    : "Sin datos"}
-                </span>
-                <div style={styles.inlineActions}>
-                  <button type="button" style={ui.ghostBtn} onClick={() => setDetailPage((page) => Math.max(page - 1, 1))} disabled={detailPage <= 1}>
-                    Anterior
-                  </button>
-                  <button
-                    type="button"
-                    style={ui.ghostBtn}
-                    onClick={() => setDetailPage((page) => page + 1)}
-                    disabled={Boolean(detailProducts && detailPage >= detailProducts.totalPages)}
-                  >
-                    Siguiente
-                  </button>
-                </div>
+                <span style={styles.mutedText}>{detailProductsSummary}</span>
+                {showDetailPagination && (
+                  <div style={styles.inlineActions}>
+                    <button
+                      type="button"
+                      style={ui.ghostBtn}
+                      onClick={handleDetailPreviousPage}
+                      disabled={detailProductsBusy || detailPage <= 1}
+                    >
+                      Anterior
+                    </button>
+                    <button
+                      type="button"
+                      style={ui.ghostBtn}
+                      onClick={handleDetailNextPage}
+                      disabled={detailProductsBusy || detailPage >= detailDisplayTotalPages}
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -2221,6 +2361,201 @@ const styles: { [key: string]: React.CSSProperties } = {
   dateInput: {
     ...ui.filterSelect,
     minWidth: 150,
+  },
+  historyTableWrap: {
+    ...ui.tableWrap,
+    maxHeight: "64vh",
+    overflowX: "auto",
+    overflowY: "auto",
+  },
+  historyTable: {
+    ...ui.table,
+    minWidth: 1160,
+    tableLayout: "fixed",
+    marginTop: 0,
+  },
+  historyDateColumn: {
+    width: 126,
+  },
+  historyUserColumn: {
+    width: 150,
+  },
+  historyScopeColumn: {
+    width: 96,
+  },
+  historyCategoryColumn: {
+    width: 128,
+  },
+  historyOperationColumn: {
+    width: 126,
+  },
+  historyValueColumn: {
+    width: 82,
+  },
+  historyCountColumn: {
+    width: 76,
+  },
+  historyBelowCostColumn: {
+    width: 78,
+  },
+  historyReasonColumn: {
+    width: 232,
+  },
+  historyActionsColumn: {
+    width: 86,
+  },
+  historyTh: {
+    ...ui.th,
+    padding: "9px 10px",
+    letterSpacing: "0.2px",
+  },
+  historyTd: {
+    ...ui.td,
+    padding: "9px 10px",
+    verticalAlign: "middle",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  historyNowrapTd: {
+    ...ui.td,
+    padding: "9px 10px",
+    verticalAlign: "middle",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  historyMoneyTd: {
+    ...ui.td,
+    padding: "9px 10px",
+    textAlign: "right",
+    verticalAlign: "middle",
+    fontWeight: 800,
+    whiteSpace: "nowrap",
+  },
+  historyNumberTd: {
+    ...ui.td,
+    padding: "9px 10px",
+    textAlign: "right",
+    verticalAlign: "middle",
+    fontWeight: 800,
+    whiteSpace: "nowrap",
+  },
+  historyCenterTd: {
+    ...ui.td,
+    padding: "9px 10px",
+    textAlign: "center",
+    verticalAlign: "middle",
+    whiteSpace: "nowrap",
+  },
+  historyActionTd: {
+    ...ui.td,
+    padding: "9px 10px",
+    textAlign: "center",
+    verticalAlign: "middle",
+    whiteSpace: "nowrap",
+  },
+  historyCellStack: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+    minWidth: 0,
+    lineHeight: 1.2,
+  },
+  historyPrimaryText: {
+    display: "block",
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    color: "var(--text)",
+    fontWeight: 800,
+  },
+  historySecondaryText: {
+    display: "block",
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    color: "var(--text-faint)",
+    fontSize: 11,
+    fontWeight: 600,
+  },
+  historyTruncateText: {
+    display: "block",
+    minWidth: 0,
+    maxWidth: "100%",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  historyReasonText: {
+    display: "block",
+    minWidth: 0,
+    maxWidth: "100%",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    color: "var(--text-secondary)",
+  },
+  historyActionButton: {
+    ...ui.linkBtn,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    padding: "4px 2px",
+    whiteSpace: "nowrap",
+  },
+  historyPagination: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
+    padding: "10px 12px",
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    backgroundColor: "var(--surface)",
+  },
+  historyPaginationText: {
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  historyPaginationControls: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  historyPageSizeLabel: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  historyPageSizeSelect: {
+    ...ui.filterSelect,
+    height: 32,
+    minWidth: 72,
+    padding: "0 8px",
+    fontSize: 12,
+  },
+  historyPagerButton: {
+    ...ui.ghostBtn,
+    height: 32,
+    padding: "5px 10px",
+    fontSize: 12,
+  },
+  historyPageText: {
+    minWidth: 104,
+    textAlign: "center",
+    color: "var(--text-secondary)",
+    fontSize: 12,
+    fontWeight: 800,
   },
   pagination: {
     display: "flex",
