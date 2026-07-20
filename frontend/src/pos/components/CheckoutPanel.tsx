@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { usePosCart } from "../hooks/usePosCart";
-import { Bell, X } from "lucide-react";
+import { Bell, X, Clock } from "lucide-react";
 
 interface CheckoutPanelProps {
   cartData: ReturnType<typeof usePosCart>;
@@ -393,33 +393,30 @@ export function CheckoutPanel({
 
         {/* Botones de acceso rápido a listas — SOLO MÓVIL: aparecen encima del total */}
         <div className="pos-checkout-mobile-quick-btns">
-          {parkedSales.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setIsMobileParkedModalOpen(true)}
-              className="pos-checkout-mobile-quick-btn parked"
-            >
-              <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ fontSize: "16px" }}>⏱️</span>
-                <span>{parkedSales.length} venta{parkedSales.length > 1 ? "s" : ""} en espera <small style={{ opacity: 0.7 }}>(Alt+E)</small></span>
-              </span>
-              <span className="pos-mobile-btn-plus">+</span>
-            </button>
-          )}
-          {pendingQrSales.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setIsMobileQrModalOpen(true)}
-              className="pos-checkout-mobile-quick-btn qr"
-            >
-              <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <Bell size={15} />
-                <span>{pendingQrSales.length} pago{pendingQrSales.length > 1 ? "s" : ""} pendiente{pendingQrSales.length > 1 ? "s" : ""} <small style={{ opacity: 0.7 }}>(Alt+S)</small></span>
-              </span>
-              <span className="pos-mobile-btn-plus">+</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setIsMobileParkedModalOpen(true)}
+            className="pos-checkout-mobile-quick-btn parked"
+          >
+            <Clock size={20} style={{ marginBottom: "2px" }} />
+            <span style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <strong style={{ fontSize: "13px" }}>{parkedSales.length} en</strong>
+              <span style={{ fontSize: "11px", fontWeight: "700" }}>espera</span>
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsMobileQrModalOpen(true)}
+            className="pos-checkout-mobile-quick-btn qr"
+          >
+            <Bell size={20} style={{ marginBottom: "2px" }} />
+            <span style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <strong style={{ fontSize: "13px" }}>{pendingQrSales.length} QR</strong>
+              <span style={{ fontSize: "11px", fontWeight: "700" }}>pendiente{pendingQrSales.length !== 1 ? "s" : ""}</span>
+            </span>
+          </button>
         </div>
+
 
         {/* Total gigante siempre visible */}
         <div className={`pos-total-display ${hasDiscount ? "has-discount" : ""}`}>

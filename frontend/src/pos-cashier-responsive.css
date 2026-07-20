@@ -122,8 +122,8 @@
 
 }
 
-/* --- Móvil / tablet pequeña (≤699px) --- */
-@media (max-width: 699px) {
+/* --- Móvil / tablet pequeña (≤725px) --- */
+@media (max-width: 725px) {
   .pos-cashier-navbar {
     height: auto !important;
     min-height: 56px;
@@ -262,26 +262,27 @@
     grid-template-areas:
       "product remove"
       "sku remove"
-      "price qty"
+      "price remove"
       "amount qty";
-    gap: 6px 14px;
+    gap: 4px 12px;
     width: 100%;
     margin-bottom: 12px;
-    padding: 14px 16px;
+    padding: 12px 14px;
     border: 1px solid var(--border-strong) !important;
     border-radius: 8px;
     background: var(--surface);
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
   }
 
   .pos-cashier-cart-table.has-discounts tbody tr {
     grid-template-areas:
       "product remove"
       "sku remove"
-      "price qty"
+      "price remove"
       "discount qty"
       "amount qty";
   }
+
 
   .pos-cashier-cart-table tbody tr > td {
     display: block !important;
@@ -408,11 +409,11 @@
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-remove button {
-    width: 24px;
-    height: 24px;
-    border-radius: 4px !important;
-    background: transparent !important;
-    border: none !important;
+    width: 28px;
+    height: 28px;
+    border-radius: 50% !important;
+    background: var(--pos-surface-2, #f1f5f9) !important;
+    border: 1px solid var(--pos-border, #e2e8f0) !important;
     box-shadow: none !important;
     display: inline-flex;
     align-items: center;
@@ -423,13 +424,14 @@
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-remove button:hover {
-    background: var(--pos-red-light, rgba(239, 68, 68, 0.1)) !important;
+    background: var(--pos-red-soft, #fef2f2) !important;
     color: var(--pos-red, #dc2626) !important;
+    border-color: rgba(239, 68, 68, 0.2) !important;
   }
 
   .pos-cashier-cart-table tbody tr > td.pos-cart-col-remove svg {
-    width: 16px;
-    height: 16px;
+    width: 15px;
+    height: 15px;
     color: inherit;
     stroke: currentColor;
   }
@@ -688,7 +690,7 @@
    así nunca se cortan ni requieren scroll horizontal.
    Solo afecta tablas dentro de .pos-cashier-table-card (no el carrito ni modales).
    ========================================================================== */
-@media (max-width: 699px) {
+@media (max-width: 725px) {
   /* Cada tabla-tarjeta queda contenida y hace scroll vertical interno
      para que la vista no se haga enorme con muchas filas */
   .pos-cashier-table-card .pos-cashier-table-scroll--dashboard-deposits {
@@ -807,7 +809,7 @@
 }
 
 /* Nueva venta: tablet conserva flujo vertical y carrito sin scroll horizontal */
-@media (min-width: 700px) and (max-width: 1023px) {
+@media (min-width: 726px) and (max-width: 1023px) {
   .pos-cashier-terminal-header {
     height: auto !important;
     padding: 12px 18px !important;
@@ -1297,8 +1299,8 @@
   }
 }
 
-/* Ajustes adicionales para tablet (700px-1023px): mantener tabla compacta */
-@media (min-width: 700px) and (max-width: 1023px) {
+/* Ajustes adicionales para tablet (726px-1023px): mantener tabla compacta */
+@media (min-width: 726px) and (max-width: 1023px) {
   .pos-cashier-table-card .pos-cashier-table-scroll table {
     min-width: 0 !important;
   }
@@ -1308,8 +1310,8 @@
   }
 }
 
-/* Asegurar que en 699px y menos se usen las tarjetas correctamente */
-@media (max-width: 699px) {
+/* Asegurar que en 725px y menos se usen las tarjetas correctamente */
+@media (max-width: 725px) {
   .pos-cashier-table-scroll--dashboard-deposits table {
     display: block !important;
   }
