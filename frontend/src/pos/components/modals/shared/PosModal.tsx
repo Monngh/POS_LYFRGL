@@ -180,9 +180,9 @@ export function PosModal({
   };
 
   return (
-    <div style={overlayStyle}>
-      <div ref={modalRef} data-pos-modal style={modalStyle} tabIndex={-1}>
-        <div style={headerStyle}>
+    <div style={overlayStyle} className="pos-cashier-modal-overlay pos-cashier-modal-overlay--center">
+      <div ref={modalRef} data-pos-modal style={modalStyle} tabIndex={-1} className="pos-cashier-modal">
+        <div style={headerStyle} className="pos-cashier-modal-header">
           <div style={titleArea}>
             {icon && <div style={iconContainer}>{icon}</div>}
             <div>
@@ -201,12 +201,12 @@ export function PosModal({
           </button>
         </div>
 
-        <div style={contentStyle}>
+        <div style={contentStyle} className="pos-cashier-modal-body">
           {children}
         </div>
 
         {footer && (
-          <div style={footerStyle} data-pos-modal-footer>
+          <div style={footerStyle} data-pos-modal-footer className="pos-cashier-modal-actions">
             {footer}
           </div>
         )}
@@ -214,3 +214,4 @@ export function PosModal({
     </div>
   );
 }
+

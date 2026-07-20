@@ -667,9 +667,7 @@ export function SalesTerminalView({
 
             <div className="card-premium pos-cashier-cart-card" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "14px", gap: "10px" }}>
               <CartPanel cartData={cartData} onToast={onToast} />
-              <div className="hide-on-mobile">
-                <PromotionsGrid cart={cartData.cart} onAddProduct={cartData.addProductToCart} onToast={onToast} cartDiscount={cartData.cartDiscount} />
-              </div>
+              <PromotionsGrid cart={cartData.cart} onAddProduct={cartData.addProductToCart} onToast={onToast} cartDiscount={cartData.cartDiscount} />
             </div>
           </div>
 
