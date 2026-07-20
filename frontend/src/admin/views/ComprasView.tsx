@@ -815,10 +815,6 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
               </button>
               {fieldErrors.supplierId && <p style={styles.fieldError}>{fieldErrors.supplierId}</p>}
             </div>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={ui.fieldLabel}>Referencia / Folio</label>
-              <input style={{ ...ui.input, backgroundColor: "var(--surface-2)", cursor: "not-allowed", color: "var(--text-secondary)" }} value={reference} readOnly title="Folio generado automáticamente" />
-            </div>
           </div>
 
           {/* Buscador inline de productos del proveedor seleccionado */}
