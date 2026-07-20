@@ -577,11 +577,11 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
 
     const wrapStyle: React.CSSProperties =
       variant === "grid"
-        ? { display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 12, padding: "10px 14px", backgroundColor: "var(--surface-2)", borderTop: "1px dashed var(--border-soft)" }
-        : { display: "flex", flexDirection: "column", gap: 8, marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--border-soft)" };
+        ? { display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 12, paddingTop: 6, marginTop: 4, borderTop: "1px dashed var(--border-soft)" }
+        : { display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 10, marginTop: 6, paddingTop: 6, borderTop: "1px dashed var(--border-soft)" };
 
     const conversionField = (label: string, key: "piecesPerBox" | "boxesPerLot" | "piecesPerLot") => (
-      <div style={{ minWidth: 130 }}>
+      <div style={{ width: 120, flexShrink: 0, alignSelf: "flex-start" }}>
         <label style={styles.miniLabel}>{label}</label>
         <input
           type="text"
