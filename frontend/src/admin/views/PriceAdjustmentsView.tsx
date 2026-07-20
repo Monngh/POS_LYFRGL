@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowDown,
@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import api from "../../shared/services/api";
 import { useToast } from "../../shared/context/ToastContext";
-import { adminCategoryService, type AdminCategoryFlatItem, type CategoryLevel } from "../services/categoryAdmin.service";
+import { adminCategoryService, type AdminCategoryFlatItem } from "../services/categoryAdmin.service";
 import {
   getApiErrorMessage,
   priceAdjustmentsApi,
@@ -81,6 +81,8 @@ const operationOptions: Array<{ value: PriceAdjustmentOperation; label: string }
   { value: "SET_EXACT", label: "Establecer precio exacto" },
 ];
 
+type ResolveProductsPayload = Parameters<typeof priceAdjustmentsApi.resolveProducts>[0];
+
 const scopeLabel = (scope: PriceAdjustmentScope) =>
   scopeOptions.find((option) => option.value === scope)?.label ?? scope;
 
@@ -105,9 +107,6 @@ const scopeFilterOptions = [
   { value: "", label: "Todos los alcances" },
   ...scopeOptions,
 ];
-
-const toCategoryLevel = (scope: PriceAdjustmentScope): CategoryLevel =>
-  scope === "DIVISION" || scope === "DEPARTMENT" || scope === "CATEGORY" ? scope : "CATEGORY";
 
 const isCategoryScope = (scope: PriceAdjustmentScope) => CATEGORY_SCOPES.includes(scope);
 
@@ -151,6 +150,9 @@ const buildCategoryText = (product: PriceAdjustmentProduct) =>
   product.categories.length
     ? product.categories.map((category) => `${category.code} ${category.name}`).join(", ")
     : "Sin categoria";
+
+const formatCategoryOptionLabel = (category: Pick<AdminCategoryFlatItem, "code" | "name">) =>
+  category.code ? `${category.code} · ${category.name}` : category.name;
 
 const getValueError = (operation: PriceAdjustmentOperation, rawValue: string) => {
   const raw = rawValue.trim();
@@ -197,12 +199,13 @@ const InlineAlert: React.FC<{ tone: "success" | "warning" | "error" | "info"; ch
 const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   const { showToast } = useToast();
   const isMobile = useMediaQuery("(max-width: 1024px)");
-  const filtersTwoColumn = useMediaQuery("(max-width: 1180px)");
   const filtersStacked = useMediaQuery("(max-width: 640px)");
 
   const [activeTab, setActiveTab] = useState<TabKey>("adjust");
 
   const [scope, setScope] = useState<PriceAdjustmentScope>("SELECTED_PRODUCTS");
+  const [scopeDivisionId, setScopeDivisionId] = useState("");
+  const [scopeDepartmentId, setScopeDepartmentId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [categories, setCategories] = useState<AdminCategoryFlatItem[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
@@ -222,7 +225,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
 
   const [operation, setOperation] = useState<PriceAdjustmentOperation>("PERCENT_INCREASE");
   const [adjustmentValue, setAdjustmentValue] = useState("");
-  const [valueError, setValueError] = useState<string | null>(null);
+  const [valueTouched, setValueTouched] = useState(false);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -231,6 +234,9 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [applyError, setApplyError] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
   const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
+  const resolveRequestIdRef = useRef(0);
+  const previewRequestIdRef = useRef(0);
+  const removedProductToastGuardRef = useRef<Set<number>>(new Set());
 
   const [historySearch, setHistorySearch] = useState("");
   const [debouncedHistorySearch, setDebouncedHistorySearch] = useState("");
@@ -290,17 +296,84 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     () => categories.find((category) => String(category.id) === categoryId) ?? null,
     [categories, categoryId]
   );
+  const scopeDivisionOptions = useMemo(
+    () => categories.filter((category) => category.level === "DIVISION"),
+    [categories]
+  );
+  const scopeDepartmentOptions = useMemo(
+    () =>
+      categories.filter(
+        (category) => category.level === "DEPARTMENT" && (!scopeDivisionId || String(category.parentId) === scopeDivisionId)
+      ),
+    [categories, scopeDivisionId]
+  );
+  const scopeCategoryOptions = useMemo(
+    () =>
+      categories.filter(
+        (category) => category.level === "CATEGORY" && (!scopeDepartmentId || String(category.parentId) === scopeDepartmentId)
+      ),
+    [categories, scopeDepartmentId]
+  );
 
-  const previewRequiresNotes = preview?.requiresReason ?? false;
   const previewRequiresBelowCostConfirmation = preview?.requiresBelowCostConfirmation ?? false;
-  const notesError = previewRequiresNotes && !notes.trim() ? "El motivo es obligatorio para este ajuste." : null;
+  const valueError = useMemo(() => {
+    if (!adjustmentValue.trim() && !valueTouched) return null;
+    return getValueError(operation, adjustmentValue);
+  }, [adjustmentValue, operation, valueTouched]);
+  const notesError = preview && !notes.trim() ? "El motivo del ajuste es obligatorio." : null;
   const canApplyPreview =
     Boolean(preview) &&
     !applying &&
     !notesError &&
     (!previewRequiresBelowCostConfirmation || confirmBelowCost);
 
+  const resolvedEmptyState = useMemo(() => {
+    if (scope === "DIVISION" && !scopeDivisionId) {
+      return {
+        title: "Selecciona una division para cargar productos.",
+        text: "La lista se actualizara automaticamente cuando el valor sea valido.",
+      };
+    }
+    if (scope === "DEPARTMENT" && !scopeDepartmentId) {
+      return {
+        title: scopeDivisionId ? "Selecciona un departamento para cargar productos." : "Selecciona una division para continuar.",
+        text: "La lista se actualizara automaticamente al completar el alcance.",
+      };
+    }
+    if (scope === "CATEGORY" && !categoryId) {
+      return {
+        title: scopeDepartmentId ? "Selecciona una categoria para cargar productos." : "Completa division y departamento para continuar.",
+        text: "La lista se actualizara automaticamente al elegir la categoria.",
+      };
+    }
+    return {
+      title:
+        resolvedProducts.length === 0
+          ? "Aun no hay productos agregados al ajuste."
+          : "No hay productos cargados con esa busqueda.",
+      text:
+        resolvedProducts.length === 0
+          ? "Selecciona productos en la seccion superior para comenzar."
+          : "Ajusta la busqueda para ver productos seleccionados.",
+    };
+  }, [categoryId, resolvedProducts.length, scope, scopeDepartmentId, scopeDivisionId]);
+
+  const previewStatusText = useMemo(() => {
+    if (previewLoading) return "Calculando vista previa...";
+    if (selectedProductIdArray.length === 0) return "Agrega productos para activar la vista previa.";
+    if (!adjustmentValue.trim()) return "Ingresa un valor para calcular la vista previa.";
+    if (valueError) return "Corrige el valor para recalcular la vista previa.";
+    if (preview) return "Vista previa actualizada automaticamente.";
+    return "La vista previa se generara automaticamente.";
+  }, [adjustmentValue, preview, previewLoading, selectedProductIdArray.length, valueError]);
+
+  const cancelPendingPreview = () => {
+    previewRequestIdRef.current += 1;
+    setPreviewLoading(false);
+  };
+
   const resetPreviewState = () => {
+    cancelPendingPreview();
     setPreview(null);
     setPreviewError(null);
     setApplyError(null);
@@ -309,7 +382,13 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     setConfirmApplyOpen(false);
   };
 
+  const cancelPendingResolve = () => {
+    resolveRequestIdRef.current += 1;
+    setResolveLoading(false);
+  };
+
   const resetResolvedProducts = () => {
+    cancelPendingResolve();
     setResolvedProducts([]);
     setSelectedProductIds(new Set());
     setProductSearch("");
@@ -318,6 +397,8 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   };
 
   const resetAdjustmentForm = () => {
+    setScopeDivisionId("");
+    setScopeDepartmentId("");
     setCategoryId("");
     setManualSelectedIds(new Set());
     setAvailableSearch("");
@@ -326,7 +407,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     setProductSearch("");
     setOperation("PERCENT_INCREASE");
     setAdjustmentValue("");
-    setValueError(null);
+    setValueTouched(false);
     resetPreviewState();
   };
 
@@ -355,7 +436,6 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     setCategoryError(null);
     try {
       const rows = await adminCategoryService.listFlat({
-        level: toCategoryLevel(nextScope),
         active: true,
       });
       setCategories(rows);
@@ -486,14 +566,65 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
       .finally(() => setDetailProductsLoading(false));
   }, [debouncedDetailSearch, detailId, detailOpen, detailOnlyBelowCost, detailPage]);
 
+  useEffect(() => {
+    removedProductToastGuardRef.current.forEach((productId) => {
+      if (resolvedProducts.some((product) => product.id === productId)) {
+        removedProductToastGuardRef.current.delete(productId);
+      }
+    });
+  }, [resolvedProducts]);
+
   const changeScope = (nextScope: PriceAdjustmentScope) => {
     setScope(nextScope);
+    setScopeDivisionId("");
+    setScopeDepartmentId("");
     setCategoryId("");
-    resetResolvedProducts();
     if (nextScope !== "SELECTED_PRODUCTS") {
       setManualSelectedIds(new Set());
       setAvailableSearch("");
+      resetResolvedProducts();
+    } else {
+      cancelPendingResolve();
+      setResolveError(null);
+      resetPreviewState();
     }
+
+    if (nextScope === "UNCATEGORIZED") {
+      void resolveProductsWithPayload({ scope: "UNCATEGORIZED" });
+    }
+  };
+
+  const changeScopeDivision = (nextDivisionId: string) => {
+    setScopeDivisionId(nextDivisionId);
+    setScopeDepartmentId("");
+    setCategoryId(scope === "DIVISION" ? nextDivisionId : "");
+    if (!nextDivisionId || scope !== "DIVISION") {
+      resetResolvedProducts();
+      return;
+    }
+    resetResolvedProducts();
+    void resolveProductsWithPayload({ scope: "DIVISION", categoryId: Number(nextDivisionId) });
+  };
+
+  const changeScopeDepartment = (nextDepartmentId: string) => {
+    setScopeDepartmentId(nextDepartmentId);
+    setCategoryId(scope === "DEPARTMENT" ? nextDepartmentId : "");
+    if (!nextDepartmentId || scope !== "DEPARTMENT") {
+      resetResolvedProducts();
+      return;
+    }
+    resetResolvedProducts();
+    void resolveProductsWithPayload({ scope: "DEPARTMENT", categoryId: Number(nextDepartmentId) });
+  };
+
+  const changeScopeCategory = (nextCategoryId: string) => {
+    setCategoryId(nextCategoryId);
+    if (!nextCategoryId) {
+      resetResolvedProducts();
+      return;
+    }
+    resetResolvedProducts();
+    void resolveProductsWithPayload({ scope: "CATEGORY", categoryId: Number(nextCategoryId) });
   };
 
   const toggleManualProduct = (productId: number) => {
@@ -515,14 +646,19 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     resetPreviewState();
   };
 
-  const removeResolvedProduct = (productId: number) => {
-    setResolvedProducts((current) => current.filter((product) => product.id !== productId));
+  const removeResolvedProduct = (productToRemove: PriceAdjustmentProduct) => {
+    if (removedProductToastGuardRef.current.has(productToRemove.id)) return;
+    if (!resolvedProducts.some((product) => product.id === productToRemove.id)) return;
+
+    removedProductToastGuardRef.current.add(productToRemove.id);
+    setResolvedProducts((current) => current.filter((product) => product.id !== productToRemove.id));
     setSelectedProductIds((current) => {
       const next = new Set(current);
-      next.delete(productId);
+      next.delete(productToRemove.id);
       return next;
     });
     resetPreviewState();
+    showToast(`"${productToRemove.name}" fue eliminado del ajuste.`, "success");
   };
 
   const toggleAllVisibleManual = () => {
@@ -562,112 +698,107 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     resetPreviewState();
   };
 
-  const resolveProducts = async () => {
-    if (scope === "SELECTED_PRODUCTS" && manualSelectedArray.length === 0) {
-      setResolveError("Selecciona al menos un producto activo.");
-      return;
-    }
-
-    if (isCategoryScope(scope) && !categoryId) {
-      setResolveError("Selecciona una categoria para buscar productos.");
-      return;
-    }
-
+  const resolveProductsWithPayload = async (
+    payload: ResolveProductsPayload,
+    options: { successMessage?: string } = {}
+  ) => {
+    const requestId = resolveRequestIdRef.current + 1;
+    resolveRequestIdRef.current = requestId;
     setResolveLoading(true);
     setResolveError(null);
     resetPreviewState();
     try {
-      const result = await priceAdjustmentsApi.resolveProducts({
-        scope,
-        categoryId: isCategoryScope(scope) ? Number(categoryId) : undefined,
-        productIds: scope === "SELECTED_PRODUCTS" ? manualSelectedArray : undefined,
-      });
+      const result = await priceAdjustmentsApi.resolveProducts(payload);
+      if (requestId !== resolveRequestIdRef.current) return;
       setResolvedProducts(result.products);
       setSelectedProductIds(new Set(result.products.map((product) => product.id)));
       setProductSearch("");
       if (result.products.length === 0) {
         setResolveError("No se encontraron productos activos para el alcance seleccionado.");
+      } else if (options.successMessage) {
+        showToast(options.successMessage, "success");
       }
     } catch (error: unknown) {
+      if (requestId !== resolveRequestIdRef.current) return;
       setResolvedProducts([]);
       setSelectedProductIds(new Set());
       setResolveError(getApiErrorMessage(error, "No se pudieron resolver los productos."));
     } finally {
-      setResolveLoading(false);
+      if (requestId === resolveRequestIdRef.current) {
+        setResolveLoading(false);
+      }
     }
   };
 
   const addSelectedToAdjustment = async () => {
     if (manualSelectedArray.length === 0) return;
-
-    setResolveLoading(true);
-    setResolveError(null);
-    resetPreviewState();
-    try {
-      const result = await priceAdjustmentsApi.resolveProducts({
+    await resolveProductsWithPayload(
+      {
         scope: "SELECTED_PRODUCTS",
         productIds: manualSelectedArray,
-      });
-      setResolvedProducts(result.products);
-      setSelectedProductIds(new Set(result.products.map((product) => product.id)));
-      setProductSearch("");
-      if (result.products.length === 0) {
-        setResolveError("No se encontraron productos activos para el alcance seleccionado.");
-      } else {
-        showToast("Productos agregados al ajuste correctamente.", "success");
-      }
-    } catch (error: unknown) {
-      setResolvedProducts([]);
-      setSelectedProductIds(new Set());
-      setResolveError(getApiErrorMessage(error, "No se pudieron resolver los productos."));
-    } finally {
-      setResolveLoading(false);
-    }
+      },
+      { successMessage: "Productos agregados al ajuste correctamente." }
+    );
   };
 
   const changeAdjustmentValue = (value: string) => {
-    if (!VALUE_INPUT_REGEX.test(value)) return;
+    setValueTouched(true);
     setAdjustmentValue(value);
-    setValueError(getValueError(operation, value));
     resetPreviewState();
   };
 
   const changeOperation = (nextOperation: PriceAdjustmentOperation) => {
     setOperation(nextOperation);
-    setValueError(getValueError(nextOperation, adjustmentValue));
     resetPreviewState();
   };
 
-  const generatePreview = async () => {
-    const error = getValueError(operation, adjustmentValue);
-    if (error) {
-      setValueError(error);
-      return;
-    }
-    if (selectedProductIdArray.length === 0) {
-      setPreviewError("Selecciona al menos un producto para generar la vista previa.");
+  useEffect(() => {
+    const rawValue = adjustmentValue.trim();
+    if (selectedProductIdArray.length === 0 || !rawValue || valueError) {
+      previewRequestIdRef.current += 1;
+      setPreview(null);
+      setPreviewError(null);
+      setPreviewLoading(false);
+      setApplyError(null);
+      setConfirmApplyOpen(false);
       return;
     }
 
-    setPreviewLoading(true);
+    const requestId = previewRequestIdRef.current + 1;
+    previewRequestIdRef.current = requestId;
+    setPreview(null);
     setPreviewError(null);
     setApplyError(null);
-    try {
-      const result = await priceAdjustmentsApi.preview({
-        operation,
-        value: Number(adjustmentValue),
-        productIds: selectedProductIdArray,
-      });
-      setPreview(result);
-      setConfirmBelowCost(false);
-      setNotes("");
-    } catch (error: unknown) {
-      setPreview(null);
-      setPreviewError(getApiErrorMessage(error, "No se pudo generar la vista previa."));
-    } finally {
-      setPreviewLoading(false);
-    }
-  };
+    setConfirmApplyOpen(false);
+
+    const timer = window.setTimeout(() => {
+      setPreviewLoading(true);
+      priceAdjustmentsApi
+        .preview({
+          operation,
+          value: Number(rawValue),
+          productIds: selectedProductIdArray,
+        })
+        .then((result) => {
+          if (requestId !== previewRequestIdRef.current) return;
+          setPreview(result);
+          setConfirmBelowCost(false);
+          setNotes("");
+        })
+        .catch((error: unknown) => {
+          if (requestId !== previewRequestIdRef.current) return;
+          setPreview(null);
+          setPreviewError(getApiErrorMessage(error, "No se pudo generar la vista previa."));
+        })
+        .finally(() => {
+          if (requestId === previewRequestIdRef.current) {
+            setPreviewLoading(false);
+          }
+        });
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, [adjustmentValue, operation, selectedProductIdArray, valueError]);
 
   const openApplyConfirm = () => {
     if (!canApplyPreview) {
@@ -686,7 +817,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
       operation,
       value: Number(adjustmentValue),
       productIds: selectedProductIdArray,
-      notes: notes.trim() || undefined,
+      notes: notes.trim(),
       confirmBelowCost,
     };
 
@@ -731,17 +862,14 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     if (scope !== "SELECTED_PRODUCTS") return null;
 
     return (
-      <div style={styles.subsection}>
-        <div style={styles.subsectionHeader}>
+      <div style={styles.manualPickerSection}>
+        <div style={styles.manualPickerHeader}>
           <div>
             <h3 style={styles.subsectionTitle}>Productos activos disponibles</h3>
             <p style={styles.helpText}>Busca y selecciona productos para agregarlos al ajuste.</p>
           </div>
-          <span style={styles.counterPill}>
-            {manualSelectedIds.size} seleccionado{manualSelectedIds.size === 1 ? "" : "s"}
-          </span>
         </div>
-        <Toolbar>
+        <div style={styles.manualPickerToolbar}>
           <SearchInput value={availableSearch} onChange={setAvailableSearch} placeholder="Buscar SKU, codigo o producto" />
           <button type="button" style={ui.ghostBtn} onClick={toggleAllVisibleManual} disabled={availableLoading}>
             {allVisibleAvailableSelected ? "Limpiar visibles" : "Seleccionar visibles"}
@@ -762,7 +890,10 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
             {resolveLoading ? <Loader2 size={16} /> : <Search size={16} />}
             Agregar seleccionados al ajuste
           </button>
-        </Toolbar>
+          <span style={styles.manualPickerCounter}>
+            {manualSelectedIds.size} seleccionado{manualSelectedIds.size === 1 ? "" : "s"}
+          </span>
+        </div>
 
         {isMobile ? (
           <div style={{ maxHeight: 310, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, padding: "4px 2px" }}>
@@ -825,11 +956,19 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
             ))}
           </div>
         ) : (
-          <div style={{ ...ui.tableWrap, maxHeight: 310, overflowY: "auto" }}>
-            <table style={{ ...ui.table, minWidth: 760 }}>
+          <div style={styles.adjustTableWrap}>
+            <table style={styles.availableProductsTable}>
+              <colgroup>
+                <col style={styles.availableSelectColumn} />
+                <col style={styles.availableSkuColumn} />
+                <col style={styles.availableProductColumn} />
+                <col style={styles.availableCostColumn} />
+                <col style={styles.availablePriceColumn} />
+                <col style={styles.availableCategoryColumn} />
+              </colgroup>
               <thead>
                 <tr style={ui.theadRow}>
-                  <th style={{ ...ui.th, width: 44, textAlign: "center" }}>
+                  <th style={styles.compactCheckboxHeaderCell}>
                     <input
                       type="checkbox"
                       checked={allVisibleAvailableSelected}
@@ -838,11 +977,11 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                       style={styles.checkbox}
                     />
                   </th>
-                  <th style={ui.th}>SKU</th>
-                  <th style={ui.th}>Producto</th>
-                  <th style={{ ...ui.th, textAlign: "right" }}>Costo</th>
-                  <th style={{ ...ui.th, textAlign: "right" }}>Precio actual</th>
-                  <th style={ui.th}>Categorias</th>
+                  <th style={styles.compactTh}>SKU</th>
+                  <th style={styles.compactTh}>Producto</th>
+                  <th style={{ ...styles.compactTh, textAlign: "right" }}>Costo</th>
+                  <th style={{ ...styles.compactTh, textAlign: "right" }}>Precio actual</th>
+                  <th style={styles.compactTh}>Categorias</th>
                 </tr>
               </thead>
               <tbody>
@@ -856,8 +995,8 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                 {!availableLoading &&
                   !availableError &&
                   filteredAvailableProducts.map((product) => (
-                    <tr key={product.id}>
-                      <td style={{ ...ui.td, textAlign: "center" }}>
+                    <tr key={product.id} style={styles.compactTableRow}>
+                      <td style={styles.compactCheckboxCell}>
                         <input
                           type="checkbox"
                           checked={manualSelectedIds.has(product.id)}
@@ -865,16 +1004,16 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                           style={styles.checkbox}
                         />
                       </td>
-                      <td style={styles.codeCell}>{product.sku}</td>
-                      <td style={{ ...ui.td, whiteSpace: "normal", color: "var(--text)", fontWeight: 700 }}>
+                      <td style={styles.compactCodeCell}>{product.sku}</td>
+                      <td style={styles.compactProductCell}>
                         {product.name}
-                        {product.barcode && <div style={styles.mutedSmall}>{product.barcode}</div>}
+                        {product.barcode && <div style={styles.compactProductMeta}>{product.barcode}</div>}
                       </td>
-                      <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{moneyExact(Number(product.costPrice))}</td>
-                      <td style={{ ...ui.td, textAlign: "right", fontWeight: 800, color: "var(--text)" }}>
+                      <td style={{ ...styles.compactMoneyCell, fontWeight: 700 }}>{moneyExact(Number(product.costPrice))}</td>
+                      <td style={{ ...styles.compactMoneyCell, fontWeight: 800, color: "var(--text)" }}>
                         {moneyExact(Number(product.sellPrice))}
                       </td>
-                      <td style={{ ...ui.td, whiteSpace: "normal" }}>{buildCategoryText(product)}</td>
+                      <td style={styles.compactCategoryCell}>{buildCategoryText(product)}</td>
                     </tr>
                   ))}
               </tbody>
@@ -885,9 +1024,110 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     );
   };
 
+  const renderCategoryScopeOptions = () => {
+    if (!isCategoryScope(scope)) return null;
+
+    return (
+      <div style={styles.scopeOptionControls}>
+        <div style={{ ...styles.scopeOptionField, ...(filtersStacked ? styles.scopeOptionFieldFull : {}) }}>
+          <label style={ui.fieldLabel}>Division</label>
+          <select
+            style={styles.scopeSelectInput}
+            value={scopeDivisionId}
+            onChange={(event) => changeScopeDivision(event.target.value)}
+            disabled={categoriesLoading}
+          >
+            <option value="">{categoriesLoading ? "Cargando divisiones..." : "Selecciona una division"}</option>
+            {scopeDivisionOptions.map((division) => {
+              const label = formatCategoryOptionLabel(division);
+              return (
+                <option key={division.id} value={division.id} title={label}>
+                  {label}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+
+        {(scope === "DEPARTMENT" || scope === "CATEGORY") && (
+          <div style={{ ...styles.scopeOptionField, ...(filtersStacked ? styles.scopeOptionFieldFull : {}) }}>
+            <label style={ui.fieldLabel}>Departamento</label>
+            <select
+              style={styles.scopeSelectInput}
+              value={scopeDepartmentId}
+              onChange={(event) => changeScopeDepartment(event.target.value)}
+              disabled={categoriesLoading || !scopeDivisionId}
+            >
+              <option value="">
+                {!scopeDivisionId
+                  ? "Selecciona una division primero"
+                  : categoriesLoading
+                    ? "Cargando departamentos..."
+                    : "Selecciona un departamento"}
+              </option>
+              {scopeDepartmentOptions.map((department) => {
+                const label = formatCategoryOptionLabel(department);
+                return (
+                  <option key={department.id} value={department.id} title={label}>
+                    {label}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+        )}
+
+        {scope === "CATEGORY" && (
+          <div style={{ ...styles.scopeOptionField, ...(filtersStacked ? styles.scopeOptionFieldFull : {}) }}>
+            <label style={ui.fieldLabel}>Categoria</label>
+            <select
+              style={styles.scopeSelectInput}
+              value={categoryId}
+              onChange={(event) => changeScopeCategory(event.target.value)}
+              disabled={categoriesLoading || !scopeDepartmentId}
+            >
+              <option value="">
+                {!scopeDepartmentId
+                  ? "Selecciona un departamento primero"
+                  : categoriesLoading
+                    ? "Cargando categorias..."
+                    : "Selecciona una categoria"}
+              </option>
+              {scopeCategoryOptions.map((category) => {
+                const label = formatCategoryOptionLabel(category);
+                return (
+                  <option key={category.id} value={category.id} title={label}>
+                    {label}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+        )}
+
+        {selectedScopeCategory && <p style={styles.scopeSelectionHint}>Codigo: {selectedScopeCategory.code}</p>}
+        {resolveLoading && <p style={styles.scopeLoadingText}>Cargando productos...</p>}
+        {categoryError && <p style={{ ...styles.scopeSelectionHint, ...styles.fieldError }}>{categoryError}</p>}
+      </div>
+    );
+  };
+
+  const renderScopeOptions = () => (
+    <div style={styles.scopeOptions}>
+      {scope === "SELECTED_PRODUCTS" && renderManualProductPicker()}
+      {renderCategoryScopeOptions()}
+      {scope === "UNCATEGORIZED" && (
+        <div style={styles.scopeUncategorizedOptions}>
+          <InlineAlert tone="info">Se buscaran productos activos sin registros en categorias.</InlineAlert>
+          {resolveLoading && <p style={styles.scopeLoadingText}>Cargando productos...</p>}
+        </div>
+      )}
+    </div>
+  );
+
   const renderResolvedProductsTable = () => (
-    <div style={styles.subsection}>
-      <div style={styles.subsectionHeader}>
+    <div style={styles.panel}>
+      <div style={styles.groupedSectionHeader}>
         <div>
           <h3 style={styles.subsectionTitle}>Productos del ajuste</h3>
           <p style={styles.helpText}>Estos son los productos que recibirán el cambio de precio.</p>
@@ -916,7 +1156,8 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
           {resolveError && <InlineAlert tone="error">{resolveError}</InlineAlert>}
           {!resolveLoading && filteredResolvedProducts.length === 0 && (
             <div style={{ textAlign: "center", padding: 16, color: "var(--text-muted)", fontSize: 13 }}>
-              {resolvedProducts.length === 0 ? "Busca productos para comenzar." : "No hay productos cargados con esa búsqueda."}
+              <strong style={{ display: "block", marginBottom: 4, color: "var(--text-secondary)" }}>{resolvedEmptyState.title}</strong>
+              <span>{resolvedEmptyState.text}</span>
             </div>
           )}
           {!resolveLoading && filteredResolvedProducts.map((product) => (
@@ -960,7 +1201,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      removeResolvedProduct(product.id);
+                      removeResolvedProduct(product);
                     }}
                     title="Quitar"
                   >
@@ -991,11 +1232,22 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
           ))}
         </div>
       ) : (
-        <div style={{ ...ui.tableWrap, maxHeight: 390, overflowY: "auto" }}>
-          <table style={{ ...ui.table, minWidth: 980 }}>
+        <div style={styles.adjustTableWrap}>
+          <table style={styles.selectedProductsTable}>
+            <colgroup>
+              <col style={styles.selectedSelectColumn} />
+              <col style={styles.selectedSkuColumn} />
+              <col style={styles.selectedBarcodeColumn} />
+              <col style={styles.selectedProductColumn} />
+              <col style={styles.selectedCostColumn} />
+              <col style={styles.selectedPriceColumn} />
+              <col style={styles.selectedCategoryColumn} />
+              <col style={styles.selectedStatusColumn} />
+              <col style={styles.selectedActionsColumn} />
+            </colgroup>
             <thead>
               <tr style={ui.theadRow}>
-                <th style={{ ...ui.th, width: 44, textAlign: "center" }}>
+                <th style={styles.compactCheckboxHeaderCell}>
                   <input
                     type="checkbox"
                     checked={allVisibleResolvedSelected}
@@ -1004,14 +1256,14 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                     style={styles.checkbox}
                   />
                 </th>
-                <th style={ui.th}>SKU</th>
-                <th style={ui.th}>Codigo de barras</th>
-                <th style={ui.th}>Producto</th>
-                <th style={{ ...ui.th, textAlign: "right" }}>Costo</th>
-                <th style={{ ...ui.th, textAlign: "right" }}>Precio actual</th>
-                <th style={ui.th}>Categorias</th>
-                <th style={{ ...ui.th, textAlign: "center" }}>Estado</th>
-                <th style={{ ...ui.th, textAlign: "center" }}>Acciones</th>
+                <th style={styles.compactTh}>SKU</th>
+                <th style={styles.compactTh}>Codigo de barras</th>
+                <th style={styles.compactTh}>Producto</th>
+                <th style={{ ...styles.compactTh, textAlign: "right" }}>Costo</th>
+                <th style={{ ...styles.compactTh, textAlign: "right" }}>Precio actual</th>
+                <th style={styles.compactTh}>Categorias</th>
+                <th style={{ ...styles.compactTh, textAlign: "center" }}>Estado</th>
+                <th style={{ ...styles.compactTh, textAlign: "center" }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -1019,17 +1271,23 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                 colSpan={9}
                 loading={resolveLoading}
                 error={resolveError}
-                empty={!resolveLoading && filteredResolvedProducts.length === 0}
-                emptyText={
-                  resolvedProducts.length === 0
-                    ? "Busca productos para comenzar."
-                    : "No hay productos cargados con esa busqueda."
-                }
+                empty={false}
               />
+              {!resolveLoading && !resolveError && filteredResolvedProducts.length === 0 && (
+                <tr>
+                  <td colSpan={9} style={styles.compactEmptyCell}>
+                    <strong style={styles.compactEmptyTitle}>{resolvedEmptyState.title}</strong>
+                    <div style={styles.compactEmptyText}>{resolvedEmptyState.text}</div>
+                  </td>
+                </tr>
+              )}
               {!resolveLoading &&
                 filteredResolvedProducts.map((product) => (
-                  <tr key={product.id} style={selectedProductIds.has(product.id) ? styles.selectedRow : undefined}>
-                    <td style={{ ...ui.td, textAlign: "center" }}>
+                  <tr
+                    key={product.id}
+                    style={selectedProductIds.has(product.id) ? { ...styles.compactTableRow, ...styles.selectedRow } : styles.compactTableRow}
+                  >
+                    <td style={styles.compactCheckboxCell}>
                       <input
                         type="checkbox"
                         checked={selectedProductIds.has(product.id)}
@@ -1037,22 +1295,22 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                         style={styles.checkbox}
                       />
                     </td>
-                    <td style={styles.codeCell}>{product.sku}</td>
-                    <td style={ui.td}>{product.barcode || "-"}</td>
-                    <td style={{ ...ui.td, whiteSpace: "normal", color: "var(--text)", fontWeight: 700 }}>{product.name}</td>
-                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 700 }}>{moneyExact(Number(product.costPrice))}</td>
-                    <td style={{ ...ui.td, textAlign: "right", fontWeight: 800, color: "var(--text)" }}>
+                    <td style={styles.compactCodeCell}>{product.sku}</td>
+                    <td style={styles.compactBarcodeCell}>{product.barcode || "-"}</td>
+                    <td style={styles.compactProductCell}>{product.name}</td>
+                    <td style={{ ...styles.compactMoneyCell, fontWeight: 700 }}>{moneyExact(Number(product.costPrice))}</td>
+                    <td style={{ ...styles.compactMoneyCell, fontWeight: 800, color: "var(--text)" }}>
                       {moneyExact(Number(product.sellPrice))}
                     </td>
-                    <td style={{ ...ui.td, whiteSpace: "normal" }}>{buildCategoryText(product)}</td>
-                    <td style={{ ...ui.td, textAlign: "center" }}>
+                    <td style={styles.compactCategoryCell}>{buildCategoryText(product)}</td>
+                    <td style={styles.compactStatusCell}>
                       <Badge tone={product.active ? "green" : "red"}>{product.active ? "Activo" : "Inactivo"}</Badge>
                     </td>
-                    <td style={{ ...ui.td, textAlign: "center" }}>
+                    <td style={styles.compactActionCell}>
                       <button
                         type="button"
                         style={ui.linkBtn}
-                        onClick={() => removeResolvedProduct(product.id)}
+                        onClick={() => removeResolvedProduct(product)}
                       >
                         <X size={14} style={{ verticalAlign: "-2px", color: "#b91c1c" }} />
                         <span style={{ color: "#b91c1c", marginLeft: 4 }}>Quitar</span>
@@ -1075,7 +1333,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
         <div style={ui.kpiGrid}>
           <Kpi label="Productos afectados" value={preview.affectedCount} icon={<PackageSearch size={17} />} />
           <Kpi label="Debajo del costo" value={preview.belowCostCount} icon={<AlertTriangle size={17} />} />
-          <Kpi label="Requiere motivo" value={preview.requiresReason ? "Si" : "No"} icon={<Tags size={17} />} />
+          <Kpi label="Motivo obligatorio" value="Si" icon={<Tags size={17} />} />
           <Kpi
             label="Confirmacion bajo costo"
             value={preview.requiresBelowCostConfirmation ? "Si" : "No"}
@@ -1086,10 +1344,6 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
         {preview.requiresBelowCostConfirmation && (
           <InlineAlert tone="error">Hay productos que quedaran por debajo de su costo. Se requiere confirmacion explicita.</InlineAlert>
         )}
-        {preview.requiresReason && (
-          <InlineAlert tone="warning">Este ajuste requiere un motivo antes de aplicarse.</InlineAlert>
-        )}
-
         {isMobile ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16, maxHeight: 390, overflowY: "auto", padding: "4px 2px" }}>
             {preview.products.map((product) => {
@@ -1225,22 +1479,23 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
         )}
 
         <div style={styles.confirmationGrid}>
-          {preview.requiresReason && (
-            <div>
-              <label style={ui.fieldLabel}>Motivo del ajuste *</label>
-              <textarea
-                style={{ ...ui.input, minHeight: 84, resize: "vertical" }}
-                value={notes}
-                onChange={(event) => {
-                  setNotes(event.target.value);
-                  setApplyError(null);
-                }}
-                maxLength={500}
-                placeholder="Describe el motivo del ajuste"
-              />
-              {notesError && <p style={styles.fieldError}>{notesError}</p>}
+          <div>
+            <label style={ui.fieldLabel}>Motivo del ajuste *</label>
+            <textarea
+              style={{ ...ui.input, minHeight: 84, resize: "vertical" }}
+              value={notes}
+              onChange={(event) => {
+                setNotes(event.target.value);
+                setApplyError(null);
+              }}
+              maxLength={500}
+              placeholder="Describe el motivo del ajuste"
+            />
+            <div style={styles.fieldFooter}>
+              {notesError ? <p style={styles.fieldErrorInline}>{notesError}</p> : <span />}
+              <span>{notes.length} / 500 caracteres</span>
             </div>
-          )}
+          </div>
 
           {preview.requiresBelowCostConfirmation && (
             <label style={styles.checkRow}>
@@ -1278,21 +1533,10 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   };
 
   const renderAdjustTab = () => (
-    <div style={styles.stack}>
+    <div style={styles.adjustStack}>
       <div style={styles.panel}>
-        <div
-          style={{
-            ...styles.scopeFilterGrid,
-            gridTemplateColumns: filtersStacked
-              ? "1fr"
-              : isCategoryScope(scope)
-                ? filtersTwoColumn
-                  ? "minmax(0, 1fr) minmax(0, 1fr)"
-                  : "minmax(220px, 0.85fr) minmax(320px, 1.15fr) max-content"
-                : "minmax(220px, 320px) max-content",
-          }}
-        >
-          <div style={styles.filterField}>
+        <div style={styles.scopeSection}>
+          <div style={{ ...styles.scopeSelectField, ...(filtersStacked ? styles.scopeSelectFieldFull : {}) }}>
             <label style={ui.fieldLabel}>Alcance</label>
             <select style={ui.input} value={scope} onChange={(event) => changeScope(event.target.value as PriceAdjustmentScope)}>
               {scopeOptions.map((option) => (
@@ -1302,67 +1546,14 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
               ))}
             </select>
           </div>
-
-          {isCategoryScope(scope) && (
-            <div style={styles.filterField}>
-              <label style={ui.fieldLabel}>{scopeLabel(scope)}</label>
-              <select
-                style={ui.input}
-                value={categoryId}
-                onChange={(event) => {
-                  setCategoryId(event.target.value);
-                  resetResolvedProducts();
-                }}
-                disabled={categoriesLoading}
-              >
-                <option value="">{categoriesLoading ? "Cargando categorias..." : "Selecciona una categoria"}</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.pathLabel || `${category.code} ${category.name}`}
-                  </option>
-                ))}
-              </select>
-              {selectedScopeCategory && <p style={styles.helpText}>Codigo: {selectedScopeCategory.code}</p>}
-              {categoryError && <p style={styles.fieldError}>{categoryError}</p>}
-            </div>
-          )}
-
-          {scope !== "SELECTED_PRODUCTS" && (
-            <div
-              style={{
-                ...styles.filterActionCell,
-                ...((isCategoryScope(scope) && filtersTwoColumn && !filtersStacked) ? styles.filterActionCellWide : {}),
-                ...(filtersStacked ? styles.filterActionCellStacked : {}),
-              }}
-            >
-              <button
-                type="button"
-                style={{
-                  ...ui.primaryBtn,
-                  ...styles.filterSearchButton,
-                  ...(filtersStacked ? styles.filterSearchButtonFull : {}),
-                  opacity: resolveLoading ? 0.7 : 1,
-                }}
-                onClick={resolveProducts}
-                disabled={resolveLoading}
-              >
-                {resolveLoading ? <Loader2 size={16} /> : <Search size={16} />}
-                Buscar productos
-              </button>
-            </div>
-          )}
+          {renderScopeOptions()}
         </div>
-
-        {scope === "UNCATEGORIZED" && (
-          <InlineAlert tone="info">Se buscaran productos activos sin registros en categorias.</InlineAlert>
-        )}
-        {renderManualProductPicker()}
       </div>
 
       {renderResolvedProductsTable()}
 
       <div style={styles.panel}>
-        <div style={styles.subsectionHeader}>
+        <div style={styles.groupedSectionHeader}>
           <div>
             <h3 style={styles.subsectionTitle}>Configurar ajuste</h3>
             <p style={styles.helpText}>La vista previa recalcula precios desde el backend antes de aplicar cambios.</p>
@@ -1371,8 +1562,15 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
             {selectedProductIds.size} producto{selectedProductIds.size === 1 ? "" : "s"}
           </span>
         </div>
-        <div style={styles.formGrid}>
-          <div>
+        <div
+          style={{
+            ...styles.adjustFormGrid,
+            gridTemplateColumns: filtersStacked
+              ? "1fr"
+              : "minmax(240px, 1fr) minmax(240px, 1fr)",
+          }}
+        >
+          <div style={styles.adjustFieldGroup}>
             <label style={ui.fieldLabel}>Operacion</label>
             <select style={ui.input} value={operation} onChange={(event) => changeOperation(event.target.value as PriceAdjustmentOperation)}>
               {operationOptions.map((option) => (
@@ -1381,39 +1579,37 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                 </option>
               ))}
             </select>
+            <div style={styles.adjustFieldMessage} aria-hidden="true" />
           </div>
-          <div>
+          <div style={styles.adjustFieldGroup}>
             <label style={ui.fieldLabel}>Valor</label>
             <div style={styles.valueInputWrap}>
               <span style={styles.valuePrefix}>
                 {operation === "PERCENT_INCREASE" || operation === "PERCENT_DECREASE" ? <Percent size={15} /> : <DollarSign size={15} />}
               </span>
               <input
-                style={{ ...ui.input, paddingLeft: 42 }}
+                id="price-adjustment-value"
+                aria-invalid={Boolean(valueError)}
+                aria-describedby={valueError ? "price-adjustment-value-error" : undefined}
+                style={styles.valueInput}
                 value={adjustmentValue}
                 onChange={(event) => changeAdjustmentValue(event.target.value)}
                 inputMode="decimal"
                 placeholder={operation === "PERCENT_INCREASE" || operation === "PERCENT_DECREASE" ? "10" : "25.00"}
               />
             </div>
-            {valueError && <p style={styles.fieldError}>{valueError}</p>}
+            <div style={styles.adjustFieldMessage}>
+              {valueError && (
+                <p id="price-adjustment-value-error" style={styles.adjustFieldError}>
+                  {valueError}
+                </p>
+              )}
+            </div>
           </div>
-          <div style={styles.formActionCell}>
-            <button
-              type="button"
-              style={{
-                ...ui.primaryBtn,
-                justifyContent: "center",
-                minWidth: 190,
-                opacity: selectedProductIds.size === 0 || previewLoading ? 0.6 : 1,
-              }}
-              onClick={generatePreview}
-              disabled={selectedProductIds.size === 0 || previewLoading}
-            >
-              {previewLoading ? <Loader2 size={16} /> : <Eye size={16} />}
-              Generar vista previa
-            </button>
-          </div>
+        </div>
+        <div style={styles.previewStatusRow} aria-live="polite">
+          {previewLoading && <Loader2 size={14} />}
+          <span>{previewStatusText}</span>
         </div>
         {previewError && <InlineAlert tone="error">{previewError}</InlineAlert>}
         {renderPreviewTable()}
@@ -1577,7 +1773,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                     <td style={{ ...ui.td, textAlign: "right" }}>
                       <Badge tone={adjustment.belowCostCount > 0 ? "red" : "green"}>{adjustment.belowCostCount}</Badge>
                     </td>
-                    <td style={{ ...ui.td, whiteSpace: "normal", maxWidth: 230 }}>{adjustment.notes || "-"}</td>
+                    <td style={{ ...ui.td, whiteSpace: "normal", maxWidth: 230 }}>{adjustment.notes || "Sin motivo registrado"}</td>
                     <td style={{ ...ui.td, textAlign: "center" }}>
                       <button type="button" style={ui.linkBtn} onClick={() => openDetail(adjustment.id)}>
                         <Eye size={14} style={{ verticalAlign: "-2px" }} /> Ver detalle
@@ -1668,9 +1864,8 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <div><strong>Tipo de ajuste:</strong> {operationLabel(operation)}</div>
                 <div><strong>Valor aplicado:</strong> {formatAdjustmentValue(operation, Number(adjustmentValue))}</div>
                 <div><strong>Debajo de costo:</strong> {preview.belowCostCount}</div>
-                <div><strong>Motivo:</strong> {notes.trim() || "Sin motivo capturado"}</div>
+                <div><strong>Motivo:</strong> {notes.trim()}</div>
               </div>
-              <InlineAlert tone="warning">Esta accion actualizara Product.sellPrice y guardara historial. No modifica costos.</InlineAlert>
               <div style={styles.footerActions}>
                 <button type="button" style={ui.ghostBtn} onClick={() => setConfirmApplyOpen(false)} disabled={applying}>
                   Cancelar
@@ -1712,7 +1907,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                       <div><strong>Direccion:</strong> {detail.direction}</div>
                       <div><strong>Valor:</strong> {formatStoredAdjustmentValue(detail.type, detail.value)}</div>
                       <div><strong>Productos afectados:</strong> {detail.affectedRows}</div>
-                      <div><strong>Motivo:</strong> {detail.notes || "-"}</div>
+                      <div><strong>Motivo:</strong> {detail.notes || "Sin motivo registrado"}</div>
                     </div>
                   </div>
                 </div>
@@ -1881,63 +2076,120 @@ const styles: { [key: string]: React.CSSProperties } = {
     flexDirection: "column",
     gap: 16,
   },
+  adjustStack: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 18,
+    width: "100%",
+    maxWidth: 1280,
+  },
   panel: {
     ...ui.panel,
     padding: 18,
   },
-  formGrid: {
+  adjustFormGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
     gap: 14,
-    alignItems: "end",
-  },
-  scopeFilterGrid: {
-    display: "grid",
-    gap: "12px 18px",
     alignItems: "start",
   },
-  filterField: {
+  adjustFieldGroup: {
+    display: "flex",
+    flexDirection: "column",
     minWidth: 0,
-    width: "100%",
   },
-  filterActionCell: {
+  adjustFieldMessage: {
+    minHeight: 19,
+    marginTop: 5,
     display: "flex",
     alignItems: "flex-start",
-    justifyContent: "flex-start",
+  },
+  adjustFieldError: {
+    color: "#b91c1c",
+    fontSize: 12,
+    fontWeight: 700,
+    lineHeight: 1.25,
+    margin: 0,
+  },
+  scopeSection: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+    width: "100%",
+  },
+  scopeSelectField: {
+    width: "100%",
+    maxWidth: 340,
+  },
+  scopeSelectFieldFull: {
+    maxWidth: "100%",
+  },
+  scopeSelectInput: {
+    ...ui.input,
+    width: "100%",
+    maxWidth: "100%",
     minWidth: 0,
-    paddingTop: 28,
-  },
-  filterActionCellWide: {
-    gridColumn: "1 / -1",
-    paddingTop: 0,
-  },
-  filterActionCellStacked: {
-    paddingTop: 0,
-  },
-  filterSearchButton: {
-    justifyContent: "center",
-    minWidth: 190,
+    paddingRight: 36,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
-  filterSearchButtonFull: {
+  scopeOptions: {
+    minHeight: 44,
     width: "100%",
   },
-  formActionCell: {
+  scopeOptionControls: {
     display: "flex",
     alignItems: "flex-end",
-    justifyContent: "flex-start",
-    minHeight: 64,
+    gap: 12,
+    flexWrap: "wrap",
+    width: "100%",
   },
-  subsection: {
-    marginTop: 16,
+  scopeOptionField: {
+    flex: "1 1 230px",
+    minWidth: 0,
+    maxWidth: 340,
   },
-  subsectionHeader: {
+  scopeOptionFieldFull: {
+    flexBasis: "100%",
+    maxWidth: "100%",
+  },
+  scopeSelectionHint: {
+    flexBasis: "100%",
+    margin: "0",
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  scopeUncategorizedOptions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  scopeLoadingText: {
+    margin: 0,
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 800,
+  },
+  manualPickerSection: {
+    marginTop: 14,
+  },
+  groupedSectionHeader: {
     display: "flex",
     alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 14,
+    justifyContent: "flex-start",
+    gap: 12,
     flexWrap: "wrap",
     marginBottom: 12,
+  },
+  manualPickerHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "flex-start",
+    gap: 12,
+    flexWrap: "wrap",
+    marginBottom: 9,
   },
   subsectionTitle: {
     margin: 0,
@@ -1969,6 +2221,197 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: 8,
     flexWrap: "wrap",
   },
+  manualPickerToolbar: {
+    ...ui.toolbar,
+    gap: 8,
+    marginBottom: 10,
+  },
+  manualPickerCounter: {
+    display: "inline-flex",
+    alignItems: "center",
+    height: 30,
+    padding: "0 10px",
+    borderRadius: 999,
+    backgroundColor: "var(--surface-2)",
+    border: "1px solid var(--border)",
+    color: "var(--text-secondary)",
+    fontSize: 12,
+    fontWeight: 800,
+  },
+  adjustTableWrap: {
+    ...ui.tableWrap,
+    width: "100%",
+    maxWidth: "100%",
+    maxHeight: 340,
+    overflowX: "auto",
+    overflowY: "auto",
+  },
+  availableProductsTable: {
+    ...ui.table,
+    width: "100%",
+    minWidth: 920,
+    tableLayout: "fixed",
+  },
+  availableSelectColumn: {
+    width: 44,
+  },
+  availableSkuColumn: {
+    width: 108,
+  },
+  availableProductColumn: {
+    width: "35%",
+  },
+  availableCostColumn: {
+    width: 104,
+  },
+  availablePriceColumn: {
+    width: 120,
+  },
+  availableCategoryColumn: {
+    width: "25%",
+  },
+  selectedProductsTable: {
+    ...ui.table,
+    width: "100%",
+    minWidth: 1120,
+    tableLayout: "fixed",
+  },
+  selectedSelectColumn: {
+    width: 44,
+  },
+  selectedSkuColumn: {
+    width: 92,
+  },
+  selectedBarcodeColumn: {
+    width: 130,
+  },
+  selectedProductColumn: {
+    width: "25%",
+  },
+  selectedCostColumn: {
+    width: 104,
+  },
+  selectedPriceColumn: {
+    width: 120,
+  },
+  selectedCategoryColumn: {
+    width: "19%",
+  },
+  selectedStatusColumn: {
+    width: 86,
+  },
+  selectedActionsColumn: {
+    width: 86,
+  },
+  compactTableRow: {
+    minHeight: 42,
+  },
+  compactTh: {
+    ...ui.th,
+    padding: "8px 12px",
+    verticalAlign: "middle",
+  },
+  compactMoneyCell: {
+    ...ui.td,
+    padding: "8px 12px",
+    textAlign: "right",
+    verticalAlign: "middle",
+    lineHeight: 1.25,
+  },
+  compactCategoryCell: {
+    ...ui.td,
+    padding: "8px 12px",
+    whiteSpace: "normal",
+    verticalAlign: "middle",
+    lineHeight: 1.25,
+    overflowWrap: "break-word",
+  },
+  compactCheckboxHeaderCell: {
+    ...ui.th,
+    width: 44,
+    padding: "8px",
+    textAlign: "center",
+    verticalAlign: "middle",
+  },
+  compactCheckboxCell: {
+    ...ui.td,
+    width: 44,
+    padding: "8px",
+    textAlign: "center",
+    verticalAlign: "middle",
+    lineHeight: 1,
+  },
+  compactCodeCell: {
+    ...ui.td,
+    padding: "8px 12px",
+    verticalAlign: "middle",
+    lineHeight: 1.25,
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    fontSize: 12,
+    color: "var(--text-muted)",
+  },
+  compactBarcodeCell: {
+    ...ui.td,
+    padding: "8px 12px",
+    verticalAlign: "middle",
+    lineHeight: 1.25,
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    fontSize: 12,
+    color: "var(--text-muted)",
+    overflowWrap: "break-word",
+    whiteSpace: "normal",
+  },
+  compactProductCell: {
+    ...ui.td,
+    padding: "8px 12px",
+    whiteSpace: "normal",
+    verticalAlign: "middle",
+    color: "var(--text)",
+    fontWeight: 700,
+    lineHeight: 1.2,
+    overflowWrap: "break-word",
+  },
+  compactProductMeta: {
+    color: "var(--text-faint)",
+    fontSize: 11,
+    fontWeight: 600,
+    marginTop: 1,
+    lineHeight: 1.15,
+  },
+  compactStatusCell: {
+    ...ui.td,
+    padding: "8px 12px",
+    textAlign: "center",
+    verticalAlign: "middle",
+    lineHeight: 1.25,
+  },
+  compactActionCell: {
+    ...ui.td,
+    padding: "8px 12px",
+    textAlign: "center",
+    verticalAlign: "middle",
+    lineHeight: 1.25,
+  },
+  compactEmptyCell: {
+    textAlign: "center",
+    padding: "24px 16px",
+    color: "var(--text-muted)",
+    fontSize: 13,
+    fontWeight: 600,
+    borderBottom: "1px solid var(--border-soft)",
+  },
+  compactEmptyTitle: {
+    display: "block",
+    color: "var(--text-secondary)",
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  compactEmptyText: {
+    marginTop: 4,
+    color: "var(--text-faint)",
+    fontSize: 12,
+    fontWeight: 600,
+  },
   checkbox: {
     width: 16,
     height: 16,
@@ -1998,6 +2441,11 @@ const styles: { [key: string]: React.CSSProperties } = {
   valueInputWrap: {
     position: "relative",
   },
+  valueInput: {
+    ...ui.input,
+    width: "100%",
+    paddingLeft: 38,
+  },
   valuePrefix: {
     position: "absolute",
     left: 12,
@@ -2008,11 +2456,37 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: "center",
     zIndex: 1,
   },
+  previewStatusRow: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    width: "100%",
+    marginTop: 4,
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 800,
+  },
   fieldError: {
     color: "#b91c1c",
     fontSize: 12,
     fontWeight: 700,
     marginTop: 5,
+  },
+  fieldErrorInline: {
+    color: "#b91c1c",
+    fontSize: 12,
+    fontWeight: 700,
+    margin: 0,
+  },
+  fieldFooter: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginTop: 5,
+    color: "var(--text-faint)",
+    fontSize: 12,
+    fontWeight: 700,
   },
   inlineAlert: {
     border: "1px solid",

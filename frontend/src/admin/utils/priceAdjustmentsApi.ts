@@ -32,7 +32,7 @@ interface PreviewPayload {
 export interface ApplyPriceAdjustmentPayload extends PreviewPayload {
   scope: PriceAdjustmentScope;
   categoryId?: number;
-  notes?: string;
+  notes: string;
   confirmBelowCost?: boolean;
 }
 

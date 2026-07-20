@@ -2092,8 +2092,8 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
       setSaveError("Genera la vista previa antes de aplicar el ajuste.");
       return;
     }
-    if (pricePreview.requiresReason && !priceNotes.trim()) {
-      setSaveError("El motivo es obligatorio para este ajuste.");
+    if (!priceNotes.trim()) {
+      setSaveError("El motivo del ajuste es obligatorio.");
       return;
     }
     if (pricePreview.requiresBelowCostConfirmation && !priceConfirmBelowCost) {
@@ -2119,7 +2119,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
       operation: "SET_EXACT",
       value: priceValue.value,
       productIds: [selectedProduct.id],
-      notes: priceNotes.trim() || undefined,
+      notes: priceNotes.trim(),
       confirmBelowCost: priceConfirmBelowCost,
     };
 
@@ -2371,10 +2371,9 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
   const pricePreviewDifference = pricePreviewProduct
     ? pricePreviewProduct.newSellPrice - pricePreviewProduct.currentSellPrice
     : 0;
-  const pricePreviewRequiresReason = pricePreview?.requiresReason ?? false;
   const pricePreviewRequiresBelowCostConfirmation = pricePreview?.requiresBelowCostConfirmation ?? false;
-  const priceNotesError = pricePreviewRequiresReason && !priceNotes.trim()
-    ? "El motivo es obligatorio para este ajuste."
+  const priceNotesError = pricePreviewProduct && !priceNotes.trim()
+    ? "El motivo del ajuste es obligatorio."
     : null;
   const canApplyPricePreview =
     Boolean(pricePreviewProduct) &&
@@ -2388,7 +2387,7 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
       `Precio nuevo: ${money(pricePreviewProduct.newSellPrice)}`,
       `Diferencia: ${pricePreviewDifference >= 0 ? "+" : "-"}${money(Math.abs(pricePreviewDifference))}`,
       pricePreviewProduct.isBelowCost ? "El precio nuevo queda por debajo del costo." : "",
-      priceNotes.trim() ? `Motivo: ${priceNotes.trim()}` : "",
+      `Motivo: ${priceNotes.trim()}`,
     ].filter(Boolean).join("\n")
     : "";
 
@@ -3033,23 +3032,24 @@ const InventarioView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFi
                                 )}
                               </span>
                             </div>
-                            {pricePreviewRequiresReason && (
-                              <div style={{ marginTop: 12 }}>
-                                <label style={ui.fieldLabel}>Motivo del ajuste *</label>
-                                <textarea
-                                  style={{ ...ui.input, minHeight: 72, resize: "vertical" }}
-                                  value={priceNotes}
-                                  onChange={(event) => {
-                                    setPriceNotes(event.target.value);
-                                    setSaveError(null);
-                                  }}
-                                  maxLength={500}
-                                  placeholder="Describe el motivo del ajuste"
-                                  disabled={priceSaving}
-                                />
-                                {priceNotesError && <p style={styles.fieldError}>{priceNotesError}</p>}
+                            <div style={{ marginTop: 12 }}>
+                              <label style={ui.fieldLabel}>Motivo del ajuste *</label>
+                              <textarea
+                                style={{ ...ui.input, minHeight: 72, resize: "vertical" }}
+                                value={priceNotes}
+                                onChange={(event) => {
+                                  setPriceNotes(event.target.value);
+                                  setSaveError(null);
+                                }}
+                                maxLength={500}
+                                placeholder="Describe el motivo del ajuste"
+                                disabled={priceSaving}
+                              />
+                              <div style={styles.adjustReasonFooter}>
+                                {priceNotesError ? <p style={styles.fieldErrorInline}>{priceNotesError}</p> : <span />}
+                                <span>{priceNotes.length} / 500 caracteres</span>
                               </div>
-                            )}
+                            </div>
                             {pricePreviewRequiresBelowCostConfirmation && (
                               <label style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 12, color: "var(--text-secondary)", fontSize: 12, fontWeight: 700 }}>
                                 <input
@@ -4704,6 +4704,22 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 12,
     fontWeight: 600,
     marginTop: 5,
+  },
+  fieldErrorInline: {
+    color: "var(--color-danger)",
+    fontSize: 12,
+    fontWeight: 600,
+    margin: 0,
+  },
+  adjustReasonFooter: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginTop: 5,
+    color: "var(--text-muted)",
+    fontSize: 12,
+    fontWeight: 700,
   },
   fieldHint: {
     color: "var(--text-muted)",
