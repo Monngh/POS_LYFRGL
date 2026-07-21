@@ -164,7 +164,7 @@ export default function PriceLookupModal({
       footer={footer}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "8px 0" }}>
-        <div style={{ display: "flex", gap: "12px" }}>
+        <div className="pos-price-lookup-search-row">
           {/* Category Dropdown with keyboard navigation */}
           <div style={{ position: "relative", minWidth: "220px" }}>
             <input
@@ -269,6 +269,7 @@ export default function PriceLookupModal({
         </div>
 
 
+
         {lookupResults.length === 0 ? (
           <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-muted)", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
              <Search size={48} style={{ opacity: 0.2 }} />
@@ -276,26 +277,50 @@ export default function PriceLookupModal({
              <p style={{ margin: 0, fontSize: "13px" }}>Busca un producto por código, nombre o escanea el código de barras.</p>
           </div>
         ) : (
-          <div style={{ maxHeight: "240px", overflowX: "auto", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "8px" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--border)", backgroundColor: "var(--surface-2)" }}>
-                  <th style={{ padding: "12px 16px", fontSize: "12px", fontWeight: "600", color: "var(--text-secondary)" }}>Producto</th>
-                  <th style={{ padding: "12px 16px", fontSize: "12px", fontWeight: "600", color: "var(--text-secondary)" }}>Precio</th>
-                  <th style={{ padding: "12px 16px", fontSize: "12px", fontWeight: "600", color: "var(--text-secondary)" }}>Existencia</th>
-                </tr>
-              </thead>
-              <tbody ref={tbodyRef}>
-                    {lookupResults.map((p, idx) => (
-                      <tr key={p.id} style={{ borderBottom: "1px solid var(--border-strong)", backgroundColor: lookupSelectionIndex === idx ? "var(--surface-2)" : "transparent" }} onMouseEnter={() => setLookupSelectionIndex?.(idx)}>
-                        <td style={{ padding: "12px 16px", fontSize: "14px", color: "var(--text)", fontWeight: "500" }}>{p.name}</td>
-                        <td style={{ padding: "12px 16px", fontSize: "14px", color: "var(--text)", fontWeight: "600" }}>${p.sellPrice.toFixed(2)}</td>
-                        <td style={{ padding: "12px 16px", fontSize: "14px", color: "var(--text)" }}>{p.stock}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-            </table>
-          </div>
+          <>
+            {/* Desktop/tablet: tabla clásica */}
+            <div className="pos-price-lookup-table-wrap">
+              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--border)", backgroundColor: "var(--surface-2)" }}>
+                    <th style={{ padding: "12px 16px", fontSize: "12px", fontWeight: "600", color: "var(--text-secondary)" }}>Producto</th>
+                    <th style={{ padding: "12px 16px", fontSize: "12px", fontWeight: "600", color: "var(--text-secondary)" }}>Precio</th>
+                    <th style={{ padding: "12px 16px", fontSize: "12px", fontWeight: "600", color: "var(--text-secondary)" }}>Existencia</th>
+                  </tr>
+                </thead>
+                <tbody ref={tbodyRef}>
+                  {lookupResults.map((p, idx) => (
+                    <tr key={p.id} style={{ borderBottom: "1px solid var(--border-strong)", backgroundColor: lookupSelectionIndex === idx ? "var(--surface-2)" : "transparent" }} onMouseEnter={() => setLookupSelectionIndex?.(idx)}>
+                      <td style={{ padding: "12px 16px", fontSize: "14px", color: "var(--text)", fontWeight: "500" }}>{p.name}</td>
+                      <td style={{ padding: "12px 16px", fontSize: "14px", color: "var(--text)", fontWeight: "600" }}>${p.sellPrice.toFixed(2)}</td>
+                      <td style={{ padding: "12px 16px", fontSize: "14px", color: "var(--text)" }}>{p.stock}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Mobile: cards con scroll vertical */}
+            <div className="pos-price-lookup-cards-wrap">
+              {lookupResults.map((p, idx) => (
+                <div
+                  key={p.id}
+                  className="pos-price-lookup-card"
+                  style={{ backgroundColor: lookupSelectionIndex === idx ? "var(--surface-2)" : "var(--surface)" }}
+                  onMouseEnter={() => setLookupSelectionIndex?.(idx)}
+                >
+                  <div style={{ fontWeight: "700", fontSize: "14px", color: "var(--text)", marginBottom: "6px" }}>{p.name}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>Precio:</span>
+                    <span style={{ fontSize: "16px", fontWeight: "800", color: "#059669" }}>${p.sellPrice.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "4px" }}>
+                    <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>Existencia:</span>
+                    <span style={{ fontSize: "14px", fontWeight: "600", color: p.stock > 0 ? "var(--text)" : "#dc2626" }}>{p.stock}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </PosModal>

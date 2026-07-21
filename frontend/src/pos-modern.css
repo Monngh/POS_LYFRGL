@@ -944,6 +944,17 @@
   margin-top: 2px;
 }
 
+/* Lista de promociones */
+.pos-promotions-list {
+  display: flex;
+  overflow-x: auto;
+  gap: 10px;
+  padding-bottom: 8px;
+  padding-top: 10px;
+  padding-right: 12px;
+}
+
+
 /* Controles de cantidad compactos */
 .pos-qty-control {
   display: inline-flex;
@@ -1266,6 +1277,69 @@
   letter-spacing: 0;
 }
 
+/* Stepper de Pasos en Modales */
+.pos-stepper-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 16px 0;
+  margin-bottom: 24px;
+}
+.pos-stepper-wrapper {
+  display: flex;
+  align-items: center;
+}
+.pos-stepper-circle-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+.pos-stepper-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  background-color: transparent;
+  color: var(--text-muted);
+  border: 2px solid var(--border);
+  transition: all 0.3s;
+}
+.pos-stepper-circle.active {
+  background-color: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+.pos-stepper-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-top: 8px;
+  position: absolute;
+  top: 32px;
+  white-space: nowrap;
+  transition: color 0.3s;
+}
+.pos-stepper-label.active {
+  font-weight: 700;
+  color: #2563eb;
+}
+.pos-stepper-line {
+  height: 2px;
+  width: 80px;
+  background-color: var(--border);
+  margin: 0 12px;
+  transition: background-color 0.3s;
+}
+.pos-stepper-line.active {
+  background-color: #2563eb;
+}
+
 /* ============================================================
    Overlays y estados de carga
    ============================================================ */
@@ -1508,7 +1582,8 @@
 /* ============================================================
    Responsive Overrides
    ============================================================ */
-@media (max-width: 1024px) {
+/* Tablet + Mobile (<1024px): layout stack, compact navbar */
+@media (max-width: 1023px) {
   .pos-main-layout-container {
     flex-direction: column;
   }
@@ -1577,6 +1652,8 @@
     padding: 3px 8px;
   }
   
+  /* En tablet/mobile, ocultar elementos solo de escritorio
+     (los accordions .pos-hide-on-mobile se restauran en el bloque tablet) */
   .hide-on-mobile {
     display: none !important;
   }
@@ -1630,7 +1707,8 @@
 
 }
 
-@media (max-width: 768px) {
+/* Mobile only (<726px) */
+@media (max-width: 725px) {
   .pos-terminal-navbar-left { width: 100%; }
   .pos-terminal-navbar-right { width: 100%; justify-content: flex-start; }
 
@@ -2259,7 +2337,8 @@
    On tablet/mobile the sidebar shows horizontal pills instead
    of square icon-buttons
    ============================================================ */
-@media (max-width: 1024px) {
+/* Sidebar pill layout on tablet/mobile (<1024px) */
+@media (max-width: 1023px) {
   /* The sidebar overlays as a floating panel on tablet/mobile */
   .pos-sales-sidebar {
     position: absolute;
@@ -2321,17 +2400,25 @@
 }
 
 .pos-checkout-mobile-quick-btn {
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 11px;
-  font-weight: 800;
-  cursor: pointer;
-  border: none;
-  transition: all 0.15s ease;
-  flex: 1;
   justify-content: center;
+  gap: 6px;
+  width: 100%;
+  border-radius: 8px;
+  padding: 10px 8px;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.2;
+}
+
+.pos-checkout-mobile-quick-btn svg,
+.pos-checkout-mobile-quick-btn span[style*="fontSize"] {
+  font-size: 16px;
 }
 
 .pos-checkout-mobile-quick-btn.parked {
@@ -2341,10 +2428,11 @@
 }
 
 .pos-checkout-mobile-quick-btn.qr {
-  background: #fef3c7;
+  background: #fffbeb;
   color: #b45309;
   border: 1px solid #fde68a;
 }
+
 
 /* ============================================================
    Mobile List Modal (phone bottom-sheet)
@@ -2408,8 +2496,8 @@
   padding: 12px;
 }
 
-/* Hide mobile modals and mobile elements on desktop */
-@media (min-width: 1025px) {
+/* Hide mobile modals and mobile elements on Desktop (≥1440px) */
+@media (min-width: 1440px) {
   .pos-mobile-list-modal-overlay {
     display: none !important;
   }
@@ -2422,18 +2510,555 @@
   .show-on-mobile {
     display: none !important;
   }
+  /* Hide Promotions action on desktop — it's in the cart area instead */
+  .pos-promotions-sidebar-btn {
+    display: none !important;
+  }
+  /* On desktop: show full center info, hide tablet-only badge */
+  .pos-session-badge-tablet-only {
+    display: none !important;
+  }
+  .pos-navbar-center-full {
+    display: flex;
+    align-items: center;
+  }
 }
 
-/* Show mobile quick btns and hide desktop-only items on mobile/tablet */
-@media (max-width: 1024px) {
+/* On laptop (1024-1439px): also show full center, hide tablet badge */
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .pos-session-badge-tablet-only {
+    display: none !important;
+  }
+  .pos-navbar-center-full {
+    display: flex !important;
+    align-items: center !important;
+  }
+}
+
+/* On tablet/mobile (<1024px): show only the badge, hide full center info */
+@media (max-width: 1023px) {
+  .pos-session-badge-tablet-only {
+    display: inline-flex !important;
+  }
+  .pos-navbar-center-full {
+    display: none !important;
+  }
+}
+
+/* Two-column session modal card responsive */
+@media (max-width: 500px) {
+  .pos-mobile-session-card > div:last-child {
+    flex-direction: column !important;
+  }
+  .pos-mobile-session-card > div:last-child > div:first-child {
+    border-right: none !important;
+    border-bottom: 1px solid var(--pos-border);
+  }
+}
+
+/* Show mobile quick btns only on mobile (<726px) */
+@media (max-width: 725px) {
   .pos-checkout-mobile-quick-btns {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 8px;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 12px !important;
+    margin-bottom: 12px;
+    width: 100%;
   }
 
   .pos-hide-on-mobile,
   .hide-on-mobile {
     display: none !important;
+  }
+
+  /* Permitir scroll vertical en el contenido principal para evitar superposición en celular */
+  .pos-sales-main-content {
+    overflow-y: auto !important;
+    height: calc(100vh - 56px) !important;
+  }
+
+  .pos-main-layout-container {
+    overflow-y: visible !important;
+    height: auto !important;
+    flex: none !important;
+    gap: 16px !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .pos-cart-col {
+    flex: none !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .pos-checkout-col {
+    flex: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    overflow-y: visible !important;
+    padding: 16px 12px 36px 12px !important;
+    box-sizing: border-box !important;
+  }
+
+  .pos-checkout-panel {
+    height: auto !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 16px !important;
+  }
+
+  .pos-totals-col {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 auto !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .pos-action-btns {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    margin-top: 16px !important;
+    width: 100% !important;
+  }
+
+  .pos-btn-checkout {
+    padding: 14px 16px !important;
+    font-size: 15px !important;
+  }
+
+  /* Mostrar promociones 2 en 2 en móvil con scroll vertical */
+  .pos-promotions-list {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    max-height: 200px !important;
+    padding-bottom: 8px !important;
+    padding-top: 6px !important;
+    padding-right: 2px !important;
+  }
+
+  .pos-promotions-list .pos-quick-action-btn {
+    min-width: 0 !important;
+    width: 100% !important;
+    flex-shrink: 1 !important;
+  }
+}
+
+
+
+/* On tablet+laptop range (726px–1439px) hide desktop-only elements but NOT accordions */
+@media (min-width: 726px) and (max-width: 1439px) {
+  .pos-hide-on-desktop {
+    display: none !important;
+  }
+  /* The mobile quick buttons banner cards are hidden — accordions show instead */
+  .pos-checkout-mobile-quick-btns {
+    display: none !important;
+  }
+
+}
+
+/* ============================================================
+   Cart table card layout (726px–1023px)
+   HTML td order: sku | product | qty | price | [discount] | amount | remove
+   Card grid layout:
+     Row 1 (full width): Product name + promo badge
+     Row 2: [SKU]  [Discount]  [Qty control]
+     Row 3: [Price] [Amount]   [Remove btn]
+   ============================================================ */
+@media (min-width: 726px) and (max-width: 1023px) {
+  /* Turn table into block so rows can use grid layout */
+  .pos-cashier-cart-table {
+    display: block;
+  }
+  .pos-cashier-cart-table thead {
+    display: none !important;
+  }
+  .pos-cashier-cart-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 4px 2px;
+  }
+
+  /* Each row becomes a grid card */
+  .pos-cashier-cart-table tbody tr {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr auto;
+    grid-template-rows: auto auto auto;
+    border: 1px solid var(--pos-border, #e2e8f0) !important;
+    border-radius: 8px !important;
+    padding: 10px 12px;
+    gap: 2px 10px;
+    background: var(--pos-surface, #fff);
+    /* Selected highlight via inline borderLeft still works */
+  }
+
+  /* Row 1 full-width: Product name */
+  .pos-cashier-cart-table td.pos-cart-col-product {
+    grid-column: 1 / -1 !important;
+    grid-row: 1 !important;
+    max-width: 100% !important;
+    font-size: 13px !important;
+    padding: 0 0 6px 0 !important;
+    border-bottom: 1px solid var(--pos-border, #e2e8f0);
+    margin-bottom: 4px;
+    white-space: normal !important;
+  }
+
+  /* Col 1, Row 2: SKU */
+  .pos-cashier-cart-table td.pos-cart-col-sku {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+    padding: 2px 0 !important;
+    font-size: 11px !important;
+    color: var(--pos-text-muted, #94a3b8);
+    align-self: start;
+  }
+
+  /* Col 1, Row 3: Unit price */
+  .pos-cashier-cart-table td.pos-cart-col-price {
+    grid-column: 1 !important;
+    grid-row: 3 !important;
+    text-align: left !important;
+    padding: 2px 0 !important;
+    font-size: 12px !important;
+    align-self: start;
+  }
+  .pos-cashier-cart-table td.pos-cart-col-price::before {
+    content: "Unitario ";
+    font-size: 10px;
+    color: var(--pos-text-muted, #94a3b8);
+    font-weight: 600;
+  }
+
+  /* Col 2, Row 2: Discount — centered between col1 and col3 */
+  .pos-cashier-cart-table td.pos-cart-col-discount {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    text-align: center !important;
+    padding: 2px 8px !important;
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    align-self: start;
+  }
+  .pos-cashier-cart-table td.pos-cart-col-discount::before {
+    content: "Dto.";
+    font-size: 10px;
+    color: var(--pos-text-muted, #94a3b8);
+    font-weight: 600;
+    display: block;
+    text-align: center;
+  }
+
+  /* Col 2, Row 3: Amount / Importe — centered */
+  .pos-cashier-cart-table td.pos-cart-col-amount {
+    grid-column: 2 !important;
+    grid-row: 3 !important;
+    text-align: center !important;
+    padding: 2px 8px !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    align-self: start;
+  }
+  .pos-cashier-cart-table td.pos-cart-col-amount::before {
+    content: "Importe ";
+    font-size: 10px;
+    color: var(--pos-text-muted, #94a3b8);
+    font-weight: 600;
+    display: block;
+    text-align: center;
+  }
+
+  /* When no promos (no discount column), amount shifts to col 2 row 2-3 */
+  .pos-cashier-cart-table:not(.has-discounts) td.pos-cart-col-amount {
+    grid-column: 2 !important;
+    grid-row: 2 / 4 !important;
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Col 3, Rows 2-3: Qty control (spans 2 rows) */
+  .pos-cashier-cart-table td.pos-cart-col-qty {
+    grid-column: 3 !important;
+    grid-row: 2 / 4 !important;
+    display: flex !important;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0 !important;
+    text-align: right !important;
+    gap: 6px;
+  }
+
+  /* Col 3, Row 3: Remove button (in same cell as qty, or own row) */
+  .pos-cashier-cart-table td.pos-cart-col-remove {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    display: flex !important;
+    justify-content: flex-end;
+    align-items: flex-start;
+    padding: 0 !important;
+  }
+
+  /* Bigger controls for touch — qty input and remove btn */
+  .pos-cashier-cart-table .pos-qty-control {
+    width: 100%;
+  }
+  .pos-cashier-cart-table .pos-qty-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 17px;
+  }
+  .pos-cashier-cart-table .pos-qty-input {
+    width: 56px;
+    height: 36px;
+    font-size: 15px;
+    font-weight: 800;
+  }
+  .pos-cashier-cart-table .pos-cart-remove-btn {
+    width: 90px;
+    height: 30px;
+    border-radius: 6px;
+    background: var(--pos-red-soft, #fef2f2);
+    color: var(--pos-red, #b91c1c);
+    border: 1px solid rgba(185, 28, 28, 0.2);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .pos-cashier-cart-table .pos-cart-remove-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+
+  /* Empty cart state */
+  .pos-cashier-cart-table tbody tr.pos-cart-empty-row {
+    display: table-row !important;
+    grid-template-columns: unset !important;
+  }
+}
+
+/* ============================================================
+   Tablet Layout (726px–1023px)
+   3-column horizontal checkout: parked | qr-pending | total
+   ============================================================ */
+@media (min-width: 726px) and (max-width: 1023px) {
+  /* NOTE: .pos-hide-on-mobile is naturally visible here (hide rule only applies <726px).
+     We do NOT override display here — the inline styles on accordion wrappers
+     (display:flex) and accordion content (display:grid) must be preserved so the
+     gridTemplateRows collapse animation works correctly when toggling. */
+
+  /* On tablet: always show the center navbar section (cajero + status) */
+  .pos-terminal-navbar-center.hide-on-mobile {
+    display: flex !important;
+  }
+
+  /* On tablet: hide the clock modal button (info is visible in header directly) */
+  .show-on-mobile {
+    display: none !important;
+  }
+
+  /* On tablet: hide the mobile subheader (info is in header already) */
+  .pos-mobile-subheader {
+    display: none !important;
+  }
+
+  /* Compact the navbar-center on tablet so it fits */
+  .pos-terminal-navbar-center {
+    gap: 6px !important;
+    margin-left: 0 !important;
+  }
+  .pos-terminal-user-name {
+    font-size: 11px !important;
+    max-width: 90px !important;
+  }
+  .pos-terminal-session-badge {
+    font-size: 9px !important;
+    padding: 2px 6px !important;
+  }
+
+  /* 3-column checkout layout */
+  .pos-checkout-panel {
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  /* Accordions container: side by side */
+  .pos-checkout-left-col {
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 10px !important;
+    align-items: flex-start !important;
+    min-width: 0 !important;
+  }
+
+  /* Totals fixed width on the right */
+  .pos-totals-col {
+    flex: 0 0 230px !important;
+    min-width: 200px !important;
+    margin-top: 0 !important;
+  }
+
+  /* Hide mobile banner buttons — accordions are shown */
+  .pos-checkout-mobile-quick-btns {
+    display: none !important;
+  }
+
+  /* Compact the total display */
+  .pos-total-display-amount {
+    font-size: 26px !important;
+  }
+  .pos-total-display-label {
+    font-size: 10px !important;
+  }
+  .pos-summary-row {
+    font-size: 12px;
+    margin-bottom: 2px;
+  }
+  .pos-btn-checkout {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+  .pos-btn-cancel,
+  .pos-btn-pause {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  /* The checkout column spans full width in the column layout */
+  .pos-checkout-col {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-y: visible !important;
+    height: auto !important;
+  }
+  .pos-checkout-panel {
+    height: auto !important;
+  }
+}
+
+/* ============================================================
+   Laptop Adjustments (1024px–1439px)
+   Keeps two-column layout like desktop but more compact
+   Promotions button is HIDDEN on laptop and desktop
+   ============================================================ */
+@media (min-width: 1024px) and (max-width: 1439px) {
+  /* Hide Promotions action on laptop */
+  .pos-promotions-sidebar-btn {
+    display: none !important;
+  }
+  .pos-sales-main-content {
+    padding: 10px;
+    gap: 10px;
+  }
+  .pos-main-layout-container {
+    flex-direction: row;
+    gap: 12px;
+  }
+  .pos-cart-col {
+    flex: 1 1 300px;
+    gap: 10px;
+  }
+  .pos-checkout-col {
+    flex: 0 1 280px;
+    padding: 10px;
+    gap: 8px;
+  }
+  /* Compact the search+customer row */
+  .pos-cashier-cart-card {
+    padding: 10px !important;
+    gap: 8px !important;
+  }
+  /* Slightly smaller total display */
+  .pos-total-display-amount {
+    font-size: 28px !important;
+  }
+  .pos-total-display-label {
+    font-size: 10px !important;
+  }
+  /* Compact summary rows */
+  .pos-summary-row {
+    font-size: 12px;
+    margin-bottom: 2px;
+  }
+  /* Compact action buttons */
+  .pos-btn-checkout {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+  .pos-btn-cancel,
+  .pos-btn-pause {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+  /* Checkout panel stays as vertical column on laptop */
+  .pos-checkout-panel {
+    flex-direction: column !important;
+  }
+  .pos-checkout-left-col {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  /* Hide mobile quick buttons on laptop */
+  .pos-checkout-mobile-quick-btns {
+    display: none !important;
+  }
+  /* Keep desktop accordion panels visible */
+  .pos-hide-on-mobile {
+    display: block !important;
+  }
+}
+
+/* ============================================================
+   Mobile Sub-header bar (<1024px)
+   Cajero name + session status below the main header
+   ============================================================ */
+.pos-mobile-subheader {
+  display: none;
+}
+
+/* Mobile sub-header only shows on phone (<726px)
+   On tablet (726-1023px) the center header section shows this info directly */
+@media (max-width: 725px) {
+  .pos-mobile-subheader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 14px;
+    background-color: var(--pos-surface);
+    border-bottom: 1px solid var(--pos-border);
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .pos-mobile-subheader-user {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .pos-mobile-subheader-user-name {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--pos-text);
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }

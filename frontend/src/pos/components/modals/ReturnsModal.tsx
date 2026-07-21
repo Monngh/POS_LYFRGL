@@ -814,7 +814,7 @@ export default function ReturnsModal({
 
                   {/* Controles de cantidad y destino */}
                   {item.selected && (
-                    <div style={{ marginTop: "8px", paddingLeft: "26px", display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+                    <div className="pos-return-controls">
                       <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                         <label style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: "600" }}>Cant:</label>
                         <button
