@@ -740,6 +740,20 @@ model PriceAdjustmentDetail {
 
   createdAt DateTime @default(now())
 
+  // Reversión de ajustes de precio. Estas 3 columnas ya existen en la BD real pero
+  // nunca se declararon en schema.prisma (sin rastro en ningún commit de ninguna rama).
+  // Sin @relation ni FK: la BD real tampoco tiene llave foránea en estos 2 campos int.
+  // reversalSourceDetailId NO lleva @unique: el índice único real en la BD es un índice
+  // FILTRADO (WHERE reversalSourceDetailId IS NOT NULL, permite múltiples NULL), una
+  // característica de SQL Server que Prisma Schema Language no puede expresar — por eso
+  // la propia introspección de `prisma db pull` tampoco lo declara como @unique. El
+  // índice filtrado sigue existiendo y aplicándose en la BD, solo queda "no administrado"
+  // por Prisma (declararlo como @unique haría que Prisma intente crear una restricción
+  // unique distinta, sin el filtro, en vez de reconocer la que ya existe).
+  reversedAt             DateTime?
+  reversedByAdjustmentId Int?
+  reversalSourceDetailId Int?
+
   priceAdjustment PriceAdjustment @relation(fields: [priceAdjustmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   product         Product         @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
