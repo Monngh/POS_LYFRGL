@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client"
 import { prisma } from "../app";
 import { AppError } from "../utils/AppError";
+import { comparePassword } from "../utils/auth";
 
 type PriceAdjustmentScope =
     | "SELECTED_PRODUCTS"
@@ -18,6 +19,55 @@ const validPriceAdjustmentScopes: PriceAdjustmentScope[] = [
 ];
 
 const PRICE_ADJUSTMENT_NOTES_MAX_LENGTH = 500;
+const HISTORY_LIMIT_OPTIONS = [10, 20, 50, 100];
+const PRICE_ADJUSTMENT_REVERSAL_WINDOW_DAYS = 3;
+const REVERSAL_TYPE = "REVERSAL";
+const REVERSAL_DIRECTION = "REVERT";
+
+type ReversalStatus =
+    | "NOT_REVERTED"
+    | "PARTIALLY_REVERTED"
+    | "FULLY_REVERTED"
+    | "REVERSAL";
+
+type ReversalReasonCode =
+    | "ADJUSTMENT_NOT_FOUND"
+    | "ADJUSTMENT_IS_REVERSAL"
+    | "REVERSAL_WINDOW_EXPIRED"
+    | "DETAIL_NOT_FOUND"
+    | "DETAIL_NOT_IN_ADJUSTMENT"
+    | "ALREADY_REVERTED"
+    | "PRODUCT_NOT_FOUND"
+    | "PRODUCT_INACTIVE"
+    | "PRICE_CHANGED"
+    | "INVALID_TARGET_PRICE"
+    | "INCOMPLETE_HISTORY";
+
+export type PriceAdjustmentReversalConflict = {
+    detailId?: number;
+    productId?: number;
+    name?: string;
+    sku?: string;
+    reasonCode: ReversalReasonCode;
+    reason: string;
+    originalNewPrice?: number;
+    currentPrice?: number;
+    targetPrice?: number;
+};
+
+export class PriceAdjustmentReversalConflictError extends Error {
+    public readonly statusCode = 409;
+    public readonly conflicts: PriceAdjustmentReversalConflict[];
+
+    constructor(
+        message: string,
+        conflicts: PriceAdjustmentReversalConflict[]
+    ) {
+        super(message);
+        this.conflicts = conflicts;
+        Object.setPrototypeOf(this, PriceAdjustmentReversalConflictError.prototype);
+    }
+}
 
 const isPriceAdjustmentScope = (
     scope: string
@@ -317,6 +367,14 @@ interface PreviewPriceAdjustmentInput {
 
 const roundToTwoDecimals = (value: Prisma.Decimal) =>
     value.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+
+const toMoney = (value: Prisma.Decimal | number | string) =>
+    roundToTwoDecimals(new Prisma.Decimal(value));
+
+const moneyEquals = (
+    first: Prisma.Decimal | number | string,
+    second: Prisma.Decimal | number | string
+) => toMoney(first).equals(toMoney(second));
 
 const getNewSellPrice = (
     currentSellPrice: Prisma.Decimal,
@@ -665,6 +723,295 @@ const validateAdjustmentNotes = (notes: unknown) => {
     return cleanNotes;
 };
 
+const validateReversalReason = (reason: unknown) => {
+    if (typeof reason !== "string") {
+        throw new AppError("El motivo de la reversión es obligatorio.", 400);
+    }
+
+    const cleanReason = reason.trim();
+
+    if (!cleanReason) {
+        throw new AppError("El motivo de la reversión es obligatorio.", 400);
+    }
+
+    if (cleanReason.length > PRICE_ADJUSTMENT_NOTES_MAX_LENGTH) {
+        throw new AppError(
+            `El motivo de la reversión no puede exceder ${PRICE_ADJUSTMENT_NOTES_MAX_LENGTH} caracteres.`,
+            400
+        );
+    }
+
+    return cleanReason;
+};
+
+type ReversalStatusSource = {
+    type: string;
+    reversalOfId: number | null;
+    details?: Array<{
+        reversedAt: Date | null;
+        reversedByAdjustmentId: number | null;
+    }>;
+    _count?: {
+        details: number;
+    };
+};
+
+type ReversalDetailProduct = {
+    id: number;
+    sku: string;
+    barcode: string | null;
+    name: string;
+    description: string | null;
+    sellPrice: Prisma.Decimal;
+    active: boolean;
+} | null;
+
+type ReversalDetailSource = {
+    id: number;
+    priceAdjustmentId: number;
+    productId: number;
+    oldSellPrice: Prisma.Decimal;
+    newSellPrice: Prisma.Decimal;
+    costPriceAtChange: Prisma.Decimal;
+    isBelowCost: boolean;
+    reversedAt: Date | null;
+    reversedByAdjustmentId: number | null;
+    product: ReversalDetailProduct;
+};
+
+const isReversalAdjustment = (
+    adjustment: Pick<ReversalStatusSource, "type" | "reversalOfId">
+) => adjustment.type === REVERSAL_TYPE || adjustment.reversalOfId !== null;
+
+const getReversalDeadline = (appliedAt: Date) => {
+    const deadline = new Date(appliedAt.getTime());
+    deadline.setDate(deadline.getDate() + PRICE_ADJUSTMENT_REVERSAL_WINDOW_DAYS);
+    return deadline;
+};
+
+const getReversalWindowState = (appliedAt: Date, now = new Date()) => {
+    const deadline = getReversalDeadline(appliedAt);
+    return {
+        deadline,
+        expired: now.getTime() > deadline.getTime(),
+    };
+};
+
+const getReversalStatus = (adjustment: ReversalStatusSource) => {
+    const totalRows = adjustment._count?.details ?? adjustment.details?.length ?? 0;
+    const reversedRows =
+        adjustment.details?.filter(
+            (detail) => detail.reversedAt || detail.reversedByAdjustmentId
+        ).length ?? 0;
+    const isReversal = isReversalAdjustment(adjustment);
+
+    let status: ReversalStatus = "NOT_REVERTED";
+    if (isReversal) {
+        status = "REVERSAL";
+    } else if (totalRows > 0 && reversedRows >= totalRows) {
+        status = "FULLY_REVERTED";
+    } else if (reversedRows > 0) {
+        status = "PARTIALLY_REVERTED";
+    }
+
+    const label =
+        status === "REVERSAL"
+            ? "Ajuste de reversión"
+            : status === "FULLY_REVERTED"
+              ? "Revertido completamente"
+              : status === "PARTIALLY_REVERTED"
+                ? `Revertido parcialmente: ${reversedRows} de ${totalRows} productos`
+                : "No revertido";
+
+    return {
+        status,
+        label,
+        totalRows,
+        reversedRows,
+        reversibleRows: Math.max(totalRows - reversedRows, 0),
+        isReversal,
+    };
+};
+
+const buildReversalConflict = (
+    detail: Partial<ReversalDetailSource>,
+    reasonCode: ReversalReasonCode,
+    reason: string,
+    extra: Partial<PriceAdjustmentReversalConflict> = {}
+): PriceAdjustmentReversalConflict => ({
+    detailId: detail.id,
+    productId: detail.productId,
+    name: detail.product?.name,
+    sku: detail.product?.sku,
+    reasonCode,
+    reason,
+    ...extra,
+});
+
+const getReversalProductEligibility = (
+    adjustment: {
+        type: string;
+        reversalOfId: number | null;
+        appliedAt: Date;
+    },
+    detail: ReversalDetailSource,
+    now = new Date()
+) => {
+    const adjustmentIsReversal = isReversalAdjustment(adjustment);
+    const { expired } = getReversalWindowState(adjustment.appliedAt, now);
+    const conflicts: PriceAdjustmentReversalConflict[] = [];
+
+    if (adjustmentIsReversal) {
+        conflicts.push(
+            buildReversalConflict(
+                detail,
+                "ADJUSTMENT_IS_REVERSAL",
+                "Los ajustes de reversión no pueden revertirse."
+            )
+        );
+    }
+
+    if (expired) {
+        conflicts.push(
+            buildReversalConflict(
+                detail,
+                "REVERSAL_WINDOW_EXPIRED",
+                "El plazo de 3 días para revertir este ajuste ha vencido."
+            )
+        );
+    }
+
+    if (detail.reversedAt || detail.reversedByAdjustmentId) {
+        conflicts.push(
+            buildReversalConflict(
+                detail,
+                "ALREADY_REVERTED",
+                "Este producto ya fue revertido."
+            )
+        );
+    }
+
+    if (!detail.product) {
+        conflicts.push(
+            buildReversalConflict(
+                detail,
+                "PRODUCT_NOT_FOUND",
+                "El producto ya no existe."
+            )
+        );
+    } else {
+        if (!detail.product.active) {
+            conflicts.push(
+                buildReversalConflict(
+                    detail,
+                    "PRODUCT_INACTIVE",
+                    "No disponible: el producto está inactivo."
+                )
+            );
+        }
+
+        if (!moneyEquals(detail.product.sellPrice, detail.newSellPrice)) {
+            conflicts.push(
+                buildReversalConflict(
+                    detail,
+                    "PRICE_CHANGED",
+                    "No disponible: el precio actual fue modificado después del ajuste.",
+                    {
+                        originalNewPrice: Number(detail.newSellPrice),
+                        currentPrice: Number(detail.product.sellPrice),
+                    }
+                )
+            );
+        }
+    }
+
+    if (
+        !detail.oldSellPrice ||
+        !detail.newSellPrice ||
+        !detail.costPriceAtChange
+    ) {
+        conflicts.push(
+            buildReversalConflict(
+                detail,
+                "INCOMPLETE_HISTORY",
+                "El registro histórico está incompleto."
+            )
+        );
+    } else if (toMoney(detail.oldSellPrice).lessThanOrEqualTo(0)) {
+        conflicts.push(
+            buildReversalConflict(
+                detail,
+                "INVALID_TARGET_PRICE",
+                "El precio a restaurar no es válido.",
+                {
+                    targetPrice: Number(detail.oldSellPrice),
+                }
+            )
+        );
+    }
+
+    return {
+        detailId: detail.id,
+        productId: detail.productId,
+        sku: detail.product?.sku ?? "-",
+        barcode: detail.product?.barcode ?? null,
+        name: detail.product?.name ?? "Producto no disponible",
+        description: detail.product?.description ?? null,
+        oldSellPrice: Number(detail.oldSellPrice),
+        newSellPrice: Number(detail.newSellPrice),
+        currentSellPrice: detail.product ? Number(detail.product.sellPrice) : null,
+        targetSellPrice: Number(detail.oldSellPrice),
+        costPriceAtChange: Number(detail.costPriceAtChange),
+        isBelowCost: detail.isBelowCost,
+        active: detail.product?.active ?? false,
+        reversedAt: detail.reversedAt,
+        reversedByAdjustmentId: detail.reversedByAdjustmentId,
+        reversible: conflicts.length === 0,
+        reasonCode: conflicts[0]?.reasonCode ?? null,
+        reason: conflicts[0]?.reason ?? null,
+        conflicts,
+    };
+};
+
+const validateCurrentAdminCredential = async (
+    userId: number,
+    credential: unknown
+) => {
+    if (typeof credential !== "string" || !credential.trim()) {
+        throw new AppError("Debes confirmar tu PIN o contraseña.", 400);
+    }
+
+    const adminUser = await prisma.user.findUnique({
+        where: {
+            id: userId,
+        },
+        select: {
+            id: true,
+            passwordHash: true,
+            pinCode: true,
+            role: true,
+            active: true,
+        },
+    });
+
+    if (!adminUser || !adminUser.active || adminUser.role !== "ADMIN") {
+        throw new AppError("Solo un administrador activo puede revertir ajustes.", 403);
+    }
+
+    const cleanCredential = credential.trim();
+    const passwordMatches = await comparePassword(
+        cleanCredential,
+        adminUser.passwordHash
+    );
+    const pinMatches = adminUser.pinCode
+        ? await comparePassword(cleanCredential, adminUser.pinCode)
+        : false;
+
+    if (!passwordMatches && !pinMatches) {
+        throw new AppError("PIN o contraseña incorrectos.", 401, "INVALID_CREDENTIAL");
+    }
+};
+
 export const applyMassPriceAdjustment = async (
     input: ApplyPriceAdjustmentInput
 ) => {
@@ -926,8 +1273,17 @@ type HistoryQueryInput = {
 };
 
 const getPagination = (page?: number, limit?: number) => {
-    const normalizedPage = Math.max(Number(page) || 1, 1);
-    const normalizedLimit = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const requestedPage = Number(page);
+    const requestedLimit = Number(limit);
+    const normalizedPage =
+        Number.isInteger(requestedPage) && requestedPage > 0
+            ? requestedPage
+            : 1;
+    const normalizedLimit =
+        Number.isInteger(requestedLimit) &&
+            HISTORY_LIMIT_OPTIONS.includes(requestedLimit)
+            ? requestedLimit
+            : 10;
 
     return {
         page: normalizedPage,
@@ -942,13 +1298,24 @@ const parseHistoryDate = (
 ) => {
     if (!value) return undefined;
 
-    const date = new Date(value);
+    const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    const date = dateOnlyMatch
+        ? new Date(
+            Number(dateOnlyMatch[1]),
+            Number(dateOnlyMatch[2]) - 1,
+            Number(dateOnlyMatch[3]),
+            endOfDay ? 23 : 0,
+            endOfDay ? 59 : 0,
+            endOfDay ? 59 : 0,
+            endOfDay ? 999 : 0
+        )
+        : new Date(value);
 
     if (Number.isNaN(date.getTime())) {
         throw new AppError("La fecha enviada no es válida.", 400);
     }
 
-    if (endOfDay) {
+    if (endOfDay && !dateOnlyMatch) {
         date.setHours(23, 59, 59, 999);
     }
 
@@ -1109,6 +1476,27 @@ export const getPriceAdjustmentHistory = async (
                         level: true,
                     },
                 },
+                reversalOf: {
+                    select: {
+                        id: true,
+                        appliedAt: true,
+                    },
+                },
+                reversals: {
+                    select: {
+                        id: true,
+                        appliedAt: true,
+                    },
+                    orderBy: {
+                        appliedAt: "desc",
+                    },
+                },
+                details: {
+                    select: {
+                        reversedAt: true,
+                        reversedByAdjustmentId: true,
+                    },
+                },
                 _count: {
                     select: {
                         details: true,
@@ -1135,6 +1523,10 @@ export const getPriceAdjustmentHistory = async (
             appliedAt: adjustment.appliedAt,
             appliedBy: adjustment.appliedBy,
             category: adjustment.category,
+            reversalOfId: adjustment.reversalOfId,
+            reversalOf: adjustment.reversalOf,
+            reversals: adjustment.reversals,
+            reversalStatus: getReversalStatus(adjustment),
             detailsCount: adjustment._count.details,
         })),
     };
@@ -1167,6 +1559,27 @@ export const getPriceAdjustmentById = async (id: number) => {
                     level: true,
                 },
             },
+            reversalOf: {
+                select: {
+                    id: true,
+                    appliedAt: true,
+                },
+            },
+            reversals: {
+                select: {
+                    id: true,
+                    appliedAt: true,
+                },
+                orderBy: {
+                    appliedAt: "desc",
+                },
+            },
+            details: {
+                select: {
+                    reversedAt: true,
+                    reversedByAdjustmentId: true,
+                },
+            },
             _count: {
                 select: {
                     details: true,
@@ -1191,6 +1604,10 @@ export const getPriceAdjustmentById = async (id: number) => {
         appliedAt: adjustment.appliedAt,
         appliedBy: adjustment.appliedBy,
         category: adjustment.category,
+        reversalOfId: adjustment.reversalOfId,
+        reversalOf: adjustment.reversalOf,
+        reversals: adjustment.reversals,
+        reversalStatus: getReversalStatus(adjustment),
         detailsCount: adjustment._count.details,
     };
 };
@@ -1295,6 +1712,7 @@ export const getPriceAdjustmentProducts = async (
                         name: true,
                         description: true,
                         active: true,
+                        sellPrice: true,
                     },
                 },
             },
@@ -1311,9 +1729,500 @@ export const getPriceAdjustmentProducts = async (
             producto: detail.product,
             oldSellPrice: Number(detail.oldSellPrice),
             newSellPrice: Number(detail.newSellPrice),
+            currentSellPrice: Number(detail.product.sellPrice),
             costPriceAtChange: Number(detail.costPriceAtChange),
             isBelowCost: detail.isBelowCost,
+            reversedAt: detail.reversedAt,
+            reversedByAdjustmentId: detail.reversedByAdjustmentId,
+            reversalSourceDetailId: detail.reversalSourceDetailId,
             createdAt: detail.createdAt,
         })),
     };
+};
+
+export const getPriceAdjustmentReversalPreview = async (id: number) => {
+    const adjustmentId = Number(id);
+
+    if (!Number.isInteger(adjustmentId) || adjustmentId <= 0) {
+        throw new AppError("El ajuste solicitado no es válido.", 400);
+    }
+
+    const adjustment = await prisma.priceAdjustment.findUnique({
+        where: {
+            id: adjustmentId,
+        },
+        include: {
+            appliedBy: {
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                },
+            },
+            category: {
+                select: {
+                    id: true,
+                    code: true,
+                    name: true,
+                    level: true,
+                },
+            },
+            reversalOf: {
+                select: {
+                    id: true,
+                    appliedAt: true,
+                },
+            },
+            reversals: {
+                select: {
+                    id: true,
+                    appliedAt: true,
+                },
+                orderBy: {
+                    appliedAt: "desc",
+                },
+            },
+            details: {
+                include: {
+                    product: {
+                        select: {
+                            id: true,
+                            sku: true,
+                            barcode: true,
+                            name: true,
+                            description: true,
+                            sellPrice: true,
+                            active: true,
+                        },
+                    },
+                },
+                orderBy: {
+                    id: "asc",
+                },
+            },
+            _count: {
+                select: {
+                    details: true,
+                },
+            },
+        },
+    });
+
+    if (!adjustment) {
+        throw new AppError("El ajuste de precio no existe.", 404);
+    }
+
+    const now = new Date();
+    const windowState = getReversalWindowState(adjustment.appliedAt, now);
+    const products = (adjustment.details as ReversalDetailSource[]).map(
+        (detail) => getReversalProductEligibility(adjustment, detail, now)
+    );
+    const reversalStatus = getReversalStatus(adjustment);
+    const blockReason = reversalStatus.isReversal
+        ? "Los ajustes de reversión no pueden revertirse."
+        : windowState.expired
+          ? "El plazo de 3 días para revertir este ajuste ha vencido."
+          : null;
+
+    return {
+        adjustment: {
+            id: adjustment.id,
+            type: adjustment.type,
+            direction: adjustment.direction,
+            scope: adjustment.scope,
+            value: Number(adjustment.value),
+            affectedRows: adjustment.affectedRows,
+            belowCostCount: adjustment.belowCostCount,
+            notes: adjustment.notes,
+            appliedAt: adjustment.appliedAt,
+            appliedBy: adjustment.appliedBy,
+            category: adjustment.category,
+            reversalOfId: adjustment.reversalOfId,
+            reversalOf: adjustment.reversalOf,
+            reversals: adjustment.reversals,
+            reversalDeadline: windowState.deadline,
+            canRevert: !blockReason && products.some((product) => product.reversible),
+            blockReason,
+            reversalStatus,
+            detailsCount: adjustment._count.details,
+        },
+        products,
+        summary: {
+            total: products.length,
+            reversible: products.filter((product) => product.reversible).length,
+            conflicted: products.filter((product) => !product.reversible).length,
+            reversed: products.filter(
+                (product) => product.reversedAt || product.reversedByAdjustmentId
+            ).length,
+            status: reversalStatus.status,
+            label: reversalStatus.label,
+        },
+    };
+};
+
+type RevertPriceAdjustmentInput = {
+    adjustmentId: number;
+    productDetailIds: number[];
+    reason: unknown;
+    credential: unknown;
+    appliedById: number;
+};
+
+const normalizeReversalDetailIds = (productDetailIds: number[]) => {
+    if (!Array.isArray(productDetailIds) || productDetailIds.length === 0) {
+        throw new AppError(
+            "Selecciona al menos un producto para revertir.",
+            400
+        );
+    }
+
+    const normalizedIds = productDetailIds.map(Number);
+    const hasInvalidIds = normalizedIds.some(
+        (detailId) => !Number.isInteger(detailId) || detailId <= 0
+    );
+
+    if (hasInvalidIds) {
+        throw new AppError("Uno o más detalles seleccionados no son válidos.", 400);
+    }
+
+    const uniqueIds = [...new Set(normalizedIds)];
+
+    if (uniqueIds.length !== normalizedIds.length) {
+        throw new AppError("No puedes enviar productos repetidos.", 400);
+    }
+
+    return uniqueIds;
+};
+
+export const revertPriceAdjustment = async (
+    input: RevertPriceAdjustmentInput
+) => {
+    const adjustmentId = Number(input.adjustmentId);
+
+    if (!Number.isInteger(adjustmentId) || adjustmentId <= 0) {
+        throw new AppError("El ajuste solicitado no es válido.", 400);
+    }
+
+    const detailIds = normalizeReversalDetailIds(input.productDetailIds);
+    const cleanReason = validateReversalReason(input.reason);
+    await validateCurrentAdminCredential(input.appliedById, input.credential);
+
+    try {
+        const reversal = await prisma.$transaction(
+            async (tx) => {
+                const adjustment = await tx.priceAdjustment.findUnique({
+                    where: {
+                        id: adjustmentId,
+                    },
+                    select: {
+                        id: true,
+                        type: true,
+                        direction: true,
+                        scope: true,
+                        value: true,
+                        affectedRows: true,
+                        belowCostCount: true,
+                        notes: true,
+                        appliedAt: true,
+                        appliedById: true,
+                        categoryId: true,
+                        reversalOfId: true,
+                    },
+                });
+
+                if (!adjustment) {
+                    throw new AppError("El ajuste de precio no existe.", 404);
+                }
+
+                const selectedDetails = await tx.priceAdjustmentDetail.findMany({
+                    where: {
+                        id: {
+                            in: detailIds,
+                        },
+                    },
+                    include: {
+                        product: {
+                            select: {
+                                id: true,
+                                sku: true,
+                                barcode: true,
+                                name: true,
+                                description: true,
+                                sellPrice: true,
+                                active: true,
+                            },
+                        },
+                    },
+                    orderBy: {
+                        id: "asc",
+                    },
+                });
+
+                const detailById = new Map(
+                    (selectedDetails as ReversalDetailSource[]).map((detail) => [
+                        detail.id,
+                        detail,
+                    ])
+                );
+                const now = new Date();
+                const conflicts: PriceAdjustmentReversalConflict[] = [];
+                const eligibleDetails: ReversalDetailSource[] = [];
+
+                detailIds.forEach((detailId) => {
+                    const detail = detailById.get(detailId);
+
+                    if (!detail) {
+                        conflicts.push({
+                            detailId,
+                            reasonCode: "DETAIL_NOT_FOUND",
+                            reason: "El detalle histórico seleccionado no existe.",
+                        });
+                        return;
+                    }
+
+                    if (detail.priceAdjustmentId !== adjustment.id) {
+                        conflicts.push(
+                            buildReversalConflict(
+                                detail,
+                                "DETAIL_NOT_IN_ADJUSTMENT",
+                                "El producto no pertenece a este ajuste."
+                            )
+                        );
+                        return;
+                    }
+
+                    const eligibility = getReversalProductEligibility(
+                        adjustment,
+                        detail,
+                        now
+                    );
+
+                    if (!eligibility.reversible) {
+                        conflicts.push(...eligibility.conflicts);
+                        return;
+                    }
+
+                    eligibleDetails.push(detail);
+                });
+
+                if (conflicts.length > 0) {
+                    throw new PriceAdjustmentReversalConflictError(
+                        "Algunos productos ya no pueden revertirse.",
+                        conflicts
+                    );
+                }
+
+                const reversalRows = eligibleDetails.map((detail) => {
+                    const restoredSellPrice = toMoney(detail.oldSellPrice);
+                    const currentSellPrice = toMoney(detail.newSellPrice);
+                    const costPriceAtChange = toMoney(detail.costPriceAtChange);
+
+                    return {
+                        productId: detail.productId,
+                        oldSellPrice: currentSellPrice,
+                        newSellPrice: restoredSellPrice,
+                        costPriceAtChange,
+                        isBelowCost: restoredSellPrice.lessThan(costPriceAtChange),
+                        reversalSourceDetailId: detail.id,
+                    };
+                });
+
+                const createdReversal = await tx.priceAdjustment.create({
+                    data: {
+                        type: REVERSAL_TYPE,
+                        direction: REVERSAL_DIRECTION,
+                        scope: "SELECTED_PRODUCTS",
+                        value: new Prisma.Decimal(0),
+                        affectedRows: reversalRows.length,
+                        belowCostCount: reversalRows.filter((row) => row.isBelowCost)
+                            .length,
+                        notes: cleanReason,
+                        appliedById: input.appliedById,
+                        categoryId: adjustment.categoryId,
+                        reversalOfId: adjustment.id,
+                        details: {
+                            create: reversalRows,
+                        },
+                    },
+                    include: {
+                        appliedBy: {
+                            select: {
+                                id: true,
+                                name: true,
+                                email: true,
+                            },
+                        },
+                        category: {
+                            select: {
+                                id: true,
+                                code: true,
+                                name: true,
+                                level: true,
+                            },
+                        },
+                        reversalOf: {
+                            select: {
+                                id: true,
+                                appliedAt: true,
+                            },
+                        },
+                        details: {
+                            include: {
+                                product: {
+                                    select: {
+                                        id: true,
+                                        sku: true,
+                                        name: true,
+                                    },
+                                },
+                            },
+                            orderBy: {
+                                id: "asc",
+                            },
+                        },
+                    },
+                });
+
+                for (const detail of eligibleDetails) {
+                    const productUpdate = await tx.product.updateMany({
+                        where: {
+                            id: detail.productId,
+                            active: true,
+                            sellPrice: toMoney(detail.newSellPrice),
+                        },
+                        data: {
+                            sellPrice: toMoney(detail.oldSellPrice),
+                        },
+                    });
+
+                    if (productUpdate.count !== 1) {
+                        const currentProduct = await tx.product.findUnique({
+                            where: {
+                                id: detail.productId,
+                            },
+                            select: {
+                                sellPrice: true,
+                                active: true,
+                            },
+                        });
+
+                        throw new PriceAdjustmentReversalConflictError(
+                            "Algunos productos ya no pueden revertirse.",
+                            [
+                                buildReversalConflict(
+                                    {
+                                        ...detail,
+                                        product: detail.product
+                                            ? {
+                                                ...detail.product,
+                                                active:
+                                                    currentProduct?.active ??
+                                                    detail.product.active,
+                                                sellPrice:
+                                                    currentProduct?.sellPrice ??
+                                                    detail.product.sellPrice,
+                                            }
+                                            : null,
+                                    },
+                                    !currentProduct
+                                        ? "PRODUCT_NOT_FOUND"
+                                        : currentProduct.active === false
+                                          ? "PRODUCT_INACTIVE"
+                                          : "PRICE_CHANGED",
+                                    !currentProduct
+                                        ? "El producto ya no existe."
+                                        : currentProduct.active === false
+                                          ? "No disponible: el producto está inactivo."
+                                          : "No disponible: el precio actual fue modificado después del ajuste.",
+                                    {
+                                        originalNewPrice: Number(detail.newSellPrice),
+                                        currentPrice: currentProduct
+                                            ? Number(currentProduct.sellPrice)
+                                            : undefined,
+                                    }
+                                ),
+                            ]
+                        );
+                    }
+
+                    const originalDetailUpdate =
+                        await tx.priceAdjustmentDetail.updateMany({
+                            where: {
+                                id: detail.id,
+                                reversedAt: null,
+                                reversedByAdjustmentId: null,
+                            },
+                            data: {
+                                reversedAt: now,
+                                reversedByAdjustmentId: createdReversal.id,
+                            },
+                        });
+
+                    if (originalDetailUpdate.count !== 1) {
+                        throw new PriceAdjustmentReversalConflictError(
+                            "Algunos productos ya no pueden revertirse.",
+                            [
+                                buildReversalConflict(
+                                    detail,
+                                    "ALREADY_REVERTED",
+                                    "Este producto ya fue revertido."
+                                ),
+                            ]
+                        );
+                    }
+                }
+
+                return createdReversal;
+            },
+            {
+                isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+            }
+        );
+
+        return {
+            id: reversal.id,
+            type: reversal.type,
+            direction: reversal.direction,
+            scope: reversal.scope,
+            value: Number(reversal.value),
+            affectedRows: reversal.affectedRows,
+            belowCostCount: reversal.belowCostCount,
+            notes: reversal.notes,
+            appliedAt: reversal.appliedAt,
+            appliedBy: reversal.appliedBy,
+            category: reversal.category,
+            reversalOfId: reversal.reversalOfId,
+            reversalOf: reversal.reversalOf,
+            products: reversal.details.map((detail) => ({
+                detailId: detail.id,
+                productId: detail.productId,
+                sku: detail.product.sku,
+                name: detail.product.name,
+                currentSellPrice: Number(detail.oldSellPrice),
+                restoredSellPrice: Number(detail.newSellPrice),
+                sourceDetailId: detail.reversalSourceDetailId,
+            })),
+        };
+    } catch (error) {
+        if (error instanceof PriceAdjustmentReversalConflictError) {
+            throw error;
+        }
+
+        if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === "P2002"
+        ) {
+            throw new PriceAdjustmentReversalConflictError(
+                "Algunos productos ya no pueden revertirse.",
+                [
+                    {
+                        reasonCode: "ALREADY_REVERTED",
+                        reason: "Uno o más productos ya fueron revertidos.",
+                    },
+                ]
+            );
+        }
+
+        throw error;
+    }
 };

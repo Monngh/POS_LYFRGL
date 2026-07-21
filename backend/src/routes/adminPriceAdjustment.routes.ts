@@ -4,7 +4,9 @@ import {
     getPriceAdjustmentByIdController,
     getPriceAdjustmentHistoryController,
     getPriceAdjustmentProductsController,
+    getPriceAdjustmentReversalPreviewController,
     previewMassPriceAdjustment,
+    revertPriceAdjustmentController,
     resolvePriceAdjustmentProducts,
 } from "../controllers/adminPriceAdjustment.controller";
 
@@ -20,6 +22,11 @@ router.post("/preview", previewMassPriceAdjustment);
 router.post("/apply", applyPriceAdjustment);
 
 router.get("/history", getPriceAdjustmentHistoryController);
+router.get(
+    "/history/:id/reversal-preview",
+    getPriceAdjustmentReversalPreviewController
+);
+router.post("/history/:id/revert", revertPriceAdjustmentController);
 router.get("/history/:id", getPriceAdjustmentByIdController);
 router.get(
     "/history/:id/products",
