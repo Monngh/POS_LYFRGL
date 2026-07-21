@@ -66,3 +66,4 @@ ANALISIS_*.md
 .env.staging
 secrets.json
 credentials.json
+.gemini/
