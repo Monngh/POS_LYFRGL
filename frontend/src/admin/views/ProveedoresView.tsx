@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Edit2, Pencil, Plus, FileText, Mail, Phone, User, Power } from "lucide-react";
+import { ChevronDown, ChevronUp, Edit2, Pencil, Plus, FileText, Mail, Phone, User, Power, Package } from "lucide-react";
 import api from "../../shared/services/api";
 import { useAdminData } from "../../shared/hooks";
-import { DataTable, ActionModal } from "../../shared/ui";
+import { DataTable, ActionModal, ConfirmModal } from "../../shared/ui";
 import type { Column } from "../../shared/ui";
 import { useToast } from "../../shared/context/ToastContext";
 import {
@@ -24,6 +24,7 @@ import {
 import { ui, type ViewProps, SectionHeader, Badge,
   useMediaQuery,
   fmtDate,
+  money,
   usePagination,
   Pagination,
   Toolbar,
@@ -47,6 +48,15 @@ interface Supplier {
   contactName: string | null;
   active: boolean;
   createdAt: string;
+}
+
+interface SupplierProduct {
+  sku: string;
+  name: string;
+  costPrice: number;
+  sellPrice: number;
+  active: boolean;
+  satUnitKey: string | null;
 }
 
 type FormData = {
@@ -287,6 +297,31 @@ const supDetailValue: React.CSSProperties = {
   color: "var(--text-secondary)",
 };
 
+const supplierProductColumns: Column<SupplierProduct>[] = [
+  {
+    key: "sku",
+    header: "SKU",
+    render: (p) => <span style={{ fontFamily: "monospace", color: "var(--text-secondary)" }}>{p.sku}</span>,
+  },
+  {
+    key: "name",
+    header: "Nombre",
+    render: (p) => <span style={{ fontWeight: 700, color: "var(--text)" }}>{p.name}</span>,
+  },
+  {
+    key: "sellPrice",
+    header: "Precio de venta",
+    align: "right",
+    render: (p) => <span>{money(p.sellPrice)}</span>,
+  },
+  {
+    key: "active",
+    header: "Estatus",
+    align: "center",
+    render: (p) => <Badge tone={p.active ? "green" : "slate"}>{p.active ? "Activo" : "Inactivo"}</Badge>,
+  },
+];
+
 const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
   const { showToast } = useToast();
   const { data, loading, error, refetch } = useAdminData<Supplier[]>("/api/admin/suppliers");
@@ -414,6 +449,13 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Modal de productos asociados (solo lectura)
+  const [productsModalOpen, setProductsModalOpen] = useState(false);
+  const [productsModalSupplier, setProductsModalSupplier] = useState<Supplier | null>(null);
+  const [supplierProducts, setSupplierProducts] = useState<SupplierProduct[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState<string | null>(null);
+
   // Computed - Validación completa del formulario
   const isFormValid =
     !validateName(form.name) &&
@@ -429,6 +471,9 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
   // =========================
   // CRUD Y ACCIONES
   // =========================
+  const [confirmToggleSupplier, setConfirmToggleSupplier] = useState<Supplier | null>(null);
+  const [togglingActive, setTogglingActive] = useState(false);
+
   const handleToggleActive = async (s: Supplier) => {
     if (s.active) {
       try {
@@ -437,27 +482,29 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
           showToast(`No se puede desactivar el proveedor "${s.name}". Tiene ${res.data.length} producto(s) asociado(s).`, "warning");
           return;
         }
-        
-        const confirmed = window.confirm(`El proveedor "${s.name}" no tiene productos asociados. ¿Confirmar desactivación?`);
-        if (!confirmed) return;
-
-        await api.put(`/api/admin/suppliers/${s.id}`, { ...s, active: false });
-        showToast(`Proveedor "${s.name}" desactivado correctamente.`, "success");
-        await refetch();
       } catch (err: any) {
-        showToast(err.response?.data?.message || "Error al desactivar el proveedor.", "error");
+        showToast(err.response?.data?.message || "Error al verificar los productos asociados del proveedor.", "error");
+        return;
       }
-    } else {
-      const confirmed = window.confirm(`¿Confirmar activación del proveedor "${s.name}"?`);
-      if (!confirmed) return;
+    }
+    setConfirmToggleSupplier(s);
+  };
 
-      try {
-        await api.put(`/api/admin/suppliers/${s.id}`, { ...s, active: true });
-        showToast(`Proveedor "${s.name}" activado correctamente.`, "success");
-        await refetch();
-      } catch (err: any) {
-        showToast(err.response?.data?.message || "Error al activar el proveedor.", "error");
-      }
+  const handleConfirmToggle = async () => {
+    if (!confirmToggleSupplier) return;
+    const s = confirmToggleSupplier;
+    const nextActive = !s.active;
+
+    setTogglingActive(true);
+    try {
+      await api.put(`/api/admin/suppliers/${s.id}`, { ...s, active: nextActive });
+      showToast(`Proveedor "${s.name}" ${nextActive ? "activado" : "desactivado"} correctamente.`, "success");
+      setConfirmToggleSupplier(null);
+      await refetch();
+    } catch (err: any) {
+      showToast(err.response?.data?.message || `Error al ${nextActive ? "activar" : "desactivar"} el proveedor.`, "error");
+    } finally {
+      setTogglingActive(false);
     }
   };
 
@@ -508,6 +555,29 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
     setEditingId(null);
     setForm(emptyForm());
     setFormError(null);
+  };
+
+  const openProductsModal = async (s: Supplier) => {
+    setProductsModalSupplier(s);
+    setProductsModalOpen(true);
+    setSupplierProducts([]);
+    setProductsError(null);
+    setProductsLoading(true);
+    try {
+      const res = await api.get<SupplierProduct[]>(`/api/admin/suppliers/${s.id}/products`);
+      setSupplierProducts(res.data);
+    } catch (err: any) {
+      setProductsError(err.response?.data?.message || "Error al cargar los productos asociados.");
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+
+  const closeProductsModal = () => {
+    setProductsModalOpen(false);
+    setProductsModalSupplier(null);
+    setSupplierProducts([]);
+    setProductsError(null);
   };
 
   const handleSubmit = async () => {
@@ -782,11 +852,25 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
       ),
     },
     {
-      key: "active",
-      header: "Estatus",
+      key: "products",
+      header: "Productos",
       align: "center",
       render: (s) => (
-        <Badge tone={s.active ? "green" : "slate"}>{s.active ? "Activo" : "Inactivo"}</Badge>
+        <button
+          style={{
+            ...ui.linkBtn,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: "1px solid var(--border-strong)",
+            borderRadius: "6px",
+            padding: "6px 10px",
+          }}
+          onClick={() => openProductsModal(s)}
+          title="Ver productos asociados"
+        >
+          <Package size={14} />
+        </button>
       ),
     },
     {
@@ -795,46 +879,34 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
       render: (s) => {
         const isHovered = hoveredToggleId === s.id;
         return (
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <button style={ui.linkBtn} onClick={() => openEdit(s)}>
-              <Edit2 size={13} style={{ marginRight: 4, verticalAlign: "middle" }} />
-              Editar
-            </button>
-            <button
-              style={{
-                ...ui.linkBtn,
-                color: s.active ? "var(--color-danger)" : "var(--color-success)",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: isHovered ? 6 : 0,
-                padding: "4px 8px",
-                borderRadius: "6px",
-                backgroundColor: isHovered
-                  ? (s.active ? "rgba(239, 68, 68, 0.08)" : "rgba(34, 197, 94, 0.08)")
-                  : "transparent",
-                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-              }}
-              onMouseEnter={() => setHoveredToggleId(s.id)}
-              onMouseLeave={() => setHoveredToggleId(null)}
-              onClick={() => handleToggleActive(s)}
-              title={s.active ? "Desactivar" : "Activar"}
-            >
-              <Power size={14} style={{ flexShrink: 0 }} />
-              <span
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <button style={ui.linkBtn} onClick={() => openEdit(s)}>
+                <Edit2 size={13} style={{ marginRight: 4, verticalAlign: "middle" }} />
+                Editar
+              </button>
+              <button
                 style={{
-                  maxWidth: isHovered ? "80px" : "0px",
-                  overflow: "hidden",
-                  transition: "max-width 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s ease",
-                  opacity: isHovered ? 1 : 0,
-                  whiteSpace: "nowrap",
-                  display: "inline-block",
-                  fontSize: "12px",
-                  fontWeight: 600,
+                  ...ui.linkBtn,
+                  color: s.active ? "var(--color-danger)" : "var(--color-success)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "4px 8px",
+                  borderRadius: "6px",
+                  backgroundColor: isHovered
+                    ? (s.active ? "rgba(239, 68, 68, 0.08)" : "rgba(34, 197, 94, 0.08)")
+                    : "transparent",
+                  transition: "background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                 }}
+                onMouseEnter={() => setHoveredToggleId(s.id)}
+                onMouseLeave={() => setHoveredToggleId(null)}
+                onClick={() => handleToggleActive(s)}
+                title={s.active ? "Desactivar" : "Activar"}
               >
-                {s.active ? "Desactivar" : "Activar"}
-              </span>
-            </button>
+                <Power size={14} style={{ flexShrink: 0 }} />
+              </button>
+            </div>
+            <Badge tone={s.active ? "green" : "slate"}>{s.active ? "Activo" : "Inactivo"}</Badge>
           </div>
         );
       },
@@ -1124,6 +1196,26 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                           <Pencil size={13} /> Editar proveedor
                         </button>
                         <button
+                          onClick={() => openProductsModal(s)}
+                          style={{
+                            ...ui.linkBtn,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            backgroundColor: "var(--surface)",
+                            border: "1px solid var(--border-strong)",
+                            borderRadius: 8,
+                            padding: "8px 14px",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: "var(--accent)",
+                            cursor: "pointer",
+                          }}
+                          className="active-tap"
+                        >
+                          <Package size={13} /> Ver productos
+                        </button>
+                        <button
                           onClick={() => handleToggleActive(s)}
                           onMouseEnter={() => setHoveredToggleId(s.id)}
                           onMouseLeave={() => setHoveredToggleId(null)}
@@ -1131,33 +1223,17 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
                             ...ui.linkBtn,
                             display: "inline-flex",
                             alignItems: "center",
-                            gap: hoveredToggleId === s.id ? 6 : 0,
                             backgroundColor: s.active ? "rgba(239,68,68,0.08)" : "rgba(34,197,94,0.08)",
                             border: `1px solid ${s.active ? "rgba(239,68,68,0.2)" : "rgba(34,197,94,0.2)"}`,
                             borderRadius: 8,
                             padding: "8px 14px",
-                            fontSize: 12,
-                            fontWeight: 700,
                             color: s.active ? "var(--color-danger)" : "var(--color-success)",
                             cursor: "pointer",
-                            transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                           }}
                           title={s.active ? "Desactivar" : "Activar"}
                           className="active-tap"
                         >
                           <Power size={13} style={{ flexShrink: 0 }} />
-                          <span
-                            style={{
-                              maxWidth: hoveredToggleId === s.id ? "80px" : "0px",
-                              overflow: "hidden",
-                              transition: "max-width 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s ease",
-                              opacity: hoveredToggleId === s.id ? 1 : 0,
-                              whiteSpace: "nowrap",
-                              display: "inline-block",
-                            }}
-                          >
-                            {s.active ? "Desactivar" : "Activar"}
-                          </span>
                         </button>
                       </div>
                     </div>
@@ -1490,6 +1566,51 @@ const ProveedoresView: React.FC<ViewProps> = ({ refreshToken }) => {
           </button>
         </div>
       </ActionModal>
+
+      {/* Modal de productos asociados (solo lectura) */}
+      <ActionModal
+        isOpen={productsModalOpen}
+        onClose={closeProductsModal}
+        title={`Productos de ${productsModalSupplier?.name ?? ""}`}
+        size="md"
+      >
+        <div className="supplier-products-table">
+          {/* Padding compacto exclusivo de esta tabla: DataTable usa estilos inline,
+              así que se sobreescribe con !important solo dentro de este wrapper para
+              no afectar el DataTable de la vista principal ni el de otras vistas. */}
+          <style>{`
+            .supplier-products-table table th {
+              padding: 8px 12px !important;
+            }
+            .supplier-products-table table td {
+              padding: 8px 12px !important;
+              font-size: 13px !important;
+            }
+          `}</style>
+          <DataTable
+            columns={supplierProductColumns}
+            data={supplierProducts}
+            loading={productsLoading}
+            error={productsError}
+            emptyMessage="Este proveedor no tiene productos asociados."
+            keyExtractor={(p) => p.sku}
+            maxHeight="45vh"
+          />
+        </div>
+      </ActionModal>
+
+      {/* Confirmación de activar/desactivar proveedor */}
+      <ConfirmModal
+        isOpen={confirmToggleSupplier !== null}
+        title={`${confirmToggleSupplier?.active ? "Desactivar" : "Activar"} proveedor`}
+        message={`¿Confirmar ${confirmToggleSupplier?.active ? "desactivación" : "activación"} del proveedor "${confirmToggleSupplier?.name}"?`}
+        confirmLabel="Confirmar"
+        cancelLabel="Cancelar"
+        variant={confirmToggleSupplier?.active ? "danger" : "info"}
+        loading={togglingActive}
+        onConfirm={handleConfirmToggle}
+        onClose={() => setConfirmToggleSupplier(null)}
+      />
 
       {/* Sugerencias de Autocompletado */}
       <datalist id="supplier-addresses">
