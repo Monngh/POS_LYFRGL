@@ -154,7 +154,17 @@
     min-height: 260px;
   }
 
+  .pos-cashier-cart-scroll {
+    max-height: 240px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+  }
 
+  .ticket-print {
+    max-height: 55vh !important;
+    overflow-y: auto !important;
+  }
 }
 
 /* --- Móvil / tablet pequeña (≤725px) --- */
@@ -259,11 +269,11 @@
   .pos-cashier-cart-scroll {
     overflow-x: hidden !important;
     overflow-y: auto !important;
-    max-height: 380px;
+    max-height: 200px !important;
     -webkit-overflow-scrolling: touch;
     width: 100%;
-    margin-bottom: 20px !important;
-    padding-top: 12px !important;
+    margin-bottom: 12px !important;
+    padding-top: 4px !important;
   }
 
   .pos-cart-count-badge {
