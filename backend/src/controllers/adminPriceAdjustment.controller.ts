@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { Prisma } from "@prisma/client";
 import {
     applyMassPriceAdjustment,
     getPriceAdjustmentById,
@@ -11,6 +12,26 @@ import {
     resolveProductsForPriceAdjustment,
 } from "../services/adminPriceAdjustment.service";
 import { AppError } from "../utils/AppError";
+
+const logPriceAdjustmentPrismaError = (
+    error: unknown,
+    req: Request
+) => {
+    if (
+        process.env.NODE_ENV === "production" ||
+        !(error instanceof Prisma.PrismaClientKnownRequestError)
+    ) {
+        return;
+    }
+
+    console.error("[AdminPriceAdjustment] Prisma error", {
+        endpoint: `${req.method} ${req.originalUrl}`,
+        code: error.code,
+        message: error.message,
+        meta: error.meta,
+        stack: error.stack,
+    });
+};
 
 export const resolvePriceAdjustmentProducts = async (
     req: Request,
@@ -30,6 +51,7 @@ export const resolvePriceAdjustmentProducts = async (
             data: result,
         });
     } catch (error) {
+        logPriceAdjustmentPrismaError(error, req);
         next(error);
     }
 };
@@ -50,6 +72,7 @@ export const previewMassPriceAdjustment = async (
             data: result,
         })
     } catch (error) {
+        logPriceAdjustmentPrismaError(error, req);
         next(error);
     }
 };
@@ -86,6 +109,7 @@ export const applyPriceAdjustment = async (
             data: result,
         });
     } catch (error) {
+        logPriceAdjustmentPrismaError(error, req);
         next(error);
     }
 };
@@ -114,6 +138,7 @@ export const getPriceAdjustmentHistoryController = async (
             data: result,
         });
     } catch (error) {
+        logPriceAdjustmentPrismaError(error, req);
         next(error);
     }
 };
@@ -131,6 +156,7 @@ export const getPriceAdjustmentByIdController = async (
             data: result,
         });
     } catch (error) {
+        logPriceAdjustmentPrismaError(error, req);
         next(error);
     }
 };
@@ -154,6 +180,7 @@ export const getPriceAdjustmentProductsController = async (
             data: result,
         });
     } catch (error) {
+        logPriceAdjustmentPrismaError(error, req);
         next(error);
     }
 };
@@ -171,6 +198,7 @@ export const getPriceAdjustmentReversalPreviewController = async (
             data: result,
         });
     } catch (error) {
+        logPriceAdjustmentPrismaError(error, req);
         next(error);
     }
 };
@@ -207,6 +235,7 @@ export const revertPriceAdjustmentController = async (
             data: result,
         });
     } catch (error) {
+        logPriceAdjustmentPrismaError(error, req);
         if (error instanceof PriceAdjustmentReversalConflictError) {
             res.status(error.statusCode).json({
                 message: error.message,

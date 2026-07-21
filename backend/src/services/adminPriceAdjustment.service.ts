@@ -1298,13 +1298,24 @@ const parseHistoryDate = (
 ) => {
     if (!value) return undefined;
 
-    const date = new Date(value);
+    const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    const date = dateOnlyMatch
+        ? new Date(
+            Number(dateOnlyMatch[1]),
+            Number(dateOnlyMatch[2]) - 1,
+            Number(dateOnlyMatch[3]),
+            endOfDay ? 23 : 0,
+            endOfDay ? 59 : 0,
+            endOfDay ? 59 : 0,
+            endOfDay ? 999 : 0
+        )
+        : new Date(value);
 
     if (Number.isNaN(date.getTime())) {
         throw new AppError("La fecha enviada no es válida.", 400);
     }
 
-    if (endOfDay) {
+    if (endOfDay && !dateOnlyMatch) {
         date.setHours(23, 59, 59, 999);
     }
 

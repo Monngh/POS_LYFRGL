@@ -43,11 +43,9 @@ import type {
 } from "../types/priceAdjustments.types";
 import {
   Badge,
-  FilterSelect,
   SearchInput,
   SectionHeader,
   TableState,
-  Toolbar,
   fmtDateTime,
   moneyExact,
   type ViewProps,
@@ -199,7 +197,7 @@ const getReversalConflictsFromError = (error: unknown): PriceAdjustmentReversalC
 const Kpi: React.FC<{ label: string; value: React.ReactNode; icon: React.ReactNode }> = ({ label, value, icon }) => (
   <div style={styles.kpiCard}>
     <div style={styles.kpiIcon}>{icon}</div>
-    <div>
+    <div style={styles.kpiContent}>
       <div style={styles.kpiLabel}>{label}</div>
       <div style={styles.kpiValue}>{value}</div>
     </div>
@@ -228,6 +226,17 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   const { showToast } = useToast();
   const isMobile = useMediaQuery("(max-width: 1024px)");
   const filtersStacked = useMediaQuery("(max-width: 640px)");
+  const overlayStyle = filtersStacked ? styles.compactOverlay : ui.overlay;
+  const modalBodyStyle = filtersStacked ? styles.compactModalBody : ui.modalBody;
+  const responsiveActionButtonStyle = filtersStacked
+    ? { ...styles.responsiveActionButton, ...styles.fullWidthActionButton }
+    : styles.responsiveActionButton;
+  const getResponsiveModalStyle = (maxWidth: number): React.CSSProperties => ({
+    ...ui.modal,
+    maxWidth,
+    width: filtersStacked ? "calc(100% - 8px)" : `min(100% - 32px, ${maxWidth}px)`,
+    maxHeight: filtersStacked ? "calc(100dvh - 12px)" : "calc(100dvh - 32px)",
+  });
 
   const [activeTab, setActiveTab] = useState<TabKey>("adjust");
 
@@ -1162,18 +1171,30 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
             <p style={styles.helpText}>Busca y selecciona productos para agregarlos al ajuste.</p>
           </div>
         </div>
-        <div style={styles.manualPickerToolbar}>
-          <SearchInput value={availableSearch} onChange={setAvailableSearch} placeholder="Buscar SKU, codigo o producto" />
-          <button type="button" style={ui.ghostBtn} onClick={toggleAllVisibleManual} disabled={availableLoading}>
+        <div
+          style={{
+            ...styles.manualPickerToolbar,
+            gridTemplateColumns: filtersStacked
+              ? "1fr"
+              : isMobile
+                ? "repeat(2, minmax(0, 1fr))"
+                : "minmax(260px, 1fr) repeat(3, max-content) auto",
+          }}
+        >
+          <div style={filtersStacked ? styles.fullWidthControl : styles.manualPickerSearchControl}>
+            <SearchInput value={availableSearch} onChange={setAvailableSearch} placeholder="Buscar SKU, codigo o producto" />
+          </div>
+          <button type="button" style={{ ...ui.ghostBtn, ...responsiveActionButtonStyle }} onClick={toggleAllVisibleManual} disabled={availableLoading}>
             {allVisibleAvailableSelected ? "Limpiar visibles" : "Seleccionar visibles"}
           </button>
-          <button type="button" style={ui.ghostBtn} onClick={() => setManualSelectedIds(new Set())} disabled={availableLoading}>
+          <button type="button" style={{ ...ui.ghostBtn, ...responsiveActionButtonStyle }} onClick={() => setManualSelectedIds(new Set())} disabled={availableLoading}>
             Limpiar seleccion
           </button>
           <button
             type="button"
             style={{
               ...ui.primaryBtn,
+              ...responsiveActionButtonStyle,
               opacity: manualSelectedIds.size === 0 || resolveLoading ? 0.6 : 1,
               cursor: manualSelectedIds.size === 0 || resolveLoading ? "not-allowed" : "pointer",
             }}
@@ -1367,19 +1388,19 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
           <span style={styles.counterPill}>
             {selectedProductIds.size} productos seleccionados de {resolvedProducts.length}
           </span>
-          <div style={styles.inlineActions}>
-            <button type="button" style={ui.ghostBtn} onClick={selectAllResolved} disabled={resolvedProducts.length === 0}>
+          <div style={filtersStacked ? { ...styles.inlineActions, ...styles.inlineActionsStacked } : styles.inlineActions}>
+            <button type="button" style={{ ...ui.ghostBtn, ...responsiveActionButtonStyle }} onClick={selectAllResolved} disabled={resolvedProducts.length === 0}>
               Seleccionar todos
             </button>
-            <button type="button" style={ui.ghostBtn} onClick={clearResolvedSelection} disabled={resolvedProducts.length === 0}>
+            <button type="button" style={{ ...ui.ghostBtn, ...responsiveActionButtonStyle }} onClick={clearResolvedSelection} disabled={resolvedProducts.length === 0}>
               Limpiar seleccion
             </button>
           </div>
         </div>
       </div>
-      <Toolbar>
+      <div style={styles.singleSearchToolbar}>
         <SearchInput value={productSearch} onChange={setProductSearch} placeholder="Buscar en productos cargados" />
-      </Toolbar>
+      </div>
       <div style={styles.adjustTableWrap}>
         <table style={styles.selectedProductsTable}>
           <colgroup>
@@ -1491,7 +1512,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
         {preview.requiresBelowCostConfirmation && (
           <InlineAlert tone="error">Hay productos que quedaran por debajo de su costo. Se requiere confirmacion explicita.</InlineAlert>
         )}
-        <div style={{ ...ui.tableWrap, maxHeight: 390, overflowY: "auto", marginTop: 16 }}>
+        <div style={{ ...ui.tableWrap, maxHeight: filtersStacked ? 300 : 390, overflowX: "auto", overflowY: "auto", marginTop: 16 }}>
           <table style={{ ...ui.table, minWidth: 980 }}>
             <thead>
               <tr style={ui.theadRow}>
@@ -1553,7 +1574,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
           </table>
         </div>
 
-        <div style={styles.confirmationGrid}>
+        <div style={{ ...styles.confirmationGrid, gridTemplateColumns: filtersStacked ? "1fr" : "repeat(auto-fit, minmax(min(100%, 250px), 1fr))" }}>
           <div>
             <label style={ui.fieldLabel}>Motivo del ajuste *</label>
             <textarea
@@ -1566,14 +1587,14 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
               maxLength={500}
               placeholder="Describe el motivo del ajuste"
             />
-            <div style={styles.fieldFooter}>
+            <div style={filtersStacked ? { ...styles.fieldFooter, ...styles.fieldFooterStacked } : styles.fieldFooter}>
               {notesError ? <p style={styles.fieldErrorInline}>{notesError}</p> : <span />}
               <span>{notes.length} / 500 caracteres</span>
             </div>
           </div>
 
           {preview.requiresBelowCostConfirmation && (
-            <label style={styles.checkRow}>
+            <label style={{ ...styles.checkRow, ...styles.checkRowTop }}>
               <input
                 type="checkbox"
                 checked={confirmBelowCost}
@@ -1589,13 +1610,13 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
         </div>
 
         {applyError && <InlineAlert tone="error">{applyError}</InlineAlert>}
-        <div style={styles.footerActions}>
-          <button type="button" style={ui.ghostBtn} onClick={resetPreviewState} disabled={applying}>
+        <div style={filtersStacked ? { ...styles.footerActions, ...styles.footerActionsStacked } : styles.footerActions}>
+          <button type="button" style={{ ...ui.ghostBtn, ...responsiveActionButtonStyle }} onClick={resetPreviewState} disabled={applying}>
             Descartar vista previa
           </button>
           <button
             type="button"
-            style={{ ...ui.primaryBtn, opacity: canApplyPreview ? 1 : 0.55, cursor: canApplyPreview ? "pointer" : "not-allowed" }}
+            style={{ ...ui.primaryBtn, ...responsiveActionButtonStyle, opacity: canApplyPreview ? 1 : 0.55, cursor: canApplyPreview ? "pointer" : "not-allowed" }}
             onClick={openApplyConfirm}
             disabled={!canApplyPreview}
           >
@@ -1692,17 +1713,96 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
     </div>
   );
 
+  const renderHistoryCards = () => {
+    if (historyLoading || historyError || historyRows.length === 0) {
+      return (
+        <div style={styles.historyCardsList}>
+          <div style={styles.historyCardState}>
+            {historyLoading
+              ? "Cargando historial..."
+              : historyError || "No hay ajustes de precios registrados con los filtros seleccionados."}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div style={styles.historyCardsList}>
+        {historyRows.map((adjustment) => (
+          <article key={adjustment.id} style={styles.historyCard}>
+            <div style={styles.historyCardHeader}>
+              <div style={styles.historyCellStack}>
+                <strong style={styles.historyCardTitle}>{fmtDateTime(adjustment.appliedAt)}</strong>
+                <span style={styles.historyCardMuted}>{adjustment.appliedBy.name}</span>
+                <span style={styles.historyCardMuted}>{adjustment.appliedBy.email || "-"}</span>
+              </div>
+              <button type="button" style={{ ...styles.historyActionButton, ...styles.historyCardActionButton }} onClick={() => openDetail(adjustment.id)}>
+                <Eye size={14} /> Ver
+              </button>
+            </div>
+
+            <div style={styles.historyCardGrid}>
+              <div style={styles.historyCardField}>
+                <span>Alcance</span>
+                <strong style={styles.historyCardValue}>{scopeLabel(adjustment.scope)}</strong>
+              </div>
+              <div style={styles.historyCardField}>
+                <span>Categoria</span>
+                <strong style={styles.historyCardValue}>{getHistoryCategoryText(adjustment)}</strong>
+              </div>
+              <div style={styles.historyCardField}>
+                <span>Operacion</span>
+                <strong style={styles.historyCardValue}>{adjustmentTypeLabel(adjustment.type, adjustment.direction)}</strong>
+              </div>
+              <div style={styles.historyCardField}>
+                <span>Valor</span>
+                <strong style={styles.historyCardValue}>{formatStoredAdjustmentValue(adjustment.type, adjustment.value)}</strong>
+              </div>
+              <div style={styles.historyCardField}>
+                <span>Productos</span>
+                <strong style={styles.historyCardValue}>{adjustment.affectedRows}</strong>
+              </div>
+              <div style={styles.historyCardField}>
+                <span>Debajo del costo</span>
+                <Badge tone={adjustment.belowCostCount > 0 ? "red" : "green"}>{adjustment.belowCostCount}</Badge>
+              </div>
+              <div style={{ ...styles.historyCardField, ...styles.historyCardFieldWide }}>
+                <span>Reversion</span>
+                <strong style={styles.historyCardValue}>{getHistoryReversalText(adjustment)}</strong>
+              </div>
+              <div style={{ ...styles.historyCardField, ...styles.historyCardFieldWide }}>
+                <span>Motivo</span>
+                <strong style={styles.historyCardValue}>{getHistoryReasonText(adjustment)}</strong>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    );
+  };
+
   const renderHistoryTab = () => (
     <div style={styles.stack}>
-      <Toolbar>
-        <SearchInput
-          value={historySearch}
-          onChange={(value) => {
-            setHistorySearch(value);
-            setHistoryPage(1);
-          }}
-          placeholder="Buscar por motivo, usuario o categoria"
-        />
+      <div
+        style={{
+          ...styles.historyFilterGrid,
+          gridTemplateColumns: filtersStacked
+            ? "1fr"
+            : isMobile
+              ? "repeat(2, minmax(0, 1fr))"
+              : "repeat(auto-fit, minmax(min(100%, 150px), 1fr))",
+        }}
+      >
+        <div style={isMobile ? styles.historyFilterSearch : { ...styles.historyFilterSearch, gridColumn: "span 2" }}>
+          <SearchInput
+            value={historySearch}
+            onChange={(value) => {
+              setHistorySearch(value);
+              setHistoryPage(1);
+            }}
+            placeholder="Buscar por motivo, usuario o categoria"
+          />
+        </div>
         <input
           style={styles.dateInput}
           type="date"
@@ -1721,37 +1821,56 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
             setHistoryPage(1);
           }}
         />
-        <FilterSelect
+        <select
+          style={styles.filterSelectFull}
           value={historyOperation}
-          onChange={(value) => {
-            setHistoryOperation(value as PriceAdjustmentOperation | "");
+          onChange={(event) => {
+            setHistoryOperation(event.target.value as PriceAdjustmentOperation | "");
             setHistoryPage(1);
           }}
-          options={operationFilterOptions}
-        />
-        <FilterSelect
+        >
+          {operationFilterOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <select
+          style={styles.filterSelectFull}
           value={historyScope}
-          onChange={(value) => {
-            setHistoryScope(value as PriceAdjustmentScope | "");
+          onChange={(event) => {
+            setHistoryScope(event.target.value as PriceAdjustmentScope | "");
             setHistoryPage(1);
           }}
-          options={scopeFilterOptions}
-        />
+        >
+          {scopeFilterOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
         {userOptions.length > 0 && (
-          <FilterSelect
+          <select
+            style={styles.filterSelectFull}
             value={historyUserId}
-            onChange={(value) => {
-              setHistoryUserId(value);
+            onChange={(event) => {
+              setHistoryUserId(event.target.value);
               setHistoryPage(1);
             }}
-            options={[
+          >
+            {[
               { value: "", label: "Todos los usuarios" },
               ...userOptions.map((user) => ({ value: String(user.id), label: user.name })),
-            ]}
-          />
+            ].map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         )}
-      </Toolbar>
+      </div>
 
+      {isMobile ? renderHistoryCards() : (
       <div className="table-sticky-head" style={styles.historyTableWrap}>
         <table style={styles.historyTable}>
           <colgroup>
@@ -1841,16 +1960,17 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
           </tbody>
         </table>
       </div>
+      )}
 
-      <div style={styles.historyPagination}>
+      <div style={filtersStacked ? { ...styles.historyPagination, ...styles.historyPaginationStacked } : styles.historyPagination}>
         <span style={styles.historyPaginationText}>
           {historyTotal > 0
             ? `Mostrando ${historyRangeStart}-${historyRangeEnd} de ${historyTotal} registro${historyTotal === 1 ? "" : "s"}`
             : "Mostrando 0 de 0 registros"}
         </span>
         {historyTotal > 0 && (
-        <div style={styles.historyPaginationControls}>
-          <label style={styles.historyPageSizeLabel}>
+        <div style={filtersStacked ? { ...styles.historyPaginationControls, ...styles.historyPaginationControlsStacked } : styles.historyPaginationControls}>
+          <label style={filtersStacked ? { ...styles.historyPageSizeLabel, ...styles.historyPageSizeLabelStacked } : styles.historyPageSizeLabel}>
             <span>Registros por pagina</span>
             <select
               style={styles.historyPageSizeSelect}
@@ -1871,6 +1991,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
               type="button"
               style={{
                 ...styles.historyPagerButton,
+                ...(filtersStacked ? styles.fullWidthActionButton : {}),
                 opacity: historyLoading || historyPageNumber <= 1 ? 0.55 : 1,
                 cursor: historyLoading || historyPageNumber <= 1 ? "not-allowed" : "pointer",
               }}
@@ -1880,11 +2001,12 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
           >
             <ChevronLeft size={14} /> Anterior
           </button>
-          <span style={styles.historyPageText}>Pagina {historyPageNumber} de {historyTotalPages}</span>
+          <span style={filtersStacked ? { ...styles.historyPageText, ...styles.historyPageTextStacked } : styles.historyPageText}>Pagina {historyPageNumber} de {historyTotalPages}</span>
             <button
               type="button"
               style={{
                 ...styles.historyPagerButton,
+                ...(filtersStacked ? styles.fullWidthActionButton : {}),
                 opacity: historyLoading || historyPageNumber >= historyTotalPages ? 0.55 : 1,
                 cursor: historyLoading || historyPageNumber >= historyTotalPages ? "not-allowed" : "pointer",
               }}
@@ -1907,12 +2029,12 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
         subtitle="Actualiza precios de venta por producto, categoria o alcance completo con vista previa antes de aplicar"
       />
 
-      <div style={styles.tabs} role="tablist" aria-label="Ajustes masivos de precios">
+      <div style={filtersStacked ? { ...styles.tabs, ...styles.tabsStacked } : styles.tabs} role="tablist" aria-label="Ajustes masivos de precios">
         <button
           type="button"
           role="tab"
           aria-selected={activeTab === "adjust"}
-          style={{ ...styles.tabButton, ...(activeTab === "adjust" ? styles.tabButtonActive : {}) }}
+          style={{ ...styles.tabButton, ...(filtersStacked ? styles.tabButtonStacked : {}), ...(activeTab === "adjust" ? styles.tabButtonActive : {}) }}
           onClick={() => setActiveTab("adjust")}
         >
           <DollarSign size={16} /> Ajustar precios
@@ -1921,7 +2043,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
           type="button"
           role="tab"
           aria-selected={activeTab === "history"}
-          style={{ ...styles.tabButton, ...(activeTab === "history" ? styles.tabButtonActive : {}) }}
+          style={{ ...styles.tabButton, ...(filtersStacked ? styles.tabButtonStacked : {}), ...(activeTab === "history" ? styles.tabButtonActive : {}) }}
           onClick={() => setActiveTab("history")}
         >
           <History size={16} /> Historial
@@ -1931,15 +2053,15 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
       {activeTab === "adjust" ? renderAdjustTab() : renderHistoryTab()}
 
       {confirmApplyOpen && preview && (
-        <div style={ui.overlay} onClick={() => !applying && setConfirmApplyOpen(false)}>
-          <div style={{ ...ui.modal, maxWidth: 560 }} onClick={(event) => event.stopPropagation()}>
+        <div style={overlayStyle} onClick={() => !applying && setConfirmApplyOpen(false)}>
+          <div style={getResponsiveModalStyle(560)} onClick={(event) => event.stopPropagation()}>
             <div style={ui.modalHeader}>
               <span style={ui.modalTitle}>Confirmar ajuste de precios</span>
-              <button type="button" style={ui.linkBtn} onClick={() => setConfirmApplyOpen(false)} disabled={applying}>
+              <button type="button" style={{ ...ui.linkBtn, ...styles.closeButton }} onClick={() => setConfirmApplyOpen(false)} disabled={applying} aria-label="Cerrar confirmacion">
                 <X size={18} />
               </button>
             </div>
-            <div style={ui.modalBody}>
+            <div style={modalBodyStyle}>
               <div style={styles.confirmSummary}>
                 <div><strong>Cantidad de productos:</strong> {selectedProductIds.size}</div>
                 <div><strong>Tipo de ajuste:</strong> {operationLabel(operation)}</div>
@@ -1947,11 +2069,11 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                 <div><strong>Debajo de costo:</strong> {preview.belowCostCount}</div>
                 <div><strong>Motivo:</strong> {notes.trim()}</div>
               </div>
-              <div style={styles.footerActions}>
-                <button type="button" style={ui.ghostBtn} onClick={() => setConfirmApplyOpen(false)} disabled={applying}>
+              <div style={filtersStacked ? { ...styles.footerActions, ...styles.footerActionsStacked } : styles.footerActions}>
+                <button type="button" style={{ ...ui.ghostBtn, ...responsiveActionButtonStyle }} onClick={() => setConfirmApplyOpen(false)} disabled={applying}>
                   Cancelar
                 </button>
-                <button type="button" style={{ ...ui.primaryBtn, opacity: applying ? 0.7 : 1 }} onClick={applyAdjustment} disabled={applying}>
+                <button type="button" style={{ ...ui.primaryBtn, ...responsiveActionButtonStyle, opacity: applying ? 0.7 : 1 }} onClick={applyAdjustment} disabled={applying}>
                   {applying ? "Aplicando..." : "Si, aplicar ajuste"}
                 </button>
               </div>
@@ -1961,18 +2083,18 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
       )}
 
       {detailOpen && (
-        <div style={ui.overlay} onClick={closeDetail}>
+        <div style={overlayStyle} onClick={closeDetail}>
           <div
-            style={{ ...ui.modal, maxWidth: isMobile ? "100%" : 980, width: "100%" }}
+            style={getResponsiveModalStyle(980)}
             onClick={(event) => event.stopPropagation()}
           >
             <div style={ui.modalHeader}>
               <span style={ui.modalTitle}>Detalle de ajuste</span>
-              <button type="button" style={ui.linkBtn} onClick={closeDetail}>
+              <button type="button" style={{ ...ui.linkBtn, ...styles.closeButton }} onClick={closeDetail} aria-label="Cerrar detalle de ajuste">
                 <X size={18} />
               </button>
             </div>
-            <div style={ui.modalBody}>
+            <div style={modalBodyStyle}>
               {detailLoading && <div style={styles.loadingBlock}>Cargando detalle...</div>}
               {detailError && <InlineAlert tone="error">{detailError}</InlineAlert>}
               {!detailLoading && detail && (
@@ -2013,18 +2135,18 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                     )}
                   </div>
                   {!detail.reversalStatus?.isReversal && (
-                    <div style={styles.inlineActions}>
+                    <div style={filtersStacked ? { ...styles.inlineActions, ...styles.inlineActionsStacked } : styles.inlineActions}>
                       {reversalMode ? (
                         <>
-                          <button type="button" style={ui.ghostBtn} onClick={() => void loadReversalPreview()} disabled={reversalLoading || reverting}>
+                          <button type="button" style={{ ...ui.ghostBtn, ...responsiveActionButtonStyle }} onClick={() => void loadReversalPreview()} disabled={reversalLoading || reverting}>
                             {reversalLoading ? "Actualizando..." : "Actualizar elegibilidad"}
                           </button>
-                          <button type="button" style={ui.ghostBtn} onClick={resetReversalState} disabled={reverting}>
+                          <button type="button" style={{ ...ui.ghostBtn, ...responsiveActionButtonStyle }} onClick={resetReversalState} disabled={reverting}>
                             Cancelar reversión
                           </button>
                         </>
                       ) : (
-                        <button type="button" style={ui.primaryBtn} onClick={() => void startReversalMode()} disabled={reversalLoading || Boolean(detailReversalBlockReason)}>
+                        <button type="button" style={{ ...ui.primaryBtn, ...responsiveActionButtonStyle }} onClick={() => void startReversalMode()} disabled={reversalLoading || Boolean(detailReversalBlockReason)}>
                           <RotateCcw size={15} /> Revertir productos
                         </button>
                       )}
@@ -2033,75 +2155,11 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                 </div>
               )}
 
-              {reversalMode && (
-                <div style={styles.reversalPanel}>
-                  {reversalLoading && <div style={styles.reversalStatusLine}>Consultando elegibilidad actual...</div>}
-                  {reversalError && <InlineAlert tone="error">{reversalError}</InlineAlert>}
-                  {detailReversalBlockReason && (
-                    <InlineAlert tone="warning">{detailReversalBlockReason}</InlineAlert>
-                  )}
-                  {reversalConflicts.length > 0 && (
-                    <div style={styles.reversalConflictList}>
-                      {reversalConflicts.slice(0, 5).map((conflict) => (
-                        <div key={`${conflict.detailId ?? conflict.productId ?? conflict.reasonCode}-${conflict.reason}`} style={styles.reversalConflictItem}>
-                          <strong>{conflict.sku || conflict.name || `Detalle #${conflict.detailId}`}</strong>
-                          <span>{conflict.reason}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div style={styles.reversalControls}>
-                    <div style={styles.reversalCounter}>
-                      {selectedReversalDetailIds.size} producto{selectedReversalDetailIds.size === 1 ? "" : "s"} seleccionado{selectedReversalDetailIds.size === 1 ? "" : "s"} para revertir
-                    </div>
-                    <div style={styles.inlineActions}>
-                      <button type="button" style={ui.ghostBtn} onClick={selectAllReversibleProducts} disabled={reversalLoading || reversibleProducts.length === 0 || reverting}>
-                        Seleccionar todos los reversibles
-                      </button>
-                      <button type="button" style={ui.ghostBtn} onClick={clearReversalSelection} disabled={selectedReversalDetailIds.size === 0 || reverting}>
-                        Deseleccionar todos
-                      </button>
-                    </div>
-                  </div>
-                  <label style={ui.fieldLabel}>Motivo de la reversión *</label>
-                  <textarea
-                    style={{ ...ui.input, minHeight: 78, resize: "vertical" }}
-                    value={reversalReason}
-                    onChange={(event) => {
-                      setReversalReason(event.target.value);
-                      setReversalError(null);
-                    }}
-                    maxLength={REVERSAL_REASON_MAX_LENGTH}
-                    placeholder="Corrección de ajuste aplicado por error."
-                    disabled={reverting}
-                  />
-                  <div style={styles.fieldFooter}>
-                    {!reversalReasonTrimmed && reversalReason.length > 0 ? (
-                      <p style={styles.fieldErrorInline}>El motivo no puede quedar vacío.</p>
-                    ) : (
-                      <span />
-                    )}
-                    <span>{reversalReason.length} / {REVERSAL_REASON_MAX_LENGTH} caracteres</span>
-                  </div>
-                  <div style={styles.footerActions}>
-                    <button type="button" style={ui.ghostBtn} onClick={resetReversalState} disabled={reverting}>
-                      Cancelar
-                    </button>
-                    <button
-                      type="button"
-                      style={{ ...ui.primaryBtn, opacity: canContinueReversal ? 1 : 0.65 }}
-                      onClick={() => void openReversalConfirm()}
-                      disabled={!canContinueReversal}
-                    >
-                      Continuar
-                    </button>
-                  </div>
+              <div style={filtersStacked ? { ...styles.detailFilterToolbar, ...styles.detailFilterToolbarStacked } : styles.detailFilterToolbar}>
+                <div style={styles.detailSearchControl}>
+                  <SearchInput value={detailSearch} onChange={(value) => { setDetailSearch(value); setDetailPage(1); }} placeholder="Buscar producto en este ajuste" />
                 </div>
-              )}
-
-              <Toolbar>
-                <SearchInput value={detailSearch} onChange={(value) => { setDetailSearch(value); setDetailPage(1); }} placeholder="Buscar producto en este ajuste" />
-                <label style={styles.checkRow}>
+                <label style={{ ...styles.checkRow, ...styles.checkRowTop }}>
                   <input
                     type="checkbox"
                     checked={detailOnlyBelowCost}
@@ -2113,9 +2171,9 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                   />
                   <span>Solo productos debajo del costo</span>
                 </label>
-              </Toolbar>
+              </div>
 
-              <div style={{ ...ui.tableWrap, maxHeight: 360, overflowY: "auto" }}>
+              <div style={{ ...ui.tableWrap, maxHeight: filtersStacked ? 280 : 360, overflowX: "auto", overflowY: "auto" }}>
                 <table style={{ ...ui.table, minWidth: reversalMode ? 980 : 760 }}>
                   <thead>
                     <tr style={ui.theadRow}>
@@ -2206,10 +2264,10 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
               <div style={styles.pagination}>
                 <span style={styles.mutedText}>{detailProductsSummary}</span>
                 {showDetailPagination && (
-                  <div style={styles.inlineActions}>
+                  <div style={filtersStacked ? { ...styles.inlineActions, ...styles.inlineActionsStacked } : styles.inlineActions}>
                     <button
                       type="button"
-                      style={ui.ghostBtn}
+                      style={{ ...ui.ghostBtn, ...responsiveActionButtonStyle }}
                       onClick={handleDetailPreviousPage}
                       disabled={detailProductsBusy || detailPage <= 1}
                     >
@@ -2217,7 +2275,7 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                     </button>
                     <button
                       type="button"
-                      style={ui.ghostBtn}
+                      style={{ ...ui.ghostBtn, ...responsiveActionButtonStyle }}
                       onClick={handleDetailNextPage}
                       disabled={detailProductsBusy || detailPage >= detailDisplayTotalPages}
                     >
@@ -2226,21 +2284,87 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                   </div>
                 )}
               </div>
+
+              {reversalMode && (
+                <div style={styles.reversalPanel}>
+                  {reversalLoading && <div style={styles.reversalStatusLine}>Consultando elegibilidad actual...</div>}
+                  {reversalError && <InlineAlert tone="error">{reversalError}</InlineAlert>}
+                  {detailReversalBlockReason && (
+                    <InlineAlert tone="warning">{detailReversalBlockReason}</InlineAlert>
+                  )}
+                  {reversalConflicts.length > 0 && (
+                    <div style={styles.reversalConflictList}>
+                      {reversalConflicts.slice(0, 5).map((conflict) => (
+                        <div key={`${conflict.detailId ?? conflict.productId ?? conflict.reasonCode}-${conflict.reason}`} style={styles.reversalConflictItem}>
+                          <strong>{conflict.sku || conflict.name || `Detalle #${conflict.detailId}`}</strong>
+                          <span>{conflict.reason}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={filtersStacked ? { ...styles.reversalControls, ...styles.reversalControlsStacked } : styles.reversalControls}>
+                    <div style={styles.reversalCounter}>
+                      {selectedReversalDetailIds.size} producto{selectedReversalDetailIds.size === 1 ? "" : "s"} seleccionado{selectedReversalDetailIds.size === 1 ? "" : "s"} para revertir
+                    </div>
+                    <div style={filtersStacked ? { ...styles.inlineActions, ...styles.inlineActionsStacked } : styles.inlineActions}>
+                      <button type="button" style={{ ...ui.ghostBtn, ...responsiveActionButtonStyle }} onClick={selectAllReversibleProducts} disabled={reversalLoading || reversibleProducts.length === 0 || reverting}>
+                        Seleccionar todos los reversibles
+                      </button>
+                      <button type="button" style={{ ...ui.ghostBtn, ...responsiveActionButtonStyle }} onClick={clearReversalSelection} disabled={selectedReversalDetailIds.size === 0 || reverting}>
+                        Deseleccionar todos
+                      </button>
+                    </div>
+                  </div>
+                  <label style={ui.fieldLabel}>Motivo de la reversion *</label>
+                  <textarea
+                    style={{ ...ui.input, minHeight: 78, resize: "vertical" }}
+                    value={reversalReason}
+                    onChange={(event) => {
+                      setReversalReason(event.target.value);
+                      setReversalError(null);
+                    }}
+                    maxLength={REVERSAL_REASON_MAX_LENGTH}
+                    placeholder="Correccion de ajuste aplicado por error."
+                    disabled={reverting}
+                  />
+                  <div style={filtersStacked ? { ...styles.fieldFooter, ...styles.fieldFooterStacked } : styles.fieldFooter}>
+                    {!reversalReasonTrimmed && reversalReason.length > 0 ? (
+                      <p style={styles.fieldErrorInline}>El motivo no puede quedar vacio.</p>
+                    ) : (
+                      <span />
+                    )}
+                    <span>{reversalReason.length} / {REVERSAL_REASON_MAX_LENGTH} caracteres</span>
+                  </div>
+                  <div style={filtersStacked ? { ...styles.footerActions, ...styles.footerActionsStacked } : styles.footerActions}>
+                    <button type="button" style={{ ...ui.ghostBtn, ...responsiveActionButtonStyle }} onClick={resetReversalState} disabled={reverting}>
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      style={{ ...ui.primaryBtn, ...responsiveActionButtonStyle, opacity: canContinueReversal ? 1 : 0.65 }}
+                      onClick={() => void openReversalConfirm()}
+                      disabled={!canContinueReversal}
+                    >
+                      Continuar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
       {reversalConfirmOpen && (
-        <div style={ui.overlay} onClick={() => !reverting && setReversalConfirmOpen(false)}>
-          <div style={{ ...ui.modal, maxWidth: 620, width: "100%" }} onClick={(event) => event.stopPropagation()}>
+        <div style={overlayStyle} onClick={() => !reverting && setReversalConfirmOpen(false)}>
+          <div style={getResponsiveModalStyle(620)} onClick={(event) => event.stopPropagation()}>
             <div style={ui.modalHeader}>
               <span style={ui.modalTitle}>Confirmar reversión</span>
-              <button type="button" style={ui.linkBtn} onClick={() => setReversalConfirmOpen(false)} disabled={reverting}>
+              <button type="button" style={{ ...ui.linkBtn, ...styles.closeButton }} onClick={() => setReversalConfirmOpen(false)} disabled={reverting} aria-label="Cerrar confirmacion de reversion">
                 <X size={18} />
               </button>
             </div>
-            <div style={ui.modalBody}>
+            <div style={modalBodyStyle}>
               <div style={styles.reversalConfirmHeader}>
                 <div style={styles.reversalConfirmIcon}>
                   <ShieldCheck size={18} />
@@ -2274,13 +2398,13 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                 autoComplete="current-password"
               />
               {reversalError && <InlineAlert tone="error">{reversalError}</InlineAlert>}
-              <div style={styles.footerActions}>
-                <button type="button" style={ui.ghostBtn} onClick={() => setReversalConfirmOpen(false)} disabled={reverting}>
+              <div style={filtersStacked ? { ...styles.footerActions, ...styles.footerActionsStacked } : styles.footerActions}>
+                <button type="button" style={{ ...ui.ghostBtn, ...responsiveActionButtonStyle }} onClick={() => setReversalConfirmOpen(false)} disabled={reverting}>
                   Volver
                 </button>
                 <button
                   type="button"
-                  style={{ ...ui.primaryBtn, opacity: reverting || !reversalCredential.trim() ? 0.65 : 1 }}
+                  style={{ ...ui.primaryBtn, ...responsiveActionButtonStyle, opacity: reverting || !reversalCredential.trim() ? 0.65 : 1 }}
                   onClick={() => void confirmReversal()}
                   disabled={reverting || !reversalCredential.trim()}
                 >
@@ -2305,9 +2429,15 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: 10,
     marginBottom: 18,
   },
+  tabsStacked: {
+    width: "100%",
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  },
   tabButton: {
     display: "inline-flex",
     alignItems: "center",
+    justifyContent: "center",
     gap: 7,
     border: "none",
     borderRadius: 8,
@@ -2317,6 +2447,14 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 13,
     fontWeight: 800,
     cursor: "pointer",
+    minWidth: 0,
+    whiteSpace: "normal",
+    textAlign: "center",
+    lineHeight: 1.2,
+  },
+  tabButtonStacked: {
+    width: "100%",
+    padding: "10px 8px",
   },
   tabButtonActive: {
     backgroundColor: "var(--accent-soft)",
@@ -2337,6 +2475,41 @@ const styles: { [key: string]: React.CSSProperties } = {
   panel: {
     ...ui.panel,
     padding: 18,
+  },
+  compactOverlay: {
+    ...ui.overlay,
+    padding: 6,
+    alignItems: "center",
+    overflowY: "auto",
+  },
+  compactModalBody: {
+    ...ui.modalBody,
+    padding: 14,
+  },
+  closeButton: {
+    width: 34,
+    height: 34,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+  },
+  responsiveActionButton: {
+    height: "auto",
+    minHeight: 38,
+    maxWidth: "100%",
+    whiteSpace: "normal",
+    textAlign: "center",
+    justifyContent: "center",
+    lineHeight: 1.2,
+    flexShrink: 0,
+  },
+  fullWidthActionButton: {
+    width: "100%",
+  },
+  fullWidthControl: {
+    width: "100%",
+    minWidth: 0,
   },
   adjustFormGrid: {
     display: "grid",
@@ -2457,14 +2630,17 @@ const styles: { [key: string]: React.CSSProperties } = {
   counterPill: {
     display: "inline-flex",
     alignItems: "center",
-    height: 30,
-    padding: "0 10px",
+    minHeight: 30,
+    padding: "5px 10px",
     borderRadius: 999,
     backgroundColor: "var(--surface-2)",
     border: "1px solid var(--border)",
     color: "var(--text-secondary)",
     fontSize: 12,
     fontWeight: 800,
+    lineHeight: 1.2,
+    whiteSpace: "normal",
+    overflowWrap: "anywhere",
   },
   inlineActions: {
     display: "flex",
@@ -2472,22 +2648,42 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: 8,
     flexWrap: "wrap",
   },
+  inlineActionsStacked: {
+    width: "100%",
+    alignItems: "stretch",
+  },
+  singleSearchToolbar: {
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 16,
+    width: "100%",
+  },
   manualPickerToolbar: {
-    ...ui.toolbar,
+    display: "grid",
+    alignItems: "center",
     gap: 8,
     marginBottom: 10,
+    width: "100%",
+  },
+  manualPickerSearchControl: {
+    minWidth: 0,
   },
   manualPickerCounter: {
     display: "inline-flex",
     alignItems: "center",
-    height: 30,
-    padding: "0 10px",
+    minHeight: 30,
+    padding: "5px 10px",
     borderRadius: 999,
     backgroundColor: "var(--surface-2)",
     border: "1px solid var(--border)",
     color: "var(--text-secondary)",
     fontSize: 12,
     fontWeight: 800,
+    lineHeight: 1.2,
+    whiteSpace: "normal",
+    overflowWrap: "anywhere",
   },
   adjustTableWrap: {
     ...ui.tableWrap,
@@ -2680,11 +2876,14 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 11,
     fontWeight: 600,
     marginTop: 3,
+    overflowWrap: "anywhere",
   },
   mutedText: {
     color: "var(--text-muted)",
     fontSize: 13,
     fontWeight: 700,
+    overflowWrap: "anywhere",
+    minWidth: 0,
   },
   selectedRow: {
     backgroundColor: "rgba(59,130,246,0.06)",
@@ -2739,6 +2938,11 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 12,
     fontWeight: 700,
   },
+  fieldFooterStacked: {
+    alignItems: "flex-start",
+    flexDirection: "column",
+    gap: 4,
+  },
   inlineAlert: {
     border: "1px solid",
     borderRadius: 8,
@@ -2746,6 +2950,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 13,
     fontWeight: 700,
     marginTop: 12,
+    overflowWrap: "anywhere",
+    lineHeight: 1.35,
   },
   previewBlock: {
     marginTop: 18,
@@ -2812,6 +3018,12 @@ const styles: { [key: string]: React.CSSProperties } = {
     cursor: "pointer",
     fontSize: 13,
     fontWeight: 700,
+    minWidth: 0,
+    overflowWrap: "anywhere",
+    lineHeight: 1.3,
+  },
+  checkRowTop: {
+    alignItems: "flex-start",
   },
   footerActions: {
     display: "flex",
@@ -2821,9 +3033,108 @@ const styles: { [key: string]: React.CSSProperties } = {
     flexWrap: "wrap",
     marginTop: 18,
   },
+  footerActionsStacked: {
+    flexDirection: "column",
+    alignItems: "stretch",
+  },
   dateInput: {
     ...ui.filterSelect,
-    minWidth: 150,
+    width: "100%",
+    minWidth: 0,
+  },
+  filterSelectFull: {
+    ...ui.filterSelect,
+    width: "100%",
+    minWidth: 0,
+    maxWidth: "100%",
+  },
+  historyFilterGrid: {
+    display: "grid",
+    gap: 10,
+    alignItems: "start",
+    width: "100%",
+    marginBottom: 16,
+  },
+  historyFilterSearch: {
+    minWidth: 0,
+    width: "100%",
+  },
+  historyCardsList: {
+    display: "grid",
+    gap: 10,
+    width: "100%",
+  },
+  historyCard: {
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    backgroundColor: "var(--surface)",
+    padding: 12,
+    display: "grid",
+    gap: 12,
+    minWidth: 0,
+  },
+  historyCardState: {
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    backgroundColor: "var(--surface)",
+    padding: "24px 12px",
+    textAlign: "center",
+    color: "var(--text-muted)",
+    fontSize: 13,
+    fontWeight: 700,
+  },
+  historyCardHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+    minWidth: 0,
+    flexWrap: "wrap",
+  },
+  historyCardTitle: {
+    color: "var(--text)",
+    fontSize: 13,
+    fontWeight: 800,
+    overflowWrap: "anywhere",
+  },
+  historyCardMuted: {
+    color: "var(--text-faint)",
+    fontSize: 12,
+    fontWeight: 600,
+    overflowWrap: "anywhere",
+  },
+  historyCardActionButton: {
+    minHeight: 34,
+    padding: "6px 8px",
+    flexShrink: 0,
+  },
+  historyCardGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 150px), 1fr))",
+    gap: 10,
+  },
+  historyCardField: {
+    display: "grid",
+    gap: 3,
+    minWidth: 0,
+    color: "var(--text-muted)",
+    fontSize: 11,
+    fontWeight: 800,
+    textTransform: "uppercase",
+    letterSpacing: "0.2px",
+    overflowWrap: "anywhere",
+  },
+  historyCardFieldWide: {
+    gridColumn: "1 / -1",
+  },
+  historyCardValue: {
+    color: "var(--text-secondary)",
+    fontSize: 13,
+    fontWeight: 800,
+    textTransform: "none",
+    letterSpacing: 0,
+    lineHeight: 1.3,
+    overflowWrap: "anywhere",
   },
   historyTableWrap: {
     ...ui.tableWrap,
@@ -2983,10 +3294,15 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: 8,
     backgroundColor: "var(--surface)",
   },
+  historyPaginationStacked: {
+    alignItems: "stretch",
+    flexDirection: "column",
+  },
   historyPaginationText: {
     color: "var(--text-muted)",
     fontSize: 12,
     fontWeight: 700,
+    overflowWrap: "anywhere",
   },
   historyPaginationControls: {
     display: "flex",
@@ -2995,6 +3311,10 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: 8,
     flexWrap: "wrap",
   },
+  historyPaginationControlsStacked: {
+    width: "100%",
+    alignItems: "stretch",
+  },
   historyPageSizeLabel: {
     display: "inline-flex",
     alignItems: "center",
@@ -3002,6 +3322,10 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "var(--text-muted)",
     fontSize: 12,
     fontWeight: 700,
+  },
+  historyPageSizeLabelStacked: {
+    width: "100%",
+    justifyContent: "space-between",
   },
   historyPageSizeSelect: {
     ...ui.filterSelect,
@@ -3015,6 +3339,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     height: 32,
     padding: "5px 10px",
     fontSize: 12,
+    whiteSpace: "normal",
+    justifyContent: "center",
   },
   historyPageText: {
     minWidth: 104,
@@ -3023,12 +3349,33 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 12,
     fontWeight: 800,
   },
+  historyPageTextStacked: {
+    width: "100%",
+    minWidth: 0,
+  },
   pagination: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     gap: 12,
     flexWrap: "wrap",
+    marginTop: 10,
+    minWidth: 0,
+  },
+  detailFilterToolbar: {
+    display: "grid",
+    gridTemplateColumns: "minmax(240px, 400px) minmax(220px, 1fr)",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 16,
+    width: "100%",
+  },
+  detailFilterToolbarStacked: {
+    gridTemplateColumns: "1fr",
+    alignItems: "stretch",
+  },
+  detailSearchControl: {
+    minWidth: 0,
   },
   reversalHeader: {
     display: "flex",
@@ -3050,12 +3397,14 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: 13,
     fontWeight: 700,
     minWidth: 0,
+    overflowWrap: "anywhere",
   },
   reversalPanel: {
     border: "1px solid var(--border)",
     borderRadius: 8,
     padding: 12,
     backgroundColor: "var(--surface-2)",
+    marginTop: 12,
     marginBottom: 12,
   },
   reversalStatusLine: {
@@ -3072,10 +3421,15 @@ const styles: { [key: string]: React.CSSProperties } = {
     flexWrap: "wrap",
     marginBottom: 12,
   },
+  reversalControlsStacked: {
+    alignItems: "stretch",
+    flexDirection: "column",
+  },
   reversalCounter: {
     color: "var(--text-secondary)",
     fontSize: 13,
     fontWeight: 800,
+    overflowWrap: "anywhere",
   },
   reversalConflictList: {
     display: "grid",
@@ -3108,10 +3462,11 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   reversalConfirmHeader: {
     display: "flex",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 12,
     color: "var(--text)",
     marginBottom: 12,
+    minWidth: 0,
   },
   reversalConfirmIcon: {
     width: 36,
@@ -3123,6 +3478,9 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+  },
+  kpiContent: {
+    minWidth: 0,
   },
   reversalSummaryList: {
     display: "grid",
@@ -3141,6 +3499,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "var(--text-secondary)",
     fontSize: 12,
     fontWeight: 700,
+    overflowWrap: "anywhere",
+    minWidth: 0,
   },
   confirmSummary: {
     display: "grid",
@@ -3148,6 +3508,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "var(--text-secondary)",
     fontSize: 14,
     lineHeight: 1.45,
+    overflowWrap: "anywhere",
+    minWidth: 0,
   },
   loadingBlock: {
     textAlign: "center",
