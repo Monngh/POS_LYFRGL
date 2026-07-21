@@ -195,9 +195,16 @@ export const receivePurchase = async (purchaseId: number, userId: number) => {
         });
       }
 
+      // El costo "actual" del producto se valúa por PIEZA, no por la unidad de compra
+      // (caja/lote) que haya capturado el usuario: se reparte el dinero total gastado en
+      // la línea entre las piezas físicas reales que representa. Para unit=PIEZA,
+      // totalPieces === quantity, así que esto da exactamente unitCost (sin cambio).
+      const piecesForCost = detail.totalPieces ?? detail.quantity;
+      const perPieceCost = Math.round((Number(detail.unitCost) * detail.quantity / piecesForCost) * 100) / 100;
+
       await tx.product.update({
         where: { id: detail.productId },
-        data: { costPrice: detail.unitCost },
+        data: { costPrice: perPieceCost },
       });
 
       await tx.kardex.create({

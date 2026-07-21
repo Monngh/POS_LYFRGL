@@ -571,6 +571,47 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
   // Campos de conversión de unidades (Piezas por caja / Cajas en el lote / Piezas
   // totales del lote), compartidos entre la rejilla de escritorio y las tarjetas de
   // teléfono. Solo se renderiza cuando la unidad del renglón es CAJA o LOTE.
+  // Replica en el frontend la MISMA fórmula que computeLineUnitConversion en el backend
+  // (adminPurchase.service.ts), solo como feedback visual en vivo — el cálculo real que
+  // se guarda siempre lo hace el backend. Devuelve null si faltan datos válidos, para no
+  // mostrar un total engañoso (ej. "0 piezas").
+  const computeLivePiecesPreview = (l: Line): number | null => {
+    const quantity = Number(l.quantity);
+    if (!Number.isInteger(quantity) || quantity <= 0) return null;
+
+    if (l.unit === "CAJA") {
+      const piecesPerBox = Number(l.piecesPerBox);
+      if (!l.piecesPerBox.trim() || !Number.isInteger(piecesPerBox) || piecesPerBox <= 0) return null;
+      return quantity * piecesPerBox;
+    }
+
+    if (l.unit === "LOTE") {
+      if (l.lotMode === "direct") {
+        const piecesPerLot = Number(l.piecesPerLot);
+        if (!l.piecesPerLot.trim() || !Number.isInteger(piecesPerLot) || piecesPerLot <= 0) return null;
+        return quantity * piecesPerLot;
+      }
+      const boxesPerLot = Number(l.boxesPerLot);
+      const piecesPerBox = Number(l.piecesPerBox);
+      if (!l.boxesPerLot.trim() || !Number.isInteger(boxesPerLot) || boxesPerLot <= 0) return null;
+      if (!l.piecesPerBox.trim() || !Number.isInteger(piecesPerBox) || piecesPerBox <= 0) return null;
+      return quantity * boxesPerLot * piecesPerBox;
+    }
+
+    return null;
+  };
+
+  const renderPiecesPreview = (l: Line) => {
+    const preview = computeLivePiecesPreview(l);
+    return (
+      <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>
+        {preview !== null
+          ? `→ ${preview.toLocaleString("es-MX")} piezas totales`
+          : "Completa los campos para ver el total de piezas"}
+      </div>
+    );
+  };
+
   const renderUnitConversionRow = (l: Line, i: number, variant: "grid" | "card") => {
     if (l.unit !== "CAJA" && l.unit !== "LOTE") return null;
     const err = lineErrors[i] || {};
@@ -596,7 +637,14 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
     );
 
     if (l.unit === "CAJA") {
-      return <div style={wrapStyle}>{conversionField("Piezas por caja", "piecesPerBox")}</div>;
+      return (
+        <div style={wrapStyle}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {conversionField("Piezas por caja", "piecesPerBox")}
+            {renderPiecesPreview(l)}
+          </div>
+        </div>
+      );
     }
 
     // LOTE: toggle entre "Por cajas" (boxesPerLot × piecesPerBox) y "Total directo" (piecesPerLot).
@@ -639,6 +687,7 @@ const ComprasView: React.FC<ViewProps> = ({ refreshToken }) => {
                 </>
               )}
           </div>
+          {renderPiecesPreview(l)}
         </div>
       </div>
     );
