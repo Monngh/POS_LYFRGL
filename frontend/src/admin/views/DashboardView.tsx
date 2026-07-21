@@ -347,7 +347,7 @@ const DashboardView: React.FC<ViewProps> = ({ branchId, refreshToken, navigateTo
               const h = Math.round((d.total / maxDay) * 150);
               return (
                 <div key={i} style={s.chartCol}>
-                  <span style={s.chartValue}>{d.total > 0 ? money(d.total) : ""}</span>
+                  <span style={s.chartValue}>{d.total > 0 ? (d.total >= 1000 ? `$${(d.total / 1000).toFixed(1)}k` : `$${Math.round(d.total)}`) : ""}</span>
                   <div
                     style={{
                       ...s.bar,
@@ -492,7 +492,7 @@ const s: { [k: string]: React.CSSProperties } = {
     gap: 8,
     height: "100%",
   },
-  chartValue: { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", height: 13 },
+  chartValue: { fontSize: 10, fontWeight: 700, color: "var(--text-muted)", whiteSpace: "nowrap" as const, height: 14, lineHeight: "14px" },
   bar: { width: "60%", maxWidth: 46, borderRadius: "6px 6px 0 0", transition: "height 0.3s ease" },
   chartLabel: { fontSize: 12, fontWeight: 600, color: "var(--text-faint)" },
   track: { height: 9, backgroundColor: "#eef2f7", borderRadius: 999, overflow: "hidden" },

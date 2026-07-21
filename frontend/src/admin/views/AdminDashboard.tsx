@@ -516,18 +516,18 @@ const AdminDashboard: React.FC = () => {
       <div style={styles.main}>
         <header style={{ ...styles.topbar, padding: isMobile ? "0 12px" : "0 24px", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 6 : 14, minWidth: 0 }}>
-            {/* En mobile: o el menú raíz, o la flecha de volver, nunca ambos a la vez.
-                En desktop/tablet ambos botones pueden convivir. */}
-            {(!isMobile || navHistory.length === 0) && (
-              <button
-                onClick={toggleMenu}
-                title={isMobile ? "Abrir menú" : effectiveCollapsed ? "Expandir menú" : "Contraer menú"}
-                className="active-tap adm-icon-btn"
-                style={styles.iconBtn}
-              >
-                <Menu size={18} />
-              </button>
-            )}
+            {/* Hamburguesa SIEMPRE visible: permite abrir el nav (cajón en móvil,
+                colapsar/expandir en escritorio) desde cualquier pestaña. El botón
+                de "volver" se muestra además cuando hay historial de navegación. */}
+            <button
+              onClick={toggleMenu}
+              title={isMobile ? "Abrir menú" : effectiveCollapsed ? "Expandir menú" : "Contraer menú"}
+              className="active-tap adm-icon-btn"
+              style={styles.iconBtn}
+              aria-label="Abrir menú de navegación"
+            >
+              <Menu size={18} />
+            </button>
             {navHistory.length > 0 && (
               <button
                 onClick={goBack}
