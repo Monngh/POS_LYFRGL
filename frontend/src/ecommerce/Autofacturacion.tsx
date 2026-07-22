@@ -990,56 +990,111 @@ const Autofacturacion: React.FC = () => {
                     </div>
                   </div>
 
-                  <div style={{ overflowX: "auto", marginTop: "16px" }} className="autofact-table-scroll">
-                    <table style={styles.table}>
-                      <thead>
-                        <tr style={styles.thRow}>
-                          <th style={styles.th}>Producto</th>
-                          <th style={styles.th}>Cant.</th>
-                          <th style={styles.th}>P. Unitario</th>
-                          <th style={styles.th}>Desc.</th>
-                          <th style={styles.th}>Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {ticket.items.map((item, idx) => {
-                          const lineDiscount = Number(item.discountAmount || 0);
-                          const hasLineDiscount = lineDiscount > 0;
-                          const displayUnitPrice = item.unitPriceAfterDiscount ?? item.unitPrice;
-                          return (
-                            <tr key={idx} style={styles.tr}>
-                              <td style={styles.td}>
-                                <div style={{ fontWeight: "700", color: "#0f172a" }}>{item.name}</div>
-                                {item.promotionLabel && (
-                                  <div style={styles.promoLabel}>{item.promotionLabel}</div>
-                                )}
-                              </td>
-                              <td style={styles.td}>{item.quantity}</td>
-                              <td style={styles.td}>
+                  {/* Desktop/tablet: tabla clásica */}
+                  <div className="autofact-products-desktop">
+                    <div style={{ overflowX: "auto", marginTop: "16px" }} className="autofact-table-scroll">
+                      <table style={styles.table}>
+                        <thead>
+                          <tr style={styles.thRow}>
+                            <th style={styles.th}>Producto</th>
+                            <th style={styles.th}>Cant.</th>
+                            <th style={styles.th}>P. Unitario</th>
+                            <th style={styles.th}>Desc.</th>
+                            <th style={styles.th}>Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ticket.items.map((item, idx) => {
+                            const lineDiscount = Number(item.discountAmount || 0);
+                            const hasLineDiscount = lineDiscount > 0;
+                            const displayUnitPrice = item.unitPriceAfterDiscount ?? item.unitPrice;
+                            return (
+                              <tr key={idx} style={styles.tr}>
+                                <td style={styles.td}>
+                                  <div style={{ fontWeight: "700", color: "#0f172a" }}>{item.name}</div>
+                                  {item.promotionLabel && (
+                                    <div style={styles.promoLabel}>{item.promotionLabel}</div>
+                                  )}
+                                </td>
+                                <td style={styles.td}>{item.quantity}</td>
+                                <td style={styles.td}>
+                                  {hasLineDiscount ? (
+                                    <div style={styles.priceStack}>
+                                      <span style={styles.strikePrice}>{formatMoney(item.unitPrice)}</span>
+                                      <span>{formatMoney(displayUnitPrice)}</span>
+                                    </div>
+                                  ) : (
+                                    formatMoney(item.unitPrice)
+                                  )}
+                                </td>
+                                <td style={{ ...styles.td, color: hasLineDiscount ? "#047857" : "#94a3b8", fontWeight: hasLineDiscount ? "700" : "500" }}>
+                                  {hasLineDiscount ? `-${formatMoney(lineDiscount)}` : "—"}
+                                </td>
+                                <td style={{ ...styles.td, fontWeight: "700" }}>
+                                  {hasLineDiscount && item.grossTotal !== undefined && (
+                                    <div style={styles.strikePrice}>{formatMoney(item.grossTotal)}</div>
+                                  )}
+                                  {formatMoney(item.total)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Mobile: cards con scroll vertical */}
+                  <div className="autofact-products-mobile">
+                    {ticket.items.map((item, idx) => {
+                      const lineDiscount = Number(item.discountAmount || 0);
+                      const hasLineDiscount = lineDiscount > 0;
+                      const displayUnitPrice = item.unitPriceAfterDiscount ?? item.unitPrice;
+                      return (
+                        <div key={idx} className="autofact-product-card">
+                          <div style={{ fontWeight: "700", fontSize: "14px", color: "#0f172a", marginBottom: "6px" }}>{item.name}</div>
+                          {item.promotionLabel && (
+                            <div style={{ display: "inline-block", backgroundColor: "#dbeafe", color: "#1e40af", fontSize: "10px", fontWeight: "700", padding: "2px 6px", borderRadius: "4px", marginBottom: "8px" }}>{item.promotionLabel}</div>
+                          )}
+                          <div style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "12px", color: "#475569" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between" }}>
+                              <span>Cantidad:</span>
+                              <span style={{ fontWeight: "600", color: "#0f172a" }}>{item.quantity}</span>
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "space-between" }}>
+                              <span>Precio unitario:</span>
+                              <span style={{ fontWeight: "600", color: "#0f172a" }}>
                                 {hasLineDiscount ? (
-                                  <div style={styles.priceStack}>
-                                    <span style={styles.strikePrice}>{formatMoney(item.unitPrice)}</span>
+                                  <span>
+                                    <span style={{ textDecoration: "line-through", color: "#94a3b8", marginRight: "6px" }}>{formatMoney(item.unitPrice)}</span>
                                     <span>{formatMoney(displayUnitPrice)}</span>
-                                  </div>
+                                  </span>
                                 ) : (
                                   formatMoney(item.unitPrice)
                                 )}
-                              </td>
-                              <td style={{ ...styles.td, color: hasLineDiscount ? "#047857" : "#94a3b8", fontWeight: hasLineDiscount ? "700" : "500" }}>
-                                {hasLineDiscount ? `-${formatMoney(lineDiscount)}` : "—"}
-                              </td>
-                              <td style={{ ...styles.td, fontWeight: "700" }}>
+                              </span>
+                            </div>
+                            {hasLineDiscount && (
+                              <div style={{ display: "flex", justifyContent: "space-between", color: "#047857" }}>
+                                <span>Descuento:</span>
+                                <span style={{ fontWeight: "700" }}>-{formatMoney(lineDiscount)}</span>
+                              </div>
+                            )}
+                            <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed #e2e8f0", paddingTop: "4px", marginTop: "4px", fontWeight: "700", color: "#0f172a" }}>
+                              <span>Total:</span>
+                              <span>
                                 {hasLineDiscount && item.grossTotal !== undefined && (
-                                  <div style={styles.strikePrice}>{formatMoney(item.grossTotal)}</div>
+                                  <span style={{ textDecoration: "line-through", color: "#94a3b8", fontSize: "11px", marginRight: "6px", fontWeight: "normal" }}>{formatMoney(item.grossTotal)}</span>
                                 )}
                                 {formatMoney(item.total)}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
+
 
                   <div style={styles.ticketSummaryBox}>
                     {/* Desglose claro de descuentos y ajustes para que coincida con la factura */}
