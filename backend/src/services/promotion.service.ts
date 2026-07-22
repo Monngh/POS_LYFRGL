@@ -168,7 +168,11 @@ export class PromotionService {
         promotionType: true,
         products: {
           include: {
-            product: true,
+            product: {
+              include: {
+                inventories: true,
+              },
+            },
           },
         },
       },
@@ -176,15 +180,27 @@ export class PromotionService {
 
     return promotions
       .map((promotion) => {
-        const validProducts = promotion.products.filter((row) => {
-          const product = toValidationProduct(row.product);
-          const issues = getPromotionValidationIssues(toValidationConfig(promotion), [product]);
-          if (issues.length > 0) {
-            logPromotionRejection(issues[0].code, promotion, product, { message: issues[0].message });
-            return false;
-          }
-          return true;
-        });
+        const validProducts = promotion.products
+          .filter((row) => {
+            const product = toValidationProduct(row.product);
+            const issues = getPromotionValidationIssues(toValidationConfig(promotion), [product]);
+            if (issues.length > 0) {
+              logPromotionRejection(issues[0].code, promotion, product, { message: issues[0].message });
+              return false;
+            }
+            return true;
+          })
+          .map((row) => {
+            const inventories = (row.product as any).inventories || [];
+            const totalStock = inventories.reduce((acc: number, inv: any) => acc + (inv.quantity || 0), 0);
+            return {
+              ...row,
+              product: {
+                ...row.product,
+                stock: totalStock,
+              },
+            };
+          });
         return { ...promotion, products: validProducts };
       })
       .filter((promotion) => promotion.products.length > 0);

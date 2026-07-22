@@ -1,5 +1,5 @@
 /** Accesos rápidos del terminal: siempre activos en vista de ventas (aunque el carrusel esté en otra página). */
-export const GLOBAL_QUICK_ACTION_LETTERS = ["Q", "G", "N", "D", "H", "U", "I"] as const;
+export const GLOBAL_QUICK_ACTION_LETTERS = ["Q", "G", "N", "D", "H", "U", "I", "P"] as const;
 
 export type GlobalQuickActionLetter = (typeof GLOBAL_QUICK_ACTION_LETTERS)[number];
 
@@ -11,6 +11,7 @@ export const GLOBAL_QUICK_ACTIONS: Record<GlobalQuickActionLetter, string> = {
   H: "ticket-history",
   U: "partial-cut-summary",
   I: "autofacturacion",
+  P: "promotions",
 };
 
 /** Atajos reservados del POS que deben hacer preventDefault antes que el navegador. */

@@ -125,30 +125,7 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
     onToast(`Promoción ${promo.name} agregada`, "success");
   };
 
-  // Add global keyboard shortcut Alt+P for focusing the grid
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.altKey && !e.ctrlKey && !e.shiftKey) {
-        const key = e.key.toLowerCase();
-        if (key === "p") {
-          e.preventDefault();
-          setIsCollapsed((prev) => {
-            const next = !prev;
-            if (!next) {
-              setTimeout(() => searchInputRef.current?.focus(), 60);
-            } else {
-              if (document.activeElement === searchInputRef.current) {
-                searchInputRef.current?.blur();
-              }
-            }
-            return next;
-          });
-        }
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [availablePromotions, isCollapsed]);
+
 
   const handleListKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (!listRef.current) return;
@@ -309,19 +286,26 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
                       <div className="pos-quick-action-icon-wrapper" style={{ color: "#d97706", marginBottom: 0 }}>
                         <Tag size={14} />
                       </div>
-                      <span style={{ 
-                        backgroundColor: "#fef3c7", color: "#b45309", fontSize: "10px", 
-                        fontWeight: "800", padding: "2px 6px", borderRadius: "4px" 
-                      }}>
-                        {badge}
-                      </span>
+                      <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                        {promo.products[0]?.product?.stock != null && promo.products[0]?.product?.stock <= 0 && (
+                          <span style={{ backgroundColor: "#fee2e2", color: "#dc2626", fontSize: "10px", fontWeight: "800", padding: "2px 6px", borderRadius: "4px" }}>
+                            Sin stock
+                          </span>
+                        )}
+                        <span style={{ 
+                          backgroundColor: "#fef3c7", color: "#b45309", fontSize: "10px", 
+                          fontWeight: "800", padding: "2px 6px", borderRadius: "4px" 
+                        }}>
+                          {badge}
+                        </span>
+                      </div>
                     </div>
                     
                     <span style={{ fontSize: "12px", fontWeight: "700", textAlign: "left", width: "100%", display: "block" }}>
                       {promo.name}
                     </span>
-                    <span style={{ fontSize: "10px", color: "#64748b", textAlign: "left", width: "100%", display: "block", marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {promo.products[0]?.product?.name}
+                    <span style={{ fontSize: "10px", color: promo.products[0]?.product?.stock != null && promo.products[0]?.product?.stock <= 0 ? "#dc2626" : "#64748b", textAlign: "left", width: "100%", display: "block", marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {promo.products[0]?.product?.name} {promo.products[0]?.product?.stock != null && promo.products[0]?.product?.stock <= 0 ? "(Sin existencias)" : ""}
                     </span>
 
                     {/* Expiration date and active status */}
@@ -342,12 +326,12 @@ export function PromotionsGrid({ cart: _cart, onAddProduct, onToast, cartDiscoun
                         </span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b" }}>
-                        <span>Estado:</span>
+                        <span>Estado / Stock:</span>
                         <span style={{ 
-                          color: promo.isActive !== false ? "#16a34a" : "#dc2626", 
+                          color: promo.products[0]?.product?.stock != null && promo.products[0]?.product?.stock <= 0 ? "#dc2626" : promo.isActive !== false ? "#16a34a" : "#dc2626", 
                           fontWeight: "bold"
                         }}>
-                          {promo.isActive !== false ? "Activa" : "Inactiva"}
+                          {promo.products[0]?.product?.stock != null && promo.products[0]?.product?.stock <= 0 ? "Sin stock" : promo.isActive !== false ? "Activa" : "Inactiva"}
                         </span>
                       </div>
                     </div>

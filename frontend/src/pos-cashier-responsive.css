@@ -1066,18 +1066,25 @@
   }
 
   .pos-cashier-cart-card {
-    flex: none !important;
-    overflow: visible !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
     padding: 16px !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 
   .pos-cashier-cart-scroll {
     width: 100%;
     overflow-x: hidden !important;
     overflow-y: auto !important;
-    max-height: 420px;
-    margin-bottom: 20px !important;
-    padding-top: 12px !important;
+    /* Flex-grow to fill available space inside pos-cashier-cart-card */
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin-bottom: 0 !important;
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
   }
 
   .pos-cart-count-badge {
@@ -1710,6 +1717,22 @@
   [class*="fkey"],
   [class*="shortcut"] {
     display: none !important;
+  }
+
+  /* Ocultar Promociones Activas inline en móvil/tablet:
+     en pantallas pequeñas se accede mediante el botón dedicado + modal */
+  .pos-promotions-inline-wrapper {
+    display: none !important;
+  }
+}
+
+/* Fix pantalla mediana/tablet (726–1023px): el panel de cobrar tapaba el último
+   producto del carrito. Se añade padding-bottom al scroll del carrito para que
+   siempre quede espacio suficiente antes de que empiece el área de cobro. */
+@media (min-width: 726px) and (max-width: 1023px) {
+  .pos-cashier-cart-scroll {
+    /* Espacio extra al fondo para que el área de cobro no tape el último producto */
+    padding-bottom: 8px !important;
   }
 }
 

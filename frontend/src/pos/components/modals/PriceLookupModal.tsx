@@ -289,36 +289,84 @@ export default function PriceLookupModal({
                   </tr>
                 </thead>
                 <tbody ref={tbodyRef}>
-                  {lookupResults.map((p, idx) => (
-                    <tr key={p.id} style={{ borderBottom: "1px solid var(--border-strong)", backgroundColor: lookupSelectionIndex === idx ? "var(--surface-2)" : "transparent" }} onMouseEnter={() => setLookupSelectionIndex?.(idx)}>
-                      <td style={{ padding: "12px 16px", fontSize: "14px", color: "var(--text)", fontWeight: "500" }}>{p.name}</td>
-                      <td style={{ padding: "12px 16px", fontSize: "14px", color: "var(--text)", fontWeight: "600" }}>${p.sellPrice.toFixed(2)}</td>
-                      <td style={{ padding: "12px 16px", fontSize: "14px", color: "var(--text)" }}>{p.stock}</td>
-                    </tr>
-                  ))}
+                  {lookupResults.map((p, idx) => {
+                    const isOutOfStock = p.stock <= 0;
+                    return (
+                      <tr
+                        key={p.id}
+                        style={{
+                          borderBottom: "1px solid var(--border-strong)",
+                          backgroundColor:
+                            lookupSelectionIndex === idx
+                              ? "var(--surface-2)"
+                              : isOutOfStock
+                              ? "rgba(254, 226, 226, 0.35)"
+                              : "transparent",
+                        }}
+                        onMouseEnter={() => setLookupSelectionIndex?.(idx)}
+                      >
+                        <td style={{ padding: "12px 16px", fontSize: "14px", color: isOutOfStock ? "#991b1b" : "var(--text)", fontWeight: "500" }}>
+                          {p.name}
+                        </td>
+                        <td style={{ padding: "12px 16px", fontSize: "14px", color: isOutOfStock ? "#991b1b" : "var(--text)", fontWeight: "600" }}>
+                          ${p.sellPrice.toFixed(2)}
+                        </td>
+                        <td style={{ padding: "12px 16px", fontSize: "14px", fontWeight: "700", color: isOutOfStock ? "#dc2626" : "var(--text)" }}>
+                          {isOutOfStock ? (
+                            <span style={{ backgroundColor: "#fee2e2", color: "#dc2626", padding: "2px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "800", display: "inline-block" }}>
+                              Sin existencia (0)
+                            </span>
+                          ) : (
+                            p.stock
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
             {/* Mobile: cards con scroll vertical */}
             <div className="pos-price-lookup-cards-wrap">
-              {lookupResults.map((p, idx) => (
-                <div
-                  key={p.id}
-                  className="pos-price-lookup-card"
-                  style={{ backgroundColor: lookupSelectionIndex === idx ? "var(--surface-2)" : "var(--surface)" }}
-                  onMouseEnter={() => setLookupSelectionIndex?.(idx)}
-                >
-                  <div style={{ fontWeight: "700", fontSize: "14px", color: "var(--text)", marginBottom: "6px" }}>{p.name}</div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>Precio:</span>
-                    <span style={{ fontSize: "16px", fontWeight: "800", color: "#059669" }}>${p.sellPrice.toFixed(2)}</span>
+              {lookupResults.map((p, idx) => {
+                const isOutOfStock = p.stock <= 0;
+                return (
+                  <div
+                    key={p.id}
+                    className="pos-price-lookup-card"
+                    style={{
+                      backgroundColor:
+                        lookupSelectionIndex === idx
+                          ? "var(--surface-2)"
+                          : isOutOfStock
+                          ? "#fef2f2"
+                          : "var(--surface)",
+                      borderColor: isOutOfStock ? "#fca5a5" : "var(--border)",
+                    }}
+                    onMouseEnter={() => setLookupSelectionIndex?.(idx)}
+                  >
+                    <div style={{ fontWeight: "700", fontSize: "14px", color: isOutOfStock ? "#991b1b" : "var(--text)", marginBottom: "6px" }}>
+                      {p.name}
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>Precio:</span>
+                      <span style={{ fontSize: "16px", fontWeight: "800", color: isOutOfStock ? "#991b1b" : "#059669" }}>${p.sellPrice.toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "4px" }}>
+                      <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>Existencia:</span>
+                      <span style={{ fontSize: "13px", fontWeight: "800", color: isOutOfStock ? "#dc2626" : "var(--text)" }}>
+                        {isOutOfStock ? (
+                          <span style={{ backgroundColor: "#fee2e2", color: "#dc2626", padding: "2px 6px", borderRadius: "4px" }}>
+                            Sin existencia (0)
+                          </span>
+                        ) : (
+                          p.stock
+                        )}
+                      </span>
+                    </div>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "4px" }}>
-                    <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>Existencia:</span>
-                    <span style={{ fontSize: "14px", fontWeight: "600", color: p.stock > 0 ? "var(--text)" : "#dc2626" }}>{p.stock}</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}

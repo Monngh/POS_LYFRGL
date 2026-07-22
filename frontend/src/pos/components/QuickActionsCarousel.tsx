@@ -19,7 +19,7 @@ interface QuickActionsCarouselProps {
 const ALL_ACTIONS = [
   { id: "price-lookup",        label: "Consultar precio",  icon: Search,       shortcutLetter: "Q" as GlobalQuickActionLetter, shortcutLabel: "Alt+Q" },
   { id: "bank-deposit",        label: "Depósito banco",    icon: PiggyBank,    shortcutLetter: "G" as GlobalQuickActionLetter, shortcutLabel: "Alt+G" },
-  { id: "promotions",          label: "Promociones",       icon: Tag },
+  { id: "promotions",          label: "Promociones",       icon: Tag,          shortcutLetter: "P" as GlobalQuickActionLetter, shortcutLabel: "Alt+P" },
   { id: "cancel-sale",         label: "Cancelar venta",    icon: XCircle,      shortcutLetter: "N" as GlobalQuickActionLetter, shortcutLabel: "Alt+N" },
   { id: "returns",             label: "Devoluciones",      icon: RotateCcw,    shortcutLetter: "D" as GlobalQuickActionLetter, shortcutLabel: "Alt+D" },
   { id: "ticket-history",      label: "Reimprimir ticket", icon: Printer,      shortcutLetter: "H" as GlobalQuickActionLetter, shortcutLabel: "Alt+H" },

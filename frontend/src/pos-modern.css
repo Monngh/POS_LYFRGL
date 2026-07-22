@@ -636,7 +636,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  overflow-y: auto;
+  overflow: hidden;
   min-width: 0;
 }
 
@@ -1586,10 +1586,15 @@
 @media (max-width: 1023px) {
   .pos-main-layout-container {
     flex-direction: column;
+    /* Bounded by parent height so children can flex correctly */
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
   }
   .pos-cart-col {
     flex: 1;
     min-height: 0;
+    overflow: hidden;
   }
   .pos-checkout-col {
     flex: 0 0 auto;
@@ -1695,9 +1700,9 @@
   }
 
   .pos-action-btns {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
   }
 
   .pos-btn-checkout {
@@ -2510,10 +2515,7 @@
   .show-on-mobile {
     display: none !important;
   }
-  /* Hide Promotions action on desktop — it's in the cart area instead */
-  .pos-promotions-sidebar-btn {
-    display: none !important;
-  }
+
   /* On desktop: show full center info, hide tablet-only badge */
   .pos-session-badge-tablet-only {
     display: none !important;
@@ -2618,8 +2620,8 @@
   }
 
   .pos-action-btns {
-    display: flex !important;
-    flex-direction: column !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
     gap: 10px !important;
     margin-top: 16px !important;
     width: 100% !important;
@@ -2941,13 +2943,18 @@
     font-size: 11px;
   }
 
-  /* The checkout column spans full width in the column layout */
+  /* The checkout column spans full width in the column layout.
+     Must NOT use height:auto or overflow:visible — those break the
+     viewport-bounded flex column and push content off-screen. */
   .pos-checkout-col {
     flex: 0 0 auto !important;
     width: 100% !important;
     max-width: 100% !important;
-    overflow-y: visible !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
     height: auto !important;
+    /* Safeguard: never take more than ~45% of viewport */
+    max-height: 45vh !important;
   }
   .pos-checkout-panel {
     height: auto !important;
@@ -2960,10 +2967,7 @@
    Promotions button is HIDDEN on laptop and desktop
    ============================================================ */
 @media (min-width: 1024px) and (max-width: 1439px) {
-  /* Hide Promotions action on laptop */
-  .pos-promotions-sidebar-btn {
-    display: none !important;
-  }
+
   .pos-sales-main-content {
     padding: 10px;
     gap: 10px;
