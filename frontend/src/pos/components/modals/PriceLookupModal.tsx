@@ -280,12 +280,17 @@ export default function PriceLookupModal({
           <>
             {/* Desktop/tablet: tabla clásica */}
             <div className="pos-price-lookup-table-wrap">
-              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", tableLayout: "fixed" }}>
+                <colgroup>
+                  <col style={{ width: "auto" }} />
+                  <col style={{ width: "140px", minWidth: "140px" }} />
+                  <col style={{ width: "90px", minWidth: "80px" }} />
+                </colgroup>
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)", backgroundColor: "var(--surface-2)" }}>
-                    <th style={{ padding: "12px 16px", fontSize: "12px", fontWeight: "600", color: "var(--text-secondary)" }}>Producto</th>
-                    <th style={{ padding: "12px 16px", fontSize: "12px", fontWeight: "600", color: "var(--text-secondary)" }}>Precio</th>
-                    <th style={{ padding: "12px 16px", fontSize: "12px", fontWeight: "600", color: "var(--text-secondary)" }}>Existencia</th>
+                    <th style={{ padding: "12px 16px", fontSize: "12px", fontWeight: "600", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Producto</th>
+                    <th style={{ padding: "12px 16px", fontSize: "12px", fontWeight: "600", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>Precio</th>
+                    <th style={{ padding: "12px 16px", fontSize: "12px", fontWeight: "600", color: "var(--text-secondary)" }}>Exist.</th>
                   </tr>
                 </thead>
                 <tbody ref={tbodyRef}>
@@ -305,20 +310,14 @@ export default function PriceLookupModal({
                         }}
                         onMouseEnter={() => setLookupSelectionIndex?.(idx)}
                       >
-                        <td style={{ padding: "12px 16px", fontSize: "14px", color: isOutOfStock ? "#991b1b" : "var(--text)", fontWeight: "500" }}>
+                        <td style={{ padding: "12px 16px", fontSize: "14px", color: isOutOfStock ? "#991b1b" : "var(--text)", fontWeight: "500", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {p.name}
                         </td>
-                        <td style={{ padding: "12px 16px", fontSize: "14px", color: isOutOfStock ? "#991b1b" : "var(--text)", fontWeight: "600" }}>
+                        <td style={{ padding: "12px 16px", fontSize: "14px", color: isOutOfStock ? "#991b1b" : "var(--text)", fontWeight: "600", whiteSpace: "nowrap" }}>
                           ${p.sellPrice.toFixed(2)}
                         </td>
                         <td style={{ padding: "12px 16px", fontSize: "14px", fontWeight: "700", color: isOutOfStock ? "#dc2626" : "var(--text)" }}>
-                          {isOutOfStock ? (
-                            <span style={{ backgroundColor: "#fee2e2", color: "#dc2626", padding: "2px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: "800", display: "inline-block" }}>
-                              Sin existencia (0)
-                            </span>
-                          ) : (
-                            p.stock
-                          )}
+                          {isOutOfStock ? 0 : p.stock}
                         </td>
                       </tr>
                     );
@@ -355,13 +354,7 @@ export default function PriceLookupModal({
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "4px" }}>
                       <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>Existencia:</span>
                       <span style={{ fontSize: "13px", fontWeight: "800", color: isOutOfStock ? "#dc2626" : "var(--text)" }}>
-                        {isOutOfStock ? (
-                          <span style={{ backgroundColor: "#fee2e2", color: "#dc2626", padding: "2px 6px", borderRadius: "4px" }}>
-                            Sin existencia (0)
-                          </span>
-                        ) : (
-                          p.stock
-                        )}
+                        {isOutOfStock ? 0 : p.stock}
                       </span>
                     </div>
                   </div>
