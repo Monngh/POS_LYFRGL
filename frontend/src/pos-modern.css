@@ -1579,6 +1579,11 @@
   border: 0;
 }
 
+/* Botón de promociones del menú: solo visible en tablet/móvil */
+.pos-promotions-sidebar-btn {
+  display: none !important;
+}
+
 /* ============================================================
    Responsive Overrides
    ============================================================ */
@@ -1661,6 +1666,11 @@
      (los accordions .pos-hide-on-mobile se restauran en el bloque tablet) */
   .hide-on-mobile {
     display: none !important;
+  }
+
+  /* Mostrar el botón de promociones en tablet/móvil */
+  .pos-promotions-sidebar-btn {
+    display: inline-flex !important;
   }
 
   /* .pos-sales-layout { flex-direction: column; } eliminado para soportar split-screen horizontal */
