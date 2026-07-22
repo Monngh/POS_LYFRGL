@@ -2849,8 +2849,25 @@
 
   /* Empty cart state */
   .pos-cashier-cart-table tbody tr.pos-cart-empty-row {
-    display: table-row !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
+    border: none !important;
+    background: transparent !important;
     grid-template-columns: unset !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+  .pos-cashier-cart-table tbody tr.pos-cart-empty-row td.pos-cashier-cart-empty {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
+    text-align: center !important;
+    border: none !important;
+    box-sizing: border-box !important;
+    padding: 24px 12px !important;
   }
 }
 

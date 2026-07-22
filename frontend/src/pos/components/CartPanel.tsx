@@ -116,11 +116,11 @@ export function CartPanel({ cartData, onToast: _onToast }: CartPanelProps) {
           </thead>
           <tbody>
             {cart.length === 0 ? (
-              <tr>
-                <td colSpan={hasDiscounts ? 7 : 6} style={{ textAlign: "center", padding: "16px 0", color: "var(--pos-text-muted, #94a3b8)", background: "var(--pos-surface-2, #f8fafc)" }}>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
-                    <span style={{ marginBottom: "4px" }}><ShoppingCart size={16} color="#94a3b8" /></span>
-                    <span style={{ fontSize: "12px", fontWeight: "500" }}>Sin productos. Escanee o busque.</span>
+              <tr className="pos-cart-empty-row">
+                <td className="pos-cashier-cart-empty" colSpan={hasDiscounts ? 7 : 6} style={{ textAlign: "center", padding: "32px 16px", color: "var(--pos-text-muted, #94a3b8)", background: "var(--pos-surface-2, #f8fafc)" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%", textAlign: "center", gap: "4px" }}>
+                    <span style={{ marginBottom: "4px", display: "inline-flex", justifyContent: "center", width: "100%" }}><ShoppingCart size={20} color="#94a3b8" /></span>
+                    <span style={{ fontSize: "13px", fontWeight: "600", textAlign: "center", display: "block", width: "100%" }}>Sin productos. Escanee o busque.</span>
                   </div>
                 </td>
               </tr>

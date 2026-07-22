@@ -66,7 +66,8 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
 
     const productsRaw = await prisma.product.findMany({
       where: whereCondition,
-      take: rawWords.length > 1 ? 40 : 15,
+      take: qStr ? (rawWords.length > 1 ? 40 : 25) : 100,
+      orderBy: { name: "asc" },
       include: {
         inventories: {
           where: { branchId: req.user.branchId },

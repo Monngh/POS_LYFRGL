@@ -486,9 +486,12 @@
   }
 
   .pos-cashier-cart-table .pos-cashier-cart-empty {
-    display: block !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
     padding: 24px 12px !important;
-    text-align: center;
+    text-align: center !important;
   }
 
   .pos-cashier-cart-table td > span[style*="backgroundColor"] {
