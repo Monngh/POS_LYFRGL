@@ -2961,17 +2961,16 @@
   }
 
   /* The checkout column spans full width in the column layout.
-     Must NOT use height:auto or overflow:visible — those break the
-     viewport-bounded flex column and push content off-screen. */
+     overflow-y is intentionally hidden here — internal sections
+     (parked sales, pending payments) have their own scrolls. */
   .pos-checkout-col {
     flex: 0 0 auto !important;
     width: 100% !important;
     max-width: 100% !important;
-    overflow-y: auto !important;
+    overflow-y: visible !important;
     overflow-x: hidden !important;
     height: auto !important;
-    /* Safeguard: never take more than ~45% of viewport */
-    max-height: 45vh !important;
+    max-height: 55vh !important;
   }
   .pos-checkout-panel {
     height: auto !important;
