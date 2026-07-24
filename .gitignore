@@ -67,3 +67,4 @@ ANALISIS_*.md
 secrets.json
 credentials.json
 .gemini/
+update_vps.sh

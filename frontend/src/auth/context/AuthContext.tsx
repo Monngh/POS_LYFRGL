@@ -93,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Compatibilidad: si el backend devolviera una sesión directa.
       if (data.token && data.user) {
         persistSession(data.token, data.user);
+        setLoading(false);
         return;
       }
 
@@ -133,6 +134,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       persistSession(verifyData.token, verifyData.user);
+      setLoading(false);
     } catch (error: any) {
       setLoading(false);
       // Si ya es un Error con mensaje propio (ceremonial WebAuthn), respétalo.
@@ -156,6 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setToken(receivedToken);
       setUser(receivedUser);
+      setLoading(false);
     } catch (error: any) {
       setLoading(false);
       // Propagar los datos estructurados del backend (código, intentos restantes,

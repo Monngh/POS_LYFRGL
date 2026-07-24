@@ -40,7 +40,14 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token, loading } = useAuth();
 
-  if (loading && token) return null;
+  if (loading && token) {
+    return (
+      <div style={styles.loadingScreen}>
+        <div style={styles.spinner} />
+        <p style={styles.loadingText}>LYFRGL Solutions • Cargando sesión...</p>
+      </div>
+    );
+  }
 
   return !token ? <>{children}</> : <Navigate to="/pos" replace />;
 };
