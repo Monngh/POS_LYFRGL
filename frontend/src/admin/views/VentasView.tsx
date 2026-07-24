@@ -145,6 +145,7 @@ const detailValueStyle: React.CSSProperties = {
 const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFilters }) => {
   const { showToast } = useToast();
   const isMobile = useMediaQuery("(max-width: 1024px)");
+  const isMediumScreen = useMediaQuery("(max-width: 1440px)");
   const [expandedSales, setExpandedSales] = useState<Record<number, boolean>>({});
 
   const toggleExpand = (id: number) => {
@@ -373,6 +374,8 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFilter
       ),
     },
   ];
+
+  const visibleColumns = isMediumScreen ? columns.filter((c) => c.key !== "customer") : columns;
 
   return (
     <div>
@@ -656,7 +659,7 @@ const VentasView: React.FC<ViewProps> = ({ branchId, refreshToken, initialFilter
             }
           `}</style>
           <DataTable
-            columns={columns}
+            columns={visibleColumns}
             data={paged.pageItems}
             loading={loading}
             error={error}
