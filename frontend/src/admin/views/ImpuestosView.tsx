@@ -680,6 +680,7 @@ const ImpuestosView: React.FC<ViewProps> = ({ refreshToken }) => {
     {
       key: "description",
       header: "Descripcion",
+      width: "280px",
       render: (tax) => (
         <span style={{ color: "var(--text-secondary)", whiteSpace: "normal" }}>{tax.description || "Sin descripcion"}</span>
       ),

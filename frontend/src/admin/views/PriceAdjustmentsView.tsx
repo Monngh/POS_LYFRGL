@@ -225,6 +225,7 @@ const InlineAlert: React.FC<{ tone: "success" | "warning" | "error" | "info"; ch
 const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
   const { showToast } = useToast();
   const isMobile = useMediaQuery("(max-width: 1024px)");
+  const isMediumScreen = useMediaQuery("(max-width: 1440px)");
   const filtersStacked = useMediaQuery("(max-width: 640px)");
   const overlayStyle = filtersStacked ? styles.compactOverlay : ui.overlay;
   const modalBodyStyle = filtersStacked ? styles.compactModalBody : ui.modalBody;
@@ -2090,18 +2091,18 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
 
       {isMobile ? renderHistoryCards() : (
       <div className="table-sticky-head" style={styles.historyTableWrap}>
-        <table style={styles.historyTable}>
+        <table style={isMediumScreen ? { ...styles.historyTable, minWidth: 976 } : styles.historyTable}>
           <colgroup>
             <col style={styles.historyDateColumn} />
             <col style={styles.historyUserColumn} />
             <col style={styles.historyScopeColumn} />
-            <col style={styles.historyCategoryColumn} />
+            {!isMediumScreen && <col style={styles.historyCategoryColumn} />}
             <col style={styles.historyOperationColumn} />
             <col style={styles.historyValueColumn} />
             <col style={styles.historyCountColumn} />
             <col style={styles.historyBelowCostColumn} />
-            <col style={styles.historyReversalColumn} />
-            <col style={styles.historyReasonColumn} />
+            {!isMediumScreen && <col style={styles.historyReversalColumn} />}
+            <col style={isMediumScreen ? styles.historyReasonColumnCompact : styles.historyReasonColumn} />
             <col style={styles.historyActionsColumn} />
           </colgroup>
           <thead>
@@ -2109,19 +2110,19 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
               <th style={styles.historyTh}>Fecha</th>
               <th style={styles.historyTh}>Usuario</th>
               <th style={styles.historyTh}>Alcance</th>
-              <th style={styles.historyTh}>Categoria</th>
+              {!isMediumScreen && <th style={styles.historyTh}>Categoria</th>}
               <th style={styles.historyTh}>Operacion</th>
               <th style={{ ...styles.historyTh, textAlign: "right" }}>Valor</th>
               <th style={{ ...styles.historyTh, textAlign: "right" }}>Productos</th>
               <th style={{ ...styles.historyTh, textAlign: "center" }}>Debajo</th>
-              <th style={styles.historyTh}>Reversión</th>
+              {!isMediumScreen && <th style={styles.historyTh}>Reversión</th>}
               <th style={styles.historyTh}>Motivo</th>
               <th style={{ ...styles.historyTh, textAlign: "center" }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
             <TableState
-              colSpan={11}
+              colSpan={isMediumScreen ? 9 : 11}
               loading={historyLoading}
               error={historyError}
               empty={!historyLoading && historyRows.length === 0}
@@ -2143,11 +2144,13 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                     </div>
                   </td>
                   <td style={styles.historyNowrapTd}>{scopeLabel(adjustment.scope)}</td>
-                  <td style={styles.historyTd}>
-                    <span style={styles.historyTruncateText} title={getHistoryCategoryText(adjustment)}>
-                      {getHistoryCategoryText(adjustment)}
-                    </span>
-                  </td>
+                  {!isMediumScreen && (
+                    <td style={styles.historyTd}>
+                      <span style={styles.historyTruncateText} title={getHistoryCategoryText(adjustment)}>
+                        {getHistoryCategoryText(adjustment)}
+                      </span>
+                    </td>
+                  )}
                   <td style={styles.historyTd}>
                     <span style={styles.historyTruncateText} title={adjustmentTypeLabel(adjustment.type, adjustment.direction)}>
                       {adjustmentTypeLabel(adjustment.type, adjustment.direction)}
@@ -2158,11 +2161,13 @@ const PriceAdjustmentsView: React.FC<ViewProps> = ({ refreshToken }) => {
                   <td style={styles.historyCenterTd}>
                     <Badge tone={adjustment.belowCostCount > 0 ? "red" : "green"}>{adjustment.belowCostCount}</Badge>
                   </td>
-                  <td style={styles.historyTd}>
-                    <span style={styles.historyReasonText} title={getHistoryReversalText(adjustment)}>
-                      {getHistoryReversalText(adjustment)}
-                    </span>
-                  </td>
+                  {!isMediumScreen && (
+                    <td style={styles.historyTd}>
+                      <span style={styles.historyReasonText} title={getHistoryReversalText(adjustment)}>
+                        {getHistoryReversalText(adjustment)}
+                      </span>
+                    </td>
+                  )}
                   <td style={styles.historyTd}>
                     <span style={styles.historyReasonText} title={getHistoryReasonText(adjustment)}>
                       {getHistoryReasonText(adjustment)}
@@ -3495,6 +3500,9 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   historyReasonColumn: {
     width: 232,
+  },
+  historyReasonColumnCompact: {
+    width: 176,
   },
   historyActionsColumn: {
     width: 86,
