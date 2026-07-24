@@ -2789,7 +2789,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     flexDirection: "column",
     gap: 18,
     width: "100%",
-    maxWidth: 1280,
   },
   panel: {
     ...ui.panel,
